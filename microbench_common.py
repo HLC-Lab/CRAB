@@ -18,7 +18,7 @@ class microbench(base):
         # Da ignorare, faremo su leonardo
         # if sys == "leonardo":
         #     p += os.environ["BLINK_ROOT"] + "/src/microbench/select_nic_ucx "
-        p += os.environ["BLINK_ROOT"] + "benchmarks/blink/bin/" + name
+        p += os.environ["BLINK_ROOT"] + "/benchmarks/blink/bin/" + name
         return p
 
     def read_data(self):
