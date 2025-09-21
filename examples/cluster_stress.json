@@ -1,0 +1,46 @@
+{
+    "global_options": {
+        "numnodes": "4",
+        "allocationmode": "l",
+        "allocationsplit": "e",
+        "minruns": "5",
+        "maxruns": "10",
+        "timeout": "1800.0",
+        "ppn": "1",
+        "convergeall": false,
+        "outformat": "csv",
+        "runtimeout": "stdout",
+        "seed": "42",
+        "extrainfo": "stress_test_4nodi_single_node_jobs"
+    },
+    "applications": {
+        "0": {
+            "path": "/home/marcelletti.1986290/crab/wrappers/a2a_b.py",
+            "args": "-msgsize 67108864 -iter 1000 -grty 1",
+            "collect": true,
+            "start": "0",
+            "end": ""
+        },
+        "1": {
+            "path": "/home/marcelletti.1986290/crab/wrappers/a2a_b.py",
+            "args": "-msgsize 67108864 -iter 500 -grty 1",
+            "collect": true,
+            "start": "0",
+            "end": "f"
+        },
+        "2": {
+            "path": "/home/marcelletti.1986290/crab/wrappers/barrier.py",
+            "args": "-iter 5000",
+            "collect": false,
+            "start": "0",
+            "end": "f"
+        },
+        "3": {
+            "path": "/home/marcelletti.1986290/crab/wrappers/ring_nb.py",
+            "args": "-msgsize 33554432 -iter 1000",
+            "collect": true,
+            "start": "0",
+            "end": "f"
+        }
+    }
+}
