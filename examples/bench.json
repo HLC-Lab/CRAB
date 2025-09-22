@@ -1,13 +1,14 @@
 {
     "global_options": {
-        "nodes": "auto",
+        "nodes": "file",
+        "node_file": "hosts",
         "numnodes": "1",
         "allocationmode": "l",
         "allocationsplit": "e",
         "minruns": "1",
-        "maxruns": "1",
+        "maxruns": "5",
         "timeout": "600.0",
-        "ppn": "1",
+        "ppn": "2",
         "convergeall": true,
         "outformat": "csv",
         "runtimeout": "stdout",
@@ -17,10 +18,10 @@
     },
     "applications": {
         "0": {
-            "path": "/home/marcio/Documenti/Uni/Tirocinio/crab/wrappers/g500.py",
-            "args": "12 16",
+            "path": "/home/marcio/Documenti/Uni/Tirocinio/crab/wrappers/ping-pong_b.py",
+            "args": "",
             "collect": true,
-            "start": "5",
+            "start": "0",
             "end": ""
         }
     }
