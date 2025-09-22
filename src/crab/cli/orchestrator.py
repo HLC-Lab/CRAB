@@ -52,7 +52,7 @@ def run_from_cli():
         with open('presets.json', 'r') as f:
             presets = json.load(f)
         available_presets = [k for k in presets if k != '_common']
-        help_text = f"Name of the preset to use. Available presets: {'\n - '.join(['', *available_presets])}"
+        help_text = f"Name of the preset to use. Can be specified in a .env var (see README)\nAvailable presets: {'\n - '.join(['', *available_presets])}"
     except FileNotFoundError:
         help_text = "Name of the preset to use (presets.json not found)."
     parser.add_argument("-p", "--preset", help=help_text)

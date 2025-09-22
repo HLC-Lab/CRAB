@@ -91,7 +91,7 @@ The TUI is ideal for configuring and launching experiments visually and interact
 
 **How to start it:**
 ```bash
-python main.py
+python tui.py
 ````
 
 The interface will guide you through:
@@ -108,16 +108,16 @@ The CLI is perfect for automation, scripting, and running batch tests.
 **Command syntax:**
 
 ```bash
-python run.py --preset <preset_name> <path_to_config.json>
+python cli.py --preset <preset_name> <path_to_config.json>
 ```
 
-* `--preset <preset_name>`: Specifies which environment to use, defined in `presets.json` (e.g., `my_cluster`).
+* `--preset <preset_name>`: Specifies which environment to use, defined in `presets.json` (e.g., `my_cluster`), default is 'local'.
 * `<path_to_config.json>`: The JSON file describing the experiment.
 
 **Example:**
 
 ```bash
-python run.py --preset my_cluster examples/stress_test.json
+python cli.py --preset my_cluster examples/stress_test.json
 ```
 
 Logs will be printed to the terminal, and data will be stored in the `data/` directory (or wherever `datapath` is set).
@@ -126,14 +126,14 @@ Logs will be printed to the terminal, and data will be stored in the `data/` dir
 
 The framework is designed with a clear separation of responsibilities:
 
-1. **Entrypoints (`run.py` / `main.py`)**: The user interfaces (CLI or TUI). Their only job is to collect configuration, prepare the environment (`os.environ`), and start the engine.
-2. **Engine (`blink_core.py`)**: The core of the framework. Receives a prepared environment and configuration. It handles:
+1. **Entrypoints (`cli.py` / `tui.py`)**: The user interfaces (CLI or TUI). Their only job is to collect configuration, prepare the environment (`os.environ`), and start the engine.
+2. **Engine (`engine.py`)**: The core of the framework. Receives a prepared environment and configuration. It handles:
 
    * Node allocation (via Slurm, if used).
    * Application scheduling.
    * Benchmark process launching through the workload manager.
    * Completion monitoring, data collection, and convergence checking.
-3. **Workload Manager (`app/core/wl_manager/*.py`)**: Specialized modules that translate a request ("run this command on these nodes") into system-specific commands (e.g., `srun, mpirun ...`).
+3. **Workload Manager (`src/crab/core/wl_manager/*.py`)**: Specialized modules that translate a request ("run this command on these nodes") into system-specific commands (e.g., `srun, mpirun ...`).
 4. **Application Wrappers (`wrappers/*.py`)**: Small Python modules that "wrap" a specific benchmark, teaching the framework how to run it and interpret its output.
 
 ## 🧩 Adding a New Benchmark
@@ -147,7 +147,7 @@ Integrating a new executable into the framework is simple and does not require m
 
    ```python
    # in wrappers/my_benchmark.py
-   from wrappers.base import base  # or from microbench_common
+   from wrappers.base import base
 
    class app(base):
        # ... implementation here ...
@@ -211,6 +211,14 @@ Defines system environments.
 
 * `_common`: A special object with environment variables shared by all presets.
 * `"preset_name"`: An object defining variables for a specific system. These override `_common` values.
+
+### The `.env` File
+The name of the used preset can be specified in a optional `.env` file.
+The content of the file should only be a valid name of a prest present in `preset.json`.
+Example:
+```
+leonardo
+```
 
 ### The Benchmark Config File
 
