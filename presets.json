@@ -56,7 +56,7 @@
         "BLINK_NG_CONFIGURE_FLAGS": "HRT_ARCH=6",
         "BLINK_WL_MANAGER": "slurm",
         "BLINK_AMG_PATH": "",
-        "BLINK_G500_PATH": "",
+        "BLINK_G500_PATH": "/home/marcio/Documenti/Uni/Tirocinio/graph500/src/graph500_reference_bfs",
         "BLINK_MINIFE_PATH": ""
     },
     "haicgu": {
@@ -217,27 +217,5 @@
         "BLINK_AMG_PATH": "/scratch/2/t2hx/AMG/test/amg",
         "BLINK_G500_PATH": "/scratch/2/t2hx/graph500/mpi/runnable",
         "BLINK_MINIFE_PATH": "/scratch/2/t2hx/miniFE/ref/src/miniFE.x"
-    },
-    "prova": {
-        "BLINK_ROOT": "__CWD__",
-        "BLINK_GPU_MICROBENCH_BRANCH": "sc24",
-        "BLINK_GPU_MICROBENCH_COMMIT": "ca28ced",
-        "BLINK_NCCL_TESTS_COMMIT": "128334135db5476a1553505ff30d26c9568df1ae",
-        "BLINK_DNN_PROXIES_COMMIT": "128334135db5476a1553505ff30d26c9568df1ae",
-        "var1": "valore1"
-    },
-    "prova2": {
-        "BLINK_GPU_MICROBENCH_COMMIT": "ca28ced",
-        "BLINK_NCCL_TESTS_COMMIT": "128334135db5476a1553505ff30d26c9568df1ae",
-        "BLINK_DNN_PROXIES_COMMIT": "128334135db5476a1553505ff30d26c9568df1ae",
-        "var1": "valore1"
-    },
-    "sadsa": {
-        "BLINK_ROOT": "__CWD__",
-        "BLINK_GPU_MICROBENCH_BRANCH": "sc24",
-        "BLINK_GPU_MICROBENCH_COMMIT": "ca28ced",
-        "BLINK_NCCL_TESTS_COMMIT": "128334135db5476a1553505ff30d26c9568df1ae",
-        "BLINK_DNN_PROXIES_COMMIT": "128334135db5476a1553505ff30d26c9568df1ae",
-        "asd": "sds"
     }
 }

@@ -13,10 +13,10 @@ class wl_manager:
     # Returns a string that can be used to run command 'cmd'
     # on the nodes in 'node_list' with 'ppn' processes per node.
     def run_job(self, node_list, ppn, cmd):
-        print("[DEBUG]: Node List is: " + str(node_list))
         num_nodes=len(node_list)
         node_list_string=','.join(node_list)
-        slurm_string=('srun --nodelist ' + node_list_string + \
+        slurm_string=('srun ' + \
+                        '--nodelist ' + node_list_string + \
                       ' ' + os.environ["BLINK_PINNING_FLAGS"] + \
                       ' -n ' + str(ppn*num_nodes) + \
                       ' -N ' + str(num_nodes) + ' ' + cmd)

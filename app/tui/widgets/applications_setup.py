@@ -88,9 +88,6 @@ class ApplicationSetup(Container):
         return self.benchmark_states.copy()
 
     async def set_state(self, state: dict):
-        with open("application_setup.log", "w") as log_file:
-            log_file.write(f"Setting new state: {state}\n")
-
         # 1. Pulisce lo stato e l'interfaccia esistenti
         self.benchmark_states.clear()
         self.forms_list.clear()

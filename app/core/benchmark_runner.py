@@ -71,13 +71,13 @@ class BlinkRunner:
         nodes = "auto" if execution_env.get("BLINK_WL_MANAGER") == "slurm" else node_file_path
 
         # command = [
-        #     "python3", "-u", "runner.py", app_mix_path, nodes,
+        #     "python3", "-u", "blink_core.py", app_mix_path, nodes,
         #     "-n", "1", "-am", "l", "-mn", "1", "-mx", "2",
         #     "-t", "600", "-p", "2", "-ro", "stdout"
         # ]
 
         command = [
-            "python", "-u", "runner.py", "prova6.json"
+            "python", "-u", "blink_core.py", "prova6.json"
         ]
 
         self.log(f"[bold red]Starting benchmark...[/]")
@@ -98,7 +98,7 @@ class BlinkRunner:
             self.log(f"\n[bold green]Benchmark finished with exit code: {process.returncode}[/]")
 
         except FileNotFoundError:
-            self.log("[bold red]Error: 'runner.py' not found.[/]")
+            self.log("[bold red]Error: 'blink_core.py' not found.[/]")
         except Exception as e:
             self.log(f"[bold red]An error occurred: {e}[/]")
 

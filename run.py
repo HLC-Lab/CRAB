@@ -6,51 +6,45 @@ import subprocess
 import sys
 from typing import Dict, Any
 
-def load_environment_config(preset_arg: str, presets_file_path: str) -> Dict[str, Any]:
+def load_environment_config(preset_arg: str) -> Dict[str, Any]:
     """
-    Carica la configurazione dell'ambiente da un nome di preset o da un file.
+    Loads the environment configuration from a preset name.
+
+    The function looks for a file named 'presets.json' in the current directory,
+    finds the specified preset, and merges it with the '_common' configuration.
 
     Args:
-        preset_arg: Il valore dell'argomento --preset (un nome o un path a un file).
-        presets_file_path: Il percorso del file JSON dei preset centralizzati.
+        preset_arg: The name of the preset to load (e.g., "lumi", "local").
 
     Returns:
-        Un dizionario con le variabili d'ambiente da impostare.
+        A dictionary containing the environment variables to set.
+
+    Raises:
+        FileNotFoundError: If the 'presets.json' file is not found.
+        KeyError: If the requested 'preset_arg' does not exist in 'presets.json'.
     """
-    env_config = {}
-
-    # Caso 1: L'argomento è un path a un file JSON
-    if os.path.exists(preset_arg) and preset_arg.endswith('.json'):
-        print(f"Info: Caricamento dell'ambiente dal file: {preset_arg}")
-        with open(preset_arg, 'r') as f:
-            env_config = json.load(f)
-        # Aggiungiamo BLINK_SYSTEM basato sul nome del file per coerenza
-        preset_name = os.path.splitext(os.path.basename(preset_arg))[0]
-        if "BLINK_SYSTEM" not in env_config:
-            env_config["BLINK_SYSTEM"] = preset_name
-        return env_config
-
-    # Caso 2: L'argomento è un nome di preset
-    print(f"Info: Caricamento del preset '{preset_arg}' da {presets_file_path}")
+    presets_filename = "presets.json"
+    print(f"Info: Loading preset '{preset_arg}' from {presets_filename}")
+    
     try:
-        with open(presets_file_path, 'r') as f:
+        with open(presets_filename, 'r') as f:
             all_presets = json.load(f)
     except FileNotFoundError:
-        print(f"[Errore] File dei preset non trovato in: {presets_file_path}", file=sys.stderr)
-        sys.exit(1)
+        # Raise an exception that the caller will have to handle.
+        raise FileNotFoundError(f"The presets file '{presets_filename}' was not found.")
 
-    # Unisci le variabili comuni (_common) con quelle specifiche del preset
+    # Check if the preset exists in the file.
+    if preset_arg not in all_presets:
+        # Raise an exception to indicate that the preset is not valid.
+        raise KeyError(f"The preset '{preset_arg}' was not found in {presets_filename}.")
+
+    # Merge the common variables ('_common') with the specific preset variables.
     base_env = all_presets.get("_common", {})
+    preset_env = all_presets[preset_arg] # Now we use direct access, which is safer after the check.
     
-    preset_env = all_presets.get(preset_arg)
-    if preset_env is None:
-        print(f"[Errore] Preset '{preset_arg}' non trovato in {presets_file_path}", file=sys.stderr)
-        sys.exit(1)
-        
     env_config = {**base_env, **preset_env}
 
-    # Per coerenza con la TUI, imposta BLINK_SYSTEM con il nome del preset
-    # se non è già definito esplicitamente nel preset stesso.
+    # Set BLINK_SYSTEM with the preset name if not already explicitly defined.
     if "BLINK_SYSTEM" not in env_config:
         env_config["BLINK_SYSTEM"] = preset_arg
 
@@ -91,36 +85,40 @@ def prepare_execution_environment(env_config: Dict[str, Any]) -> Dict[str, str]:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Punto di ingresso per l'esecuzione dei benchmark tramite CLI.",
+        description="Entry point for running benchmarks via CLI.",
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
         "app_config_file",
-        help="Path al file JSON di configurazione delle applicazioni e opzioni globali."
+        help="Path to the JSON configuration file for applications and global options.\n" +
+                "It can override environment variables, see README.md for details."
     )
-    parser.add_argument(
-        "-p", "--preset",
-        default="local",
-        help="Nome del preset da usare (da presets.json) o path a un file di ambiente JSON.\nDefault: 'local'."
-    )
-    parser.add_argument(
-        "--presets-file",
-        default="presets.json",
-        help="Path al file JSON contenente tutti i preset.\nDefault: 'presets.json'."
-    )
+
+    # Loads available presets for help text
+    try:
+        with open('presets.json', 'r') as f:
+            presets = json.load(f)
+        available_presets = [k for k in presets if k != '_common']
+        help_text = f"Name of the preset to use. Available presets: {'\n - '.join(['', *available_presets])}"
+
+    except FileNotFoundError:
+        help_text = "Name of the preset to use (presets.json not found)."
+
+    parser.add_argument("-p", "--preset", default="local", help=help_text)
+
     args = parser.parse_args()
 
     # 1. Carica la configurazione dell'ambiente
-    env_config = load_environment_config(args.preset, args.presets_file)
+    env_config = load_environment_config(args.preset)
 
     # 2. Prepara l'ambiente di esecuzione completo
     execution_env = prepare_execution_environment(env_config)
 
-    # 3. Costruisci ed esegui il comando per runner.py
-    command = ["python", "-u", "runner.py", args.app_config_file]
+    # 3. Costruisci ed esegui il comando per blink_core.py
+    command = ["python", "-u", "blink_core.py", args.app_config_file]
     
     print("-" * 50)
-    print(f"Avvio di runner.py con il preset '{args.preset}'...")
+    print(f"Avvio di blink_core.py con il preset '{args.preset}'...")
     print(f"Comando: {' '.join(command)}")
     print("-" * 50)
 
@@ -147,7 +145,7 @@ def main():
         print("-" * 50)
 
     except FileNotFoundError:
-        print(f"[Errore] Comando 'python' o 'runner.py' non trovato. Assicurati che siano nel tuo PATH.", file=sys.stderr)
+        print(f"[Errore] Comando 'python' o 'blink_core.py' non trovato. Assicurati che siano nel tuo PATH.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"[Errore] Si è verificato un errore imprevisto: {e}", file=sys.stderr)
