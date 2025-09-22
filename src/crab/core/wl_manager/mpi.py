@@ -22,4 +22,5 @@ class wl_manager:
                   os.environ["BLINK_PINNING_FLAGS"] + " " + \
                   os.environ["BLINK_MPIRUN_HOSTNAMES_FLAG"] + " " + node_list_string + " " + \
                   "-np " + str(ppn*num_nodes) + " " + cmd
+        print("[DEBUG]: MPI command is: " + job_cmd)
         return job_cmd

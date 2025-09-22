@@ -255,7 +255,7 @@ class Engine:
 
             # --- Node file and nodes extraction ---
             nodes = global_options.get('nodes', 'auto')
-            node_file = global_options.get('node_file')
+            node_file = global_options.get('node_file', '')
 
             if nodes == "file" and not node_file:
                 raise Exception("If 'nodes' is set to 'file', 'node_file' must be specified.")
@@ -310,6 +310,14 @@ class Engine:
                     subprocess.call(["scontrol", "show", "hostnames", nodelist], stdout=f)
                 node_file = node_file_path # Update node_file to the path of the generated file
 
+            elif nodes == "file":
+                node_file_path = node_file
+                if not os.path.isfile(node_file_path):
+                    raise Exception(f"Node file '{node_file_path}' does not exist.")
+                node_file = node_file_path
+            else:
+                raise Exception(f"Unknown nodes option: {nodes}")
+
 
             # --- Output Directory and Metadata Logging Setup ---
             # Create header in the main description file if it doesn't exist.
@@ -338,6 +346,10 @@ class Engine:
 
             self.log('\nConfig from JSON:')
             self.log(json.dumps(config, indent=4))
+
+            # Saves the JSON config used for this run in the data directory.
+            with open(os.path.join(data_directory, 'config.json'), 'w') as config_file:
+                json.dump(config, config_file, indent=4)
 
             # --- Application and Schedule Initialization ---
             num_apps = 0
