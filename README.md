@@ -1,10 +1,9 @@
-# 🦀 Crab Benchmark Framework
-
+# 🦀 C.R.A.B (Co-Running Applications Benchmarking framework)
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/actions)
 
-**Crab** is a flexible and powerful framework for executing, collecting, and analyzing high-performance benchmarks (HPC), optimized for clusters managed by **Slurm**. It allows you to orchestrate combinations of applications, manage system-specific environments, and automate the entire benchmarking process.
+**CRAB** is a flexible and powerful framework for executing, collecting, and analyzing high-performance benchmarks (HPC), optimized for clusters managed by **Slurm**. It allows you to orchestrate combinations of applications, manage system-specific environments, and automate the entire benchmarking process.
 
 ![asciicast](https://user-images.githubusercontent.com/11363902/203875389-918931a5-e110-4107-8854-c8c3656ab3e2.gif)
 
@@ -84,7 +83,7 @@
 
 ## 🕹️ Using the Framework
 
-You can interact with Crab in two ways: through the TUI or the CLI.
+You can interact with CRAB in two ways: through the TUI or the CLI.
 
 ### TUI Mode (Interactive)
 
