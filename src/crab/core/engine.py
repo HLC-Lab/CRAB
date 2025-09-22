@@ -252,15 +252,19 @@ class Engine:
             # Usa l'environment passato come parametro
             import_path_wlm = "./src/crab/core/wl_manager/" + \
                 os.environ["BLINK_WL_MANAGER"] + ".py"
-            
+
+            # --- Node file and nodes extraction ---
+            nodes = global_options.get('nodes', 'auto')
             node_file = global_options.get('node_file')
-            if not node_file:
-                node_file = global_options.get('nodes', 'auto')
+
+            if nodes == "file" and not node_file:
+                raise Exception("If 'nodes' is set to 'file', 'node_file' must be specified.")
 
             num_nodes_str = global_options.get('numnodes')
             if num_nodes_str is None or not str(num_nodes_str).isdigit():
                 raise ValueError("La chiave 'numnodes' nel file JSON e' obbligatoria e deve essere un intero.")
             num_nodes = int(num_nodes_str)
+
 
             # --- Parameter extraction from config dictionaries ---
             allocation_mode = global_options.get('allocationmode', 'l')
@@ -280,24 +284,32 @@ class Engine:
             random.seed(int(global_options.get('seed', 1)))
 
             # --- Node file and SLURM auto-detection ---
-            if node_file == "auto":
-                # The 'auto' node_file feature requires SLURM.
+            if nodes in ["auto", "mixed", "idle"]:
+                # The 'auto' nodes feature requires SLURM.
                 if "BLINK_WL_MANAGER" not in os.environ or os.environ["BLINK_WL_MANAGER"] != "slurm":
                     raise Exception("'auto' node file can only be used if SLURM is the workload manager.")
-                
+
                 node_file_path = "auto_node_file_" + str(os.getpid()) + ".txt"
 
-                # Get a list of available (idle or mixed) nodes from SLURM.
-                nodelist = subprocess.check_output(["sinfo", "-h", "-o", "%N", "-t", "idle,mixed"], text=True).strip()
+                # Get a list of available nodes from SLURM, depending on the specified mode.
+                if nodes == "auto":
+                    nodelist = subprocess.check_output(["sinfo", "-h", "-o", "%N"], text=True).strip()
+                elif nodes == "mixed":
+                    nodelist = subprocess.check_output(["sinfo", "-h", "-o", "%N", "-t", "mixed"], text=True).strip()
+                elif nodes == "idle":
+                    nodelist = subprocess.check_output(["sinfo", "-h", "-o", "%N", "-t", "idle"], text=True).strip()
+                else:
+                    raise Exception(f"Unknown node_file option: {nodes}")
 
                 # Check if any nodes were found.
                 if not nodelist:
-                    raise Exception("Error: No 'idle' or 'mixed' nodes found on the cluster at this time. Please try again later.")
-                
+                    raise Exception("Error: No availables nodes found on the cluster at this time. Please try again later, or change the config.")
+
                 # Write the hostnames to a temporary file.
                 with open(node_file_path, "w") as f:
                     subprocess.call(["scontrol", "show", "hostnames", nodelist], stdout=f)
                 node_file = node_file_path # Update node_file to the path of the generated file
+
 
             # --- Output Directory and Metadata Logging Setup ---
             # Create header in the main description file if it doesn't exist.
@@ -323,7 +335,7 @@ class Engine:
                     f"{allocation_mode},{allocation_split},{ppn},{out_format},{extra},{data_directory}\n"
                 )
                 desc_file.write(desc_line)
-                   
+
             self.log('\nConfig from JSON:')
             self.log(json.dumps(config, indent=4))
 
@@ -564,14 +576,10 @@ class Engine:
             self.log('Overall took '+str(round(time.time() - pre_start_time, 5))+'s.')
 
             # Cleanup temporary node file if it was created
-            if 'auto_node_file_' in node_file and os.path.exists(node_file):
-                # TODO: capire perche' elimina il file dei nodi
-                # os.remove(node_file)
-                pass
+            if 'auto_node_file' in node_file_path and os.path.exists(node_file_path):
+                os.remove(node_file_path)
 
         finally:
             # 4. Ripristina l'ambiente originale, qualunque cosa accada (anche in caso di errore)
-            # Questo è FONDAMENTALE per non "inquinare" l'ambiente del processo
-            # principale.
             os.environ.clear()
             os.environ.update(original_environ)

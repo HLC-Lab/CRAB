@@ -326,6 +326,12 @@ Select.option-input {
     width: 30;
 }
 
+/* Data Label */
+.datatable {
+    width: auto;
+    margin: 1 0;
+}
+
 /* Stile per il container dei pulsanti in fondo */
 .button-container {
     align: center middle;

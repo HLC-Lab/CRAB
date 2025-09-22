@@ -1,5 +1,8 @@
 from textual.containers import Container, VerticalScroll, Horizontal
-from textual.widgets import Button, Input, Label, Select, Switch
+from textual.widgets import Button, DataTable, Input, Label, Select, Switch
+from textual import on
+
+import subprocess
 
 class BenchmarkOptions(VerticalScroll):
     """Un widget per configurare ed eseguire un benchmark."""
@@ -12,6 +15,9 @@ class BenchmarkOptions(VerticalScroll):
         """Imposta il titolo del bordo quando il widget viene montato."""
         self.border_title = "Benchmark Configuration"
 
+        data_table = self.query_one("#node_table", DataTable)
+        data_table.add_column("Available Nodes")
+
 
     def compose(self):
         """Crea i widget figli per il form delle opzioni."""
@@ -21,11 +27,12 @@ class BenchmarkOptions(VerticalScroll):
             yield Label("Nodes:", classes="option-label")
             yield Select([
                 ("All Nodes", "auto"),
-                ("Available Nodes", "avail"),
+                ("Mixed Nodes", "mixed"),
                 ("Idle Nodes", "idle"),
                 ("From File", "file")
             ], value="auto", id="nodes", classes="option-input")
-            yield Input(placeholder="Path to node list file or 'auto'", id="node_file", classes="option-input")
+            yield Input(placeholder="Path to node list file", id="node_file", classes="option-input")
+            yield DataTable(id="node_table", classes="datatable")
 
         # --- Argomenti Opzionali ---
         with Container(classes="option-group"):
@@ -105,11 +112,6 @@ class BenchmarkOptions(VerticalScroll):
             yield Label("Replace Mix Args:", classes="option-label")
             yield Input(placeholder="e.g., server:1.2.3.4,client:5.6.7.8", id="replace_mix_args", classes="option-input")
 
-        # --- Pulsanti di Azione ---
-        with Horizontal(classes="button-container"):
-            yield Button("Save Options", variant="primary", id="button-save-options")
-            yield Button("Load Options", id="button-load-options")
-
 
     def get_state(self) -> dict:
         """
@@ -140,3 +142,41 @@ class BenchmarkOptions(VerticalScroll):
                 widget.value = value
             except Exception as e:
                 self.app.log(f"Could not set state for widget '{widget_id}': {e}")
+
+
+    @on (Select.Changed) 
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Gestisce i cambiamenti nelle selezioni."""
+        if event.select.id == "nodes":
+            node_file_input = self.query_one("#node_file", Input)
+
+            data_table = self.query_one("#node_table", DataTable)
+            data_table.clear()
+
+            if event.value == "file":
+                node_file_input.visible= True
+                data_table.visible= False
+            else:
+                data_table.visible= True
+
+                nodelist = ""
+                if event.value == "auto":
+                    nodelist = subprocess.check_output(["sinfo", "-h", "-o", "%N"], text=True).strip()
+                elif event.value == "mixed":
+                    nodelist = subprocess.check_output(["sinfo", "-h", "-t", "mix", "-o", "%N"], text=True).strip()
+                elif event.value == "idle":
+                    nodelist = subprocess.check_output(["sinfo", "-h", "-t", "idle", "-o", "%N"], text=True).strip()
+
+                nodes = nodelist.split("\n")
+
+                if nodes is None or len(nodes) == 0 or (len(nodes) == 1 and nodes[0] == ""):
+                    data_table.add_row("No nodes found.")
+                else:
+                    for node in nodes:
+                        data_table.add_row(node)
+
+
+
+                node_file_input.visible= False
+                node_file_input.value = ""
+
