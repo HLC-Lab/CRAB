@@ -5,7 +5,7 @@
         "allocationmode": "l",
         "allocationsplit": "e",
         "minruns": "1",
-        "maxruns": "5",
+        "maxruns": "1",
         "timeout": "600.0",
         "ppn": "1",
         "convergeall": true,
