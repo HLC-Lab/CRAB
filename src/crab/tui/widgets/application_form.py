@@ -11,9 +11,6 @@ from textual_fspicker import FileOpen
 
 from .environment_settings import EnvironmentSettings
 
-from app.core.benchmark_runner import BlinkRunner
-from app.core.models import BenchmarkState, AppConfig
-
 import os
 import json
 import threading
@@ -49,12 +46,6 @@ class ApplicationForm(Vertical):
 
         yield Label("End Time (s), 'f' or empty:")
         yield Input(placeholder="f", id="end", value=self.form_data["end"])
-
-
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "run-benchmark":
-            self.run_benchmark()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id in self.form_data:
