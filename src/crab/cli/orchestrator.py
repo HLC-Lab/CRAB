@@ -55,12 +55,26 @@ def run_from_cli():
         help_text = f"Name of the preset to use. Available presets: {'\n - '.join(['', *available_presets])}"
     except FileNotFoundError:
         help_text = "Name of the preset to use (presets.json not found)."
-    parser.add_argument("-p", "--preset", default="local", help=help_text)
+    parser.add_argument("-p", "--preset", help=help_text)
     args = parser.parse_args()
 
     try:
+        # 1. Checks if .env file exists and loads it
+        selected_preset = ""
+        if os.path.exists(".env") and not args.preset:
+            try:
+                with open(".env", "r") as f:
+                    selected_preset = f.read().strip()
+            except Exception as e:
+                self.log(f"Could not read .env file: {e}")
+        else:
+            if not args.preset:
+                selected_preset = "local"
+            else:
+                selected_preset = args.preset
+
         # 1. Carica la configurazione dell'ambiente
-        env_config = load_environment_config(args.preset)
+        env_config = load_environment_config(selected_preset)
 
         # 2. Prepara l'ambiente di esecuzione
         execution_env = prepare_execution_environment(env_config)
@@ -71,7 +85,7 @@ def run_from_cli():
 
         # 4. Istanzia ed esegui il motore
         print("-" * 50)
-        print(f"Avvio del motore con il preset '{args.preset}'...")
+        print(f"Avvio del motore con il preset '{selected_preset}'...")
         print("-" * 50)
 
         engine = Engine(log_callback=print)

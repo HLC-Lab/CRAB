@@ -180,41 +180,6 @@ class BenchmarkApp(App):
         except Exception as e:
             self.notify(f"Error loading file: {e}", severity="error")
 
-
-
-    @on(RunBenchmark)
-    @work
-    async def handle_run_request(self) -> None:
-        """
-        Handles the request to run the benchmark.
-        Gathers all necessary data and starts the benchmark process.
-        """
-        # 1. Prepare the TUI: clear the log and show the correct tab
-        log = self.query_one("#runner-log", RichLog)
-        log.clear()
-        self.show_tab(3)
-
-        # 2. Gather data from the UI and create a state object
-        self.save_benchmark_state()
-
-        # Convert the applications state dictionary into AppConfig objects for our BenchmarkState
-        from app.core.benchmark_state import BenchmarkState, AppConfig
-        apps_config = {
-            bid: AppConfig(**bdata) for bid, bdata in self.applications_container.benchmark_states.items()
-        }
-        state_to_run = BenchmarkState(apps=apps_config)
-
-        # 3. Define the callback that the runner will use to communicate with the TUI
-        def log_to_tui(message: str):
-            self.call_from_thread(log.write, message)
-
-        # 4. Gather environment settings from the TUI
-        tui_settings = self.current_environment_settings.copy()
-        selected_preset = self.env_container.current_preset_name
-
-        # 5. Import, instantiate, and start the runner
-        from app.core.benchmark_runner import BlinkRunner
-
     @on(RunBenchmark)
     @work
     async def handle_run_request(self) -> None:

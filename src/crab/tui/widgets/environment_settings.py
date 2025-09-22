@@ -5,6 +5,7 @@ from textual.message import Message
 
 from .variable_row import VariableRow
 import json
+import os
 
 class EnvironmentSettings(Container):
 
@@ -17,7 +18,22 @@ class EnvironmentSettings(Container):
     def __init__(self):
         super().__init__()
         self.presets = self._load_presets()
-        self.current_preset_name = "local"
+
+        selected_preset = ""
+        # Checks if .env file exists and loads the preset name from it
+        if os.path.exists(".env"):
+            try:
+                with open(".env", "r") as f:
+                    selected_preset = f.read().strip()
+            except Exception as e:
+                self.log(f"Could not read .env file: {e}")
+        else:
+            selected_preset = "local"
+
+        if selected_preset not in self.presets:
+            raise Exception(f"Preset '{selected_preset}' not found in presets.json")
+
+        self.current_preset_name = selected_preset 
 
     def _load_presets(self) -> dict:
         try:
