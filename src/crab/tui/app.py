@@ -7,7 +7,6 @@ from textual_fspicker import FileSave, FileOpen
 import json
 import os
 
-from .constants import SECTIONS
 from .messages import SaveConfiguration, LoadConfiguration, RunBenchmark
 from .widgets.tab_selector import TabSelector
 from .widgets.applications_setup import ApplicationSetup
@@ -15,8 +14,6 @@ from .widgets.benchmark_options import BenchmarkOptions
 from .widgets.environment_settings import EnvironmentSettings
 
 from .controller import TUIController
-
-from ..core.models import BenchmarkState, AppConfig
 
 class BenchmarkApp(App):
     CSS_PATH = "assets/tui.tcss"
@@ -76,6 +73,12 @@ class BenchmarkApp(App):
         if self.applications_container and hasattr(self.applications_container, 'save_current_form_state'):
             self.applications_container.save_current_form_state()
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id and event.button.id.startswith("tab-"):
+            index = int(event.button.id.split("-")[1])
+            self.show_tab(index)
+            event.stop()
+
     def show_tab(self, index: int):
         if self.current_tab == 0 and index != 0: self.save_benchmark_state()
         self.current_tab = index
@@ -88,11 +91,7 @@ class BenchmarkApp(App):
     def update_tabs(self):
         for i, tab_button in enumerate(self.query(".tab")):
             tab_button.variant = "primary" if i == self.current_tab else "default"
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id and event.button.id.startswith("tab-"):
-            index = int(event.button.id.split("-")[1])
-            self.show_tab(index)
-            event.stop()
+
 
     def key_space(self) -> None:
         self.handle_run_request()
