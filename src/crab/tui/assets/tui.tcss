@@ -326,6 +326,16 @@ Select.option-input {
     width: 30;
 }
 
+/* Label */
+.option-container {
+    margin-bottom: 1;
+}
+
+.option-container Label {
+    color: cyan;
+    margin-bottom: 0;
+}
+
 /* Data Label */
 .datatable {
     width: auto;

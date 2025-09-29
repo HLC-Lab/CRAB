@@ -14,11 +14,14 @@ def load_environment_config(preset_arg: str) -> Dict[str, Any]:
             all_presets = json.load(f)
     except FileNotFoundError:
         raise FileNotFoundError(f"The presets file '{presets_filename}' was not found.")
+
     if preset_arg not in all_presets:
         raise KeyError(f"The preset '{preset_arg}' was not found in {presets_filename}.")
+
     base_env = all_presets.get("_common", {})
     preset_env = all_presets[preset_arg]
     env_config = {**base_env, **preset_env}
+
     if "BLINK_SYSTEM" not in env_config:
         env_config["BLINK_SYSTEM"] = preset_arg
     return env_config
@@ -73,17 +76,18 @@ def run_from_cli():
             else:
                 selected_preset = args.preset
 
-        # 1. Carica la configurazione dell'ambiente
+
+        # 2. Carica la configurazione dell'ambiente
         env_config = load_environment_config(selected_preset)
 
-        # 2. Prepara l'ambiente di esecuzione
+        # 3. Prepara l'ambiente di esecuzione
         execution_env = prepare_execution_environment(env_config)
 
-        # 3. Carica la configurazione del benchmark dal file JSON
+        # 4. Carica la configurazione del benchmark dal file JSON
         with open(args.app_config_file, 'r') as f:
             benchmark_config = json.load(f)
 
-        # 4. Istanzia ed esegui il motore
+        # 5. Istanzia ed esegui il motore
         print("-" * 50)
         print(f"Avvio del motore con il preset '{selected_preset}'...")
         print("-" * 50)

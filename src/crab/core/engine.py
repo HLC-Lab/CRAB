@@ -287,7 +287,7 @@ class Engine:
             if nodes in ["auto", "mixed", "idle"]:
                 # The 'auto' nodes feature requires SLURM.
                 if "BLINK_WL_MANAGER" not in os.environ or os.environ["BLINK_WL_MANAGER"] != "slurm":
-                    raise Exception("'auto' node file can only be used if SLURM is the workload manager.")
+                    raise Exception(f"'{nodes}' node file can only be used if SLURM is the workload manager.")
 
                 node_file_path = "auto_node_file_" + str(os.getpid()) + ".txt"
 
