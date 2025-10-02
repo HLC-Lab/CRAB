@@ -230,12 +230,109 @@ class Engine:
     def __init__(self, log_callback: Callable[[str], None] = print):
         self.log = log_callback
 
-    def run(self, config: dict, environment: dict):
+    def run(self, config: dict, environment: dict, is_worker: bool = False):
         """
         Executes the benchmark.
-        Temporarily updates the global os.environ for the duration of the run
-        to ensure compatibility with wrappers that rely on it.
+        If is_worker is False, it acts as an orchestrator, creating and submitting a SLURM job.
+        If is_worker is True, it runs the actual benchmark logic inside the SLURM allocation.
         """
+        if is_worker:
+            self._run_worker(config, environment)
+        else:
+            self._run_orchestrator(config, environment)
+    def _run_orchestrator(self, config: dict, environment: dict):
+        """
+        Orchestrator mode: Prepares directories, generates, and submits the SBATCH script.
+        """
+        self.log("Engine running in ORCHESTRATOR mode.")
+        global_options = config.get('global_options', {})
+        data_path = global_options.get('datapath', './data')
+        extrainfo = global_options.get('extrainfo', '')
+        num_nodes = int(global_options.get('numnodes'))
+        ppn = int(global_options.get('ppn', 1))
+
+        # --- Output Directory and Metadata Logging Setup ---
+        try:
+            self.log(f"[DEBUG] Checking/creating description file in '{data_path}'...")
+            description_file = os.path.join(data_path, "description.csv")
+            if not os.path.isfile(description_file):
+                os.makedirs(data_path, exist_ok=True)
+                with open(description_file, 'w') as desc_file:
+                    desc_file.write('app_mix,system,numnodes,allocation_mode,allocation_split,ppn,out_format,extra,path\n')
+            
+            self.log("[DEBUG] Description file checked. Creating unique run directory...")
+            
+            # Aggiungiamo un timeout per sicurezza a questo ciclo
+            timeout_start = time.time()
+            while True:
+                if time.time() - timeout_start > 10: # Timeout di 10 secondi
+                    raise TimeoutError("Could not create a unique directory within 10 seconds. Check filesystem.")
+                
+                runner_id = (environment.get("BLINK_SYSTEM", "unknown") + "/" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')) # Aggiungi microsecondi
+                data_directory = os.path.join(data_path, runner_id)
+                if not os.path.exists(data_directory):
+                    os.makedirs(data_directory)
+                    break
+                time.sleep(0.01) # Piccolo sleep per evitare di ciclare troppo velocemente
+
+            self.log(f"[DEBUG] Created run directory: {data_directory}")
+            
+            with open(description_file, 'a+') as desc_file:
+                desc_line = f"{extrainfo},{environment.get('BLINK_SYSTEM')},{num_nodes},{global_options.get('allocationmode')},{global_options.get('allocationsplit')},{ppn},{global_options.get('outformat')},{extrainfo},{data_directory}\n"
+                desc_file.write(desc_line)
+            
+            config_file_path = os.path.join(data_directory, 'config.json')
+            with open(config_file_path, 'w') as config_file:
+                json.dump(config, config_file, indent=4)
+
+            self.log("[DEBUG] Directory setup complete. Generating SBATCH script...")
+        except Exception as e:
+            self.log(f"[FATAL ERROR] Orchestrator failed during directory setup: {e}")
+            raise # Rilancia l'eccezione per fermare tutto
+
+        # --- SLURM Batch Script Generation ---
+        sbatch_script_path = os.path.join(data_directory, 'crab_job.sh')
+        python_executable = sys.executable
+        cli_script_path = os.path.abspath(sys.argv[0])
+        worker_command = f"{python_executable} {cli_script_path} --config {config_file_path} --worker --preset {environment.get('BLINK_SYSTEM')}"
+        
+        with open(sbatch_script_path, 'w') as f:
+            f.write("#!/bin/bash\n\n")
+            f.write(f"#SBATCH --job-name=crab_{extrainfo[:10]}\n")
+            f.write(f"#SBATCH --output={os.path.join(data_directory, 'slurm_output.log')}\n")
+            f.write(f"#SBATCH --error={os.path.join(data_directory, 'slurm_error.log')}\n")
+            f.write(f"#SBATCH --nodes={num_nodes}\n")
+            f.write(f"#SBATCH --ntasks-per-node={ppn}\n")
+            f.write(f"#SBATCH --partition=boost_usr_prod\n")
+            f.write(f"#SBATCH --gres=tmpfs:0\n")
+            f.write(f"#SBATCH --time=01:00:00\n\n")
+
+            f.write("module purge\n")
+            f.write("module load openmpi\n\n")
+
+            f.write(f"srun {worker_command}\n")
+
+        # --- Submit the Batch Script ---
+        try:
+            self.log(f"Submitting job with command: sbatch {sbatch_script_path}")
+            submission_output = subprocess.check_output(['sbatch', sbatch_script_path], text=True)
+            self.log(submission_output.strip())
+            self.log(f"\nJob submitted. Monitor its status with 'squeue -u $USER'.")
+            self.log(f"Results will be in: {data_directory}")
+        except subprocess.CalledProcessError as e:
+            self.log(f"Error submitting sbatch job: {e}")
+            raise
+
+    def _run_worker(self, config: dict, environment: dict):
+        """
+        Worker mode: Executes the original benchmark logic inside a SLURM allocation.
+        This is essentially your old 'run' method, but starting after the directory setup.
+        """
+        self.log("Engine running in WORKER mode.")
+
+
+
+
         # 1. Salva l'ambiente originale per poterlo ripristinare dopo
         original_environ = os.environ.copy()
 
@@ -330,7 +427,7 @@ class Engine:
             # Create a unique directory for this specific run using a timestamp.
             while True:
                 runner_id = (os.environ["BLINK_SYSTEM"] + "/" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-                data_directory = os.path.join(data_path, runner_id)
+                data_directory = os.getcwd()
                 if not os.path.exists(data_directory):
                     os.makedirs(data_directory)
                     break
@@ -586,12 +683,12 @@ class Engine:
             self.log('Writing data & meta-data took ' + str(round(time.time() - log_start_time, 5))+'s.')
 
             self.log('Overall took '+str(round(time.time() - pre_start_time, 5))+'s.')
-
+            
             # Cleanup temporary node file if it was created
             if 'auto_node_file' in node_file_path and os.path.exists(node_file_path):
                 os.remove(node_file_path)
-
+            data_directory = os.getcwd() # Lo script sbatch viene lanciato da qui
+            
         finally:
-            # 4. Ripristina l'ambiente originale, qualunque cosa accada (anche in caso di errore)
             os.environ.clear()
             os.environ.update(original_environ)

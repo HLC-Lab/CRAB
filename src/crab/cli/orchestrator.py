@@ -43,39 +43,54 @@ def run_from_cli():
     # Aggiungi 'src' al path di sistema per permettere gli import
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+
+
+
     parser = argparse.ArgumentParser(
-        description="Entry point for running benchmarks via CLI.",
+        description="CRAB Benchmarking Orchestrator.",
         formatter_class=argparse.RawTextHelpFormatter
     )
+    # Rinominiamo 'app_config_file' a '--config' per coerenza
     parser.add_argument(
-        "app_config_file",
-        help="Path to the JSON configuration file for applications and global options."
+        "-c", "--config",
+        dest="app_config_file",
+        required=True,
+        help="Path to the JSON configuration file for the benchmark."
     )
+    
+    # Aggiungiamo il flag per la modalità worker
+    parser.add_argument(
+        "--worker",
+        action="store_true",
+        help="Internal flag: run the engine in worker mode inside a SLURM allocation."
+    )
+
     try:
         with open('presets.json', 'r') as f:
             presets = json.load(f)
         available_presets = [k for k in presets if k != '_common']
-        help_text = f"Name of the preset to use. Can be specified in a .env var (see README)\nAvailable presets: {'\n - '.join(['', *available_presets])}"
+        help_text = f"Name of the preset to use. Can be specified via .env file." + "Available presets: {'\n - '.join(['', *available_presets])}"
     except FileNotFoundError:
         help_text = "Name of the preset to use (presets.json not found)."
     parser.add_argument("-p", "--preset", help=help_text)
+
     args = parser.parse_args()
 
     try:
         # 1. Checks if .env file exists and loads it
+        # (questa parte rimane uguale)
         selected_preset = ""
         if os.path.exists(".env") and not args.preset:
             try:
                 with open(".env", "r") as f:
                     selected_preset = f.read().strip()
             except Exception as e:
-                self.log(f"Could not read .env file: {e}")
+                print(f"Could not read .env file: {e}") # Usiamo print qui
         else:
             if not args.preset:
                 selected_preset = "local"
             else:
                 selected_preset = args.preset
-
 
         # 2. Carica la configurazione dell'ambiente
         env_config = load_environment_config(selected_preset)
@@ -87,7 +102,7 @@ def run_from_cli():
         with open(args.app_config_file, 'r') as f:
             benchmark_config = json.load(f)
 
-        # 5. Istanzia ed esegui il motore
+        # 5. Istanzia ed esegui il motore, passando il flag 'worker'
         print("-" * 50)
         print(f"Avvio del motore con il preset '{selected_preset}'...")
         print("-" * 50)
@@ -96,6 +111,7 @@ def run_from_cli():
         engine.run(
             config=benchmark_config, 
             environment=execution_env,
+            is_worker=args.worker  # <-- PASSAGGIO CHIAVE
         )
 
         print("-" * 50)
@@ -108,3 +124,4 @@ def run_from_cli():
     except Exception as e:
         print(f"[Errore] Si è verificato un errore imprevisto nel motore: {e}", file=sys.stderr)
         sys.exit(1)
+

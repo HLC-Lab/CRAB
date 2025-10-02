@@ -16,28 +16,28 @@
     },
     "applications": {
         "0": {
-            "path": "/home/marcelletti.1986290/CRAB/wrappers/a2a_b.py",
+	    "path": "/leonardo/home/userexternal/mmarcel3/CRAB/wrappers/a2a_b.py",
             "args": "-msgsize 67108864 -iter 1000 -grty 1",
             "collect": true,
             "start": "0",
             "end": ""
         },
         "1": {
-            "path": "/home/marcelletti.1986290/CRAB/wrappers/a2a_b.py",
+	    "path": "/leonardo/home/userexternal/mmarcel3/CRAB/wrappers/a2a_b.py",
             "args": "-msgsize 67108864 -iter 500 -grty 1",
             "collect": true,
             "start": "0",
             "end": "f"
         },
         "2": {
-            "path": "/home/marcelletti.1986290/CRAB/wrappers/barrier.py",
+	    "path": "/leonardo/home/userexternal/mmarcel3/CRAB/wrappers/barrier.py",
             "args": "-iter 5000",
             "collect": false,
             "start": "0",
             "end": "f"
         },
         "3": {
-            "path": "/home/marcelletti.1986290/CRAB/wrappers/ring_nb.py",
+	    "path": "/leonardo/home/userexternal/mmarcel3/CRAB/wrappers/ring_nb.py",
             "args": "-msgsize 33554432 -iter 1000",
             "collect": true,
             "start": "0",

@@ -16,16 +16,29 @@ class wl_manager:
     def run_job(self, node_list, ppn, cmd):
         print("[DEBUG]: Node List is: " + str(node_list))
 
-        num_nodes=len(node_list)
-        node_list_string=','.join(node_list)
-        node_list_arg='--nodelist ' + node_list_string
+        num_nodes = len(node_list)
+        node_list_string = ','.join(node_list)
+        node_list_arg = '--nodelist ' + node_list_string
 
+        # Inizializza le opzioni aggiuntive per SLURM
+        slurm_extra_opts = ""
 
-        slurm_string=('srun --mpi=pmix ' + \
-                        node_list_arg + \
-                      ' ' + os.environ["BLINK_PINNING_FLAGS"] + \
-                      ' -n ' + str(ppn*num_nodes) + \
-                      ' -N ' + str(num_nodes) + ' ' + cmd)
+        # Controlla se siamo su Leonardo e, in caso affermativo, aggiungi la partizione
+        if os.environ.get("BLINK_SYSTEM") == "leonardo":
+            # I nodi 'lrdn' sono nella partizione booster.
+            # I nodi 'viz' sono in un'altra, ma per questi test usiamo la booster.
+            slurm_extra_opts = "--partition=boost_usr_prod"
+            print(f"[DEBUG]: Detected BLINK_SYSTEM=leonardo. Adding SLURM option: {slurm_extra_opts}")
+
+        slurm_string = (
+            'srun ' +
+            slurm_extra_opts + ' ' + # Aggiungiamo qui le opzioni extra
+            node_list_arg + ' ' +
+            os.environ.get("BLINK_PINNING_FLAGS", "") + ' ' + # Usiamo .get() per sicurezza
+            '-n ' + str(ppn * num_nodes) + ' ' +
+            '-N ' + str(num_nodes) + ' ' +
+            cmd
+        ).strip() # .strip() rimuove spazi extra all'inizio o alla fine
 
         print("[DEBUG]: SLURM command is: " + slurm_string)
         return slurm_string
