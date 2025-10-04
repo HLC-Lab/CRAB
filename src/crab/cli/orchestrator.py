@@ -4,11 +4,14 @@ import os
 import sys
 from typing import Dict, Any
 
-from ..core.engine import Engine # Importa il nuovo motore
+# Aggiungi 'src' al path di sistema PRIMA di qualsiasi altro import custom
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from crab.core.engine import Engine
 
 def load_environment_config(preset_arg: str) -> Dict[str, Any]:
     presets_filename = "presets.json"
-    print(f"Info: Loading preset '{preset_arg}' from {presets_filename}")
+    print(f"Info: Loading preset '{preset_arg}' from {presets_filename}", flush=True)
     try:
         with open(presets_filename, 'r') as f:
             all_presets = json.load(f)
@@ -40,88 +43,77 @@ def prepare_execution_environment(env_config: Dict[str, Any]) -> Dict[str, str]:
     return final_env
 
 def run_from_cli():
-    # Aggiungi 'src' al path di sistema per permettere gli import
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+    # --- LOGICA DI DISTINZIONE TRA ORCHESTRATORE E WORKER ---
+    if "--worker" in sys.argv:
+        try:
+            # Estrai il percorso della directory di lavoro dall'argomento --workdir
+            workdir_index = sys.argv.index("--workdir") + 1
+            work_dir = sys.argv[workdir_index]
 
+            config_file = os.path.join(work_dir, 'config.json')
+            env_file = os.path.join(work_dir, 'environment.json')
 
+            print(f"--- [WORKER MODE DETECTED] Work dir: {work_dir} ---", flush=True)
 
+            with open(config_file, 'r') as f:
+                benchmark_config = json.load(f)
+            
+            with open(env_file, 'r') as f:
+                execution_env = json.load(f)
+            
+            print(f"--- [WORKER] Environment loaded. Starting engine. ---", flush=True)
 
-    parser = argparse.ArgumentParser(
-        description="CRAB Benchmarking Orchestrator.",
-        formatter_class=argparse.RawTextHelpFormatter
-    )
-    # Rinominiamo 'app_config_file' a '--config' per coerenza
-    parser.add_argument(
-        "-c", "--config",
-        dest="app_config_file",
-        required=True,
-        help="Path to the JSON configuration file for the benchmark."
-    )
-    
-    # Aggiungiamo il flag per la modalità worker
-    parser.add_argument(
-        "--worker",
-        action="store_true",
-        help="Internal flag: run the engine in worker mode inside a SLURM allocation."
-    )
+            engine = Engine(log_callback=print)
+            engine.run(
+                config=benchmark_config, 
+                environment=execution_env,
+                is_worker=True,
+                output_dir=work_dir
+            )
+            print(f"--- [WORKER] Engine run finished. ---", flush=True)
 
-    try:
-        with open('presets.json', 'r') as f:
-            presets = json.load(f)
-        available_presets = [k for k in presets if k != '_common']
-        help_text = f"Name of the preset to use. Can be specified via .env file." + "Available presets: {'\n - '.join(['', *available_presets])}"
-    except FileNotFoundError:
-        help_text = "Name of the preset to use (presets.json not found)."
-    parser.add_argument("-p", "--preset", help=help_text)
+        except Exception as e:
+            print(f"[WORKER FATAL ERROR] {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+    else:
+        # --- LOGICA DELL'ORCHESTRATORE ---
+        parser = argparse.ArgumentParser(description="CRAB Benchmarking Orchestrator.")
+        parser.add_argument("-c", "--config", dest="app_config_file", required=True, help="Path to the JSON benchmark config.")
+        parser.add_argument("-p", "--preset", help="Name of the preset to use (e.g., leonardo).")
+        # Aggiungiamo il flag worker anche qui per evitare errori di parsing
+        parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
+        args = parser.parse_args()
 
-    args = parser.parse_args()
-
-    try:
-        # 1. Checks if .env file exists and loads it
-        # (questa parte rimane uguale)
-        selected_preset = ""
-        if os.path.exists(".env") and not args.preset:
-            try:
+        try:
+            selected_preset = args.preset or os.environ.get("BLINK_PRESET") or "local"
+            if os.path.exists(".env") and not args.preset:
                 with open(".env", "r") as f:
                     selected_preset = f.read().strip()
-            except Exception as e:
-                print(f"Could not read .env file: {e}") # Usiamo print qui
-        else:
-            if not args.preset:
-                selected_preset = "local"
-            else:
-                selected_preset = args.preset
 
-        # 2. Carica la configurazione dell'ambiente
-        env_config = load_environment_config(selected_preset)
+            env_config = load_environment_config(selected_preset)
+            execution_env = prepare_execution_environment(env_config)
+            with open(args.app_config_file, 'r') as f:
+                benchmark_config = json.load(f)
 
-        # 3. Prepara l'ambiente di esecuzione
-        execution_env = prepare_execution_environment(env_config)
+            print("-" * 50)
+            print(f"Avvio del motore con il preset '{selected_preset}'...")
+            print("-" * 50)
 
-        # 4. Carica la configurazione del benchmark dal file JSON
-        with open(args.app_config_file, 'r') as f:
-            benchmark_config = json.load(f)
+            engine = Engine(log_callback=print)
+            engine.run(
+                config=benchmark_config, 
+                environment=execution_env,
+                is_worker=args.worker
+            )
 
-        # 5. Istanzia ed esegui il motore, passando il flag 'worker'
-        print("-" * 50)
-        print(f"Avvio del motore con il preset '{selected_preset}'...")
-        print("-" * 50)
+            print("-" * 50)
+            print("Orchestration complete. Job submitted to SLURM.")
+            print("-" * 50)
 
-        engine = Engine(log_callback=print)
-        engine.run(
-            config=benchmark_config, 
-            environment=execution_env,
-            is_worker=args.worker  # <-- PASSAGGIO CHIAVE
-        )
-
-        print("-" * 50)
-        print("Benchmark terminato con successo.")
-        print("-" * 50)
-
-    except (FileNotFoundError, KeyError, ValueError) as e:
-        print(f"[Errore] {e}", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"[Errore] Si è verificato un errore imprevisto nel motore: {e}", file=sys.stderr)
-        sys.exit(1)
-
+        except Exception as e:
+            print(f"[ORCHESTRATOR FATAL ERROR] {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)

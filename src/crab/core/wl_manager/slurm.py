@@ -31,7 +31,7 @@ class wl_manager:
             print(f"[DEBUG]: Detected BLINK_SYSTEM=leonardo. Adding SLURM option: {slurm_extra_opts}")
 
         slurm_string = (
-            'srun ' +
+            'srun --exclusive' +
             slurm_extra_opts + ' ' + # Aggiungiamo qui le opzioni extra
             node_list_arg + ' ' +
             os.environ.get("BLINK_PINNING_FLAGS", "") + ' ' + # Usiamo .get() per sicurezza
