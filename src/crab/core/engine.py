@@ -425,8 +425,9 @@ class Engine:
             spec_wlm.loader.exec_module(mod_wlm)
             wlmanager = mod_wlm.wl_manager()
 
-            # --- Allocazione dei nodi (ora usa SLURM_NODELIST) ---
-            self.log(f"--- [WORKER] Allocating nodes provided by SLURM... ---", flush=True)
+            # --- Allocazione dei nodi ---
+            self.log(f"--- [WORKER] Allocating nodes provided by SLURM: {os.environ.get('SLURM_NODELIST', 'N/A')} ---", flush=True)
+
             node_file_path = "worker_nodelist.txt"
             with open(node_file_path, "w") as f:
                 subprocess.call(["scontrol", "show", "hostnames", os.environ['SLURM_NODELIST']], stdout=f)

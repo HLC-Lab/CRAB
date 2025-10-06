@@ -1,0 +1,20 @@
+{
+    "global_options": {
+        "numnodes": "4",
+        "ppn": "1",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "extrainfo": "baseline_run_in_4_node_alloc"
+    },
+    "applications": {
+        "0": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/ardc_b.py",
+            "args": "-msgsize 268435456 -iter 500 -maxsamples 500",
+            "collect": true,
+            "start": "0",
+            "end": ""
+        }
+    }
+}
