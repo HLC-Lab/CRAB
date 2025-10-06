@@ -30,14 +30,25 @@ class wl_manager:
             slurm_extra_opts = "--partition=boost_usr_prod"
             print(f"[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: {slurm_extra_opts}")
 
+        wrapped_cmd = f"""bash -c '
+        echo "[BASH WRAPPER] Loading modules on node $(hostname)..." >&2
+        module purge >&2
+        module load openmpi >&2
+        echo "[BASH WRAPPER] Modules loaded:" >&2
+        module list >&2
+        echo "[BASH WRAPPER] Executing command: {cmd}" >&2
+        {cmd}
+        '"""
+
         slurm_string = (
-            'srun --exclusive' +
+            'srun --export=ALL ' +
+            '--exclusive ' +
             slurm_extra_opts + ' ' + # Aggiungiamo qui le opzioni extra
             node_list_arg + ' ' +
             os.environ.get("CRAB_PINNING_FLAGS", "") + ' ' + # Usiamo .get() per sicurezza
             '-n ' + str(ppn * num_nodes) + ' ' +
             '-N ' + str(num_nodes) + ' ' +
-            cmd
+            wrapped_cmd
         ).strip() # .strip() rimuove spazi extra all'inizio o alla fine
 
         print("[DEBUG]: SLURM command is: " + slurm_string)

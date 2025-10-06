@@ -292,7 +292,7 @@ class Engine:
             self.log(f"[DEBUG] Saved processed environment to {env_file_path}")
 
 
-            self.log("[DEBUG] Directory setup complete. Generating SBATCH script...")
+            self.log("[DEBUG] Directory setup complete.")
         except Exception as e:
             self.log(f"[FATAL ERROR] Orchestrator failed during directory setup: {e}")
             raise # Rilancia l'eccezione per fermare tutto
@@ -306,7 +306,7 @@ class Engine:
             f"{python_executable} {cli_script_path} --worker "
             f"--workdir {data_directory}"
         )
-        
+
         with open(sbatch_script_path, 'w') as f:
             f.write("#!/bin/bash\n\n")
             f.write(f"#SBATCH --job-name=crab_{extrainfo[:10]}\n")
@@ -317,19 +317,20 @@ class Engine:
 
             # For tests only
             #f.write(f"#SBATCH --exclusive\n")
-
-            if os.environ.get("CRAB_SYSTEM") == "leonardo":
-                #TODO: far passare la partizione da config o env
-                f.write(f"#SBATCH --partition=boost_usr_prod\n")
-                self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
-
-                #TODO: capire in quali sistemi serve caricare i moduli, magari metterlo nell'env
-                f.write("module purge\n")
-                f.write("module load openmpi\n\n")
-
+            f.write("#SBATCH --account=IscrB_SWING\n")
 
             f.write(f"#SBATCH --gres=tmpfs:0\n")
             f.write(f"#SBATCH --time=01:00:00\n\n")
+
+            #TODO: rimettere l'if (per qualche motivo non funge)
+            #if os.environ.get("CRAB_SYSTEM") == "leonardo":
+            #TODO: far passare la partizione da config o env
+            f.write(f"#SBATCH --partition=boost_usr_prod\n")
+            self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
+
+            #TODO: capire in quali sistemi serve caricare i moduli, magari metterlo nell'env
+            f.write("module purge\n")
+            f.write("module load openmpi\n\n")
 
 
             venv_path = os.path.join(os.getcwd(), '.venv/bin/activate')
@@ -474,9 +475,28 @@ class Engine:
 
                 runs += 1
 
+                # Controlla i codici di ritorno, ma ignora gli errori per i job
+                # che sono stati terminati forzatamente di proposito.
                 for app in apps:
-                    if hasattr(app, 'process') and app.process.returncode not in [None, 0]:
-                        raise Exception(f"Application {app.id_num} failed with exit code {app.process.returncode}. Stderr: {app.stderr}")
+                    # Se l'applicazione non ha un processo, salta.
+                    if not hasattr(app, 'process'):
+                        continue
+                    
+                    # Se il processo è stato terminato forzatamente da noi ('end': 'f'),
+                    # un codice di uscita non-zero (come -9 per SIGKILL) è atteso e OK.
+                    # apps_waiting contiene gli indici delle app con 'end':'f'
+                    if app.id_num in apps_waiting and app.process.returncode != 0:
+                        self.log(f"[INFO] Application {app.id_num} was intentionally terminated (exit code: {app.process.returncode}). This is expected.", flush=True)
+                        continue # Passa alla prossima app senza generare errore
+
+                    # Per tutte le altre applicazioni, un codice non-zero è un errore reale.
+                    if app.process.returncode not in [None, 0]:
+                        # Pulisci stderr per renderlo più leggibile
+                        stderr_clean = app.stderr.strip() if app.stderr else "No stderr."
+                        raise Exception(f"Application {app.id_num} failed with exit code {app.process.returncode}. Stderr: {stderr_clean}")
+
+
+
 
                 container_idx = 0
                 for app in apps:
@@ -500,4 +520,5 @@ class Engine:
         finally:
             os.environ.clear()
             os.environ.update(original_environ)
-            os.remove(node_file_path)
+            if os.path.exists(node_file_path):
+                os.remove(node_file_path)
