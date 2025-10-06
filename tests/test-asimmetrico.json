@@ -4,9 +4,9 @@
         "ppn": "1",
         "allocationmode": "i",
         "allocationsplit": "25:75",
-        "minruns": "1",
-        "maxruns": "1",
-        "timeout": "600.0",
+        "minruns": "5",
+        "maxruns": "5",
+        "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "8_node_asymmetric_strong_aggressor"
     },
