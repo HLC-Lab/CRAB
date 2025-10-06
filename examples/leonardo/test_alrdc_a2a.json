@@ -13,7 +13,7 @@
     "applications": {
         "0": {
             "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/ardc_b.py",
-            "args": "-msgsize 33554432 -iter 500 -maxsamples 500",
+            "args": "-msgsize 268435456  -iter 500 -maxsamples 500",
             "collect": true,
             "start": "0",
             "end": ""
@@ -22,7 +22,7 @@
             "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
             "args": "-msgsize 33554432 -iter 999999",
             "collect": false,
-            "start": "5.0",
+            "start": "3.0",
             "end": "f"
         }
     }
