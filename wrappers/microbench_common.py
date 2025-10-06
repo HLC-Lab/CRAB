@@ -24,6 +24,7 @@ class microbench(base):
     def read_data(self):
         out_string = self.stdout
         tmp_list = []
+        print(out_string.splitlines()[-1])
         for line in out_string.splitlines()[2:-1]:
             tmp_list += [[float(x) for x in line.split(',')]]
         data_list = [list(x) for x in zip(*tmp_list)]
