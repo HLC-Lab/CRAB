@@ -63,8 +63,8 @@ def check_CI(container_list, alpha, beta, converge_all, run):
 def run_job(job, wlmanager, ppn):
     if job.num_nodes == 0:
         #TODO: Usa il logger!
-        print(f"[WARNING] L'applicazione {job.id_num} ha 0 nodi allocati...")
-        return
+        print(f"[ERROR] L'applicazione {job.id_num} ha 0 nodi allocati...")
+        raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
     cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app())
     if not cmd_string or cmd_string == "":
         cmd_string = "echo a > /dev/null"
@@ -268,7 +268,7 @@ class Engine:
                 if time.time() - timeout_start > 10: # Timeout di 10 secondi
                     raise TimeoutError("Could not create a unique directory within 10 seconds. Check filesystem.")
                 
-                runner_id = (environment.get("BLINK_SYSTEM", "unknown") + "/" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')) # Aggiungi microsecondi
+                runner_id = (environment.get("CRAB_SYSTEM", "unknown") + "/" + datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')) # Aggiungi microsecondi
                 data_directory = os.path.join(data_path, runner_id)
                 if not os.path.exists(data_directory):
                     os.makedirs(data_directory)
@@ -278,7 +278,7 @@ class Engine:
             self.log(f"[DEBUG] Created run directory: {data_directory}")
             
             with open(description_file, 'a+') as desc_file:
-                desc_line = f"{extrainfo},{environment.get('BLINK_SYSTEM')},{num_nodes},{global_options.get('allocationmode')},{global_options.get('allocationsplit')},{ppn},{global_options.get('outformat')},{extrainfo},{data_directory}\n"
+                desc_line = f"{extrainfo},{environment.get('CRAB_SYSTEM')},{num_nodes},{global_options.get('allocationmode')},{global_options.get('allocationsplit')},{ppn},{global_options.get('outformat')},{extrainfo},{data_directory}\n"
                 desc_file.write(desc_line)
             
             config_file_path = os.path.join(data_directory, 'config.json')
@@ -314,13 +314,23 @@ class Engine:
             f.write(f"#SBATCH --error={os.path.join(data_directory, 'slurm_error.log')}\n")
             f.write(f"#SBATCH --nodes={num_nodes}\n")
             f.write(f"#SBATCH --ntasks-per-node={ppn}\n")
+
+            # For tests only
             #f.write(f"#SBATCH --exclusive\n")
-            f.write(f"#SBATCH --partition=boost_usr_prod\n")
+
+            if os.environ.get("CRAB_SYSTEM") == "leonardo":
+                #TODO: far passare la partizione da config o env
+                f.write(f"#SBATCH --partition=boost_usr_prod\n")
+                self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
+
+                #TODO: capire in quali sistemi serve caricare i moduli, magari metterlo nell'env
+                f.write("module purge\n")
+                f.write("module load openmpi\n\n")
+
+
             f.write(f"#SBATCH --gres=tmpfs:0\n")
             f.write(f"#SBATCH --time=01:00:00\n\n")
 
-            f.write("module purge\n")
-            f.write("module load openmpi\n\n")
 
             venv_path = os.path.join(os.getcwd(), '.venv/bin/activate')
             f.write(f"source {venv_path}\n\n")
@@ -404,11 +414,10 @@ class Engine:
                 apps.append(mod_app.app(num_apps, collect_flag, app_args))
                 num_apps += 1
 
-            # <<< --- LA CORREZIONE È QUI --- >>>
             # Ordina la schedule in base al tempo (terzo elemento della tupla)
             schedule.sort(key=lambda x: x[2])
 
-            import_path_wlm = "./src/crab/core/wl_manager/" + os.environ["BLINK_WL_MANAGER"] + ".py"
+            import_path_wlm = "./src/crab/core/wl_manager/" + os.environ["CRAB_WL_MANAGER"] + ".py"
             wlm_class_name = pathlib.Path(import_path_wlm).stem
             spec_wlm = importlib.util.spec_from_file_location(wlm_class_name, import_path_wlm)
             mod_wlm = importlib.util.module_from_spec(spec_wlm)
@@ -487,8 +496,8 @@ class Engine:
                 log_data(out_format, os.path.join(data_directory, 'data'), data_container_list)
                 #log_meta_data(out_format, os.path.join(data_directory, 'metadata'), data_container_list, runs)
 
-            os.remove(node_file_path)
 
         finally:
             os.environ.clear()
             os.environ.update(original_environ)
+            os.remove(node_file_path)

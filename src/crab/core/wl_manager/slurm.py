@@ -24,17 +24,17 @@ class wl_manager:
         slurm_extra_opts = ""
 
         # Controlla se siamo su Leonardo e, in caso affermativo, aggiungi la partizione
-        if os.environ.get("BLINK_SYSTEM") == "leonardo":
+        if os.environ.get("CRAB_SYSTEM") == "leonardo":
             # I nodi 'lrdn' sono nella partizione booster.
             # I nodi 'viz' sono in un'altra, ma per questi test usiamo la booster.
             slurm_extra_opts = "--partition=boost_usr_prod"
-            print(f"[DEBUG]: Detected BLINK_SYSTEM=leonardo. Adding SLURM option: {slurm_extra_opts}")
+            print(f"[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: {slurm_extra_opts}")
 
         slurm_string = (
             'srun --exclusive' +
             slurm_extra_opts + ' ' + # Aggiungiamo qui le opzioni extra
             node_list_arg + ' ' +
-            os.environ.get("BLINK_PINNING_FLAGS", "") + ' ' + # Usiamo .get() per sicurezza
+            os.environ.get("CRAB_PINNING_FLAGS", "") + ' ' + # Usiamo .get() per sicurezza
             '-n ' + str(ppn * num_nodes) + ' ' +
             '-N ' + str(num_nodes) + ' ' +
             cmd

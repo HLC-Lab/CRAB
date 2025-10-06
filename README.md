@@ -67,16 +67,16 @@
     ```json
     {
         "_common": {
-            "BLINK_ROOT": "/absolute/path/to/crab"
+            "CRAB_ROOT": "/absolute/path/to/crab"
         },
         "my_cluster": {
-            "BLINK_WL_MANAGER": "slurm",
-            "BLINK_CC": "mpicc",
-            "BLINK_PINNING_FLAGS": "--cpu-bind=core"
+            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_CC": "mpicc",
+            "CRAB_PINNING_FLAGS": "--cpu-bind=core"
         },
         "local_pc": {
-            "BLINK_WL_MANAGER": "mpi",
-            "BLINK_MPIRUN": "mpirun"
+            "CRAB_WL_MANAGER": "mpi",
+            "CRAB_MPIRUN": "mpirun"
         }
     }
     ```
@@ -177,7 +177,7 @@ Your `app` class must implement a few key methods:
    ```python
    def get_binary_path(self):
        # You can use environment variables from presets for flexibility
-       return os.environ["BLINK_ROOT"] + "/path/to/my/executable"
+       return os.environ["CRAB_ROOT"] + "/path/to/my/executable"
    ```
 
 3. **`read_data(self)`**: The most important method. It must parse the benchmark output (`self.stdout`) and return the collected data.

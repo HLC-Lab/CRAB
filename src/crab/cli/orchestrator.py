@@ -25,8 +25,8 @@ def load_environment_config(preset_arg: str) -> Dict[str, Any]:
     preset_env = all_presets[preset_arg]
     env_config = {**base_env, **preset_env}
 
-    if "BLINK_SYSTEM" not in env_config:
-        env_config["BLINK_SYSTEM"] = preset_arg
+    if "CRAB_SYSTEM" not in env_config:
+        env_config["CRAB_SYSTEM"] = preset_arg
     return env_config
 
 def prepare_execution_environment(env_config: Dict[str, Any]) -> Dict[str, str]:
@@ -87,7 +87,7 @@ def run_from_cli():
         args = parser.parse_args()
 
         try:
-            selected_preset = args.preset or os.environ.get("BLINK_PRESET") or "local"
+            selected_preset = args.preset or os.environ.get("CRAB_PRESET") or "local"
             if os.path.exists(".env") and not args.preset:
                 with open(".env", "r") as f:
                     selected_preset = f.read().strip()

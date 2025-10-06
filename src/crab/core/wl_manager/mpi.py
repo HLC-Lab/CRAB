@@ -16,11 +16,11 @@ class wl_manager:
     def run_job(self, node_list, ppn, cmd):
         num_nodes=len(node_list)
         node_list_string=','.join(node_list)
-        job_cmd = os.environ["BLINK_MPIRUN"] + " " + \
-                  os.environ["BLINK_MPIRUN_MAP_BY_NODE_FLAG"] + " " + \
-                  os.environ["BLINK_MPIRUN_ADDITIONAL_FLAGS"] + " " + \
-                  os.environ["BLINK_PINNING_FLAGS"] + " " + \
-                  os.environ["BLINK_MPIRUN_HOSTNAMES_FLAG"] + " " + node_list_string + " " + \
+        job_cmd = os.environ["CRAB_MPIRUN"] + " " + \
+                  os.environ["CRAB_MPIRUN_MAP_BY_NODE_FLAG"] + " " + \
+                  os.environ["CRAB_MPIRUN_ADDITIONAL_FLAGS"] + " " + \
+                  os.environ["CRAB_PINNING_FLAGS"] + " " + \
+                  os.environ["CRAB_MPIRUN_HOSTNAMES_FLAG"] + " " + node_list_string + " " + \
                   "-np " + str(ppn*num_nodes) + " " + cmd
         print("[DEBUG]: MPI command is: " + job_cmd)
         return job_cmd
