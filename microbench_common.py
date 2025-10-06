@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.append(os.environ["BLINK_ROOT"] + "/wrappers")
+sys.path.append(os.environ["CRAB_ROOT"] + "/wrappers")
 from base import base,sizeof_fmt
 
 class microbench(base):
@@ -14,11 +14,11 @@ class microbench(base):
 
     def get_path(self, name):
         p = ""
-        # sys = os.environ["BLINK_SYSTEM"]
+        # sys = os.environ["CRAB_SYSTEM"]
         # Da ignorare, faremo su leonardo
         # if sys == "leonardo":
-        #     p += os.environ["BLINK_ROOT"] + "/src/microbench/select_nic_ucx "
-        p += os.environ["BLINK_ROOT"] + "/benchmarks/blink/bin/" + name
+        #     p += os.environ["CRAB_ROOT"] + "/src/microbench/select_nic_ucx "
+        p += os.environ["CRAB_ROOT"] + "/benchmarks/blink/bin/" + name
         return p
 
     def read_data(self):

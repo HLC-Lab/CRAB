@@ -1,6 +1,6 @@
 import sys
 import os
-sys.path.append(os.environ["BLINK_ROOT"] + "/wrappers")
+sys.path.append(os.environ["CRAB_ROOT"] + "/wrappers")
 from base import base
 
 class app(base):
@@ -14,7 +14,7 @@ class app(base):
     ]
 
     def get_binary_path(self):
-        return os.environ["BLINK_ROOT"] + '/src/ember/mpi/pingpong/pingpong'
+        return os.environ["CRAB_ROOT"] + '/src/ember/mpi/pingpong/pingpong'
 
     def read_data(self):
         data_list = [None]*self.num_metrics
