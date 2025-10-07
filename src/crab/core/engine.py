@@ -178,6 +178,8 @@ def log_meta_data(out_format, path, data_container_list, num_runs):
         dataframe.to_hdf(file_name, key='df',
                          data_columns=data_header_cols, index=False)
 
+
+
 def log_data(out_format, data_path_prefix, data_container_list):
     # Raggruppa i container per app_id
     apps_data = {}
@@ -188,31 +190,64 @@ def log_data(out_format, data_path_prefix, data_container_list):
 
     # Scrivi un file separato per ogni applicazione che ha raccolto dati
     for app_id, containers in apps_data.items():
-        data_dict = {c.get_title(): c.data for c in containers}
-        
-        # Gestisci il problema delle lunghezze diverse *all'interno della stessa app*
-        # (non dovrebbe succedere con i microbench, ma è una buona pratica)
-        # Riempi le liste più corte con NaN per pareggiare le lunghezze.
-        max_len = 0
-        if data_dict:
-             max_len = max(len(v) for v in data_dict.values())
-        
-        for k, v in data_dict.items():
-            if len(v) < max_len:
-                v.extend([None] * (max_len - len(v)))
+        all_app_metrics = []
 
-        dataframe = pandas.DataFrame(data_dict)
-        
+        for container in containers:
+            # Se non ci sono dati o campioni, salta questo container
+            if not container.data or not container.num_samples:
+                continue
+
+            # 1. Ricostruisci la colonna 'run_id' usando la lista num_samples
+            run_ids = []
+            for i, num in enumerate(container.num_samples):
+                run_ids.extend([i + 1] * num) # i + 1 per avere run da 1, 2, 3...
+
+            if len(run_ids) != len(container.data):
+                print(f"[ATTENZIONE] Mismatch di dati per {container.get_title()}: "
+                      f"{len(run_ids)} run ID generati, ma {len(container.data)} punti dati trovati. "
+                      "Il logging per questa metrica potrebbe essere impreciso.")
+                # Tronca la lista più lunga per evitare errori di DataFrame
+                min_len = min(len(run_ids), len(container.data))
+                run_ids = run_ids[:min_len]
+                container.data = container.data[:min_len]
+
+            # 2. Crea un DataFrame temporaneo per questa singola metrica
+            metric_df = pandas.DataFrame({
+                'run_id': run_ids,
+                container.get_title(): container.data
+            })
+            
+            # Imposta 'run_id' e un contatore progressivo come indice
+            # per unire correttamente le diverse metriche
+            metric_df = metric_df.set_index(['run_id', metric_df.groupby('run_id').cumcount()])
+            all_app_metrics.append(metric_df)
+
+        # 3. Unisce tutti i DataFrame delle metriche per questa app_id
+        if not all_app_metrics:
+            print(f"Nessun dato da salvare per App {app_id}.")
+            continue
+            
+        dataframe = pandas.concat(all_app_metrics, axis=1).reset_index()
+        # Rimuovi la colonna 'level_1' che viene creata da reset_index
+        if 'level_1' in dataframe.columns:
+            dataframe = dataframe.drop(columns=['level_1'])
+
         # Costruisci un nome di file specifico per questa app
         file_path = f"{data_path_prefix}_app_{app_id}"
         
         if out_format == 'csv':
             file_name = file_path + '.csv'
+            # Salva il DataFrame finale che ora contiene la colonna 'run_id'
             dataframe.to_csv(file_name, index=False)
         elif out_format == 'hdf':
             file_name = file_path + '.h5'
             dataframe.to_hdf(file_name, key='df', index=False)
+            
         print(f"Dati per App {app_id} salvati in: {file_name}")
+
+
+
+
 
 def print_runtime(obj, mode, ro_file):
     if mode == 'stdout':
