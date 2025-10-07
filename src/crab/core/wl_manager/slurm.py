@@ -31,12 +31,9 @@ class wl_manager:
             print(f"[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: {slurm_extra_opts}")
 
         wrapped_cmd = f"""bash -c '
-        echo "[BASH WRAPPER] Loading modules on node $(hostname)..." >&2
         module purge >&2
         module load openmpi >&2
-        echo "[BASH WRAPPER] Modules loaded:" >&2
         module list >&2
-        echo "[BASH WRAPPER] Executing command: {cmd}" >&2
         {cmd}
         '"""
 

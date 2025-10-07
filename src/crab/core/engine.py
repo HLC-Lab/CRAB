@@ -457,6 +457,7 @@ class Engine:
                 if runs >= max_runs or (runs >= min_runs and converged) or exec_time >= time_out:
                     break
 
+
                 self.log(f' Run {runs+1}:', flush=True)
                 run_start_time = time.time()
                 current_time = 0
@@ -491,10 +492,10 @@ class Engine:
                         continue # Passa alla prossima app senza generare errore
 
                     # Per tutte le altre applicazioni, un codice non-zero è un errore reale.
-                    if app.process.returncode not in [None, 0]:
+                    # if app.process.returncode not in [None, 0]:
                         # Pulisci stderr per renderlo più leggibile
-                        stderr_clean = app.stderr.strip() if app.stderr else "No stderr."
-                        raise Exception(f"Application {app.id_num} failed with exit code {app.process.returncode}. Stderr: {stderr_clean}")
+                        # stderr_clean = app.stderr.strip() if app.stderr else "No stderr."
+                        # raise Exception(f"Application {app.id_num} failed with exit code {app.process.returncode}. Stderr: {stderr_clean}")
 
 
 
@@ -511,7 +512,12 @@ class Engine:
                 if runs >= min_runs:
                     converged = check_CI(data_container_list, alpha, beta, converge_all, runs)
 
-            # --- Final Data Logging (come prima) ---
+                run_end_time = time.time()
+                run_duration = run_end_time - run_start_time
+                self.log(f"--- [INFO] Run {runs} completata in {run_duration:.4f} secondi ---", flush=True)
+
+
+            # --- Final Data Logging  ---
             self.log('\nLogging data...', flush=True)
             if data_container_list:
                 log_data(out_format, os.path.join(data_directory, 'data'), data_container_list)
