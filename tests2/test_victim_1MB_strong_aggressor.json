@@ -1,0 +1,29 @@
+{
+    "global_options": {
+        "numnodes": "8",
+        "ppn": "1",
+        "allocationmode": "i",
+        "allocationsplit": "25:75",
+        "minruns": "20",
+        "maxruns": "20",
+        "timeout": "1200.0",
+        "outformat": "csv",
+        "extrainfo": "8_node_medium_victim_strong_aggressor_20runs"
+    },
+    "applications": {
+        "0": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/ardc_b.py",
+            "args": "-msgsize 1048576 -iter 500 -maxsamples 500",
+            "collect": true,
+            "start": "0",
+            "end": ""
+        },
+        "1": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
+            "args": "-msgsize 33554432 -iter 999999",
+            "collect": false,
+            "start": "3.0",
+            "end": "f"
+        }
+    }
+}
