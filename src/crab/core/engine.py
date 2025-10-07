@@ -232,6 +232,7 @@ def log_data(out_format, data_path_prefix, data_container_list):
         if 'level_1' in dataframe.columns:
             dataframe = dataframe.drop(columns=['level_1'])
 
+
         # Costruisci un nome di file specifico per questa app
         file_path = f"{data_path_prefix}_app_{app_id}"
         

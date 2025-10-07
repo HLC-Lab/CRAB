@@ -87,7 +87,7 @@
         "CRAB_MPIRUN_HOSTFILE_FLAG": "",
         "CRAB_MPIRUN_HOSTFILE_LONG_FLAG": "",
         "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
-        "CRAB_MPIRUN_ADDITIONAL_FLAGS": "--mca coll_tuned_allreduce_algorithm 3",
+        "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
         "CRAB_INTERFACE_MASK": "148.187.36.181/19",
         "CRAB_RUN_IB": "false",
         "CRAB_RUN_IBV": "false",
