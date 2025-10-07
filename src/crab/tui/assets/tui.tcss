@@ -1,9 +1,10 @@
-$background: #272822;        
-$surface: #3e3d32;          
-$primary: #a6e22e;          
-$secondary: #66d9ef;        
-$accent: #f92672;           
-$text: #f8f8f2;             
+/* Palette Sapienza Università di Roma - Dark Mode */
+$background: #202020;        /* Sfondo grigio scuro */
+$surface: #353535;          /* Superficie per elementi in rilievo */
+$primary: #c09a58;          /* Oro Sapienza per elementi interattivi */
+$secondary: #a72a3b;        /* Rosso Sapienza più brillante per hover/focus */
+$accent: #822433;           /* Rosso Sapienza istituzionale */
+$text: #f8f8f2;             /* Testo bianco sporco per leggibilità */
 
 
 Screen {
@@ -34,7 +35,7 @@ Header, Footer {
 }
 
 .tab:hover {
-    background: $accent;
+    background: $secondary;
 }
 
 
@@ -75,7 +76,7 @@ BenchmarkTabSelector {
 }
 
 .benchmark-tab:hover {
-    background: $accent;
+    background: $secondary;
 }
 
 .add-benchmark-btn {
@@ -89,11 +90,11 @@ BenchmarkTabSelector {
 }
 
 .add-benchmark-btn:hover {
-    background: $primary;
+    background: $secondary;
 }
 
 .add-benchmark-btn:focus {
-    background: $primary;
+    background: $secondary;
 }
 
 
@@ -150,25 +151,25 @@ Input, Checkbox, Label {
 
 
 Input:hover {
-    border: thick $accent;
+    border: thick $secondary;
 }
 
 Input:focus {
-    border: thick $accent;
+    border: thick $primary;
 }
 
 
 Checkbox:hover {
-    background: $accent;
+    background: $secondary;
 }
 
 Checkbox:focus {
-    background: $accent;
+    background: $secondary;
 }
 
 
 Label:hover {
-    color: $accent;
+    color: $secondary;
 }
 
 .placeholder {
