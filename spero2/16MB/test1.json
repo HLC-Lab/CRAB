@@ -1,0 +1,22 @@
+{
+    "global_options": {
+        "numnodes": "8",
+        "ppn": "1",
+        "allocationmode": "l",
+        "allocationsplit": "100",
+        "minruns": "5",
+        "maxruns": "5",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "extrainfo": "tesi_sonda_victim_allreduce_8nodes_16MB_isolated_linear"
+    },
+    "applications": {
+        "0": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/ardc_b.py",
+            "args": "-msgsize 16777216 -iter 50 -maxsamples 50",
+            "collect": true,
+            "start": "0",
+            "end": ""
+        }
+    }
+}

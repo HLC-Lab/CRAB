@@ -73,7 +73,7 @@
         "CRAB_MINIFE_PATH": ""
     },
     "leonardo": {
-        "UCX_IB_SL": "0",
+        "UCX_IB_SL": "1",
         "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/leonardo/smcx_home/bench/software/lib/ucx/nvhpc-22.2_pgi_cuda/lib/",
         "CRAB_GPU_BENCH": "true",
         "CRAB_XCCL_BENCH": "false",
