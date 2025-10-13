@@ -195,5 +195,9 @@
         "CRAB_AMG_PATH": "/scratch/2/t2hx/AMG/test/amg",
         "CRAB_G500_PATH": "/scratch/2/t2hx/graph500/mpi/runnable",
         "CRAB_MINIFE_PATH": "/scratch/2/t2hx/miniFE/ref/src/miniFE.x"
+    },
+    "example_preset": {
+        "CRAB_ROOT": "__CWD__",
+        "ENV_EXAMPLE": "ENV_VALUE"
     }
 }
