@@ -1,0 +1,30 @@
+{
+  "global_options": {
+    "numnodes": "8",
+    "ppn": "1",
+    "allocationmode": "i",
+    "allocationsplit": "50:50",
+    "minruns": "10",
+    "maxruns": "20",
+    "timeout": "1800.0",
+    "outformat": "csv",
+    "extrainfo": "32KiB",
+    "prev_job": "27320799"
+  },
+  "applications": {
+    "0": {
+      "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_b.py",
+      "args": "-msgsize 32768 -iter 1000",
+      "collect": true,
+      "start": "0",
+      "end": ""
+    },
+    "1": {
+      "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_nb.py",
+      "args": "-msgsize 67108864 -iter 5000",
+      "collect": false,
+      "start": "15.0",
+      "end": "f"
+    }
+  }
+}
