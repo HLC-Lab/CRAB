@@ -9,11 +9,11 @@
     "timeout": "1800.0",
     "outformat": "csv",
     "extrainfo": "16MiB",
-    "prev_job": "27323687"
+    "prev_job": "27330492"
   },
   "applications": {
     "0": {
-      "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_b.py",
+      "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
       "args": "-msgsize 16777216 -iter 1000",
       "collect": true,
       "start": "0",

@@ -13,8 +13,8 @@
   },
   "applications": {
     "0": {
-      "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_b.py",
-      "args": "-iter 1000",
+      "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+      "args": "-msgsize 8 -iter 1000",
       "collect": true,
       "start": "0",
       "end": ""
