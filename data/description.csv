@@ -1,0 +1,10 @@
+app_mix,system,numnodes,allocation_mode,allocation_split,ppn,out_format,extra,path
+8B,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-43-861971
+64B,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-45-613340
+512B,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-47-312179
+4KiB,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-49-037437
+32KiB,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-50-812488
+256KiB,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-52-548042
+2MiB,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-54-238908
+16MiB,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-55-945078
+128MiB,leonardo,8,i,50:50,1,csv,All-to-All,./data/leonardo/2025-12-01_12-36-57-729485
