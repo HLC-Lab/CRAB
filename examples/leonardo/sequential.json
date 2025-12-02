@@ -1,0 +1,44 @@
+{
+    "global_options": {
+        "numnodes": "4",
+        "ppn": "1",
+        "allocationmode": "p",
+        "partitionsplit": "100",
+        "allocationsplit": "100",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "extrainfo": "sequential_benchmark_only"
+    },
+    "applications": {
+        "0": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
+            "args": "-msgsize 1024 -iter 10",
+            "collect": true,
+            "start": "0",
+            "end": ""
+        },
+        "1": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
+            "args": "-msgsize 65536 -iter 10",
+            "collect": true,
+            "start": "s0",
+            "end": ""
+        },
+        "2": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
+            "args": "-msgsize 1048576 -iter 10",
+            "collect": true,
+            "start": "s1",
+            "end": ""
+        },
+        "3": {
+            "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
+            "args": "-msgsize 16777216 -iter 10",
+            "collect": true,
+            "start": "s2",
+            "end": ""
+        }
+    }
+}
