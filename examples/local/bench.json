@@ -8,7 +8,7 @@
         "minruns": "1",
         "maxruns": "5",
         "timeout": "600.0",
-        "ppn": "2",
+        "ppn": "1",
         "convergeall": true,
         "outformat": "csv",
         "runtimeout": "stdout",
@@ -18,7 +18,7 @@
     },
     "applications": {
         "0": {
-            "path": "/home/marcio/Documenti/Uni/Tirocinio/crab/wrappers/ping-pong_b.py",
+            "path": "/home/marcio/Documenti/Uni/Triennale/Tirocinio/crab/wrappers/barrier.py",
             "args": "",
             "collect": true,
             "start": "0",

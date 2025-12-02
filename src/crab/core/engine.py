@@ -16,7 +16,7 @@ import json
 from typing import Callable
 
 class data_container:
-    def __init__(self, app_id, conv_goal, label, unit):
+    def __init__(self, app_id, conv_goal, label, unit, msg_size=0):
         self.app_id = app_id
         self.conv_run = 0
         self.label = label
@@ -25,12 +25,13 @@ class data_container:
         self.converged = False
         self.num_samples = []
         self.data = []
+        self.msg_size = msg_size
 
     def get_title(self):
         return str(self.app_id)+'_'+self.label+'_'+self.unit
 
     def md_to_list(self):
-        return [self.app_id, self.label, self.unit, self.conv_goal, self.converged, self.conv_run]+self.num_samples
+        return [self.app_id, self.label, self.unit, self.conv_goal, self.converged, self.conv_run, self.msg_size]+self.num_samples
 
 
 def check_CI(container_list, alpha, beta, converge_all, run):
@@ -192,6 +193,12 @@ def log_data(out_format, data_path_prefix, data_container_list):
     for app_id, containers in apps_data.items():
         all_app_metrics = []
 
+        # Prende la msg_size dal primo 
+        app_msg_size = 0
+        if containers:
+            app_msg_size = containers[0].msg_size
+
+
         for container in containers:
             # Se non ci sono dati o campioni, salta questo container
             if not container.data or not container.num_samples:
@@ -232,6 +239,8 @@ def log_data(out_format, data_path_prefix, data_container_list):
         if 'level_1' in dataframe.columns:
             dataframe = dataframe.drop(columns=['level_1'])
 
+        # Inserisce alla posizione 1 "msg_size" "(subito dopo run_id)
+        dataframe.insert(1, "msg_size", app_msg_size)
 
         # Costruisci un nome di file specifico per questa app
         file_path = f"{data_path_prefix}_app_{app_id}"
@@ -359,16 +368,16 @@ class Engine:
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
                 #TODO: far passare la partizione da config o env
-            f.write(f"#SBATCH --partition=boost_usr_prod\n")
-            f.write("#SBATCH --account=IscrB_SWING\n")
+            # f.write(f"#SBATCH --partition=boost_usr_prod\n")
+            # f.write("#SBATCH --account=IscrB_SWING\n")
                 # #TODO: capire in quali sistemi serve caricare i moduli, magari metterlo nell'env
                 # f.write("module purge\n")
                 # f.write("module load openmpi\n\n")
                 # self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
 
                 #TODO: Capire il perche' di questi
-            f.write(f"#SBATCH --gres=tmpfs:0\n")
-            f.write(f"#SBATCH --time=01:00:00\n\n")
+            # f.write(f"#SBATCH --gres=tmpfs:0\n")
+            # f.write(f"#SBATCH --time=01:00:00\n\n")
 
 
 
@@ -486,9 +495,21 @@ class Engine:
             data_container_list = [] # Inizializza qui
             for app in apps:
                 if app.collect_flag:
+                    current_msg_size = 0
+                    if hasattr(app, 'args') and isinstance(app.args, str):
+                        tokens = app.args.split() # Divide la stringa in parole
+                        if "-msgsize" in tokens:
+                            try:
+                                idx = tokens.index("-msgsize")
+                                # Controlla che ci sia un elemento dopo il flag
+                                if idx + 1 < len(tokens):
+                                    current_msg_size = int(tokens[idx+1])
+                            except ValueError:
+                                self.log(f"[WARNING] Trovato flag -msgsize in app {app.id_num} ma il valore non è un intero valido.")
+                                current_msg_size = 0
                     for i in range(len(app.metadata)):
                         data_container_list.append(
-                            data_container(app.id_num, app.metadata[i]["conv"], app.metadata[i]["name"], app.metadata[i]["unit"])
+                            data_container(app.id_num, app.metadata[i]["conv"], app.metadata[i]["name"], app.metadata[i]["unit"], msg_size=current_msg_size)
                         )
 
             while True:
