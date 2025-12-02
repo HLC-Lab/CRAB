@@ -531,6 +531,10 @@ class Engine:
 
             if allocation_mode == 'p':
                 # === MODALITÀ PARTITIONED (Automatic Victim/Aggressor Split) ===
+                
+
+                # Estrapola il partition_layout
+                partition_layout = global_options.get('partitionlayout', 'l') # 'l'=linear, 'i'=interleaved
 
                 # 1. Parsing Global Partition Split
                 if partition_split_str == 'e':
@@ -549,11 +553,38 @@ class Engine:
                         pt_counts.append(int(math.ceil(num_nodes * p / 100)))
                     pt_counts.append(num_nodes - sum(pt_counts))
 
-                partition_node_lists = []
-                idx = 0
-                for count in pt_counts:
-                    partition_node_lists.append(node_list[idx : idx + count])
-                    idx += count
+                partition_node_lists = [[] for _ in range(len(pt_counts))]
+                
+                if partition_layout == 'i':
+                    # Interleaved: Assegnazione Round-Robin
+                    # Cicla sui nodi disponibili e li assegna alle partizioni che hanno ancora spazio
+                    # Esempio 50:50 su 8 nodi -> P0=[0,2,4,6], P1=[1,3,5,7]
+                    
+                    node_idx = 0
+                    nodes_assigned_total = 0
+                    
+                    # Continua finché non abbiamo assegnato tutti i nodi
+                    while nodes_assigned_total < num_nodes:
+                        for p_idx in range(len(pt_counts)):
+                            # Se questa partizione ha ancora bisogno di nodi, prendine uno
+                            if len(partition_node_lists[p_idx]) < pt_counts[p_idx]:
+                                partition_node_lists[p_idx].append(node_list[node_idx])
+                                node_idx += 1
+                                nodes_assigned_total += 1
+                                
+                                # Break interno se finiscono i nodi globali
+                                if node_idx >= len(node_list): 
+                                    break
+                        if node_idx >= len(node_list): 
+                            break
+                            
+                else:
+                    # Linear (Default): Assegnazione a Blocchi
+                    # Esempio 50:50 su 8 nodi -> P0=[0,1,2,3], P1=[4,5,6,7]
+                    idx = 0
+                    for p_idx, count in enumerate(pt_counts):
+                        partition_node_lists[p_idx] = node_list[idx : idx + count]
+                        idx += count
 
                 # 2. Parsing Local Allocation Rules
                 local_rules = [x.strip() for x in allocation_split_str.split(',')]
@@ -722,7 +753,7 @@ class Engine:
                     if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0 and hasattr(app, 'stdout'):
                         data_list_of_list = app.read_data()
                         for data_list in data_list_of_list:
-                            data_container_list[container_idx].data.extend(data_list)
+                       engine     data_container_list[container_idx].data.extend(data_list)
                             data_container_list[container_idx].num_samples.append(len(data_list))
                             container_idx += 1
 
