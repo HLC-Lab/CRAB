@@ -368,16 +368,16 @@ class Engine:
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
                 #TODO: far passare la partizione da config o env
-            # f.write(f"#SBATCH --partition=boost_usr_prod\n")
-            # f.write("#SBATCH --account=IscrB_SWING\n")
+            f.write(f"#SBATCH --partition=boost_usr_prod\n")
+            f.write("#SBATCH --account=IscrB_SWING\n")
                 # #TODO: capire in quali sistemi serve caricare i moduli, magari metterlo nell'env
                 # f.write("module purge\n")
                 # f.write("module load openmpi\n\n")
                 # self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
 
                 #TODO: Capire il perche' di questi
-            # f.write(f"#SBATCH --gres=tmpfs:0\n")
-            # f.write(f"#SBATCH --time=01:00:00\n\n")
+            f.write(f"#SBATCH --gres=tmpfs:0\n")
+            f.write(f"#SBATCH --time=01:00:00\n\n")
 
 
 
@@ -587,7 +587,7 @@ class Engine:
                         idx += count
 
                 # 2. Parsing Local Allocation Rules
-                local_rules = [x.strip() for x in allocation_split_str.split(',')]
+                local_rules = [x.strip() for x in allocation_split_str.split('-')]
 
                 if len(local_rules) == 1 and len(partition_node_lists) > 1:
                     local_rules = local_rules * len(partition_node_lists)
