@@ -1,0 +1,2 @@
+app_mix,system,numnodes,allocation_mode,allocation_split,ppn,out_format,extra,path
+victims_vs_aggressor,leonardo,8,p,100, 100,1,csv,victims_vs_aggressor,./data/leonardo/2025-12-02_14-00-12-766028
