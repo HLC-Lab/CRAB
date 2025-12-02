@@ -8,4 +8,4 @@ class app(microbench):
         return self.get_path("a2a_comm_only")
     
     def get_bench_name(self):
-        return "Alltoall Stackered"
+        return "Alltoall Communication Only"

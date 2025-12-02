@@ -303,7 +303,7 @@ class Engine:
             if not os.path.isfile(description_file):
                 os.makedirs(data_path, exist_ok=True)
                 with open(description_file, 'w') as desc_file:
-                    desc_file.write('app_mix,system,numnodes,allocation_mode,allocation_split,ppn,out_format,extra,path\n')
+                    desc_file.write('system,numnodes,allocation_mode,allocation_split,partition_split,partition_layout,ppn,out_format,extra,path\n')
             
             self.log("[DEBUG] Description file checked. Creating unique run directory...")
             
@@ -323,7 +323,7 @@ class Engine:
             self.log(f"[DEBUG] Created run directory: {data_directory}")
             
             with open(description_file, 'a+') as desc_file:
-                desc_line = f"{extrainfo},{environment.get('CRAB_SYSTEM')},{num_nodes},{global_options.get('allocationmode')},{global_options.get('allocationsplit')},{ppn},{global_options.get('outformat')},{extrainfo},{data_directory}\n"
+                desc_line = f"{environment.get('CRAB_SYSTEM')},{num_nodes},{global_options.get('allocationmode')},{global_options.get('allocationsplit')},{global_options.get('partitionsplit')},{global_options.get('partitionlayout')},{ppn},{global_options.get('outformat')},{extrainfo},{data_directory}\n"
                 desc_file.write(desc_line)
             
             config_file_path = os.path.join(data_directory, 'config.json')
@@ -587,7 +587,7 @@ class Engine:
                         idx += count
 
                 # 2. Parsing Local Allocation Rules
-                local_rules = [x.strip() for x in allocation_split_str.split(',')]
+                local_rules = [x.strip() for x in allocation_split_str.split('-')]
 
                 if len(local_rules) == 1 and len(partition_node_lists) > 1:
                     local_rules = local_rules * len(partition_node_lists)

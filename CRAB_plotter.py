@@ -473,34 +473,32 @@ if __name__ == "__main__":
             for row in reader:
                 path = row["path"]
                 system = row["system"]
-                message = row["app_mix"]
                 collective = row["extra"]
 
                 if system not in systems:
                     continue
                 if collective not in collectives:
                     continue
-                if message not in messages:
-                    continue
 
-                path = os.path.join(path, "data_app_0.csv")
-                print("Accessing:", path)
+                for i in range(9):
+                    data_path = os.path.join(path, f"data_app_{i}.csv")
+                    print("Accessing:", data_path)
 
-                with open(path, newline="") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
+                    with open(data_path, newline="") as f:
+                        reader = csv.DictReader(f)
+                        for row in reader:
 
-
-                        latency = float(row["0_Max-Duration_s"])
-                        m_bytes = to_bytes(message)
-                        bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
-                        m_bytes = message 
-                        data['latency'].append(latency)
-                        data['bandwidth'].append(bandwidth)
-                        data['message'].append(message)
-                        data['collective'].append(collective)
-                        data['bytes'].append(m_bytes)
-                        data['system'].append(system)
+                            latency = float(row[f"{i}_Max-Duration_s"])
+                            m_bytes = int(row["msg_size"])
+                            #to_bytes(message)
+                            bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
+                            #m_bytes = message 
+                            data['latency'].append(latency)
+                            data['bandwidth'].append(bandwidth)
+                            data['message'].append(str(m_bytes))
+                            data['collective'].append(collective)
+                            data['bytes'].append(m_bytes)
+                            data['system'].append(system)
 
     DrawLinePlot(data, "TEST")
     
