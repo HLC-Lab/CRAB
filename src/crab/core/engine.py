@@ -753,7 +753,7 @@ class Engine:
                     if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0 and hasattr(app, 'stdout'):
                         data_list_of_list = app.read_data()
                         for data_list in data_list_of_list:
-                       engine     data_container_list[container_idx].data.extend(data_list)
+                            data_container_list[container_idx].data.extend(data_list)
                             data_container_list[container_idx].num_samples.append(len(data_list))
                             container_idx += 1
 
