@@ -14,7 +14,6 @@
     "applications": {
         "0": {
             "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
-            "partition": 0,
             "args": "-msgsize 1024 -iter 10",
             "collect": true,
             "start": "0",
@@ -22,7 +21,6 @@
         },
         "1": {
             "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
-            "partition": 0,
             "args": "-msgsize 65536 -iter 10",
             "collect": true,
             "start": "s0",
@@ -30,7 +28,6 @@
         },
         "2": {
             "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
-            "partition": 0,
             "args": "-msgsize 1048576 -iter 10",
             "collect": true,
             "start": "s1",
@@ -38,7 +35,6 @@
         },
         "3": {
             "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
-            "partition": 0,
             "args": "-msgsize 16777216 -iter 10",
             "collect": true,
             "start": "s2",
@@ -46,7 +42,6 @@
         },
         "4": {
             "path": "/leonardo/home/userexternal/mmarcel3/crab/wrappers/a2a_b.py",
-            "partition": 1,
             "args": "-msgsize 268435456 -iter 1000000",
             "collect": false,
             "start": "0",

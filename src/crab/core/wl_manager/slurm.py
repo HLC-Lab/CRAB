@@ -30,6 +30,7 @@ class wl_manager:
             slurm_extra_opts = "--partition=boost_usr_prod"
             print(f"[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: {slurm_extra_opts}")
 
+        #TODO: togliere il wrap
         wrapped_cmd = f"""bash -c '
         module purge >&2
         module load openmpi >&2
