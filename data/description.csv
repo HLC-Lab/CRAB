@@ -1,2 +1,2 @@
-app_mix,system,numnodes,allocation_mode,allocation_split,ppn,out_format,extra,path
-victims_vs_aggressor,leonardo,8,p,100, 100,1,csv,victims_vs_aggressor,./data/leonardo/2025-12-02_14-00-12-766028
+system,numnodes,allocation_mode,allocation_split,partition_split,partition_layout,ppn,out_format,extra,path
+leonardo,8,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-02_17-15-10-250826

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-rm -rf data
+#rm -rf data
 
 # PREV_JOB=""
 
@@ -24,7 +24,5 @@ rm -rf data
 #     echo "Extracted job ID: $PREV_JOB" 
 # done
 
-CONFIG_FILE="h_all2all.json"
-JOBID=$(python cli.py --preset leonardo --config "$CONFIG_FILE" | awk '/Submitted batch job/{print $4}')
-PREV_JOB=$JOBID
-echo "Extracted job ID: $PREV_JOB" 
+CONFIG_FILE="huawei/h_all2all.json"
+python cli.py --preset leonardo --config "$CONFIG_FILE" | awk '/Submitted batch job/{print $4}'
