@@ -16,7 +16,7 @@ import json
 from typing import Callable
 
 class data_container:
-    def __init__(self, app_id, conv_goal, label, unit):
+    def __init__(self, app_id, conv_goal, label, unit, msg_size=0):
         self.app_id = app_id
         self.conv_run = 0
         self.label = label
@@ -25,12 +25,13 @@ class data_container:
         self.converged = False
         self.num_samples = []
         self.data = []
+        self.msg_size = msg_size
 
     def get_title(self):
         return str(self.app_id)+'_'+self.label+'_'+self.unit
 
     def md_to_list(self):
-        return [self.app_id, self.label, self.unit, self.conv_goal, self.converged, self.conv_run]+self.num_samples
+        return [self.app_id, self.label, self.unit, self.conv_goal, self.converged, self.conv_run, self.msg_size]+self.num_samples
 
 
 def check_CI(container_list, alpha, beta, converge_all, run):
@@ -192,6 +193,12 @@ def log_data(out_format, data_path_prefix, data_container_list):
     for app_id, containers in apps_data.items():
         all_app_metrics = []
 
+        # Prende la msg_size dal primo 
+        app_msg_size = 0
+        if containers:
+            app_msg_size = containers[0].msg_size
+
+
         for container in containers:
             # Se non ci sono dati o campioni, salta questo container
             if not container.data or not container.num_samples:
@@ -232,6 +239,8 @@ def log_data(out_format, data_path_prefix, data_container_list):
         if 'level_1' in dataframe.columns:
             dataframe = dataframe.drop(columns=['level_1'])
 
+        # Inserisce alla posizione 1 "msg_size" "(subito dopo run_id)
+        dataframe.insert(1, "msg_size", app_msg_size)
 
         # Costruisci un nome di file specifico per questa app
         file_path = f"{data_path_prefix}_app_{app_id}"
@@ -286,9 +295,6 @@ class Engine:
         extrainfo = global_options.get('extrainfo', '')
         num_nodes = int(global_options.get('numnodes'))
         ppn = int(global_options.get('ppn', 1))
-        
-        #! Lorenzo's modifications
-        prev_job = int(global_options.get('prev_job', -1))
 
         # --- Output Directory and Metadata Logging Setup ---
         try:
@@ -354,11 +360,6 @@ class Engine:
             f.write(f"#SBATCH --nodes={num_nodes}\n")
             f.write(f"#SBATCH --ntasks-per-node={ppn}\n")
 
-            #! Lorenzo's modifications
-            if prev_job != -1:
-                f.write(f"#SBATCH --dependency=afterany:{prev_job}\n")
-            f.write(f"#SBATCH --exclusive\n")
-
 
             # For tests only
             #f.write(f"#SBATCH --exclusive\n")
@@ -407,18 +408,20 @@ class Engine:
             os.environ.update(environment)
 
             # --- Inizializzazione del Worker ---
-            pre_start_time = time.time()
             global_options = config.get('global_options', {})
             applications_config = config.get('applications', {})
+            data_directory = output_dir
 
-            # La directory di lavoro è quella da cui viene eseguito lo script sbatch
-            data_directory = output_dir # <-- USA QUESTA RIGA
             self.log(f"--- [WORKER] Working directory is: {data_directory} ---", flush=True)
 
             # --- Caricamento parametri dal config ---
             num_nodes = int(global_options.get('numnodes'))
             allocation_mode = global_options.get('allocationmode', 'l')
-            allocation_split = global_options.get('allocationsplit', 'e')
+
+            # Gestione split avanzata per mode 'p'
+            partition_split_str = global_options.get('partitionsplit', '100')
+            allocation_split_str = global_options.get('allocationsplit', 'e')
+
             min_runs = int(global_options.get('minruns', 10))
             max_runs = int(global_options.get('maxruns', 1000))
             time_out = float(global_options.get('timeout', 100.0))
@@ -428,43 +431,85 @@ class Engine:
             converge_all = bool(global_options.get('convergeall', False))
             out_format = global_options.get('outformat', 'csv')
 
-            # --- Preparazione delle applicazioni (come prima) ---
+            # --- Preparazione delle applicazioni ---
             num_apps = 0
             apps = []
+
+            static_schedule = []
+            dependency_map = {}
+            relative_durations = {}
+
             apps_awaited = []
             apps_waiting = []
-            schedule = []
 
-            # (Il codice per inizializzare le app, schedule, ecc. è corretto e lo rimettiamo)
             sorted_apps = sorted(applications_config.items(), key=lambda item: int(item[0]))
+
             for app_key, app_details in sorted_apps:
                 import_path_app = app_details.get("path")
                 if not import_path_app: continue
 
                 app_args = app_details.get("args", "")
                 collect_flag = app_details.get("collect", False)
-                start_val = app_details.get("start", "")
-                end_val = app_details.get("end", "")
+                start_val = str(app_details.get("start", "0"))
+                end_val = str(app_details.get("end", ""))
 
-                start_time = 0.0 if start_val == '' else float(start_val)
-                schedule.append((num_apps, 's', start_time))
-
-                if end_val == '': apps_awaited.append(num_apps)
-                elif end_val == 'f': apps_waiting.append(num_apps)
+                # --- LOGICA ASSEGNAZIONE PARTIZIONE ---
+                # 1. Se "partition" è specificato manualmente, usalo.
+                # 2. Altrimenti: Collect=True -> Part 0, Collect=False -> Part 1
+                manual_partition = app_details.get("partition")
+                if manual_partition is not None:
+                    partition_id = int(manual_partition)
                 else:
-                    end_time = float(end_val)
-                    schedule.append((num_apps, 't' if collect_flag else 'k', end_time))
+                    partition_id = 0 if collect_flag else 1
+                # --------------------------------------
 
+                # --- 1. GESTIONE START (Assoluto vs Dipendenza) ---
+                is_dependent_start = False
+
+                if start_val.startswith("s"):
+                    # Check sicurezza: no end='f' con start dipendente
+                    if end_val == 'f':
+                        raise Exception(f"[FATAL] App {num_apps} config error: dependency start ('{start_val}') cannot be combined with end='f'.")
+
+                    try:
+                        target_id = int(start_val[1:])
+                        if target_id == num_apps:
+                            raise ValueError("Un'app non può dipendere da se stessa.")
+                        dependency_map[num_apps] = target_id
+                        is_dependent_start = True
+                    except ValueError as e:
+                        self.log(f"[ERROR] Parsing start dependency '{start_val}' for app {num_apps}: {e}")
+                        raise
+                else:
+                    start_time = float(start_val)
+                    static_schedule.append((num_apps, 's', start_time))
+
+                # --- 2. GESTIONE END ---
+                if end_val == '':
+                    apps_awaited.append(num_apps)
+                elif end_val == 'f':
+                    apps_waiting.append(num_apps)
+                else:
+                    end_time_or_duration = float(end_val)
+                    if is_dependent_start:
+                        relative_durations[num_apps] = end_time_or_duration
+                    else:
+                        static_schedule.append((num_apps, 'k' if collect_flag else 'k', end_time_or_duration))
+
+                # Caricamento Modulo App
                 app_class_name = pathlib.Path(import_path_app).stem
                 spec_app = importlib.util.spec_from_file_location(app_class_name, import_path_app)
                 mod_app = importlib.util.module_from_spec(spec_app)
                 spec_app.loader.exec_module(mod_app)
-                apps.append(mod_app.app(num_apps, collect_flag, app_args))
+
+                app_instance = mod_app.app(num_apps, collect_flag, app_args)
+                app_instance.partition_id = partition_id
+                app_instance.start_string = start_val
+                apps.append(app_instance)
+
                 num_apps += 1
 
-            # Ordina la schedule in base al tempo (terzo elemento della tupla)
-            schedule.sort(key=lambda x: x[2])
-
+            # Caricamento Workload Manager
             import_path_wlm = "./src/crab/core/wl_manager/" + os.environ["CRAB_WL_MANAGER"] + ".py"
             wlm_class_name = pathlib.Path(import_path_wlm).stem
             spec_wlm = importlib.util.spec_from_file_location(wlm_class_name, import_path_wlm)
@@ -481,75 +526,231 @@ class Engine:
 
             nodes_frame = pandas.read_csv(node_file_path, header=None)
             node_list = nodes_frame.iloc[:, 0].tolist()
-            split_absolute = get_abs_split(allocation_split, num_apps, num_nodes)
 
-            if allocation_mode == 'i': i_allocation(apps, node_list, split_absolute)
-            else: l_allocation(apps, node_list, split_absolute)
+            # --- LOGICA DI ALLOCAZIONE ---
 
-            # --- Main Execution Loop (ora corretto) ---
+            if allocation_mode == 'p':
+                # === MODALITÀ PARTITIONED (Automatic Victim/Aggressor Split) ===
+                
+
+                # Estrapola il partition_layout
+                partition_layout = global_options.get('partitionlayout', 'l') # 'l'=linear, 'i'=interleaved
+
+                # 1. Parsing Global Partition Split
+                if partition_split_str == 'e':
+                     # Conta partizioni reali usate
+                     used_partitions = set([getattr(a, 'partition_id', 0) for a in apps])
+                     max_p = max(used_partitions) + 1 if used_partitions else 1
+                     pt_counts = [int(math.ceil(num_nodes / max_p))] * max_p
+                     # Correzione resto
+                     current_sum = sum(pt_counts)
+                     if current_sum > num_nodes: pt_counts[-1] -= (current_sum - num_nodes)
+                     elif current_sum < num_nodes: pt_counts[-1] += (num_nodes - current_sum)
+                else:
+                    percs = [float(x) for x in partition_split_str.split(':')]
+                    pt_counts = []
+                    for p in percs[:-1]:
+                        pt_counts.append(int(math.ceil(num_nodes * p / 100)))
+                    pt_counts.append(num_nodes - sum(pt_counts))
+
+                partition_node_lists = [[] for _ in range(len(pt_counts))]
+                
+                if partition_layout == 'i':
+                    # Interleaved: Assegnazione Round-Robin
+                    # Cicla sui nodi disponibili e li assegna alle partizioni che hanno ancora spazio
+                    # Esempio 50:50 su 8 nodi -> P0=[0,2,4,6], P1=[1,3,5,7]
+                    
+                    node_idx = 0
+                    nodes_assigned_total = 0
+                    
+                    # Continua finché non abbiamo assegnato tutti i nodi
+                    while nodes_assigned_total < num_nodes:
+                        for p_idx in range(len(pt_counts)):
+                            # Se questa partizione ha ancora bisogno di nodi, prendine uno
+                            if len(partition_node_lists[p_idx]) < pt_counts[p_idx]:
+                                partition_node_lists[p_idx].append(node_list[node_idx])
+                                node_idx += 1
+                                nodes_assigned_total += 1
+                                
+                                # Break interno se finiscono i nodi globali
+                                if node_idx >= len(node_list): 
+                                    break
+                        if node_idx >= len(node_list): 
+                            break
+                            
+                else:
+                    # Linear (Default): Assegnazione a Blocchi
+                    # Esempio 50:50 su 8 nodi -> P0=[0,1,2,3], P1=[4,5,6,7]
+                    idx = 0
+                    for p_idx, count in enumerate(pt_counts):
+                        partition_node_lists[p_idx] = node_list[idx : idx + count]
+                        idx += count
+
+                # 2. Parsing Local Allocation Rules
+                local_rules = [x.strip() for x in allocation_split_str.split(',')]
+
+                if len(local_rules) == 1 and len(partition_node_lists) > 1:
+                    local_rules = local_rules * len(partition_node_lists)
+
+                if len(local_rules) != len(partition_node_lists):
+                    # Fallback intelligente: se ho definito 2 partizioni (vittima/aggressore)
+                    # ma 1 sola regola, la applico a entrambe (es "100" -> tutti shared)
+                    # Ma se sono diverse, solleva eccezione.
+                    raise Exception(f"Config Error: {len(partition_node_lists)} partitions created but {len(local_rules)} rules defined.")
+
+                # 3. Assegnazione
+                for p_id, (p_nodes, p_rule) in enumerate(zip(partition_node_lists, local_rules)):
+                    p_apps = [app for app in apps if getattr(app, 'partition_id', 0) == p_id]
+
+                    if not p_apps: continue
+
+                    self.log(f"--- [INFO] Partition {p_id} (Collect={p_id==0}): {len(p_nodes)} nodes. Rule: '{p_rule}' ---")
+
+                    # SHARED MODE CHECK
+                    if p_rule == '100' or (p_rule == 'e' and len(p_apps) <= 1):
+                        for app in p_apps:
+                            app.set_nodes(p_nodes)
+
+                        # Validator: Solo 1 absolute starter in shared mode
+                        if len(p_apps) > 1:
+                            absolute_starters = 0
+                            for app in p_apps:
+                                if not app.start_string.startswith('s'):
+                                    absolute_starters += 1
+                            if absolute_starters > 1:
+                                raise Exception(f"[FATAL] Conflict in Partition {p_id}. Multiple apps starting at absolute time in shared mode.")
+                    else:
+                        # Space Sharing
+                        num_p_nodes = len(p_nodes)
+                        num_p_apps = len(p_apps)
+                        p_split_abs = get_abs_split(p_rule, num_p_apps, num_p_nodes)
+                        curr = 0
+                        for app, count in zip(p_apps, p_split_abs):
+                            app.set_nodes(p_nodes[curr : curr + count])
+                            curr += count
+
+            else:
+                # === MODALITÀ LEGACY (l, i) ===
+                split_absolute = get_abs_split(allocation_split_str, num_apps, num_nodes)
+                if allocation_mode == 'i':
+                    i_allocation(apps, node_list, split_absolute)
+                else:
+                    l_allocation(apps, node_list, split_absolute)
+
+
+            # --- Inizializzazione Data Containers ---
             self.log('\nRunning Benchmarks...', flush=True)
             runs = 0
             converged = False
-            start_time = time.time()
-            data_container_list = [] # Inizializza qui
+            start_time_global = time.time()
+            data_container_list = []
+
             for app in apps:
                 if app.collect_flag:
+                    current_msg_size = 0
+                    if hasattr(app, 'args') and isinstance(app.args, str):
+                        tokens = app.args.split()
+                        if "-msgsize" in tokens:
+                            try:
+                                idx = tokens.index("-msgsize")
+                                if idx + 1 < len(tokens):
+                                    current_msg_size = int(tokens[idx+1])
+                            except ValueError:
+                                current_msg_size = 0
+
                     for i in range(len(app.metadata)):
                         data_container_list.append(
-                            data_container(app.id_num, app.metadata[i]["conv"], app.metadata[i]["name"], app.metadata[i]["unit"])
+                            data_container(
+                                app.id_num,
+                                app.metadata[i]["conv"],
+                                app.metadata[i]["name"],
+                                app.metadata[i]["unit"],
+                                msg_size=current_msg_size
+                            )
                         )
 
+            # --- MAIN LOOP (Event-Driven Polling) ---
             while True:
-                exec_time = time.time() - start_time
-                if runs >= max_runs or (runs >= min_runs and converged) or exec_time >= time_out:
+                exec_time_global = time.time() - start_time_global
+                if runs >= max_runs or (runs >= min_runs and converged) or exec_time_global >= time_out:
                     break
-
 
                 self.log(f' Run {runs+1}:', flush=True)
                 run_start_time = time.time()
-                current_time = 0
-                for app_id, action_type, action_time in schedule:
-                    # Questa sleep ora sarà sempre non-negativa
-                    time.sleep(action_time - current_time)
-                    if action_type == 's':
-                        run_job(apps[app_id], wlmanager, ppn)
-                    else:
-                        end_job(apps[app_id])
-                    current_time = action_time
 
+                current_schedule = sorted(static_schedule, key=lambda x: x[2])
+                current_dependencies = dependency_map.copy()
+                finished_apps_ids = set()
+                running_apps = set()
+
+                while True:
+                    now = time.time() - run_start_time
+
+                    # A. Eventi Temporali
+                    while current_schedule and current_schedule[0][2] <= now:
+                        app_id, action, _ = current_schedule.pop(0)
+                        if action == 's':
+                            if not hasattr(apps[app_id], 'process') or apps[app_id].process.poll() is not None:
+                                run_job(apps[app_id], wlmanager, ppn)
+                                running_apps.add(app_id)
+                        else:
+                            if app_id in running_apps:
+                                end_job(apps[app_id])
+                                running_apps.remove(app_id)
+                                finished_apps_ids.add(app_id)
+
+                    # B. Polling Processi
+                    for app_id in list(running_apps):
+                        proc = apps[app_id].process
+                        if proc.poll() is not None:
+                            # Se il processo è finito naturalmente.
+                            try:
+                                # communicate() ritorna subito perché il processo è già morto (poll non è None)
+                                out, err = proc.communicate()
+                                apps[app_id].set_output(out, err)
+                            except Exception as e:
+                                self.log(f"[ERROR] Reading output for finished app {app_id}: {e}")
+
+                            running_apps.remove(app_id)
+                            finished_apps_ids.add(app_id)
+
+                    # C. Dipendenze
+                    started_deps = []
+                    for waiter_id, target_id in current_dependencies.items():
+                        if target_id in finished_apps_ids:
+                            run_job(apps[waiter_id], wlmanager, ppn)
+                            running_apps.add(waiter_id)
+                            if waiter_id in relative_durations:
+                                duration = relative_durations[waiter_id]
+                                current_schedule.append((waiter_id, 'k', now + duration))
+                                current_schedule.sort(key=lambda x: x[2])
+                            started_deps.append(waiter_id)
+                    for start_id in started_deps: del current_dependencies[start_id]
+
+                    if not current_schedule and not current_dependencies:
+                        break
+                    time.sleep(0.1)
+
+                # Wait finali
+                remaining_time = time_out - (time.time() - start_time_global)
                 for app_ind in apps_awaited:
-                    wait_timed(apps[app_ind], time_out - (time.time() - start_time))
+                    if app_ind in running_apps or (hasattr(apps[app_ind], 'process') and apps[app_ind].process.poll() is None):
+                        if remaining_time > 0:
+                            wait_timed(apps[app_ind], remaining_time)
+                            remaining_time = time_out - (time.time() - start_time_global)
+                        else:
+                            end_job(apps[app_ind])
+
                 for app_ind in apps_waiting:
-                    end_job(apps[app_ind])
+                    if hasattr(apps[app_ind], 'process') and apps[app_ind].process.poll() is None:
+                        end_job(apps[app_ind])
 
                 runs += 1
 
-                # Controlla i codici di ritorno, ma ignora gli errori per i job
-                # che sono stati terminati forzatamente di proposito.
-                for app in apps:
-                    # Se l'applicazione non ha un processo, salta.
-                    if not hasattr(app, 'process'):
-                        continue
-                    
-                    # Se il processo è stato terminato forzatamente da noi ('end': 'f'),
-                    # un codice di uscita non-zero (come -9 per SIGKILL) è atteso e OK.
-                    # apps_waiting contiene gli indici delle app con 'end':'f'
-                    if app.id_num in apps_waiting and app.process.returncode != 0:
-                        self.log(f"[INFO] Application {app.id_num} was intentionally terminated (exit code: {app.process.returncode}). This is expected.", flush=True)
-                        continue # Passa alla prossima app senza generare errore
-
-                    # Per tutte le altre applicazioni, un codice non-zero è un errore reale.
-                    # if app.process.returncode not in [None, 0]:
-                        # Pulisci stderr per renderlo più leggibile
-                        # stderr_clean = app.stderr.strip() if app.stderr else "No stderr."
-                        # raise Exception(f"Application {app.id_num} failed with exit code {app.process.returncode}. Stderr: {stderr_clean}")
-
-
-
-
+                # Raccolta Dati
                 container_idx = 0
                 for app in apps:
-                    if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0:
+                    if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0 and hasattr(app, 'stdout'):
                         data_list_of_list = app.read_data()
                         for data_list in data_list_of_list:
                             data_container_list[container_idx].data.extend(data_list)
@@ -559,17 +760,11 @@ class Engine:
                 if runs >= min_runs:
                     converged = check_CI(data_container_list, alpha, beta, converge_all, runs)
 
-                run_end_time = time.time()
-                run_duration = run_end_time - run_start_time
-                self.log(f"--- [INFO] Run {runs} completata in {run_duration:.4f} secondi ---", flush=True)
+                self.log(f"--- [INFO] Run {runs} completata in {time.time() - run_start_time:.4f} secondi ---", flush=True)
 
-
-            # --- Final Data Logging  ---
             self.log('\nLogging data...', flush=True)
             if data_container_list:
                 log_data(out_format, os.path.join(data_directory, 'data'), data_container_list)
-                #log_meta_data(out_format, os.path.join(data_directory, 'metadata'), data_container_list, runs)
-
 
         finally:
             os.environ.clear()
