@@ -10,7 +10,8 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "victims_vs_aggressor"
+        "extrainfo": "victims_vs_aggressor",
+        "prevjob": "-1"
     },
     "applications": {
         "0": {

@@ -350,9 +350,9 @@ def ComputeBandwidth(latency, bytes, collective, nodes):
 
     gbits = (bytes * 8) / 1e9  # Convert bytes to gigabits
 
-    if collective == 'All-to-All':
+    if collective.split(" ")[0] == 'All-to-All':
         total_data = (nodes - 1) * gbits
-    elif collective == 'All-Gather':
+    elif collective.split(" ")[0] == 'All-Gather':
         total_data = ((nodes-1)/nodes) * gbits
     else:
         raise ValueError(f"Unknown collective: {collective}")
@@ -379,8 +379,8 @@ def DrawLinePlot(data, name):
         data=df,
         x='message',
         y='bandwidth',
-        hue='system',
-        style='system',
+        hue='collective',
+        style='collective',
         markers=True,
         markersize=10,
         linewidth=8,
@@ -460,7 +460,7 @@ if __name__ == "__main__":
 
 
     systems=["leonardo"]
-    collectives = ['All-to-All', 'allgather']
+    collectives = ['All-to-All', 'All-to-All Congested with All-to-All Noise']
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
 
     nodes = 4

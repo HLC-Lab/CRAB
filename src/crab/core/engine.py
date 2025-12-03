@@ -295,6 +295,7 @@ class Engine:
         extrainfo = global_options.get('extrainfo', '')
         num_nodes = int(global_options.get('numnodes'))
         ppn = int(global_options.get('ppn', 1))
+        prevjob = int(global_options.get('prevjob', -1))
 
         # --- Output Directory and Metadata Logging Setup ---
         try:
@@ -362,8 +363,10 @@ class Engine:
 
 
             # For tests only
-            #f.write(f"#SBATCH --exclusive\n")
-
+            #! Lorenzo's modifications
+            f.write(f"#SBATCH --exclusive\n")
+            if(prevjob != -1):
+                f.write(f"#SBATCH --dependency=afterany:{prevjob}\n")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
