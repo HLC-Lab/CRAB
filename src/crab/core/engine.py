@@ -296,6 +296,8 @@ class Engine:
         num_nodes = int(global_options.get('numnodes'))
         ppn = int(global_options.get('ppn', 1))
         prevjob = int(global_options.get('prevjob', -1))
+        slurm_partition = global_options.get('slurm_partition', None)
+        slurm_account = global_options.get('slurm_account', None)
 
         # --- Output Directory and Metadata Logging Setup ---
         try:
@@ -368,17 +370,20 @@ class Engine:
             if(prevjob != -1):
                 f.write(f"#SBATCH --dependency=afterany:{prevjob}\n")
 
+            f.write(f"#SBATCH --partition={slurm_partition}\n")
+            f.write(f"#SBATCH --account={slurm_account}\n")
+
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
                 #TODO: far passare la partizione da config o env
-            f.write(f"#SBATCH --partition=boost_usr_prod\n")
-            f.write("#SBATCH --account=IscrB_SWING\n")
+                # f.write(f"#SBATCH --partition=boost_usr_prod\n")
+                # f.write("#SBATCH --account=IscrB_SWING\n")
                 # #TODO: capire in quali sistemi serve caricare i moduli, magari metterlo nell'env
                 # f.write("module purge\n")
                 # f.write("module load openmpi\n\n")
                 # self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
 
-                #TODO: Capire il perche' di questi
+            #TODO: Capire il perche' di questi
             f.write(f"#SBATCH --gres=tmpfs:0\n")
             f.write(f"#SBATCH --time=01:00:00\n\n")
 
