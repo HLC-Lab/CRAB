@@ -1,0 +1,93 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/haicgu/2025-12-03_15-17-40-196584 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/haicgu/2025-12-03_15-17-40-196584 ---
+--- [WORKER] Allocating nodes provided by SLURM: cn[20-22,24-28] ---
+--- [INFO] Partition 0 (Collect=True): 4 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 4 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 8 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn21', 'cn24', 'cn26', 'cn28']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn21,cn24,cn26,cn28 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/noise_a2a 
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 64 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 512 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 4096 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 32768 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 262144 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 2097152 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 16777216 -iter 1000
+        '
+[DEBUG]: Node List is: ['cn20', 'cn22', 'cn25', 'cn27']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cn20,cn22,cn25,cn27 --cpu-bind=socket -n 4 -N 4 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /home/lpiarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 134217728 -iter 1000
+        '
+--- [INFO] Run 1 completata in 15.3795 secondi ---
+
+Logging data...
+Nessun dato da salvare per App 0.
+Nessun dato da salvare per App 1.
+Nessun dato da salvare per App 2.
+Nessun dato da salvare per App 3.
+Nessun dato da salvare per App 4.
+Nessun dato da salvare per App 5.
+Nessun dato da salvare per App 6.
+Nessun dato da salvare per App 7.
+Nessun dato da salvare per App 8.
+--- [WORKER] Engine run finished. ---
