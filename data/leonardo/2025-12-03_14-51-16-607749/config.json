@@ -10,7 +10,8 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "All-to-All"
+        "extrainfo": "All-to-All Congested with All-to-All Noise",
+        "prevjob": "-1"
     },
     "applications": {
         "0": {
@@ -77,8 +78,8 @@
             "end": ""
         },
         "9": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 16777216 -iter 1000000",
+            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/noise_a2a.py",
+            "args": "",
             "collect": false,
             "start": "0",
             "end": "f"
