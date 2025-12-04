@@ -373,14 +373,15 @@ def DrawLinePlot(data, name):
 
     # Conversione dati in DataFrame
     df = pd.DataFrame(data)
+    df['collective_system'] = df['collective'] + "_" + df['system']
 
     # --- Lineplot principale ---
     sns.lineplot(
         data=df,
         x='message',
         y='bandwidth',
-        hue='collective',
-        style='collective',
+        hue='collective_system',
+        style='collective_system',
         markers=True,
         markersize=10,
         linewidth=8,
@@ -459,47 +460,46 @@ if __name__ == "__main__":
     }
 
 
-    systems=["leonardo"]
-    collectives = ['All-to-All', 'All-to-All Congested with All-to-All Noise']
+    systems=["leonardo", "haicgu"]
+    collectives = ['All-to-All', 'All-to-All Congested']
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
 
     nodes = 4
 
-    for sys in systems:
-        data_folder = f"data/description.csv"
+    data_folder = f"data/description.csv"
 
-        with open(data_folder, newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                path = row["path"]
-                system = row["system"]
-                collective = row["extra"]
+    with open(data_folder, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            path = row["path"]
+            system = row["system"]
+            collective = row["extra"]
 
-                if system not in systems:
-                    continue
-                if collective not in collectives:
-                    continue
+            if system not in systems:
+                continue
+            if collective not in collectives:
+                continue
 
-                for i in range(9):
-                    data_path = os.path.join(path, f"data_app_{i}.csv")
-                    print("Accessing:", data_path)
+            for i in range(9):
+                data_path = os.path.join(path, f"data_app_{i}.csv")
+                print("Accessing:", data_path)
 
-                    with open(data_path, newline="") as f:
-                        reader = csv.DictReader(f)
-                        for row in reader:
+                with open(data_path, newline="") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
 
-                            latency = float(row[f"{i}_Max-Duration_s"])
-                            m_bytes = int(row["msg_size"])
-                            #to_bytes(message)
-                            bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
-                            #m_bytes = message 
-                            data['latency'].append(latency)
-                            data['bandwidth'].append(bandwidth)
-                            data['message'].append(str(m_bytes))
-                            data['collective'].append(collective)
-                            data['bytes'].append(m_bytes)
-                            data['system'].append(system)
+                        latency = float(row[f"{i}_Max-Duration_s"])
+                        m_bytes = int(row["msg_size"])
+                        #to_bytes(message)
+                        bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
+                        #m_bytes = message 
+                        data['latency'].append(latency)
+                        data['bandwidth'].append(bandwidth)
+                        data['message'].append(str(m_bytes))
+                        data['collective'].append(collective)
+                        data['bytes'].append(m_bytes)
+                        data['system'].append(system)
 
-    DrawLinePlot(data, "TEST")
+    DrawLinePlot(data, f"Systems Comparison with All-to-All Noise")
     
                 
