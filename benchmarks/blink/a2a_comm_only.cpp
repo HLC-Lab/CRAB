@@ -218,17 +218,13 @@ int main(int argc, char** argv){
             burst_start_time=MPI_Wtime();
             do{
                 MPI_Barrier(MPI_COMM_WORLD);
-                if(large_count){
-                    all2all_memcpy(send_buf, large_count, MPI_UINT64_T, recv_buf, large_count, MPI_UINT64_T, MPI_COMM_WORLD);
-                } else {
-                    all2all_memcpy(send_buf, msg_size, MPI_BYTE, recv_buf, msg_size, MPI_BYTE, MPI_COMM_WORLD);
-                }
                 measure_start_time=MPI_Wtime();
                 for(i=0;i<measure_granularity;i++){
-                    
                     if(large_count){
+                        all2all_memcpy(send_buf, large_count, MPI_UINT64_T, recv_buf, large_count, MPI_UINT64_T, MPI_COMM_WORLD);
                         custom_alltoall(send_buf, large_count, MPI_UINT64_T, recv_buf, large_count, MPI_UINT64_T, MPI_COMM_WORLD);
                     }else{
+                        all2all_memcpy(send_buf, msg_size, MPI_BYTE, recv_buf, msg_size, MPI_BYTE, MPI_COMM_WORLD);
                         custom_alltoall(send_buf, msg_size, MPI_BYTE, recv_buf, msg_size, MPI_BYTE, MPI_COMM_WORLD);
                     }
                 }

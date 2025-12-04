@@ -10,7 +10,7 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "All-to-All Congested with All-to-All Noise",
+        "extrainfo": "All-to-All Congested",
         "prevjob": "-1",
         "slurm_partition": "cn-eth",
         "slurm_account": "dcn"
@@ -80,8 +80,8 @@
             "end": ""
         },
         "9": {
-            "path": "/home/lpiarulli/CRAB/wrappers/noise_a2a.py",
-            "args": "",
+            "path": "/home/lpiarulli/CRAB/wrappers/a2a_nb.py",
+            "args": "-msgsize 16777216 -iter 100000",
             "collect": false,
             "start": "0",
             "end": "f"
