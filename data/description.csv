@@ -1,5 +1,3 @@
 system,numnodes,allocation_mode,allocation_split,partition_split,partition_layout,ppn,out_format,extra,path
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/2025-12-03_14-51-16-607749
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-03_14-51-18-495449
-haicgu,8,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/haicgu/2025-12-04_11-53-58-846147
-haicgu,8,p,100-100,50:50,i,1,csv,All-to-All,./data/haicgu/2025-12-04_11-54-00-069076
+haicgu,8,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/haicgu/2025-12-04_16-32-55-642343
+haicgu,8,p,100-100,50:50,i,1,csv,All-to-All,./data/haicgu/2025-12-04_16-32-56-815684
