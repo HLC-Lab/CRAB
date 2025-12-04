@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-to-All",
-        "prevjob": "28990",
+        "prevjob": "29008",
         "slurm_partition": "cn-eth",
         "slurm_account": "dcn"
     },

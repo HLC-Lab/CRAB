@@ -415,7 +415,7 @@ def DrawLinePlot(data, name):
     )
 
     # --- Subplot zoom-in ---
-    zoom_msgs = ['8B', '64B', '512B', '4KiB']
+    zoom_msgs = ['8', '64', '512', '4096']
     df_zoom = df[df['message'].isin(zoom_msgs)]
     #! This line creates a warning
     df_zoom['latency_scaled'] = df_zoom['latency'] * 1e6
@@ -425,8 +425,8 @@ def DrawLinePlot(data, name):
         data=df_zoom,
         x='message',
         y='latency_scaled',
-        hue='system',
-        style='system',
+        hue='collective_system',
+        style='collective_system',
         markers=True,
         markersize=8,
         linewidth=7,
