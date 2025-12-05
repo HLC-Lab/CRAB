@@ -1,0 +1,102 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/leonardo/2025-12-05_20-13-30-606260 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/leonardo/2025-12-05_20-13-30-606260 ---
+--- [WORKER] Allocating nodes provided by SLURM: lrdn[0005,0029,0043,0073,0120,0178,0583,0968,0990,1019,1046,1053,1079,1093,1110,1114,1140,1162,1226,1230,1248,1271,1299,1322,1345,1366,1381,1390,1654,1802,2016,2041,2076,2156,2164,2197,2217,2220,2233,2256,2269,2312,2320,2331,2344,2380,2454,2460,2471,2481,2498,2502,2523,2603,2626,2645,2675,2697,2704,2720,2728,2759,2765,2847] ---
+--- [INFO] Partition 0 (Collect=True): 32 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 8 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 64 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 512 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 4096 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 32768 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 262144 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 2097152 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 16777216 -iter 1000
+        '
+[DEBUG]: Node List is: ['lrdn0005', 'lrdn0043', 'lrdn0120', 'lrdn0583', 'lrdn0990', 'lrdn1046', 'lrdn1079', 'lrdn1110', 'lrdn1140', 'lrdn1226', 'lrdn1248', 'lrdn1299', 'lrdn1345', 'lrdn1381', 'lrdn1654', 'lrdn2016', 'lrdn2076', 'lrdn2164', 'lrdn2217', 'lrdn2233', 'lrdn2269', 'lrdn2320', 'lrdn2344', 'lrdn2454', 'lrdn2471', 'lrdn2498', 'lrdn2523', 'lrdn2626', 'lrdn2675', 'lrdn2704', 'lrdn2728', 'lrdn2765']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0005,lrdn0043,lrdn0120,lrdn0583,lrdn0990,lrdn1046,lrdn1079,lrdn1110,lrdn1140,lrdn1226,lrdn1248,lrdn1299,lrdn1345,lrdn1381,lrdn1654,lrdn2016,lrdn2076,lrdn2164,lrdn2217,lrdn2233,lrdn2269,lrdn2320,lrdn2344,lrdn2454,lrdn2471,lrdn2498,lrdn2523,lrdn2626,lrdn2675,lrdn2704,lrdn2728,lrdn2765 --cpu-bind=socket -n 32 -N 32 bash -c '
+        module purge >&2
+        module load openmpi >&2
+        module list >&2
+        /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_b -msgsize 134217728 -iter 1000
+        '
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+--- [INFO] Run 1 completata in 53.8700 secondi ---
+
+Logging data...
+Dati per App 0 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_0.csv
+Dati per App 1 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_1.csv
+Dati per App 2 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_2.csv
+Dati per App 3 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_3.csv
+Dati per App 4 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_4.csv
+Dati per App 5 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_5.csv
+Dati per App 6 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_6.csv
+Dati per App 7 salvati in: ./data/leonardo/2025-12-05_20-13-30-606260/data_app_7.csv
+Nessun dato da salvare per App 8.
+--- [WORKER] Engine run finished. ---

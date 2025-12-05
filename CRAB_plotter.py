@@ -7,6 +7,7 @@ import os
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.ticker import ScalarFormatter
 from matplotlib.colors import LinearSegmentedColormap
+import argparse
 
 
 
@@ -449,6 +450,12 @@ def DrawLinePlot(data, name):
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser(description='CRAB Plotter')
+    parser.add_argument('--nodes', type=int, default=4, help='Number of nodes (default: 4)')
+    args = parser.parse_args()
+
+    nodes = args.nodes
+
     data = {
         'message': [],
         'bytes': [],
@@ -463,9 +470,6 @@ if __name__ == "__main__":
     systems=["leonardo", "haicgu"]
     collectives = ['All-to-All', 'All-to-All Congested']
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
-
-    nodes = 4
-
     data_folder = f"data/description.csv"
 
     with open(data_folder, newline="") as f:
@@ -480,7 +484,7 @@ if __name__ == "__main__":
             if collective not in collectives:
                 continue
 
-            for i in range(9):
+            for i in range(8):
                 data_path = os.path.join(path, f"data_app_{i}.csv")
                 print("Accessing:", data_path)
 
