@@ -15,7 +15,7 @@ def main():
     cmd = ["rm", "-rf", "data"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = result.stdout + result.stderr
-    
+
 
     for bench in BENCHES:
         config_file = f"huawei_{SYSTEM}/h_{bench}.json"
