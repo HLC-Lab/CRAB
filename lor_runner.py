@@ -9,7 +9,7 @@ def main():
     args = parser.parse_args()
 
     SYSTEM = args.system
-    BENCHES = ["a2a_cong", "a2a"]
+    BENCHES = ["a2a", "a2a_cong"] #"a2a_cong", 
     prev_job = None
 
     cmd = ["rm", "-rf", "data"]
