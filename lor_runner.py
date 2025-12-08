@@ -12,9 +12,9 @@ def main():
     BENCHES = ["a2a", "a2a_cong"] #"a2a_cong", 
     prev_job = None
 
-    cmd = ["rm", "-rf", "data"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    output = result.stdout + result.stderr
+    # cmd = ["rm", "-rf", "data"]
+    # result = subprocess.run(cmd, capture_output=True, text=True)
+    # output = result.stdout + result.stderr
 
 
     for bench in BENCHES:
