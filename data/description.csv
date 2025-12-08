@@ -1,3 +1,4 @@
 system,numnodes,allocation_mode,allocation_split,partition_split,partition_layout,ppn,out_format,extra,path
-leonardo,64,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-05_20-13-30-606260
-leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/2025-12-05_20-13-32-646794
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/64
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/64_congested
+leonardo,128,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-08_12-40-43-694118

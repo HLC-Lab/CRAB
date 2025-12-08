@@ -365,10 +365,13 @@ class Engine:
 
 
             # For tests only
-            #! Lorenzo's modifications
+            #! Lorenzo's modifications, the qos is valid only on leonardo
             f.write(f"#SBATCH --exclusive\n")
             if(prevjob != -1):
                 f.write(f"#SBATCH --dependency=afterany:{prevjob}\n")
+            # if(num_nodes>64):
+            #     f.write(f"#SBATCH --qos=boost_qos_bprod\n")
+            # There's a problem with QOSMinCpuNotSatisfied
 
             f.write(f"#SBATCH --partition={slurm_partition}\n")
             f.write(f"#SBATCH --account={slurm_account}\n")
