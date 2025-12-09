@@ -8,59 +8,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <sched.h>
-#include <vector>
 #include "common.h"
-
-
-
-void all2all_memcpy(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm){
-
-    int rank, size;
-    MPI_Comm_rank(comm, &rank);
-    MPI_Comm_size(comm, &size);
-
-    int datatype_size;
-    MPI_Type_size(sendtype, &datatype_size);
-
-    const char* sbuf = static_cast<const char*>(sendbuf);
-    char* rbuf = static_cast<char*>(recvbuf);
-
-    double mem_time = MPI_Wtime(); 
-    // Copy local data directly (self-send)
-    memcpy(rbuf + rank * datatype_size * recvcount,
-                sbuf + rank * datatype_size * sendcount,
-                sendcount * datatype_size);
-
-}
-
-void custom_alltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype,
-                     void* recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm) {
-    int rank, size;
-    MPI_Comm_rank(comm, &rank);
-    MPI_Comm_size(comm, &size);
-
-    int datatype_size;
-    MPI_Type_size(sendtype, &datatype_size);
-
-    const char* sbuf = static_cast<const char*>(sendbuf);
-    char* rbuf = static_cast<char*>(recvbuf);
-
-    std::vector<MPI_Request> requests;
-    for (int i = 0; i < size; ++i) {
-        if (i == rank) continue;
-
-        MPI_Request req_recv;
-        MPI_Request req_send;
-
-        MPI_Isend(sbuf + i * datatype_size * sendcount, sendcount, sendtype, i, 0, comm, &req_send);
-        MPI_Irecv(rbuf + i * datatype_size * recvcount, recvcount, recvtype, i, 0, comm, &req_recv);
-        
-        requests.push_back(req_send);
-        requests.push_back(req_recv);
-    }
-
-    MPI_Waitall(static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE);
-}
 
 int main(int argc, char** argv){
 
@@ -91,7 +39,7 @@ int main(int argc, char** argv){
     double burst_pause=0.0;
     bool burst_pause_rand=false;
     
-    int i,k;
+    int i,j,k;
 
     /*read cmd line args*/
     for(i=1;i<argc;i++){
@@ -152,15 +100,24 @@ int main(int argc, char** argv){
     sched_setaffinity(0, sizeof(mask), &mask);*/
     
     /*allocate buffers*/
+    int msg_size_ints;
     int send_buf_size, recv_buf_size;
-    unsigned char *send_buf;
-    unsigned char *recv_buf;
-
-    send_buf_size=msg_size*w_size;
-    recv_buf_size=msg_size*w_size;
+    int *send_buf;
+    int *recv_buf;
     
-    send_buf=(unsigned char*)malloc_align(send_buf_size);
-    recv_buf=(unsigned char*)malloc_align(recv_buf_size);
+    if(msg_size%sizeof(int)!=0){
+        if(my_rank==master_rank){
+                fprintf(stderr, "Msg-size (%d) must be divisible by size of int (%ld)",msg_size,sizeof(int));
+                exit(-1);
+        }
+    }
+    
+    send_buf_size=msg_size/w_size;
+    msg_size_ints=send_buf_size/sizeof(int);
+    recv_buf_size=msg_size;
+    
+    send_buf=(int*)malloc_align(send_buf_size);
+    recv_buf=(int*)malloc_align(recv_buf_size);
     durations=(double *)malloc_align(sizeof(double)*max_samples);
     
     if(send_buf==NULL || recv_buf==NULL || durations==NULL){
@@ -169,71 +126,44 @@ int main(int argc, char** argv){
     }
     
     /*fill send buffer with dummies*/
-    for(i=0;i<send_buf_size;i++){
-        send_buf[i]='a';
+    for(i=0;i<msg_size_ints;i++){
+        send_buf[i]=1;
     }
+
     
     /*print basic info to stdout*/
     if(my_rank==master_rank){
         if(endless){
-            printf("All-to-all with %d processes, msg-size: %d, test iterations: endless.\n"
-                    ,w_size,msg_size);
+            printf("All-reduce with %d processes, receiver rank: %d, msg-size: %d, test iterations: endless.\n"
+                    ,w_size,master_rank,msg_size);
         }else{
-            printf("All-to-all with %d processes, msg-size: %d, test iterations: %d.\n"
-                    ,w_size,msg_size,max_iters);
+            printf("All-reduce with %d processes, receiver rank: %d, msg-size: %d, test iterations: %d.\n"
+                    ,w_size,master_rank,msg_size,max_iters);
         }
     }
+    
     /*measured iterations*/
     double burst_start_time;
     double measure_start_time;
-    double measure_total_time;
     double burst_length_mean=burst_length;
     double burst_pause_mean=burst_pause;
     bool burst_cont=false;
     curr_iters=0;
-
-    size_t large_count = 0;
-    if(msg_size >= 8 && msg_size % 8 == 0){ // Check if I can use 64-bit data types
-        large_count = msg_size / 8;
-        if (large_count >= ((u_int64_t) (1UL << 32)) - 1) { // If large_count can't be represented on 32 bits
-            if(my_rank == 0){
-                printf("\tTransfer size (B): -1, Transfer Time (s): -1, Bandwidth (GB/s): -1, Iteration -1\n");
-            }
-            return -1;
-        }
-    }else{
-        if (msg_size >= ((u_int64_t) (1UL << 32)) - 1) { // If msg_size can't be represented on 32 bits
-            if(my_rank == 0){
-                printf("\tTransfer size (B): -1, Transfer Time (s): -1, Bandwidth (GB/s): -1, Iteration -1\n");
-            }
-            return -1;
-        }
-    }
-
+    
     MPI_Barrier(MPI_COMM_WORLD);
     do{
         for(k=0;k<max_iters+warm_up_iters;k++){
             if(burst_length_rand){ /*randomized burst length*/
                 burst_length=rand_expo(burst_length_mean);
-            }
+            }        
             burst_start_time=MPI_Wtime();
             do{
                 MPI_Barrier(MPI_COMM_WORLD);
-                measure_total_time=0.0;
+                measure_start_time=MPI_Wtime();
                 for(i=0;i<measure_granularity;i++){
-                    if(large_count){
-                        all2all_memcpy(send_buf, large_count, MPI_UINT64_T, recv_buf, large_count, MPI_UINT64_T, MPI_COMM_WORLD);
-                        measure_start_time=MPI_Wtime();
-                        custom_alltoall(send_buf, large_count, MPI_UINT64_T, recv_buf, large_count, MPI_UINT64_T, MPI_COMM_WORLD);
-                        measure_total_time+=MPI_Wtime()-measure_start_time;
-                    }else{
-                        all2all_memcpy(send_buf, msg_size, MPI_BYTE, recv_buf, msg_size, MPI_BYTE, MPI_COMM_WORLD);
-                        measure_start_time=MPI_Wtime();
-                        custom_alltoall(send_buf, msg_size, MPI_BYTE, recv_buf, msg_size, MPI_BYTE, MPI_COMM_WORLD);
-                        measure_total_time+=MPI_Wtime()-measure_start_time;
-                    }
+                    MPI_Allgather(send_buf, msg_size_ints, MPI_INT, recv_buf, msg_size_ints, MPI_INT, MPI_COMM_WORLD);
                 }
-                durations[curr_iters%max_samples]=measure_total_time; /*write result to buffer (lru space)*/
+                durations[curr_iters%max_samples]=MPI_Wtime()-measure_start_time; /*write result to buffer (lru space)*/
                 curr_iters++;
                 if(burst_length!=0){ /*bcast needed for synch if bursts timed*/
                     if(my_rank==master_rank){ /*master decides if burst should be continued*/
@@ -257,8 +187,8 @@ int main(int argc, char** argv){
     
     /*free allocated buffers*/
     free(durations);
-    free(send_buf);
     free(recv_buf);
+    free(send_buf);
     
     /*exit MPI library*/
     MPI_Finalize();
