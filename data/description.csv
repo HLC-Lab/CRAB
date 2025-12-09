@@ -1,7 +1,7 @@
 system,numnodes,allocation_mode,allocation_split,partition_split,partition_layout,ppn,out_format,extra,path
-leonardo,64,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/64
-leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/64_congested
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-09_12-38-47-641746
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/2025-12-09_12-38-49-366889
-leonardo,8,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-09_12-38-51-277158
-leonardo,8,p,100-100,50:50,i,1,csv,All-Gather Congested,./data/leonardo/2025-12-09_12-49-20-987898
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/64_a2a
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/64_a2a_congested
+leonardo,8,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/8_a2a
+leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/8_a2a_congested
+leonardo,8,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/8_agtr
+leonardo,8,p,100-100,50:50,i,1,csv,All-Gather Congested,./data/leonardo/8_agtr_congested

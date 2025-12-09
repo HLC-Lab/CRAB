@@ -415,7 +415,7 @@ def DrawLinePlot(data, name):
         title=None,
     )
 
-    # --- Subplot zoom-in ---
+    # --- Subplot zoom-in --- ["agtr", "agtr_con
     zoom_msgs = ['8', '64', '512', '4096']
     df_zoom = df[df['message'].isin(zoom_msgs)]
     #! This line creates a warning
@@ -480,7 +480,7 @@ if __name__ == "__main__":
             collective = row["extra"]
             data_nodes = row["numnodes"]
 
-            if int(data_nodes) != nodes:
+            if int(data_nodes) != nodes*2:
                 continue
             if system not in systems:
                 continue
