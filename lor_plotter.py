@@ -469,6 +469,7 @@ if __name__ == "__main__":
 
     systems=["leonardo", "haicgu"]
     collectives = ['All-to-All', 'All-to-All Congested', 'All-Gather', 'All-Gather Congested']
+    collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001']
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
     data_folder = f"data/description.csv"
 
@@ -484,7 +485,7 @@ if __name__ == "__main__":
                 continue
             if system not in systems:
                 continue
-            if collective not in collectives:
+            if collective not in collectives_bursty:
                 continue
 
             for i in range(8):

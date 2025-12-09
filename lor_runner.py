@@ -9,12 +9,12 @@ def main():
     parser.add_argument("--type", required=True, help="Benchmark type: 's' for standard, 'b' for bursty.")
     args = parser.parse_args()
 
-    pauses = [0.01,0.0001,0.000001]
-    lengths = [0.1,0.01,0.001]
+    pauses = ["0.01","0.0001","0.000001"]
+    lengths = ["0.1","0.01","0.001"]
 
     SYSTEM = args.system
-    TYPE = "s"  # or b Currently only 'bursty' type is supported
-    BENCHES = ["agtr", "agtr_cong"] # ["a2a", "a2a_cong"]
+    TYPE = args.type  # or b Currently only 'bursty' type is supported
+    BENCHES = ["a2a_cong"] #["agtr", "agtr_cong"]
     prev_job = None
 
     # cmd = ["rm", "-rf", "data"]
@@ -58,7 +58,7 @@ def main():
         for bp in pauses:
             for bl in lengths:
                 for bench in BENCHES:
-                    config_file = f"huawei_{SYSTEM}/h_{bench}_{bp}_{bl}.json"
+                    config_file = f"huawei_{SYSTEM}_bursty/h_{bench}_{bp}_{bl}.json"
                     print(config_file)
 
                     # --- Update JSON ---
