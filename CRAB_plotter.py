@@ -468,7 +468,7 @@ if __name__ == "__main__":
 
 
     systems=["leonardo", "haicgu"]
-    collectives = ['All-to-All', 'All-to-All Congested']
+    collectives = ['All-to-All', 'All-to-All Congested', 'All-Gather', 'All-Gather Congested']
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
     data_folder = f"data/description.csv"
 
@@ -478,7 +478,10 @@ if __name__ == "__main__":
             path = row["path"]
             system = row["system"]
             collective = row["extra"]
+            data_nodes = row["numnodes"]
 
+            if int(data_nodes) != nodes:
+                continue
             if system not in systems:
                 continue
             if collective not in collectives:
