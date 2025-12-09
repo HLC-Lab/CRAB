@@ -6,9 +6,14 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description="Run chained jobs for different benchmarks.")
     parser.add_argument("--system", required=True, help="System preset name (previously exported as SYSTEM).")
+    parser.add_argument("--type", required=True, help="Benchmark type: 's' for standard, 'b' for bursty.")
     args = parser.parse_args()
 
+    pauses = [0.01,0.0001,0.000001]
+    lengths = [0.1,0.01,0.001]
+
     SYSTEM = args.system
+    TYPE = "s"  # or b Currently only 'bursty' type is supported
     BENCHES = ["agtr", "agtr_cong"] # ["a2a", "a2a_cong"]
     prev_job = None
 
@@ -16,38 +21,73 @@ def main():
     # result = subprocess.run(cmd, capture_output=True, text=True)
     # output = result.stdout + result.stderr
 
+    if(TYPE == "s"):
 
-    for bench in BENCHES:
-        config_file = f"huawei_{SYSTEM}/h_{bench}.json"
-        print(config_file)
+        for bench in BENCHES:
+            config_file = f"huawei_{SYSTEM}/h_{bench}.json"
+            print(config_file)
 
-        # --- Update JSON ---
-        with open(config_file, "r") as f:
-            config = json.load(f)
+            # --- Update JSON ---
+            with open(config_file, "r") as f:
+                config = json.load(f)
 
-        config.setdefault("global_options", {})
-        config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
+            config.setdefault("global_options", {})
+            config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
 
-        with open(config_file, "w") as f:
-            json.dump(config, f, indent=4)
+            with open(config_file, "w") as f:
+                json.dump(config, f, indent=4)
 
-        # --- Submit job ---
-        cmd = ["python", "cli.py", "--preset", SYSTEM, "--config", config_file]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        output = result.stdout + result.stderr
+            # --- Submit job ---
+            cmd = ["python", "cli.py", "--preset", SYSTEM, "--config", config_file]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            output = result.stdout + result.stderr
 
-        # Extract job ID
-        jobid = None
-        for line in output.splitlines():
-            if "Submitted batch job" in line:
-                jobid = line.split()[-1]
-                break
+            # Extract job ID
+            jobid = None
+            for line in output.splitlines():
+                if "Submitted batch job" in line:
+                    jobid = line.split()[-1]
+                    break
 
-        if not jobid:
-            raise RuntimeError("Could not extract job ID from output:\n" + output)
+            if not jobid:
+                raise RuntimeError("Could not extract job ID from output:\n" + output)
 
-        prev_job = jobid
-        print(f"Extracted job ID: {prev_job}")
+            prev_job = jobid
+            print(f"Extracted job ID: {prev_job}")
+    elif(TYPE == "b"):
+        for bp in pauses:
+            for bl in lengths:
+                for bench in BENCHES:
+                    config_file = f"huawei_{SYSTEM}/h_{bench}_{bp}_{bl}.json"
+                    print(config_file)
+
+                    # --- Update JSON ---
+                    with open(config_file, "r") as f:
+                        config = json.load(f)
+
+                    config.setdefault("global_options", {})
+                    config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
+
+                    with open(config_file, "w") as f:
+                        json.dump(config, f, indent=4)
+
+                    # --- Submit job ---
+                    cmd = ["python", "cli.py", "--preset", SYSTEM, "--config", config_file]
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    output = result.stdout + result.stderr
+
+                    # Extract job ID
+                    jobid = None
+                    for line in output.splitlines():
+                        if "Submitted batch job" in line:
+                            jobid = line.split()[-1]
+                            break
+
+                    if not jobid:
+                        raise RuntimeError("Could not extract job ID from output:\n" + output)
+
+                    prev_job = jobid
+                    print(f"Extracted job ID: {prev_job}")
 
 if __name__ == "__main__":
     main()
