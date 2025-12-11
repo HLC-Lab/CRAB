@@ -75,7 +75,6 @@
     "cresco8": {
         "CRAB_GPU_BENCH": "false",
         "CRAB_XCCL_BENCH": "false",
-        "CRAB_MPI_HOME": "usr/mpi/intel/openmpi-4.1.7rc1",
         "CRAB_MPIRUN": "srun",
         "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
         "CRAB_MPIRUN_HOSTFILE_FLAG": "",
@@ -88,7 +87,6 @@
         "CRAB_NET_NOISE_CONC": "1",
         "CRAB_BW_SATURATING_SIZE": "16777216",
         "CRAB_WL_MANAGER": "slurm",
-        "CRAB_NG_CONFIGURE_FLAGS": "MPICC=mpicc MPICXX=mpicxx HRT_ARCH=6 LDFLAGS=-lpthread --with-mpi=usr/mpi/intel/openmpi-4.1.7rc1/",
         "UCX_LOG_LEVEL": "error",
         "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
         "CRAB_AMG_PATH": "",
@@ -223,4 +221,4 @@
         "CRAB_ROOT": "__CWD__",
         "ENV_EXAMPLE": "ENV_VALUE"
     }
-}
+}/afs/enea.it/por/user/piarulli/CRAB/.venv/bin/python
