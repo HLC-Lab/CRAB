@@ -11,7 +11,9 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "victims_vs_aggressor",
-        "prevjob": "-1"
+        "prevjob": "-1",
+        "slurm_partition": "cresco8_cpu",
+        "slurm_account": "enea"
     },
     "applications": {
         "0": {

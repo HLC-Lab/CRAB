@@ -92,7 +92,7 @@ def main():
 
     SYSTEM = args.system
     TYPE = args.type  # or b Currently only 'bursty' type is supported
-    BENCHES = ["a2a", "a2a_cong"] #["agtr", "agtr_cong"]
+    BENCHES = ["a2a", "a2a_a2a-cong", "a2a_incast-cong"] #["agtr", "agtr_cong"]
     prev_job = None
 
     # cmd = ["rm", "-rf", "data"]
