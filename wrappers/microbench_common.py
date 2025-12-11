@@ -38,6 +38,9 @@ class microbench(base):
             tmp_list += [[float(x) for x in line.split(',')]]
         data_list = [list(x) for x in zip(*tmp_list)]
         return data_list
+    
+    def read_error(self):
+        return str(self.stderr)
 
     def get_bench_input(self):
         if "-msgsize" not in self.args:
