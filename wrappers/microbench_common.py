@@ -23,15 +23,6 @@ class microbench(base):
 
     def read_data(self):
         out_string = self.stdout
-
-        print("---------------------------------\n")
-        print(self.stdout)
-        print("\n---------------------------------")
-
-        print("---------------------------------\n")
-        print(self.stderr)
-        print("\n---------------------------------")
-
         tmp_list = []
         print(out_string.splitlines()[-1])
         for line in out_string.splitlines()[2:-1]:
