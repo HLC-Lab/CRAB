@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": "256",
+        "numnodes": "8",
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
