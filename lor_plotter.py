@@ -30,7 +30,7 @@ def plot_heatmaps(data, name):
     n_msgs = len(messages)
 
     acid_cmap = LinearSegmentedColormap.from_list("purple_acidgreen",
-                                              ["#FC4F49", "#29C35F"]) 
+                                              ["#FC4F49", "#29C35F"])
 
     # Create one subplot per message, stacked vertically
     fig, axes = plt.subplots(1, n_msgs, figsize=(9 * n_msgs, 8), sharex=True)
@@ -48,7 +48,7 @@ def plot_heatmaps(data, name):
         hm = sns.heatmap(pivot, annot=True, fmt=".3f", cmap=acid_cmap,
                     vmin=0.6, vmax=1.1, cbar=False, annot_kws={"size": 40}, yticklabels=False,
                     ax=ax)
-        
+
         heatmaps.append(hm)
 
         ax.set_title(f"Message Size: {msg}", fontsize=40, pad=30)
@@ -58,7 +58,7 @@ def plot_heatmaps(data, name):
 
     cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
     fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
-    cbar_ax.tick_params(labelsize=40)  
+    cbar_ax.tick_params(labelsize=40)
 
 
     plt.savefig(f'plots/{name}_heatmaps.png', dpi=300, bbox_inches='tight')
@@ -120,7 +120,7 @@ def DrawLinePlot2(data, name, palette):
     ax1.set_xlabel('Message Size', fontsize=40, labelpad=23)
 
     ax1.legend(
-        fontsize=40,           
+        fontsize=40,
         loc='upper center',
         bbox_to_anchor=(0.5, -0.2),  # più spazio sotto
         ncol=2,
@@ -175,7 +175,7 @@ def LoadHeatmapData(data, cluster, path, coll):
 
     for blen in burst_length:
         for bgap in burst_gap:
-    
+
             folder_name = blen + "_" + bgap
             full_path = os.path.join(path, folder_name)
 
@@ -230,7 +230,7 @@ def LoadHeatmapData(data, cluster, path, coll):
 
                 data['factor'].append(factor)
                 data['message'].append(msg)
-                data['cluster'].append(cluster)  
+                data['cluster'].append(cluster)
                 data['burst_length'].append(blen)
                 data['burst_gap'].append(bgap)
                 data['collective'].append(coll)
@@ -306,7 +306,7 @@ def DrawIterationsPlot(data, name):
 
     # Create the figure and axes
     f, ax1 = plt.subplots(figsize=(35, 20))
-    
+
     # Convert input data to a DataFrame
     df = pd.DataFrame(data)
     df['collective_system'] = df['collective'] + "_" + df['system']
@@ -583,36 +583,36 @@ if __name__ == "__main__":
         'iteration': []
     }
 
-    systems=["leonardo", "cresco8"]
-    collectives_sustained = ['All-to-All', 'All-to-All Congested', 'All-Gather', 'All-Gather Congested']
+    systems=["cresco8"]
+    collectives_sustained = ['All-to-All', 'All-to-All A2A-Congested', 'All-to-All Inc-Congested', 'All-Gather', 'All-Gather Congested']
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
 
     collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
                           'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
                           'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
-                          
-    LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)
+
+    LoadData(data, data_folder, nodes, systems, collectives_sustained, messages)
     DrawBandwidthPlot(data, f"PLOT_BW")
     CleanData(data)
 
     # messages = ['128B']
-        
+
     # collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
     #                       'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
     #                       'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
-    
-    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)    
+
+    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)
     # DrawIterationsPlot(data, f"PLOT_ITS_128MiB")
     # CleanData(data)
 
-    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)    
+    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)
     # DrawLatencyViolinPlot(data, f"PLOT_ITS_128MiB")
     # CleanData(data)
 
     # for i in ["0.01", "0.0001", "0.000001"]:
     #     for j in ["0.1", "0.01" , "0.001"]:
-    #         LoadData(data, data_folder, nodes, systems, [f'All-to-All Congested {i} {j}'], messages)    
+    #         LoadData(data, data_folder, nodes, systems, [f'All-to-All Congested {i} {j}'], messages)
     #         DrawIterationsPlot(data, f"PLOT_ITS_128MiB_{i}_{j}")
     #         CleanData(data)
-    
-                
+
+
