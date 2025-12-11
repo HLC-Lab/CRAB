@@ -17,7 +17,7 @@
     },
     "applications": {
         "0": {
-            "path": "/home/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 8 -iter 1000",
             "collect": true,
             "start": "0",
