@@ -241,6 +241,7 @@ def LoadHeatmapData(data, cluster, path, coll):
 # -------------------------
 # NEW STUFF
 # -------------------------
+
 def CleanData(data):
     for key in data.keys():
         data[key] = []
@@ -582,7 +583,7 @@ if __name__ == "__main__":
         'iteration': []
     }
 
-    systems=["leonardo"]
+    systems=["leonardo", "cresco8"]
     collectives_sustained = ['All-to-All', 'All-to-All Congested', 'All-Gather', 'All-Gather Congested']
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
 
@@ -590,23 +591,23 @@ if __name__ == "__main__":
                           'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
                           'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
                           
-    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)
-    # DrawBandwidthPlot(data, f"PLOT_BW")
-    # CleanData(data)
+    LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)
+    DrawBandwidthPlot(data, f"PLOT_BW")
+    CleanData(data)
 
-    messages = ['128B']
+    # messages = ['128B']
         
-    collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
-                          'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
-                          'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
+    # collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
+    #                       'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
+    #                       'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
     
     # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)    
     # DrawIterationsPlot(data, f"PLOT_ITS_128MiB")
     # CleanData(data)
 
-    LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)    
-    DrawLatencyViolinPlot(data, f"PLOT_ITS_128MiB")
-    CleanData(data)
+    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)    
+    # DrawLatencyViolinPlot(data, f"PLOT_ITS_128MiB")
+    # CleanData(data)
 
     # for i in ["0.01", "0.0001", "0.000001"]:
     #     for j in ["0.1", "0.01" , "0.001"]:
