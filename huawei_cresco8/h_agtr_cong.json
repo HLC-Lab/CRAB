@@ -78,7 +78,7 @@
             "end": ""
         },
         "9": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_nb.py",
+            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/a2a_nb.py",
             "args": "-msgsize 16777216 -iter 1000000",
             "collect": false,
             "start": "0",
