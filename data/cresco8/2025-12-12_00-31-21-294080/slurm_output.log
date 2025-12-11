@@ -1,0 +1,87 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/cresco8/2025-12-12_00-31-21-294080 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/cresco8/2025-12-12_00-31-21-294080 ---
+--- [WORKER] Allocating nodes provided by SLURM: cresco8x[205-236] ---
+--- [INFO] Partition 0 (Collect=True): 16 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 16 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 8 -iter 1000
+[DEBUG]: Node List is: ['cresco8x206', 'cresco8x208', 'cresco8x210', 'cresco8x212', 'cresco8x214', 'cresco8x216', 'cresco8x218', 'cresco8x220', 'cresco8x222', 'cresco8x224', 'cresco8x226', 'cresco8x228', 'cresco8x230', 'cresco8x232', 'cresco8x234', 'cresco8x236']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x206,cresco8x208,cresco8x210,cresco8x212,cresco8x214,cresco8x216,cresco8x218,cresco8x220,cresco8x222,cresco8x224,cresco8x226,cresco8x228,cresco8x230,cresco8x232,cresco8x234,cresco8x236 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/noise_incast -msgsize 16777216 -iter 100000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 64 -iter 1000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 512 -iter 1000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 4096 -iter 1000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 32768 -iter 1000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 262144 -iter 1000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 2097152 -iter 1000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 16777216 -iter 1000
+[DEBUG]: Node List is: ['cresco8x205', 'cresco8x207', 'cresco8x209', 'cresco8x211', 'cresco8x213', 'cresco8x215', 'cresco8x217', 'cresco8x219', 'cresco8x221', 'cresco8x223', 'cresco8x225', 'cresco8x227', 'cresco8x229', 'cresco8x231', 'cresco8x233', 'cresco8x235']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist cresco8x205,cresco8x207,cresco8x209,cresco8x211,cresco8x213,cresco8x215,cresco8x217,cresco8x219,cresco8x221,cresco8x223,cresco8x225,cresco8x227,cresco8x229,cresco8x231,cresco8x233,cresco8x235 --cpu-bind=socket -n 16 -N 16 /afs/enea.it/por/user/piarulli/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 134217728 -iter 1000
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+--- [WARNING] App 8 ended with return code 255 ---
+--- [ERROR] App 8 failed to provide data.
+ Error: Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+Failed to allocate memory on rank
+srun: error: cresco8x235: task 15: Exited with exit code 255
+srun: error: cresco8x217: task 6: Exited with exit code 255
+srun: error: cresco8x205: task 0: Exited with exit code 255
+srun: error: cresco8x211: task 3: Exited with exit code 255
+srun: error: cresco8x233: task 14: Exited with exit code 255
+srun: error: cresco8x221: task 8: Exited with exit code 255
+srun: error: cresco8x231: task 13: Exited with exit code 255
+srun: error: cresco8x229: task 12: Exited with exit code 255
+srun: error: cresco8x227: task 11: Exited with exit code 255
+srun: error: cresco8x219: task 7: Exited with exit code 255
+srun: error: cresco8x223: task 9: Exited with exit code 255
+srun: error: cresco8x225: task 10: Exited with exit code 255
+srun: error: cresco8x209: task 2: Exited with exit code 255
+srun: error: cresco8x215: task 5: Exited with exit code 255
+srun: error: cresco8x207: task 1: Exited with exit code 255
+srun: error: cresco8x213: task 4: Exited with exit code 255
+ ---
+--- [WARNING] App 9 ended with return code -9 ---
+--- [INFO] Run 1 completata in 24.1891 secondi ---
+
+Logging data...
+Dati per App 0 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_0.csv
+Dati per App 1 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_1.csv
+Dati per App 2 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_2.csv
+Dati per App 3 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_3.csv
+Dati per App 4 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_4.csv
+Dati per App 5 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_5.csv
+Dati per App 6 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_6.csv
+Dati per App 7 salvati in: ./data/cresco8/2025-12-12_00-31-21-294080/data_app_7.csv
+Nessun dato da salvare per App 8.
+--- [WORKER] Engine run finished. ---

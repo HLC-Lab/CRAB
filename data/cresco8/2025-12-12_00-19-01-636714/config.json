@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": "32",
+        "numnodes": "16",
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -10,8 +10,8 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "All-to-All A2A-Congested",
-        "prevjob": "1864437",
+        "extrainfo": "All-to-All Inc-Congested",
+        "prevjob": "1864432",
         "slurm_partition": "cresco8_cpu",
         "slurm_account": "enea"
     },
@@ -80,7 +80,7 @@
             "end": ""
         },
         "9": {
-            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/noise_a2a.py",
+            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/noise_incast.py",
             "args": "-msgsize 16777216 -iter 100000",
             "collect": false,
             "start": "0",
