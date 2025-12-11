@@ -10,7 +10,7 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "victims_vs_aggressor",
+        "extrainfo": "All-Gather Inc-Congested",
         "prevjob": "-1",
         "slurm_partition": "cresco8_cpu",
         "slurm_account": "enea"
