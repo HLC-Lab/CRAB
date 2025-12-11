@@ -5,6 +5,7 @@ import argparse
 
 
 def BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths):
+    prev_job = None
     print("Running bursty benchmark on system:", SYSTEM)
     for bp in pauses:
         for bl in lengths:
@@ -42,6 +43,7 @@ def BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths):
 
 
 def SustainedBenchmark(SYSTEM, BENCHES):
+    prev_job = None
     print("Running sustained benchamrk on system:", SYSTEM)
     for bench in BENCHES:
         config_file = f"huawei_{SYSTEM}/h_{bench}.json"
@@ -93,7 +95,6 @@ def main():
     SYSTEM = args.system
     TYPE = args.type  # or b Currently only 'bursty' type is supported
     BENCHES = ["a2a", "a2a_a2a-cong", "a2a_incast-cong"] #["agtr", "agtr_cong"]
-    prev_job = None
 
     # cmd = ["rm", "-rf", "data"]
     # result = subprocess.run(cmd, capture_output=True, text=True)
