@@ -763,6 +763,7 @@ class Engine:
                 print("SONO QUIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII "+str(len(apps)))
                 container_idx = 0
                 for app in apps:
+                    print("App id: "+str(app.id_num)+" collect_flag: "+str(app.collect_flag)+" process: "+str(hasattr(app, 'process'))+" returncode: "+str(getattr(app.process, 'returncode', 'N/A'))+" stdout: "+str(hasattr(app, 'stdout')))
                     if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0 and hasattr(app, 'stdout'):
                         data_list_of_list = app.read_data()
                         for data_list in data_list_of_list:
