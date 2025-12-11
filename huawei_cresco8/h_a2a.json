@@ -17,14 +17,14 @@
     },
     "applications": {
         "0": {
-            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/a2a_b.py",
             "args": "-msgsize 8 -iter 1000",
             "collect": true,
             "start": "0",
             "end": ""
         },
         "1": {
-            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/a2a_b.py",
             "args": "-msgsize 64 -iter 1000",
             "collect": true,
             "start": "s0",
