@@ -759,6 +759,8 @@ class Engine:
                 runs += 1
 
                 # Raccolta Dati
+                #! Lorenzo's modifications
+                print("SONO QUIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII "+str(len(apps)))
                 container_idx = 0
                 for app in apps:
                     if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0 and hasattr(app, 'stdout'):
