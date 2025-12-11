@@ -8,6 +8,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from matplotlib.ticker import ScalarFormatter
 from matplotlib.colors import LinearSegmentedColormap
 import argparse
+import glob
 
 
 
@@ -164,74 +165,6 @@ def DrawLinePlot2(data, name, palette):
 
 
 
-
-def DrawScatterPlot(data, name, palette):
-    print(f"Plotting data collective: {name}")
-
-    # Use a dark theme for the plot
-    sns.set_style("whitegrid")  # darker background for axes
-    sns.set_context("talk")
-
-    # Create the figure and axes
-    f, ax1 = plt.subplots(figsize=(30, 13))
-    
-    # Convert input data to a DataFrame
-    df = pd.DataFrame(data)
-    #df['cluster_collective'] = df['Cluster'].astype(str) + '_' + df['collective'].astype(str)
-
-    # Plot with seaborn
-    fig = sns.scatterplot(
-        data=df,
-        x='iteration',
-        y='bandwidth',
-        hue='Cluster',
-        s=200,
-        ax=ax1,
-        alpha=0.9
-    )
-
-    ax1.axhline(
-        y=200,
-        color='red',
-        linestyle='--',
-        linewidth=6,
-        label=f'Nanjing Theoretical Peak {200} Gb/s'
-    )
-
-    ax1.axhline(
-        y=100,
-        color='red',
-        linestyle=':',
-        linewidth=6,
-        label=f'HAICGU Theoretical Peak {100} Gb/s'
-    )
-
-    # Labeling and formatting
-    ax1.set_xlim(0, len(df["iteration"].unique()) - 1)
-    ax1.tick_params(axis='both', which='major', labelsize=45)
-    ax1.set_ylabel('Bandwidth (Gb/s)', fontsize=45, labelpad=20)
-    ax1.set_xlabel('Iterations', fontsize=45, labelpad=20)
-    #ax1.set_title(f'{name}', fontsize=45, pad=30)
-
-    # Show legend and layout
-    # Filtra legenda: solo cluster_collective unici + linea teorica
-
-    ax1.legend(
-        fontsize=45,           # grandezza testo etichette
-        loc='upper center',
-        bbox_to_anchor=(0.5, -0.2),  # più spazio sotto
-        ncol=2,
-        frameon=True,
-        title=None,
-        markerscale=2.0        # ingrandisce i marker nella legenda
-    )
-    plt.tight_layout()
-
-    # Save the figure
-    plt.savefig(f'plots/{name}_scatter.png', dpi=300)  # save with dark background
-
-
-
 def LoadHeatmapData(data, cluster, path, coll):
 
     print (f"Loading data from {path}, coll={coll}")
@@ -362,7 +295,124 @@ def ComputeBandwidth(latency, bytes, collective, nodes):
     return bandwidth
 
 
-def DrawLinePlot(data, name):
+
+def DrawIterationsPlot(data, name):
+    print(f"Plotting data collective: {name}")
+
+    # Use a dark theme for the plot
+    sns.set_style("whitegrid")  # darker background for axes
+    sns.set_context("talk")
+
+    # Create the figure and axes
+    f, ax1 = plt.subplots(figsize=(35, 20))
+    
+    # Convert input data to a DataFrame
+    df = pd.DataFrame(data)
+    df['collective_system'] = df['collective'] + "_" + df['system']
+
+    # Plot with seaborn
+    fig = sns.scatterplot(
+        data=df,
+        x='iteration',
+        y='latency',
+        hue='collective_system',
+        s=200,
+        ax=ax1,
+        alpha=0.9
+    )
+
+    # ax1.axhline(
+    #     y=200,
+    #     color='red',
+    #     linestyle='--',
+    #     linewidth=6,
+    #     label=f'Nanjing Theoretical Peak {200} Gb/s'
+    # )
+
+    # ax1.axhline(
+    #     y=100,
+    #     color='red',
+    #     linestyle=':',
+    #     linewidth=6,
+    #     label=f'HAICGU Theoretical Peak {100} Gb/s'
+    # )
+
+    # Labeling and formatting
+    ax1.set_xlim(0, len(df["iteration"].unique()) - 1)
+    ax1.tick_params(axis='both', which='major', labelsize=45)
+    ax1.set_ylabel('Bandwidth (Gb/s)', fontsize=45, labelpad=20)
+    ax1.set_xlabel('Iterations', fontsize=45, labelpad=20)
+    #ax1.set_title(f'{name}', fontsize=45, pad=30)
+
+    # Show legend and layout
+    # Filtra legenda: solo cluster_collective unici + linea teorica
+
+    ax1.legend(
+        fontsize=45,           # grandezza testo etichette
+        loc='upper center',
+        bbox_to_anchor=(0.5, -0.2),  # più spazio sotto
+        ncol=2,
+        frameon=True,
+        title=None,
+        markerscale=2.0        # ingrandisce i marker nella legenda
+    )
+    plt.tight_layout()
+
+    # Save the figure
+    plt.savefig(f'plots/{name}_scatter.png', dpi=300)  # save with dark background
+
+def DrawLatencyViolinPlot(data, name):
+    print(f"Plotting violin plot: {name}")
+
+    # Style
+    sns.set_style("whitegrid")
+    sns.set_context("talk")
+
+    # Figure
+    f, ax = plt.subplots(figsize=(40, 30))
+
+    # DataFrame
+    df = pd.DataFrame(data)
+    df['collective_system'] = df['collective'] + "_" + df['system']
+
+    # --- Violin plot ---
+    # sns.violinplot(
+    #     data=df,
+    #     x='collective_system',
+    #     y='latency',
+    #     ax=ax,
+    #     cut=0,             # avoids extending beyond data range
+    #     inner='box',       # show a mini-boxplot inside violins
+    #     linewidth=3
+    # )
+
+    palette_base = ["#4C72B0", "#55A868", "#C44E52"]
+
+    # Build a palette where each color repeats for 3 categories
+    unique_x = df["collective_system"].unique()
+    palette = [palette_base[i // 3 % len(palette_base)] for i in range(len(unique_x))]
+
+    sns.boxplot(
+        data=df,
+        x='collective_system',
+        y='latency',
+        ax=ax,
+        showfliers=False,
+        palette=palette
+    )
+
+    # Labels
+    ax.set_xlabel("Collective", fontsize=40, labelpad=23)
+    ax.set_ylabel("Latency (s)", fontsize=40, labelpad=23)
+    ax.tick_params(axis='x', rotation=90, labelsize=32)
+    ax.tick_params(axis='y', labelsize=40)
+    # Save
+    plt.tight_layout()
+    plt.savefig(f"plots/{name}_violin.png", dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def DrawBandwidthPlot(data, name):
     print(f"Plotting data collective: {name}")
 
     # Imposta stile e contesto
@@ -448,30 +498,14 @@ def DrawLinePlot(data, name):
     plt.close()
 
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser(description='CRAB Plotter')
-    parser.add_argument('--nodes', type=int, default=4, help='Number of nodes (default: 4)')
-    args = parser.parse_args()
-
-    nodes = args.nodes
-
-    data = {
-        'message': [],
-        'bytes': [],
-        'latency': [],
-        'bandwidth': [],
-        'system': [],
-        'collective': [],
-        #'iteration': []
-    }
+def LoadData(dict, data_folder, nodes, systems, collectives, messages):
 
 
-    systems=["leonardo", "haicgu"]
-    collectives = ['All-to-All', 'All-to-All Congested', 'All-Gather', 'All-Gather Congested']
-    collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001']
-    messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
-    data_folder = f"data/description.csv"
+    m_bytes_mess = []
+    for mess in messages:
+        m_bytes = to_bytes(mess)
+        m_bytes_mess.append(m_bytes)
+
 
     with open(data_folder, newline="") as f:
         reader = csv.DictReader(f)
@@ -481,33 +515,103 @@ if __name__ == "__main__":
             collective = row["extra"]
             data_nodes = row["numnodes"]
 
+            print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
+
             if int(data_nodes) != nodes*2:
+                print("SKIP! nodes fault.\n")
                 continue
             if system not in systems:
+                print("SKIP! system fault.\n")
                 continue
-            if collective not in collectives_bursty:
+            if collective not in collectives:
+                print(collectives)
+                print("SKIP! collective fault.\n")
                 continue
 
-            for i in range(8):
-                data_path = os.path.join(path, f"data_app_{i}.csv")
-                print("Accessing:", data_path)
+            data_path = os.path.join(path, f"data_app_0.csv")
+            if not os.path.exists(data_path):
+                continue
 
-                with open(data_path, newline="") as f:
+            csv_files = sorted(glob.glob(os.path.join(path, "data_app_*.csv")))
+
+            for i in range(len(csv_files)):
+
+                print("Accessing:", csv_files[i])
+
+                with open(csv_files[i], newline="") as f:
                     reader = csv.DictReader(f)
+                    row_counter = 0
                     for row in reader:
 
                         latency = float(row[f"{i}_Max-Duration_s"])
                         m_bytes = int(row["msg_size"])
-                        #to_bytes(message)
+                        if m_bytes not in m_bytes_mess:
+                            print("SKIP!\n")
+                            break
+                        elif row_counter == 0:
+                            print("PROCESS!\n")
+
                         bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
-                        #m_bytes = message 
                         data['latency'].append(latency)
                         data['bandwidth'].append(bandwidth)
                         data['message'].append(str(m_bytes))
                         data['collective'].append(collective)
                         data['bytes'].append(m_bytes)
                         data['system'].append(system)
+                        data['iteration'].append(row_counter)
+                        row_counter += 1
 
-    DrawLinePlot(data, f"Systems Comparison with All-to-All Noise")
+
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Collectives Plotter')
+    parser.add_argument('--nodes', type=int, default=4, help='Number of nodes (default: 4)')
+    args = parser.parse_args()
+    nodes = args.nodes
+    data_folder = f"data/description.csv"
+
+    data = {
+        'message': [],
+        'bytes': [],
+        'latency': [],
+        'bandwidth': [],
+        'system': [],
+        'collective': [],
+        'iteration': []
+    }
+
+    systems=["leonardo"]
+    collectives_sustained = ['All-to-All', 'All-to-All Congested', 'All-Gather', 'All-Gather Congested']
+    messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
+
+    collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
+                          'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
+                          'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
+                          
+    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)
+    # DrawBandwidthPlot(data, f"PLOT_BW")
+    # CleanData(data)
+
+    messages = ['128B']
+        
+    collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
+                          'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
+                          'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
+    
+    # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)    
+    # DrawIterationsPlot(data, f"PLOT_ITS_128MiB")
+    # CleanData(data)
+
+    LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)    
+    DrawLatencyViolinPlot(data, f"PLOT_ITS_128MiB")
+    CleanData(data)
+
+    # for i in ["0.01", "0.0001", "0.000001"]:
+    #     for j in ["0.1", "0.01" , "0.001"]:
+    #         LoadData(data, data_folder, nodes, systems, [f'All-to-All Congested {i} {j}'], messages)    
+    #         DrawIterationsPlot(data, f"PLOT_ITS_128MiB_{i}_{j}")
+    #         CleanData(data)
     
                 

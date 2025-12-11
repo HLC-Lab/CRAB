@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-to-All Congested 0.000001 0.1",
-        "prevjob": "27896932",
+        "prevjob": "27923652",
         "slurm_partition": "boost_usr_prod",
         "slurm_account": "IscrB_SWING"
     },
