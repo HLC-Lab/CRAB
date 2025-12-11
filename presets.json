@@ -73,6 +73,7 @@
         "CRAB_MINIFE_PATH": ""
     },
     "cresco8": {
+        "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/usr/mpi/intel/openmpi-4.1.7rc1/lib",
         "CRAB_GPU_BENCH": "false",
         "CRAB_XCCL_BENCH": "false",
         "CRAB_MPI_HOME": "usr/mpi/intel/openmpi-4.1.7rc1",
