@@ -17,6 +17,7 @@ static double rand_expo(double mean)
     return -log(1 - u) / lambda;
 }
 
+
 /*sleep seconds given as double*/
 static int dsleep(double t)
 {

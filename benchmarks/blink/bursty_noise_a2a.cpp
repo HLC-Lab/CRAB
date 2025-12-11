@@ -6,20 +6,8 @@
 #include <time.h>
 #include <cstdlib> 
 #include <cmath>  
+#include "common.h"
 
-int dsleep(double t)
-{
-    struct timespec req;
-    
-    req.tv_sec  = static_cast<time_t>(t);
-    req.tv_nsec = static_cast<long>((t - req.tv_sec) * 1e9);
-
-    // tv_nsec must be between 0 and 999999999
-    if (req.tv_nsec < 0) req.tv_nsec = 0;
-    if (req.tv_nsec > 999999999L) req.tv_nsec = 999999999L;
-
-    return nanosleep(&req, nullptr);
-}
 
 void all2all_memcpy(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm){
 
@@ -77,7 +65,7 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    const int BUFFER_SIZE = 2 * 1024 * 1024;  // bytes per peer 16MiB
+    const int BUFFER_SIZE = 2 * 1024 * 1024;  // bytes per peer 2MiB
 
     // Each process will send a chunk to every other process
     unsigned char *send_buffer = (unsigned char*) malloc(BUFFER_SIZE*size); 
