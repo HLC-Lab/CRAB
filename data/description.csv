@@ -5,12 +5,3 @@ leonardo,8,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/8_a2a
 leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested,./data/leonardo/8_a2a_congested
 leonardo,8,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/8_agtr
 leonardo,8,p,100-100,50:50,i,1,csv,All-Gather Congested,./data/leonardo/8_agtr_congested
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.01 0.1,./data/leonardo/2025-12-09_16-22-40-355113
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.01 0.01,./data/leonardo/2025-12-09_16-22-44-152475
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.01 0.001,./data/leonardo/2025-12-09_16-22-45-945582
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.0001 0.01,./data/leonardo/2025-12-09_16-22-47-629215
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.0001 0.01,./data/leonardo/2025-12-09_16-22-49-376058
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.0001 0.001,./data/leonardo/2025-12-09_16-22-51-146584
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.000001 0.1,./data/leonardo/2025-12-09_16-22-52-952957
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.000001 0.01,./data/leonardo/2025-12-09_16-22-54-666700
-leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Congested 0.000001 0.001,./data/leonardo/2025-12-09_16-22-56-436891

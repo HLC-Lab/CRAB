@@ -93,13 +93,19 @@ int main(int argc, char** argv) {
         send_buffer[i] = rand()*rank % size; 
     }
 
-    double burst_pause=1e-6;
-    double burst_length=1e-2*3; //30ms
+    double burst_pause;
+    double burst_length;
     if(argc >= 2){
-      burst_pause = atof(argv[1]);
+        burst_pause = atof(argv[1]);
+    }else{
+        std::cerr << "Not enough arguments. Usage: ./bursty_noise_a2a <burst_pause> <burst_length>" << std::endl;
+        return 1;
     }
     if(argc >= 3){
-      burst_length = atof(argv[2]);
+        burst_length = atof(argv[2]);
+    } else {
+        std::cerr << "Not enough arguments. Usage: ./bursty_noise_a2a <burst_pause> <burst_length>" << std::endl;
+        return 1;
     }
 
 

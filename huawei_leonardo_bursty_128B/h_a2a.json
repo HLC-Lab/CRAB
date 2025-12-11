@@ -1,0 +1,27 @@
+{
+    "global_options": {
+        "numnodes": "128",
+        "ppn": "1",
+        "allocationmode": "p",
+        "partitionsplit": "50:50",
+        "allocationsplit": "100-100",
+        "partitionlayout": "i",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "1200.0",
+        "outformat": "csv",
+        "extrainfo": "All-to-All",
+        "prevjob": "-1",
+        "slurm_partition": "boost_usr_prod",
+        "slurm_account": "IscrB_SWING"
+    },
+    "applications": {
+        "0": {
+            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 128 -iter 20000",
+            "collect": true,
+            "start": "0",
+            "end": ""
+        }
+    }
+}

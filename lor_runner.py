@@ -9,8 +9,8 @@ def main():
     parser.add_argument("--type", required=True, help="Benchmark type: 's' for standard, 'b' for bursty.")
     args = parser.parse_args()
 
-    pauses = ["0.01","0.0001","0.000001"]
-    lengths = ["0.1","0.01","0.001"]
+    pauses = ["0.01","0.0001"]#["0.01","0.0001","0.000001"]
+    lengths = ["0.1","0.001"]#["0.1","0.01","0.001"]
 
     SYSTEM = args.system
     TYPE = args.type  # or b Currently only 'bursty' type is supported
@@ -58,7 +58,7 @@ def main():
         for bp in pauses:
             for bl in lengths:
                 for bench in BENCHES:
-                    config_file = f"huawei_{SYSTEM}_bursty/h_{bench}_{bp}_{bl}.json"
+                    config_file = f"huawei_{SYSTEM}_bursty_128B/h_{bench}_{bp}_{bl}.json"
                     print(config_file)
 
                     # --- Update JSON ---
