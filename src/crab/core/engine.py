@@ -765,12 +765,17 @@ class Engine:
                     if app.process.returncode != 0:
                         self.log(f"--- [WARNING] App {app.id_num} ended with return code {app.process.returncode} ---", flush=True)
                     
-                    if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0 and hasattr(app, 'stdout'):
-                        data_list_of_list = app.read_data()
-                        for data_list in data_list_of_list:
-                            data_container_list[container_idx].data.extend(data_list)
-                            data_container_list[container_idx].num_samples.append(len(data_list))
-                            container_idx += 1
+                    if app.collect_flag and hasattr(app, 'process') and hasattr(app, 'stdout'):
+                        if app.process.returncode == 0: 
+                            data_list_of_list = app.read_data()
+                            for data_list in data_list_of_list:
+                                data_container_list[container_idx].data.extend(data_list)
+                                data_container_list[container_idx].num_samples.append(len(data_list))
+                                container_idx += 1
+                        else:
+                            error_string = app.read_error()
+                            self.log(f"--- [ERROR] App {app.id_num} failed to provide data.\n Error: {error_string} ---", flush=True)
+
 
                 if runs >= min_runs:
                     converged = check_CI(data_container_list, alpha, beta, converge_all, runs)
