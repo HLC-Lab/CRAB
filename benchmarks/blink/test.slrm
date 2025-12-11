@@ -1,0 +1,12 @@
+#!/bin/bash
+#SBATCH --output=logs/%j.out
+#SBATCH --error=logs/%j.err
+#SBATCH --ntasks=8
+#SBATCH --nodes=8
+#SBATCH --ntasks-per-node=1           
+#SBATCH --time=02:00:00  
+#SBATCH --partition=cresco8_cpu
+#SBATCH --account=enea
+#SBATCH --exclusive
+
+srun bin/a2a_comm_only 
