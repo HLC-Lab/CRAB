@@ -212,15 +212,12 @@ int main(int argc, char** argv){
 
     MPI_Barrier(MPI_COMM_WORLD);
     do{
-        printf("TEST 1");
         for(k=0;k<max_iters+warm_up_iters;k++){
-            printf("TEST 2");
             if(burst_length_rand){ /*randomized burst length*/
                 burst_length=rand_expo(burst_length_mean);
             }
             burst_start_time=MPI_Wtime();
             do{
-                printf("TEST 3");
                 MPI_Barrier(MPI_COMM_WORLD);
                 measure_total_time=0.0;
                 for(i=0;i<measure_granularity;i++){
