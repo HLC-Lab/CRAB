@@ -6,7 +6,7 @@ import argparse
 
 def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data):
     prev_job = None
-    print("Running bursty benchmark on system:", SYSTEM)
+    print("Running bursty benchmark on system:", system_data["name"])
     for bp in pauses:
         for bl in lengths:
             for bench in BENCHES:
