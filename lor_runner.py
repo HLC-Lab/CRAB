@@ -85,24 +85,26 @@ def SustainedBenchmark(SYSTEM, BENCHES):
 
 def main():
     parser = argparse.ArgumentParser(description="Run chained jobs for different benchmarks.")
-    parser.add_argument("--system", required=True, help="System preset name (previously exported as SYSTEM).")
-    parser.add_argument("--type", required=True, help="Benchmark type: 's' for standard, 'b' for bursty.")
+    parser.add_argument("--system", required=True, help="System preset name (verify the availability on presets.json).")
+    parser.add_argument("--type", required=True, help="Benchmark type: 'sustained' for standard, 'bursty' for bursty, 'all' for both.")
     args = parser.parse_args()
 
+    SYSTEM = args.system
+    TYPE = args.type  
+    BENCHES = ["a2a", "a2a_a2a-cong", "a2a_incast-cong", "agtr", "agtr_a2a-cong", "agtr_incast-cong"]
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
 
-    SYSTEM = args.system
-    TYPE = args.type  # or b Currently only 'bursty' type is supported
-    BENCHES = ["a2a", "a2a_a2a-cong", "a2a_incast-cong"] #["agtr", "agtr_cong"]
+    cmd = ["rm", "-rf", "data"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    output = result.stdout + result.stderr
 
-    # cmd = ["rm", "-rf", "data"]
-    # result = subprocess.run(cmd, capture_output=True, text=True)
-    # output = result.stdout + result.stderr
-
-    if(TYPE == "s"):
+    if(TYPE == "sustained"):
         SustainedBenchmark(SYSTEM, BENCHES)
-    elif(TYPE == "b"):
+    elif(TYPE == "bursty"):
+        BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths)
+    elif(TYPE == "all"):
+        SustainedBenchmark(SYSTEM, BENCHES)
         BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths)
 
 
