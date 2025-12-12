@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-to-All A2A-Congested",
-        "prevjob": "1864437",
+        "prevjob": "1872938",
         "slurm_partition": "cresco8_cpu",
         "slurm_account": "enea"
     },
