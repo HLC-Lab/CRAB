@@ -375,6 +375,8 @@ class Engine:
 
             f.write(f"#SBATCH --partition={slurm_partition}\n")
             f.write(f"#SBATCH --account={slurm_account}\n")
+            f.write(f"#SBATCH --mem-per-cpu=4G")
+            f.write(f"#SBATCH --auks=yes")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
