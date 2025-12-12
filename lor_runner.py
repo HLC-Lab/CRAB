@@ -22,7 +22,7 @@ def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job):
 
                 config.setdefault("global_options", {})
                 config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
-                config["global_options"]["prevjob"] = nodes
+                config["global_options"]["numnodes"] = nodes
                 config["global_options"]["slurm_partition"] = system_data["partition"]
                 config["global_options"]["slurm_account"] = system_data["account"]
 
@@ -62,7 +62,7 @@ def SustainedBenchmark(BENCHES, nodes, system_data, prev_job):
 
         config.setdefault("global_options", {})
         config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
-        config["global_options"]["prevjob"] = nodes
+        config["global_options"]["numnodes"] = nodes
         config["global_options"]["slurm_partition"] = system_data["partition"]
         config["global_options"]["slurm_account"] = system_data["account"]
 
