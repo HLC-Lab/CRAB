@@ -163,8 +163,14 @@ int main(int argc, char** argv){
     recv_buf=(unsigned char*)malloc_align(recv_buf_size);
     durations=(double *)malloc_align(sizeof(double)*max_samples);
     
-    if(send_buf==NULL || recv_buf==NULL || durations==NULL){
-        fprintf(stderr,"Failed to allocate a buffer on rank %d\n",my_rank);
+    if(send_buf==NULL){
+        fprintf(stderr,"Failed to allocate send_buf on rank %d\n",my_rank);
+        exit(-1);
+    } else if (recv_buf==NULL){
+        fprintf(stderr,"Failed to allocate recv_buf on rank %d\n",my_rank);
+        exit(-1);
+    } else if (durations==NULL){
+        fprintf(stderr,"Failed to allocate durations buffer on rank %d\n",my_rank);
         exit(-1);
     }
     
