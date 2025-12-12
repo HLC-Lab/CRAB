@@ -4,7 +4,7 @@ import subprocess
 import argparse
 
 
-def BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths):
+def BurstyBenchmark(SYSTEM, BENCHES, nodes, pauses, lengths):
     prev_job = None
     print("Running bursty benchmark on system:", SYSTEM)
     for bp in pauses:
@@ -19,6 +19,7 @@ def BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths):
 
                 config.setdefault("global_options", {})
                 config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
+                config["global_options"]["prevjob"] = nodes
 
                 with open(config_file, "w") as f:
                     json.dump(config, f, indent=4)
@@ -42,7 +43,7 @@ def BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths):
                 print(f"Extracted job ID: {prev_job}")
 
 
-def SustainedBenchmark(SYSTEM, BENCHES):
+def SustainedBenchmark(SYSTEM, BENCHES, nodes):
     prev_job = None
     print("Running sustained benchamrk on system:", SYSTEM)
     for bench in BENCHES:
@@ -55,6 +56,7 @@ def SustainedBenchmark(SYSTEM, BENCHES):
 
         config.setdefault("global_options", {})
         config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
+        config["global_options"]["prevjob"] = nodes
 
         with open(config_file, "w") as f:
             json.dump(config, f, indent=4)
@@ -94,6 +96,7 @@ def main():
     BENCHES = ["a2a", "a2a_a2a-cong", "a2a_incast-cong", "agtr", "agtr_a2a-cong", "agtr_incast-cong"]
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
+    node_list = [8, 16, 32, 64, 128]
 
     cmd = ["rm", "-rf", "data"]
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -104,8 +107,9 @@ def main():
     elif(TYPE == "bursty"):
         BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths)
     elif(TYPE == "all"):
-        SustainedBenchmark(SYSTEM, BENCHES)
-        BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths)
+        for nodes in node_list:
+            SustainedBenchmark(SYSTEM, BENCHES, nodes)
+            BurstyBenchmark(SYSTEM, BENCHES, nodes, pauses, lengths)
 
 
 if __name__ == "__main__":
