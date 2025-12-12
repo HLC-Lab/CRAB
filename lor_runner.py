@@ -96,9 +96,9 @@ def main():
     TYPE = args.type  # or b Currently only 'bursty' type is supported
     BENCHES = ["a2a", "a2a_a2a-cong", "a2a_incast-cong"] #["agtr", "agtr_cong"]
 
-    cmd = ["rm", "-rf", "data"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    output = result.stdout + result.stderr
+    # cmd = ["rm", "-rf", "data"]
+    # result = subprocess.run(cmd, capture_output=True, text=True)
+    # output = result.stdout + result.stderr
 
     if(TYPE == "s"):
         SustainedBenchmark(SYSTEM, BENCHES)
