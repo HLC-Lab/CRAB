@@ -86,7 +86,7 @@ def SustainedBenchmark(BENCHES, nodes, system_data, prev_job):
 
         prev_job = jobid
         print(f"Extracted job ID: {prev_job}")
-    return prev_jo
+    return prev_job
 
 
 
