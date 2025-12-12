@@ -1,10 +1,37 @@
 system,numnodes,allocation_mode,allocation_split,partition_split,partition_layout,ppn,out_format,extra,path
-cresco8,64,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_11-31-12-537887
-cresco8,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_11-31-13-212286
-cresco8,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_11-31-13-864202
-cresco8,250,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_11-38-23-673469
-cresco8,250,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_11-38-24-339506
-cresco8,250,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_11-38-24-984844
-cresco8,64,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_12-07-47-389670
-cresco8,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_12-07-48-069851
-cresco8,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_12-07-48-717691
+cresco8,10,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_15-35-20-788324
+cresco8,10,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_15-35-21-458730
+cresco8,10,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_15-35-22-117223
+cresco8,10,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8/2025-12-12_15-35-22-761702
+cresco8,10,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8/2025-12-12_15-35-23-406749
+cresco8,10,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8/2025-12-12_15-35-24-047464
+cresco8,20,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_15-35-24-689997
+cresco8,20,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_15-35-25-339663
+cresco8,20,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_15-35-25-968687
+cresco8,20,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8/2025-12-12_15-35-26-609000
+cresco8,20,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8/2025-12-12_15-35-27-253148
+cresco8,20,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8/2025-12-12_15-35-27-895051
+cresco8,40,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_15-35-28-796738
+cresco8,40,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_15-35-29-441353
+cresco8,40,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_15-35-30-078857
+cresco8,40,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8/2025-12-12_15-35-30-717984
+cresco8,40,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8/2025-12-12_15-35-31-346840
+cresco8,40,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8/2025-12-12_15-35-31-989806
+cresco8,80,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_15-35-32-630248
+cresco8,80,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_15-35-33-272171
+cresco8,80,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_15-35-33-913254
+cresco8,80,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8/2025-12-12_15-35-34-553965
+cresco8,80,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8/2025-12-12_15-35-35-197225
+cresco8,80,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8/2025-12-12_15-35-35-849420
+cresco8,160,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_15-35-36-513268
+cresco8,160,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_15-35-37-154948
+cresco8,160,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_15-35-37-792522
+cresco8,160,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8/2025-12-12_15-35-38-426777
+cresco8,160,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8/2025-12-12_15-35-39-067223
+cresco8,160,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8/2025-12-12_15-35-39-709522
+cresco8,250,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-12_15-35-40-353092
+cresco8,250,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-12_15-35-40-991953
+cresco8,250,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-12_15-35-41-641195
+cresco8,250,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8/2025-12-12_15-35-42-281374
+cresco8,250,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8/2025-12-12_15-35-42-922481
+cresco8,250,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8/2025-12-12_15-35-43-562659
