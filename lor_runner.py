@@ -122,10 +122,9 @@ def main():
         for nodes in node_list:
             BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data)
     elif(TYPE == "all"):
-    
         for nodes in node_list:
             prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
-            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
+            #prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
 
 
 if __name__ == "__main__":
