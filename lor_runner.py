@@ -4,13 +4,13 @@ import subprocess
 import argparse
 
 
-def BurstyBenchmark(SYSTEM, BENCHES, nodes, pauses, lengths):
+def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data):
     prev_job = None
     print("Running bursty benchmark on system:", SYSTEM)
     for bp in pauses:
         for bl in lengths:
             for bench in BENCHES:
-                config_file = f"huawei_{SYSTEM}_bursty_128B/h_{bench}_{bp}_{bl}.json"
+                config_file = f"huawei_bursty/h_{bench}_{bp}_{bl}.json"
                 print(config_file)
 
                 # --- Update JSON ---
@@ -20,12 +20,14 @@ def BurstyBenchmark(SYSTEM, BENCHES, nodes, pauses, lengths):
                 config.setdefault("global_options", {})
                 config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
                 config["global_options"]["prevjob"] = nodes
+                config["global_options"]["slurm_partition"] = system["partition"]
+                config["global_options"]["slurm_account"] = system["account"]
 
                 with open(config_file, "w") as f:
                     json.dump(config, f, indent=4)
 
                 # --- Submit job ---
-                cmd = ["python", "cli.py", "--preset", SYSTEM, "--config", config_file]
+                cmd = ["python", "cli.py", "--preset", system_data["name"], "--config", config_file]
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 output = result.stdout + result.stderr
 
@@ -43,11 +45,11 @@ def BurstyBenchmark(SYSTEM, BENCHES, nodes, pauses, lengths):
                 print(f"Extracted job ID: {prev_job}")
 
 
-def SustainedBenchmark(SYSTEM, BENCHES, nodes):
+def SustainedBenchmark(BENCHES, nodes, system_data):
     prev_job = None
-    print("Running sustained benchamrk on system:", SYSTEM)
+    print("Running sustained benchamrk on system:", system_data["name"])
     for bench in BENCHES:
-        config_file = f"huawei_{SYSTEM}/h_{bench}.json"
+        config_file = f"huawei_sustained/h_{bench}.json"
         print(config_file)
 
         # --- Update JSON ---
@@ -57,12 +59,14 @@ def SustainedBenchmark(SYSTEM, BENCHES, nodes):
         config.setdefault("global_options", {})
         config["global_options"]["prevjob"] = prev_job if prev_job else "-1"
         config["global_options"]["prevjob"] = nodes
+        config["global_options"]["slurm_partition"] = system["partition"]
+        config["global_options"]["slurm_account"] = system["account"]
 
         with open(config_file, "w") as f:
             json.dump(config, f, indent=4)
 
         # --- Submit job ---
-        cmd = ["python", "cli.py", "--preset", SYSTEM, "--config", config_file]
+        cmd = ["python", "cli.py", "--preset", system_data["name"], "--config", config_file]
         result = subprocess.run(cmd, capture_output=True, text=True)
         output = result.stdout + result.stderr
 
@@ -87,29 +91,34 @@ def SustainedBenchmark(SYSTEM, BENCHES, nodes):
 
 def main():
     parser = argparse.ArgumentParser(description="Run chained jobs for different benchmarks.")
-    parser.add_argument("--system", required=True, help="System preset name (verify the availability on presets.json).")
     parser.add_argument("--type", required=True, help="Benchmark type: 'sustained' for standard, 'bursty' for bursty, 'all' for both.")
     args = parser.parse_args()
 
-    SYSTEM = args.system
     TYPE = args.type  
     BENCHES = ["a2a", "a2a_a2a-cong", "a2a_incast-cong", "agtr", "agtr_a2a-cong", "agtr_incast-cong"]
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
     node_list = [8, 16, 32, 64, 128]
+    system_data = {
+        "name": "cresco8"
+        "partition": "cresco8_cpu"
+        "account": "enea"
+    }
 
     cmd = ["rm", "-rf", "data"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = result.stdout + result.stderr
 
     if(TYPE == "sustained"):
-        SustainedBenchmark(SYSTEM, BENCHES)
+        for nodes in node_list:
+            SustainedBenchmark(BENCHES, nodes, system_data)
     elif(TYPE == "bursty"):
-        BurstyBenchmark(SYSTEM, BENCHES, pauses, lengths)
+        for nodes in node_list:
+            BurstyBenchmark(BENCHES, nodes pauses, lengths, system_data)
     elif(TYPE == "all"):
         for nodes in node_list:
-            SustainedBenchmark(SYSTEM, BENCHES, nodes)
-            BurstyBenchmark(SYSTEM, BENCHES, nodes, pauses, lengths)
+            SustainedBenchmark(BENCHES, nodes, system_data)
+            BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data)
 
 
 if __name__ == "__main__":

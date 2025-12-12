@@ -4,7 +4,7 @@
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
-        "allocationsplit": "100, 100",
+        "allocationsplit": "100-100",
         "partitionlayout": "i",
         "minruns": "1",
         "maxruns": "1",
