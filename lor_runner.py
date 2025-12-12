@@ -114,7 +114,7 @@ def main():
             SustainedBenchmark(BENCHES, nodes, system_data)
     elif(TYPE == "bursty"):
         for nodes in node_list:
-            BurstyBenchmark(BENCHES, nodes pauses, lengths, system_data)
+            BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data)
     elif(TYPE == "all"):
         for nodes in node_list:
             SustainedBenchmark(BENCHES, nodes, system_data)
