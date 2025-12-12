@@ -375,8 +375,8 @@ class Engine:
 
             f.write(f"#SBATCH --partition={slurm_partition}\n")
             f.write(f"#SBATCH --account={slurm_account}\n")
-            f.write(f"#SBATCH --mem-per-cpu=4G")
-            f.write(f"#SBATCH --auks=yes")
+            f.write(f"#SBATCH --mem-per-cpu=4G\n")
+            f.write(f"#SBATCH --auks=yes\n")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
@@ -389,14 +389,8 @@ class Engine:
                 # self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
 
             #TODO: Capire il perche' di questi
-            f.write(f"#SBATCH --gres=tmpfs:0\n")
+            #f.write(f"#SBATCH --gres=tmpfs:0\n")
             f.write(f"#SBATCH --time=01:00:00\n\n")
-
-            f.write("module load pfs\n")
-            f.write("module load base\n")
-            f.write("module load intel/oneapi\n")
-            f.write("module load slurm_tools\n")
-            f.write("module load mpi_flavour/openmpi_intel-4.1.7\n")
                
             venv_path = os.path.join(os.getcwd(), '.venv/bin/activate')
             f.write(f"source {venv_path}\n\n")
