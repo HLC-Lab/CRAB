@@ -4,8 +4,8 @@ import subprocess
 import argparse
 
 
-def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data):
-    prev_job = None
+def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job):
+
     print("Running bursty benchmark on system:", system_data["name"])
     for bp in pauses:
         for bl in lengths:
@@ -46,10 +46,11 @@ def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data):
 
                 prev_job = jobid
                 print(f"Extracted job ID: {prev_job}")
+    return prev_job
 
 
-def SustainedBenchmark(BENCHES, nodes, system_data):
-    prev_job = None
+def SustainedBenchmark(BENCHES, nodes, system_data, prev_job):
+    
     print("Running sustained benchamrk on system:", system_data["name"])
     for bench in BENCHES:
         config_file = f"huawei_sustained/h_{bench}.json"
@@ -85,6 +86,7 @@ def SustainedBenchmark(BENCHES, nodes, system_data):
 
         prev_job = jobid
         print(f"Extracted job ID: {prev_job}")
+    return prev_jo
 
 
 
@@ -108,6 +110,7 @@ def main():
         "account": "enea"
     }
 
+    prev_job = None
     cmd = ["rm", "-rf", "data"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     output = result.stdout + result.stderr
@@ -119,9 +122,10 @@ def main():
         for nodes in node_list:
             BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data)
     elif(TYPE == "all"):
+    
         for nodes in node_list:
-            SustainedBenchmark(BENCHES, nodes, system_data)
-            BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data)
+            prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
+            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
 
 
 if __name__ == "__main__":
