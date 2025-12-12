@@ -71,20 +71,6 @@
             "collect": true,
             "start": "s6",
             "end": ""
-        },
-        "8": {
-            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/agtr_comm_only.py",
-            "args": "-msgsize 134217728 -iter 1000",
-            "collect": true,
-            "start": "s7",
-            "end": ""
-        },
-        "9": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_nb.py",
-            "args": "-msgsize 16777216 -iter 1000000",
-            "collect": false,
-            "start": "0",
-            "end": "f"
         }
     }
 }
