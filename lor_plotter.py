@@ -413,7 +413,7 @@ def DrawLatencyViolinPlot(data, name):
     plt.close()
 
 
-def DrawBandwidthPlot(data, name):
+def DrawBandwidthPlot(data, name, nodes):
     print(f"Plotting data collective: {name}")
 
     # Imposta stile e contesto
@@ -423,8 +423,9 @@ def DrawBandwidthPlot(data, name):
     # Crea figura principale
     f, ax1 = plt.subplots(figsize=(30, 15))
 
-    # Conversione dati in DataFrame
+    # Conversione e filtra dati in DataFrame
     df = pd.DataFrame(data)
+    df = df[df['nodes'] == nodes]
     df['collective_system'] = df['collective'] + "_" + df['system']
 
     # --- Lineplot principale ---
@@ -487,7 +488,7 @@ def DrawBandwidthPlot(data, name):
     )
 
     # Optional: adjust ticks for zoom clarity
-    axins.set_ylim(1, 10)
+    #axins.set_ylim(1, 10)
     axins.set_xlim(0, len(df_zoom["message"].unique()) - 1)
     axins.tick_params(axis='both', which='major', labelsize=28)
     axins.set_title("")
@@ -499,7 +500,7 @@ def DrawBandwidthPlot(data, name):
     plt.close()
 
 
-def LoadData(dict, data_folder, nodes, systems, collectives, messages):
+def LoadData(dict, data_folder, nodes_list, systems, collectives, messages):
 
 
     m_bytes_mess = []
@@ -507,70 +508,68 @@ def LoadData(dict, data_folder, nodes, systems, collectives, messages):
         m_bytes = to_bytes(mess)
         m_bytes_mess.append(m_bytes)
 
+    for nodes in nodes_list:
+        with open(data_folder, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                path = row["path"]
+                system = row["system"]
+                collective = row["extra"]
+                data_nodes = row["numnodes"]
 
-    with open(data_folder, newline="") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            path = row["path"]
-            system = row["system"]
-            collective = row["extra"]
-            data_nodes = row["numnodes"]
+                print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
 
-            print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
+                if int(data_nodes) != nodes*2:
+                    print("SKIP! nodes fault.\n")
+                    continue
+                if system not in systems:
+                    print("SKIP! system fault.\n")
+                    continue
+                if collective not in collectives:
+                    print(collectives)
+                    print("SKIP! collective fault.\n")
+                    continue
 
-            if int(data_nodes) != nodes*2:
-                print("SKIP! nodes fault.\n")
-                continue
-            if system not in systems:
-                print("SKIP! system fault.\n")
-                continue
-            if collective not in collectives:
-                print(collectives)
-                print("SKIP! collective fault.\n")
-                continue
+                data_path = os.path.join(path, f"data_app_0.csv")
+                if not os.path.exists(data_path):
+                    continue
 
-            data_path = os.path.join(path, f"data_app_0.csv")
-            if not os.path.exists(data_path):
-                continue
+                csv_files = sorted(glob.glob(os.path.join(path, "data_app_*.csv")))
 
-            csv_files = sorted(glob.glob(os.path.join(path, "data_app_*.csv")))
+                for i in range(len(csv_files)):
 
-            for i in range(len(csv_files)):
+                    print("Accessing:", csv_files[i])
 
-                print("Accessing:", csv_files[i])
+                    with open(csv_files[i], newline="") as f:
+                        reader = csv.DictReader(f)
+                        row_counter = 0
+                        for row in reader:
 
-                with open(csv_files[i], newline="") as f:
-                    reader = csv.DictReader(f)
-                    row_counter = 0
-                    for row in reader:
+                            latency = float(row[f"{i}_Max-Duration_s"])
+                            m_bytes = int(row["msg_size"])
+                            if m_bytes not in m_bytes_mess:
+                                print("SKIP!\n")
+                                break
+                            elif row_counter == 0:
+                                print("PROCESS!\n")
 
-                        latency = float(row[f"{i}_Max-Duration_s"])
-                        m_bytes = int(row["msg_size"])
-                        if m_bytes not in m_bytes_mess:
-                            print("SKIP!\n")
-                            break
-                        elif row_counter == 0:
-                            print("PROCESS!\n")
-
-                        bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
-                        data['latency'].append(latency)
-                        data['bandwidth'].append(bandwidth)
-                        data['message'].append(str(m_bytes))
-                        data['collective'].append(collective)
-                        data['bytes'].append(m_bytes)
-                        data['system'].append(system)
-                        data['iteration'].append(row_counter)
-                        row_counter += 1
+                            bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
+                            data['latency'].append(latency)
+                            data['bandwidth'].append(bandwidth)
+                            data['message'].append(str(m_bytes))
+                            data['collective'].append(collective)
+                            data['bytes'].append(m_bytes)
+                            data['system'].append(system)
+                            data['iteration'].append(row_counter)
+                            data['nodes'].append(nodes)
+                            row_counter += 1
 
 
 
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Collectives Plotter')
-    parser.add_argument('--nodes', type=int, default=4, help='Number of nodes (default: 4)')
-    args = parser.parse_args()
-    nodes = args.nodes
+    node_list = [10, 20, 40, 80, 160, 250]
     data_folder = f"data/description.csv"
 
     data = {
@@ -580,26 +579,28 @@ if __name__ == "__main__":
         'bandwidth': [],
         'system': [],
         'collective': [],
-        'iteration': []
+        'iteration': [],
+        'nodes': []
     }
 
     systems=["cresco8"]
-    collectives_sustained = ['All-to-All', 'All-to-All A2A-Congested', 'All-to-All Inc-Congested', 'All-Gather', 'All-Gather Congested']
-    messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB', '128MiB']
-
+    collectives_sustained = ['All-to-All', 'All-to-All A2A-Congested', 'All-to-All Inc-Congested',
+                             'All-Gather', 'All-Gather A2A-Congested', 'All-Gather Inc-Congested']
     collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
                           'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
                           'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
 
-    LoadData(data, data_folder, nodes, systems, collectives_sustained, messages)
-    DrawBandwidthPlot(data, f"PLOT_BW")
+    messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB'] # ,'128MiB']
+
+    LoadData(data, data_folder, node_list, systems, collectives_sustained, messages)
+    for nodes in node_list:
+        DrawBandwidthPlot(data, f"PLOT_BW_sustained_{nodes}", nodes)
     CleanData(data)
 
-    # messages = ['128B']
-
-    # collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
-    #                       'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
-    #                       'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
+    # LoadData(data, data_folder, node_list, systems, collectives_sustained, messages)
+    # for nodes in node_list:
+    #     DrawBandwidthPlot(data, f"PLOT_BW__bursty_{nodes}", nodes)
+    # CleanData(data)
 
     # LoadData(data, data_folder, nodes, systems, collectives_bursty, messages)
     # DrawIterationsPlot(data, f"PLOT_ITS_128MiB")
