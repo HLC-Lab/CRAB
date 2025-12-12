@@ -1,0 +1,266 @@
+[cresco8x211:2121533:0:2121533] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x31e22d20)
+[cresco8x206:2086441:0:2086441] Caught signal 11 (Segmentation fault: address not mapped to object at address 0xa759fd0)
+[cresco8x215:2471682:0:2471682] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x530ecfe0)
+[cresco8x225:2177327:0:2177327] Caught signal 11 (Segmentation fault: address not mapped to object at address 0xffffffffa2200aa0)
+[cresco8x207:2094135:0:2094135] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x11e89fd0)
+[cresco8x208:2077818:0:2077818] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x19d8bfd0)
+[cresco8x209:2085998:0:2085998] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x20ff6d00)
+[cresco8x213:2856697:0:2856697] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x41beffe0)
+[cresco8x224:2160490:0:2160490] Caught signal 11 (Segmentation fault: address not mapped to object at address 0xffffffff99ddafd0)
+[cresco8x214:3127606:0:3127606] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x4afa3fe0)
+[cresco8x216:2168144:0:2168144] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x59a06fe0)
+[cresco8x205:2127092:0:2127092] Caught signal 11 (Segmentation fault: address not mapped to object at address 0x171a000)
+corrupted double-linked list
+[cresco8x205:2127092] *** Process received signal ***
+[cresco8x205:2127092] Signal: Aborted (6)
+[cresco8x205:2127092] Signal code:  (-6)
+[cresco8x205:2127092] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x14f25483e6f0]
+[cresco8x205:2127092] [ 1] /lib64/libc.so.6(+0x8b94c)[0x14f25488b94c]
+[cresco8x205:2127092] [ 2] /lib64/libc.so.6(raise+0x16)[0x14f25483e646]
+[cresco8x205:2127092] [ 3] /lib64/libc.so.6(abort+0xd3)[0x14f2548287f3]
+[cresco8x205:2127092] [ 4] /lib64/libc.so.6(+0x29130)[0x14f254829130]
+[cresco8x205:2127092] [ 5] /lib64/libc.so.6(+0x959f7)[0x14f2548959f7]
+[cresco8x205:2127092] [ 6] /lib64/libc.so.6(+0x9654c)[0x14f25489654c]
+[cresco8x205:2127092] [ 7] /lib64/libc.so.6(+0x98d19)[0x14f254898d19]
+[cresco8x205:2127092] [ 8] /lib64/libc.so.6(malloc+0x99)[0x14f254899809]
+[cresco8x205:2127092] [ 9] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(objalloc_create+0x10)[0x14f252262520]
+[cresco8x205:2127092] [10] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(+0x7dc34)[0x14f2521b2c34]
+[cresco8x205:2127092] [11] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(+0x7d0b0)[0x14f2521b20b0]
+[cresco8x205:2127092] [12] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(+0x62ad3)[0x14f252197ad3]
+[cresco8x205:2127092] [13] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(+0x62f68)[0x14f252197f68]
+[cresco8x205:2127092] [14] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(ucs_debug_backtrace_create+0x42)[0x14f2521984b2]
+[cresco8x205:2127092] [15] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(ucs_handle_error+0x2af)[0x14f25219ad3f]
+[cresco8x205:2127092] [16] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(+0x65f9f)[0x14f25219af9f]
+[cresco8x205:2127092] [17] /usr/mpi/intel/openmpi-4.1.7rc1/lib/libucs.so.0(+0x66266)[0x14f25219b266]
+[cresco8x205:2127092] [18] /lib64/libc.so.6(+0x3e6f0)[0x14f25483e6f0]
+[cresco8x205:2127092] [19] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x140)[0x40a9d0]
+[cresco8x205:2127092] [20] ./bin/a2a_comm_only[0x403045]
+[cresco8x205:2127092] [21] /lib64/libc.so.6(+0x29590)[0x14f254829590]
+[cresco8x205:2127092] [22] /lib64/libc.so.6(__libc_start_main+0x80)[0x14f254829640]
+[cresco8x205:2127092] [23] ./bin/a2a_comm_only[0x402645]
+[cresco8x205:2127092] *** End of error message ***
+==== backtrace (tid:2471682) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040a9d0 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x215:2471682] *** Process received signal ***
+[cresco8x215:2471682] Signal: Segmentation fault (11)
+[cresco8x215:2471682] Signal code:  (-6)
+[cresco8x215:2471682] Failing at address: 0x6ea00025b702
+[cresco8x215:2471682] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x1539e9a3e6f0]
+[cresco8x215:2471682] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x140)[0x40a9d0]
+[cresco8x215:2471682] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x215:2471682] [ 3] /lib64/libc.so.6(+0x29590)[0x1539e9a29590]
+[cresco8x215:2471682] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x1539e9a29640]
+[cresco8x215:2471682] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x215:2471682] *** End of error message ***
+==== backtrace (tid:2177327) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040ab30 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x225:2177327] *** Process received signal ***
+[cresco8x225:2177327] Signal: Segmentation fault (11)
+[cresco8x225:2177327] Signal code:  (-6)
+[cresco8x225:2177327] Failing at address: 0x6ea00021392f
+==== backtrace (tid:2085998) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040ab30 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x225:2177327] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x14cf4ec3e6f0]
+[cresco8x209:2085998] *** Process received signal ***
+[cresco8x209:2085998] Signal: Segmentation fault (11)
+[cresco8x209:2085998] Signal code:  (-6)
+[cresco8x209:2085998] Failing at address: 0x6ea0001fd46e
+[cresco8x225:2177327] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x2a0)[0x40ab30]
+[cresco8x225:2177327] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x225:2177327] [ 3] /lib64/libc.so.6(+0x29590)[0x14cf4ec29590]
+[cresco8x209:2085998] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x14b90a03e6f0]
+[cresco8x225:2177327] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x14cf4ec29640]
+[cresco8x225:2177327] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x225:2177327] *** End of error message ***
+[cresco8x209:2085998] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x2a0)[0x40ab30]
+[cresco8x209:2085998] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x209:2085998] [ 3] /lib64/libc.so.6(+0x29590)[0x14b90a029590]
+[cresco8x209:2085998] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x14b90a029640]
+[cresco8x209:2085998] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x209:2085998] *** End of error message ***
+==== backtrace (tid:2077818) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040ab30 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x208:2077818] *** Process received signal ***
+[cresco8x208:2077818] Signal: Segmentation fault (11)
+[cresco8x208:2077818] Signal code:  (-6)
+[cresco8x208:2077818] Failing at address: 0x6ea0001fb47a
+[cresco8x208:2077818] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x152d5303e6f0]
+[cresco8x208:2077818] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x2a0)[0x40ab30]
+[cresco8x208:2077818] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x208:2077818] [ 3] /lib64/libc.so.6(+0x29590)[0x152d53029590]
+[cresco8x208:2077818] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x152d53029640]
+[cresco8x208:2077818] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x208:2077818] *** End of error message ***
+==== backtrace (tid:2094135) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040ab30 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x207:2094135] *** Process received signal ***
+[cresco8x207:2094135] Signal: Segmentation fault (11)
+[cresco8x207:2094135] Signal code:  (-6)
+[cresco8x207:2094135] Failing at address: 0x6ea0001ff437
+[cresco8x207:2094135] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x14f764a3e6f0]
+[cresco8x207:2094135] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x2a0)[0x40ab30]
+[cresco8x207:2094135] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x207:2094135] [ 3] /lib64/libc.so.6(+0x29590)[0x14f764a29590]
+[cresco8x207:2094135] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x14f764a29640]
+[cresco8x207:2094135] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x207:2094135] *** End of error message ***
+==== backtrace (tid:2121533) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040ab30 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x211:2121533] *** Process received signal ***
+[cresco8x211:2121533] Signal: Segmentation fault (11)
+[cresco8x211:2121533] Signal code:  (-6)
+[cresco8x211:2121533] Failing at address: 0x6ea000205f3d
+[cresco8x211:2121533] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x147829c3e6f0]
+[cresco8x211:2121533] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x2a0)[0x40ab30]
+[cresco8x211:2121533] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x211:2121533] [ 3] /lib64/libc.so.6(+0x29590)[0x147829c29590]
+[cresco8x211:2121533] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x147829c29640]
+[cresco8x211:2121533] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x211:2121533] *** End of error message ***
+==== backtrace (tid:2160490) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040ab30 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x224:2160490] *** Process received signal ***
+[cresco8x224:2160490] Signal: Segmentation fault (11)
+[cresco8x224:2160490] Signal code:  (-6)
+[cresco8x224:2160490] Failing at address: 0x6ea00020f76a
+[cresco8x224:2160490] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x154e1b63e6f0]
+[cresco8x224:2160490] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x2a0)[0x40ab30]
+[cresco8x224:2160490] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x224:2160490] [ 3] /lib64/libc.so.6(+0x29590)[0x154e1b629590]
+[cresco8x224:2160490] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x154e1b629640]
+[cresco8x224:2160490] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x224:2160490] *** End of error message ***
+==== backtrace (tid:2856697) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040a9d0 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x213:2856697] *** Process received signal ***
+[cresco8x213:2856697] Signal: Segmentation fault (11)
+[cresco8x213:2856697] Signal code:  (-6)
+[cresco8x213:2856697] Failing at address: 0x6ea0002b96f9
+[cresco8x213:2856697] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x14c3f103e6f0]
+[cresco8x213:2856697] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x140)[0x40a9d0]
+[cresco8x213:2856697] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x213:2856697] [ 3] /lib64/libc.so.6(+0x29590)[0x14c3f1029590]
+[cresco8x213:2856697] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x14c3f1029640]
+[cresco8x213:2856697] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x213:2856697] *** End of error message ***
+==== backtrace (tid:2086441) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040ab30 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+==== backtrace (tid:3127606) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+==== backtrace (tid:2168144) ====
+ 0 0x000000000003e6f0 __GI___sigaction()  :0
+ 1 0x000000000040a9d0 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+ 1 0x000000000040a9d0 __intel_avx_rep_memcpy()  ???:0
+ 2 0x0000000000403045 main()  ???:0
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+ 3 0x0000000000029590 __libc_start_call_main()  ???:0
+ 4 0x0000000000029640 __libc_start_main_alias_2()  :0
+ 5 0x0000000000402645 _start()  ???:0
+=================================
+[cresco8x206:2086441] *** Process received signal ***
+[cresco8x214:3127606] *** Process received signal ***
+[cresco8x216:2168144] *** Process received signal ***
+[cresco8x206:2086441] Signal: Segmentation fault (11)
+[cresco8x206:2086441] Signal code:  (-6)
+[cresco8x206:2086441] Failing at address: 0x6ea0001fd629
+[cresco8x214:3127606] Signal: Segmentation fault (11)
+[cresco8x214:3127606] Signal code:  (-6)
+[cresco8x214:3127606] Failing at address: 0x6ea0002fb936
+[cresco8x216:2168144] Signal: Segmentation fault (11)
+[cresco8x216:2168144] Signal code:  (-6)
+[cresco8x216:2168144] Failing at address: 0x6ea000211550
+[cresco8x206:2086441] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x153220a3e6f0]
+[cresco8x214:3127606] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x14752583e6f0]
+[cresco8x216:2168144] [ 0] /lib64/libc.so.6(+0x3e6f0)[0x14cbde83e6f0]
+[cresco8x206:2086441] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x2a0)[0x40ab30]
+[cresco8x214:3127606] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x140)[0x40a9d0]
+[cresco8x216:2168144] [ 1] ./bin/a2a_comm_only(__intel_avx_rep_memcpy+0x140)[0x40a9d0]
+[cresco8x206:2086441] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x214:3127606] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x216:2168144] [ 2] ./bin/a2a_comm_only[0x403045]
+[cresco8x206:2086441] [ 3] /lib64/libc.so.6(+0x29590)[0x153220a29590]
+[cresco8x214:3127606] [ 3] /lib64/libc.so.6(+0x29590)[0x147525829590]
+[cresco8x216:2168144] [ 3] /lib64/libc.so.6(+0x29590)[0x14cbde829590]
+[cresco8x206:2086441] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x153220a29640]
+[cresco8x214:3127606] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x147525829640]
+[cresco8x216:2168144] [ 4] /lib64/libc.so.6(__libc_start_main+0x80)[0x14cbde829640]
+[cresco8x206:2086441] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x206:2086441] *** End of error message ***
+[cresco8x214:3127606] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x214:3127606] *** End of error message ***
+[cresco8x216:2168144] [ 5] ./bin/a2a_comm_only[0x402645]
+[cresco8x216:2168144] *** End of error message ***
+srun: error: cresco8x205: task 0: Aborted (core dumped)
+srun: error: cresco8x209: task 4: Segmentation fault (core dumped)
+srun: error: cresco8x208: task 3: Segmentation fault (core dumped)
+srun: error: cresco8x211: task 6: Segmentation fault (core dumped)
+srun: error: cresco8x207: task 2: Segmentation fault (core dumped)
+srun: error: cresco8x224: task 19: Segmentation fault (core dumped)
+srun: error: cresco8x225: task 20: Segmentation fault (core dumped)
+srun: error: cresco8x214: task 9: Segmentation fault (core dumped)
+srun: error: cresco8x213: task 8: Segmentation fault (core dumped)
+srun: error: cresco8x215: task 10: Segmentation fault (core dumped)
+srun: error: cresco8x216: task 11: Segmentation fault (core dumped)
+srun: error: cresco8x206: task 1: Segmentation fault (core dumped)
+srun: got SIGCONT
+slurmstepd-cresco8x205: error: *** JOB 1872921 ON cresco8x205 CANCELLED AT 2025-12-12T11:07:21 ***
+srun: forcing job termination
+srun: Job step aborted: Waiting up to 62 seconds for job step to finish.
