@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#SBATCH --job-name=TESTER
+#SBATCH --output=slurm_output.log
+#SBATCH --error=slurm_error.log
+#SBATCH --nodes=32
+#SBATCH --ntasks-per-node=1
+#SBATCH --exclusive
+#SBATCH --partition=cresco8_cpu
+#SBATCH --account=enea
+#SBATCH --mem=100G
+#SBATCH --auks=yes
+#SBATCH --time=01:00:00
+
+srun bin/a2a_comm_only -msgsize 134217728 -iter 1000
