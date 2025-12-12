@@ -103,7 +103,7 @@ def main():
     BENCHES = ["a2a", "a2a_a2a-cong", "a2a_inc-cong", "agtr", "agtr_a2a-cong", "agtr_inc-cong"]
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
-    node_list = [8, 16, 32]
+    node_list = [8, 16, 32, 64, 128]
     system_data = {
         "name": "cresco8",
         "partition": "cresco8_cpu",
@@ -117,14 +117,14 @@ def main():
 
     if(TYPE == "sustained"):
         for nodes in node_list:
-            SustainedBenchmark(BENCHES, nodes, system_data)
+            prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
     elif(TYPE == "bursty"):
         for nodes in node_list:
-            BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data)
+            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
     elif(TYPE == "all"):
         for nodes in node_list:
             prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
-            #prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
+            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
 
 
 if __name__ == "__main__":
