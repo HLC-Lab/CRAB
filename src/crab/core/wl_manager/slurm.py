@@ -40,7 +40,8 @@ class wl_manager:
 
         slurm_string = (
             'srun --export=ALL ' +
-            #'--exclusive ' +
+            '--exclusive ' +
+            '--mem=100G '
             slurm_extra_opts + ' ' + # Aggiungiamo qui le opzioni extra
             node_list_arg + ' ' +
             os.environ.get("CRAB_PINNING_FLAGS", "") + ' ' + # Usiamo .get() per sicurezza
