@@ -100,8 +100,8 @@ def main():
     lengths = ["0.1","0.01","0.001"]
     node_list = [8, 16, 32, 64, 128]
     system_data = {
-        "name": "cresco8"
-        "partition": "cresco8_cpu"
+        "name": "cresco8",
+        "partition": "cresco8_cpu",
         "account": "enea"
     }
 
