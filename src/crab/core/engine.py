@@ -375,7 +375,7 @@ class Engine:
 
             f.write(f"#SBATCH --partition={slurm_partition}\n")
             f.write(f"#SBATCH --account={slurm_account}\n")
-            f.write(f"#SBATCH --mem-per-cpu=4G\n")
+            f.write(f"#SBATCH --mem=100G\n")
             f.write(f"#SBATCH --auks=yes\n")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
