@@ -10,7 +10,10 @@ def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data):
     for bp in pauses:
         for bl in lengths:
             for bench in BENCHES:
-                config_file = f"huawei_bursty/h_{bench}_{bp}_{bl}.json"
+                if "cong" not in bench:
+                    config_file = f"huawei_bursty/h_{bench}.json"
+                else:
+                    config_file = f"huawei_bursty/h_{bench}_{bp}_{bl}.json"
                 print(config_file)
 
                 # --- Update JSON ---
