@@ -138,13 +138,13 @@ def main():
     system_data = {
         "name": "cresco8",
         "partition": "cresco8_cpu",
-        "account": "enea"
+        "account": "enea",
         "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
     }
     # system_data = {
     #     "name": "leonardo",
     #     "partition": "boost_usr_prod",
-    #     "account": "IscrB_SWING"
+    #     "account": "IscrB_SWING",
     #     "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
     # }
 
