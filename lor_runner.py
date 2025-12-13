@@ -25,6 +25,21 @@ def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job):
                 config["global_options"]["numnodes"] = nodes
                 config["global_options"]["slurm_partition"] = system_data["partition"]
                 config["global_options"]["slurm_account"] = system_data["account"]
+                for i in range(8):
+                    if "agtr" in bench:
+                        config["applications"][str(i)]["path"] = system_data["path"]+"agtr_comm_only.py"
+                    elif "a2a" in bench:
+                        config["applications"][str(i)]["path"] = system_data["path"]+"a2a_comm_only.py"
+                    else:
+                        raise RuntimeError("No valid collective.")
+
+                if "cong" in bench:
+                    if "inc" in bench:
+                        config["applications"][str(8)]["path"] = system_data["path"]+"bursty_noise_incast.py"
+                    elif "a2a" in bench:
+                        config["applications"][str(8)]["path"] = system_data["path"]+"bursty_noise_a2a.py"
+                    else:
+                        raise RuntimeError("No valid noise.")
 
                 with open(config_file, "w") as f:
                     json.dump(config, f, indent=4)
@@ -65,6 +80,22 @@ def SustainedBenchmark(BENCHES, nodes, system_data, prev_job):
         config["global_options"]["numnodes"] = nodes
         config["global_options"]["slurm_partition"] = system_data["partition"]
         config["global_options"]["slurm_account"] = system_data["account"]
+        for i in range(8):
+            if "agtr" in bench:
+                config["applications"][str(i)]["path"] = system_data["path"]+"agtr_comm_only.py"
+            elif "a2a" in bench:
+                config["applications"][str(i)]["path"] = system_data["path"]+"a2a_comm_only.py"
+            else:
+                raise RuntimeError("No valid collective.")
+
+        if "cong" in bench:
+            if "inc" in bench:
+                config["applications"][str(8)]["path"] = system_data["path"]+"noise_incast.py"
+            elif "a2a" in bench:
+                config["applications"][str(8)]["path"] = system_data["path"]+"noise_a2a.py"
+            else:
+                raise RuntimeError("No valid noise.")
+                
 
         with open(config_file, "w") as f:
             json.dump(config, f, indent=4)
@@ -108,7 +139,14 @@ def main():
         "name": "cresco8",
         "partition": "cresco8_cpu",
         "account": "enea"
+        "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
     }
+    # system_data = {
+    #     "name": "leonardo",
+    #     "partition": "boost_usr_prod",
+    #     "account": "IscrB_SWING"
+    #     "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+    # }
 
     prev_job = None
     cmd = ["rm", "-rf", "data"]
