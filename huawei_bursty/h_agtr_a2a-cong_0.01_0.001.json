@@ -73,13 +73,6 @@
             "end": ""
         },
         "8": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/agtr_comm_only.py",
-            "args": "-msgsize 134217728 -iter 1000",
-            "collect": true,
-            "start": "s7",
-            "end": ""
-        },
-        "9": {
             "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/bursty_noise_a2a.py",
             "args": "0.01 0.001",
             "collect": false,
