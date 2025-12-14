@@ -10,7 +10,7 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "All-to-All Congested",
+        "extrainfo": "All-Gather A2A-Congested 0.01 0.01",
         "prevjob": "29016020",
         "slurm_partition": "boost_usr_prod",
         "slurm_account": "IscrB_SWING"
