@@ -18,7 +18,7 @@ if __name__ == "__main__":
                 if "cong" not in bench:
                     continue
                 else:
-                    config_file = f"h_{bench}_{bp}_{bl}.json"
+                    config_file = f"huawei_cresco8_bursty/h_{bench}_{bp}_{bl}.json"
                 print(config_file)
 
                 # --- Update JSON ---

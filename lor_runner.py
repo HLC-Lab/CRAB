@@ -121,7 +121,7 @@ def main():
     BENCHES = ["a2a", "a2a_a2a-cong", "a2a_inc-cong", "agtr", "agtr_a2a-cong", "agtr_inc-cong"]
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
-    node_list = [10, 20, 40, 60] # 80, 160, 250]
+    node_list = [10] #20, 40, 60] 80, 160, 250]
     # system_data = {
     #     "name": "cresco8",
     #     "partition": "cresco8_cpu",

@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": "128",
+        "numnodes": 60,
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -10,8 +10,8 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "All-to-All Congested",
-        "prevjob": "27565553",
+        "extrainfo": "All-Gather A2A-Congested 0.0001 0.1",
+        "prevjob": "29016029",
         "slurm_partition": "cresco8_cpu",
         "slurm_account": "enea"
     },
