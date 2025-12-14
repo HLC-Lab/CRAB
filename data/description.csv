@@ -35,3 +35,27 @@ cresco8,250,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8_sust
 cresco8,250,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8_sustained/2025-12-12_15-35-42-281374
 cresco8,250,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8_sustained/2025-12-12_15-35-42-922481
 cresco8,250,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8_sustained/2025-12-12_15-35-43-562659
+leonardo,10,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-14_18-59-30-635130
+leonardo,10,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-14_18-59-32-273940
+leonardo,10,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-14_18-59-35-768974
+leonardo,10,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-14_18-59-37-374732
+leonardo,10,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-14_18-59-38-976325
+leonardo,10,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-14_18-59-40-573614
+leonardo,20,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-14_19-04-13-896314
+leonardo,20,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-14_19-04-15-582727
+leonardo,20,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-14_19-04-17-167920
+leonardo,20,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-14_19-04-18-777697
+leonardo,20,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-14_19-04-20-972308
+leonardo,20,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-14_19-04-22-596267
+leonardo,40,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-14_19-04-24-293428
+leonardo,40,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-14_19-04-25-976699
+leonardo,40,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-14_19-04-27-588362
+leonardo,40,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-14_19-04-29-182207
+leonardo,40,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-14_19-04-30-774294
+leonardo,40,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-14_19-04-32-368644
+leonardo,60,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-14_19-04-33-974941
+leonardo,60,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-14_19-04-35-567565
+leonardo,60,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-14_19-04-37-175668
+leonardo,60,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-14_19-04-38-773750
+leonardo,60,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-14_19-04-40-483612
+leonardo,60,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-14_19-04-42-172505
