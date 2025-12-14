@@ -122,23 +122,23 @@ def main():
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
     node_list = [10, 20, 40, 60] # 80, 160, 250]
-    system_data = {
-        "name": "cresco8",
-        "partition": "cresco8_cpu",
-        "account": "enea",
-        "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
-    }
     # system_data = {
-    #     "name": "leonardo",
-    #     "partition": "boost_usr_prod",
-    #     "account": "IscrB_SWING",
-    #     "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+    #     "name": "cresco8",
+    #     "partition": "cresco8_cpu",
+    #     "account": "enea",
+    #     "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
     # }
+    system_data = {
+        "name": "leonardo",
+        "partition": "boost_usr_prod",
+        "account": "IscrB_SWING",
+        "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+    }
 
     prev_job = None
-    cmd = ["rm", "-rf", "data"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    output = result.stdout + result.stderr
+    # cmd = ["rm", "-rf", "data"]
+    # result = subprocess.run(cmd, capture_output=True, text=True)
+    # output = result.stdout + result.stderr
 
     if(TYPE == "sustained"):
         for nodes in node_list:
