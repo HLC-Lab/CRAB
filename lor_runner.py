@@ -13,7 +13,8 @@ def BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job):
                 if "cong" not in bench:
                     continue
                 else:
-                    config_file = f"huawei_jsons/huawei_{system_data["name"]}_bursty/h_{bench}_{bp}_{bl}.json"
+                    sys = system_data["name"]
+                    config_file = f"huawei_jsons/huawei_{sys}_bursty/h_{bench}_{bp}_{bl}.json"
                 print(config_file)
 
                 # --- Update JSON ---
@@ -53,7 +54,8 @@ def SustainedBenchmark(BENCHES, nodes, system_data, prev_job):
     
     print("Running sustained benchamrk on system:", system_data["name"])
     for bench in BENCHES:
-        config_file = f"huawei_jsons/huawei_{system_data["name"]}_sustained/h_{bench}.json"
+        sys = system_data["name"]
+        config_file = f"huawei_jsons/huawei_{sys}_sustained/h_{bench}.json"
         print(config_file)
 
         # --- Update JSON ---
