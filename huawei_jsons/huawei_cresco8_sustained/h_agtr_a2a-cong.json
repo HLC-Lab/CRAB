@@ -72,7 +72,7 @@
             "start": "s6",
             "end": ""
         },
-        "9": {
+        "8": {
             "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/noise_a2a.py",
             "args": "-msgsize 16777216 -iter 1000000",
             "collect": false,

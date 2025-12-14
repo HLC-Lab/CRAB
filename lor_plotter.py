@@ -413,7 +413,7 @@ def DrawLatencyViolinPlot(data, name):
     plt.close()
 
 
-def DrawBandwidthPlot(data, name, nodes):
+def DrawBandwidthPlot(data, name, nodes, sys):
     print(f"Plotting data collective: {name}")
 
     # Imposta stile e contesto
@@ -426,6 +426,7 @@ def DrawBandwidthPlot(data, name, nodes):
     # Conversione e filtra dati in DataFrame
     df = pd.DataFrame(data)
     df = df[df['nodes'] == nodes]
+    df = df[df['system'] == sys]
     df['collective_system'] = df['collective'] + "_" + df['system']
 
     # --- Lineplot principale ---
@@ -500,76 +501,56 @@ def DrawBandwidthPlot(data, name, nodes):
     plt.close()
 
 
-def LoadData(dict, data_folder, nodes_list, systems, collectives, messages):
+def LoadData(data, data_folder):
 
 
-    m_bytes_mess = []
-    for mess in messages:
-        m_bytes = to_bytes(mess)
-        m_bytes_mess.append(m_bytes)
+    with open(data_folder, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            path = row["path"]
+            system = row["system"]
+            collective = row["extra"]
+            data_nodes = row["numnodes"]
 
-    for nodes in nodes_list:
-        with open(data_folder, newline="") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                path = row["path"]
-                system = row["system"]
-                collective = row["extra"]
-                data_nodes = row["numnodes"]
+            print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
+        
+            nodes_for_bw = int(data_nodes) / 2
 
-                print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
+            data_path = os.path.join(path, f"data_app_0.csv")
+            if not os.path.exists(data_path):
+                continue
 
-                if int(data_nodes) != nodes*2:
-                    print("SKIP! nodes fault.\n")
-                    continue
-                if system not in systems:
-                    print("SKIP! system fault.\n")
-                    continue
-                if collective not in collectives:
-                    print(collectives)
-                    print("SKIP! collective fault.\n")
-                    continue
+            csv_files = sorted(glob.glob(os.path.join(path, "data_app_*.csv")))
 
-                data_path = os.path.join(path, f"data_app_0.csv")
-                if not os.path.exists(data_path):
-                    continue
+            for i in range(len(csv_files)):
 
-                csv_files = sorted(glob.glob(os.path.join(path, "data_app_*.csv")))
+                print("Accessing:", csv_files[i])
 
-                for i in range(len(csv_files)):
+                with open(csv_files[i], newline="") as f:
+                    reader = csv.DictReader(f)
+                    row_counter = 0
+                    for row in reader:
 
-                    print("Accessing:", csv_files[i])
+                        latency = float(row[f"{i}_Max-Duration_s"])
+                        m_bytes = int(row["msg_size"])
 
-                    with open(csv_files[i], newline="") as f:
-                        reader = csv.DictReader(f)
-                        row_counter = 0
-                        for row in reader:
-
-                            latency = float(row[f"{i}_Max-Duration_s"])
-                            m_bytes = int(row["msg_size"])
-                            if m_bytes not in m_bytes_mess:
-                                print("SKIP!\n")
-                                break
-                            elif row_counter == 0:
-                                print("PROCESS!\n")
-
-                            bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes)
-                            data['latency'].append(latency)
-                            data['bandwidth'].append(bandwidth)
-                            data['message'].append(str(m_bytes))
-                            data['collective'].append(collective)
-                            data['bytes'].append(m_bytes)
-                            data['system'].append(system)
-                            data['iteration'].append(row_counter)
-                            data['nodes'].append(nodes)
-                            row_counter += 1
+                        bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes_for_bw)
+                        data['latency'].append(latency)
+                        data['bandwidth'].append(bandwidth)
+                        data['message'].append(str(m_bytes))
+                        data['collective'].append(collective)
+                        data['bytes'].append(m_bytes)
+                        data['system'].append(system)
+                        data['iteration'].append(row_counter)
+                        data['nodes'].append(int(data_nodes))
+                        row_counter += 1
 
 
 
 
 if __name__ == "__main__":
 
-    node_list = [10, 20, 40, 80, 160, 250]
+    node_list = [10, 20, 40, 60, 80, 160, 250]
     data_folder = f"data/description.csv"
 
     data = {
@@ -583,7 +564,7 @@ if __name__ == "__main__":
         'nodes': []
     }
 
-    systems=["cresco8"]
+
     collectives_sustained = ['All-to-All', 'All-to-All A2A-Congested', 'All-to-All Inc-Congested',
                              'All-Gather', 'All-Gather A2A-Congested', 'All-Gather Inc-Congested']
     collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
@@ -592,9 +573,13 @@ if __name__ == "__main__":
 
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB'] # ,'128MiB']
 
-    LoadData(data, data_folder, node_list, systems, collectives_sustained, messages)
-    for nodes in node_list:
-        DrawBandwidthPlot(data, f"PLOT_BW_sustained_{nodes}", nodes)
+    systems=["leonardo", "cresco8"]
+    LoadData(data, data_folder)
+
+    for sys in systems:
+        for nodes in node_list:
+            DrawBandwidthPlot(data, f"PLOT_BW_{sys}_sustained_{nodes}", nodes, sys)
+
     CleanData(data)
 
     # LoadData(data, data_folder, node_list, systems, collectives_sustained, messages)

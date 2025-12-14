@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": 10,
+        "numnodes": 60,
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-to-All A2A-Congested",
-        "prevjob": "29025001",
+        "prevjob": "29026793",
         "slurm_partition": "boost_usr_prod",
         "slurm_account": "IscrB_SWING"
     },
@@ -73,13 +73,6 @@
             "end": ""
         },
         "8": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/noise_a2a.py",
-            "args": "-msgsize 134217728 -iter 1000",
-            "collect": true,
-            "start": "s7",
-            "end": ""
-        },
-        "9": {
             "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/noise_a2a.py",
             "args": "",
             "collect": false,
