@@ -1,0 +1,58 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/leonardo/2025-12-14_20-12-19-186431 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/leonardo/2025-12-14_20-12-19-186431 ---
+--- [WORKER] Allocating nodes provided by SLURM: lrdn[2005,2010,2206,2210,2226,2241,2270,2278,2294,2332,2345,2357,2383,2414,2421,2448,2456,2463,2478,2517] ---
+--- [INFO] Partition 0 (Collect=True): 10 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 10 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 8 -iter 1000
+[DEBUG]: Node List is: ['lrdn2010', 'lrdn2210', 'lrdn2241', 'lrdn2278', 'lrdn2332', 'lrdn2357', 'lrdn2414', 'lrdn2448', 'lrdn2463', 'lrdn2517']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2010,lrdn2210,lrdn2241,lrdn2278,lrdn2332,lrdn2357,lrdn2414,lrdn2448,lrdn2463,lrdn2517 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/bursty_noise_incast 0.0001 0.001
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 64 -iter 1000
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 512 -iter 1000
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 4096 -iter 1000
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 32768 -iter 1000
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 262144 -iter 1000
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 2097152 -iter 1000
+[DEBUG]: Node List is: ['lrdn2005', 'lrdn2206', 'lrdn2226', 'lrdn2270', 'lrdn2294', 'lrdn2345', 'lrdn2383', 'lrdn2421', 'lrdn2456', 'lrdn2478']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn2005,lrdn2206,lrdn2226,lrdn2270,lrdn2294,lrdn2345,lrdn2383,lrdn2421,lrdn2456,lrdn2478 --cpu-bind=socket -n 10 -N 10 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 16777216 -iter 1000
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+--- [WARNING] App 8 ended with return code -9 ---
+--- [INFO] Run 1 completata in 21.2470 secondi ---
+
+Logging data...
+Dati per App 0 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_0.csv
+Dati per App 1 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_1.csv
+Dati per App 2 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_2.csv
+Dati per App 3 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_3.csv
+Dati per App 4 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_4.csv
+Dati per App 5 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_5.csv
+Dati per App 6 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_6.csv
+Dati per App 7 salvati in: ./data/leonardo/2025-12-14_20-12-19-186431/data_app_7.csv
+--- [WORKER] Engine run finished. ---

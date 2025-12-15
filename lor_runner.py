@@ -124,7 +124,7 @@ def main():
     #128 MiB crea problemi
     #leo fino a 60
     #cresco8 non ha 60
-    node_list = [20, 40, 60, 80, 160, 250]
+    node_list = [10, 20, 40, 60] #80, 160, 250]
     # system_data = {
     #     "name": "cresco8",
     #     "partition": "cresco8_cpu",
