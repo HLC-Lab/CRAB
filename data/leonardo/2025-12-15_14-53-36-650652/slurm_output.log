@@ -1,0 +1,10 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/leonardo/2025-12-15_14-53-36-650652 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/leonardo/2025-12-15_14-53-36-650652 ---
+--- [WORKER] Allocating nodes provided by SLURM: lrdn[0247,0259,0264,0276,0282,0296,0308,0311,0322,0334,0353,0360,0365,0384,0390,0417,0428,0447,0450,0456,0461,0488,0502,0537,0544,0551,0575,0611,0625,0634,0650,0652,0664,0685,0693,0701,0714,0722,0752,0776,0786,0791,0802,0811,0828,0831,0841,0849,0856,0875,0881,0886,0908,0923,0930,0932,0950,0979,0988,0999,1024,1040,1057,1078] ---
+--- [INFO] Partition 0 (Collect=True): 32 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 32 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:

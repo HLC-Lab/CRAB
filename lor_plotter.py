@@ -12,230 +12,89 @@ import glob
 
 
 
-def plot_heatmaps(data, name):
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap
+
+
+def DrawLatencyHeatmap(
+    data,
+    name,
+    nodes,
+    sys,
+    collective,
+    msg
+):
+    # -----------------------------
+    # Data preparation
+    # -----------------------------
     df = pd.DataFrame(data)
 
-    # Ensure correct ordering of categories
-    df['burst_length'] = pd.Categorical(df['burst_length'],
-                                        categories=['1e-2', '1e-4', '1e-6'],
-                                        ordered=True)
-    df['burst_gap'] = pd.Categorical(df['burst_gap'],
-                                     categories=['1ms', '10ms', '100ms'],
-                                     ordered=True)
+    df = df[
+        (df['nodes'] == nodes) &
+        (df['system'] == sys) &
+        (df['collective'] == collective) &
+        (df['bytes'] == msg) &
+        (df['burst_pause'] >= 0) &
+        (df['burst_length'] >= 0)
+    ]
 
+    if df.empty:
+        raise ValueError("No data left after filtering")
+
+    # Mean over iterations
+    df = (
+        df
+        .groupby(['burst_length', 'burst_pause'], as_index=False)
+        .agg(max_latency=('avg_latency', 'max'))
+    )
+
+    #BISOGNA CALCOLARE LO SPEEDUP
+
+    # Pivot for heatmap
+    pivot = df.pivot(
+        index='burst_length',
+        columns='burst_pause',
+        values='max_latency'
+    )
+
+    # -----------------------------
+    # Plotting
+    # -----------------------------
     sns.set_style("whitegrid")
     sns.set_context("talk")
 
-    messages = df['message'].unique()
-    n_msgs = len(messages)
+    acid_cmap = LinearSegmentedColormap.from_list(
+        "purple_acidgreen",
+        ["#FC4F49", "#29C35F"]
+    )
 
-    acid_cmap = LinearSegmentedColormap.from_list("purple_acidgreen",
-                                              ["#FC4F49", "#29C35F"])
+    fig, ax = plt.subplots(figsize=(10, 8))
 
-    # Create one subplot per message, stacked vertically
-    fig, axes = plt.subplots(1, n_msgs, figsize=(9 * n_msgs, 8), sharex=True)
+    hm = sns.heatmap(
+        pivot,
+        annot=True,
+        fmt=".3f",
+        cmap=acid_cmap,
+        annot_kws={"size": 30},
+        ax=ax
+    )
 
-    if n_msgs == 1:
-        axes = [axes]  # ensure axes is iterable
+    ax.set_title(f"Message Size: {msg}", fontsize=32, pad=20)
+    ax.set_xlabel("Burst Pause", fontsize=28, labelpad=10)
+    ax.set_ylabel("Burst Length", fontsize=28, labelpad=10)
+    ax.tick_params(axis='both', which='major', labelsize=24)
 
-    heatmaps = []
-    for ax, msg in zip(axes, messages):
-        df_msg = df[df['message'] == msg]
+    # Colorbar formatting
+    cbar = hm.collections[0].colorbar
+    cbar.ax.tick_params(labelsize=24)
+    cbar.set_label("Mean Speedup", fontsize=26, labelpad=15)
 
-        # Pivot: rows = burst_length, cols = burst_gap, values = factor
-        pivot = df_msg.pivot(index="burst_length", columns="burst_gap", values="factor")
-
-        hm = sns.heatmap(pivot, annot=True, fmt=".3f", cmap=acid_cmap,
-                    vmin=0.6, vmax=1.1, cbar=False, annot_kws={"size": 40}, yticklabels=False,
-                    ax=ax)
-
-        heatmaps.append(hm)
-
-        ax.set_title(f"Message Size: {msg}", fontsize=40, pad=30)
-        ax.set_ylabel("", fontsize=40, labelpad=15)
-        ax.set_xlabel("", fontsize=40, labelpad=15)
-        ax.tick_params(axis='both', which='major', labelsize=40)
-
-    cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
-    fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
-    cbar_ax.tick_params(labelsize=40)
-
-
-    plt.savefig(f'plots/{name}_heatmaps.png', dpi=300, bbox_inches='tight')
+    plt.tight_layout()
+    plt.savefig(f'plots/{name}.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-
-
-def DrawLinePlot2(data, name, palette):
-    print(f"Plotting data collective: {name}")
-
-    # Imposta stile e contesto
-    sns.set_style("whitegrid")
-    sns.set_context("talk")
-
-    # Crea figura principale
-    f, ax1 = plt.subplots(figsize=(30, 9))
-
-    # Conversione dati in DataFrame
-    df = pd.DataFrame(data)
-
-    # Palette migliorata
-
-    # --- Lineplot principale ---
-    sns.lineplot(
-        data=df,
-        x='Message',
-        y='bandwidth',
-        hue='Cluster',
-        style='Cluster',
-        markers=True,
-        markersize=10,
-        linewidth=8,
-        ax=ax1
-    )
-
-    # Linea teorica
-    ax1.axhline(
-        y=200,
-        color='red',
-        linestyle='--',
-        linewidth=5,
-        label=f'Nanjing Theoretical Peak {200} Gb/s'
-    )
-
-    # Example: horizontal line at y=100, from x=0.5 to x=1.5
-    ax1.hlines(
-        y=100,
-        xmin='512 B', xmax='128 MiB',
-        color='red',
-        linestyle=':',
-        linewidth=5,
-        label=f'HAICGU Theoretical Peak {100} Gb/s'
-    )
-
-    # Etichette
-    ax1.set_xlim(0, len(df["Message"].unique()) - 1)
-    ax1.tick_params(axis='both', which='major', labelsize=40)
-    ax1.set_ylabel('Bandwidth (Gb/s)', fontsize=40, labelpad=23)
-    ax1.set_xlabel('Message Size', fontsize=40, labelpad=23)
-
-    ax1.legend(
-        fontsize=40,
-        loc='upper center',
-        bbox_to_anchor=(0.5, -0.2),  # più spazio sotto
-        ncol=2,
-        frameon=True,
-        title=None,
-    )
-
-    # --- Subplot zoom-in ---
-    zoom_msgs = ['8 B', '64 B', '512 B', '4 KiB']
-    df_zoom = df[df['Message'].isin(zoom_msgs)]
-
-    axins = inset_axes(ax1, width="43%", height="43%", loc='upper left', borderpad=5.5)
-
-    df_zoom['latency_scaled'] = df_zoom['latency'] * 1e6
-
-    sns.lineplot(
-        data=df_zoom,
-        x='Message',
-        y='latency_scaled',
-        hue='Cluster',
-        style='Cluster',
-        markers=True,
-        markersize=8,
-        linewidth=7,
-        ax=axins,
-        legend=False  # no legend in zoom
-    )
-
-    # Optional: adjust ticks for zoom clarity
-    axins.set_ylim(1, 35)
-    axins.set_xlim(0, len(df_zoom["Message"].unique()) - 1)
-    axins.tick_params(axis='both', which='major', labelsize=28)
-    axins.set_title("")
-    axins.set_xlabel('', fontsize=28, labelpad=23)
-    axins.set_ylabel('Latency (us)', fontsize=28, labelpad=5)
-
-    # --- Layout e salvataggio ---
-    #plt.tight_layout()
-    plt.savefig(f'plots/{name}_line.png', dpi=300, bbox_inches='tight')
-    plt.close()
-
-
-
-
-def LoadHeatmapData(data, cluster, path, coll):
-
-    print (f"Loading data from {path}, coll={coll}")
-
-    burst_length = ['1e-2', '1e-4', '1e-6']
-    burst_gap = ['1ms', '10ms', '100ms']
-    messages = ['32 KiB', '256 KiB', '2 MiB']
-
-    for blen in burst_length:
-        for bgap in burst_gap:
-
-            folder_name = blen + "_" + bgap
-            full_path = os.path.join(path, folder_name)
-
-            for msg in messages:
-                msg_mult = msg.strip().split(' ')[1]
-                msg_value = msg.strip().split(' ')[0]
-                if msg_mult == 'B':
-                    multiplier = 1
-                elif msg_mult == 'KiB':
-                    multiplier = 1024
-                elif msg_mult == 'MiB':
-                    multiplier = 1024**2
-                elif msg_mult == 'GiB':
-                    multiplier = 1024**3
-                else:
-                    raise ValueError(f"Unknown message size unit in {msg}")
-
-                message_bytes = int(msg_value) * multiplier
-
-                cong_csv_path = os.path.join(full_path, f"{message_bytes}_{coll}_cong.csv")
-                csv_path = os.path.join(full_path,  f"{message_bytes}_{coll}.csv")
-
-                cong_iterations = 0
-                cong_latencies = []
-                with open(cong_csv_path, 'r') as file1:
-                        lines = file1.readlines()[2:]  # Skip the first line
-                        cong_iterations = len(lines)
-                        for line in lines:
-                            latency = float(line.strip())
-                            cong_latencies.append(latency)
-
-                mean_cong = sum(cong_latencies) / len(cong_latencies)
-
-
-                iterations = 0
-                latencies = []
-                with open(csv_path, 'r') as file2:
-                        lines = file2.readlines()[2:]  # Skip the first line
-                        iterations = len(lines)
-                        for line in lines:
-                            latency = float(line.strip())
-                            latencies.append(latency)
-
-                mean_lat = sum(latencies) / len(latencies)
-
-                print(f"Message: {msg}, Burst Length: {blen}, Burst Gap: {bgap}, Iterations: {iterations}, Congested Iterations: {cong_iterations}")
-
-                factor = cong_iterations/iterations
-
-                factor = mean_lat/mean_cong
-
-
-                data['factor'].append(factor)
-                data['message'].append(msg)
-                data['cluster'].append(cluster)
-                data['burst_length'].append(blen)
-                data['burst_gap'].append(bgap)
-                data['collective'].append(coll)
-
-    return data
 
 
 # -------------------------
@@ -376,17 +235,6 @@ def DrawLatencyViolinPlot(data, name):
     df = pd.DataFrame(data)
     df['collective_system'] = df['collective'] + "_" + df['system']
 
-    # --- Violin plot ---
-    # sns.violinplot(
-    #     data=df,
-    #     x='collective_system',
-    #     y='latency',
-    #     ax=ax,
-    #     cut=0,             # avoids extending beyond data range
-    #     inner='box',       # show a mini-boxplot inside violins
-    #     linewidth=3
-    # )
-
     palette_base = ["#4C72B0", "#55A868", "#C44E52"]
 
     # Build a palette where each color repeats for 3 categories
@@ -501,6 +349,7 @@ def DrawBandwidthPlot(data, name, nodes, sys):
     plt.close()
 
 
+
 def LoadData(data, data_folder):
 
 
@@ -512,20 +361,28 @@ def LoadData(data, data_folder):
             collective = row["extra"]
             data_nodes = row["numnodes"]
 
-            print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
-        
-            nodes_for_bw = int(data_nodes) / 2
-
             data_path = os.path.join(path, f"data_app_0.csv")
             if not os.path.exists(data_path):
                 continue
+            
+            nodes_for_bw = int(data_nodes) / 2
+            print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
+
+            collective_string = collective.strip().split(" ")
+            if len(collective_string) == 1:
+                collective_name = collective_string[0]
+            elif len(collective_string) > 1:
+                collective_name = collective_string[0]+" "+collective_string[1]
+            
+            if len(collective_string) > 2:
+                burst_pause = float(collective_string[2])
+                burst_length = float(collective_string[3])
 
             csv_files = sorted(glob.glob(os.path.join(path, "data_app_*.csv")))
-
             for i in range(len(csv_files)):
 
                 print("Accessing:", csv_files[i])
-
+                avg_lat = 0
                 with open(csv_files[i], newline="") as f:
                     reader = csv.DictReader(f)
                     row_counter = 0
@@ -533,20 +390,20 @@ def LoadData(data, data_folder):
 
                         latency = float(row[f"{i}_Max-Duration_s"])
                         m_bytes = int(row["msg_size"])
-
-                        bandwidth = ComputeBandwidth(latency, m_bytes, collective, nodes_for_bw)
+                        avg_lat += latency
+                        bandwidth = ComputeBandwidth(latency, m_bytes, collective_name, nodes_for_bw)
                         data['latency'].append(latency)
                         data['bandwidth'].append(bandwidth)
                         data['message'].append(str(m_bytes))
-                        data['collective'].append(collective)
+                        data['collective'].append(collective_name)
                         data['bytes'].append(m_bytes)
                         data['system'].append(system)
                         data['iteration'].append(row_counter)
                         data['nodes'].append(int(data_nodes))
+                        data['burst_length'].append(burst_length if 'burst_length' in locals() else -1)
+                        data['burst_pause'].append(burst_pause if 'burst_pause' in locals() else -1)
                         row_counter += 1
-
-
-
+                data['avg_latency'].extend([avg_lat/row_counter] * row_counter)
 
 if __name__ == "__main__":
 
@@ -561,26 +418,44 @@ if __name__ == "__main__":
         'system': [],
         'collective': [],
         'iteration': [],
-        'nodes': []
+        'nodes': [],
+        'burst_length': [],
+        'burst_pause': [],
+        'avg_latency': []
     }
 
 
     collectives_sustained = ['All-to-All', 'All-to-All A2A-Congested', 'All-to-All Inc-Congested',
                              'All-Gather', 'All-Gather A2A-Congested', 'All-Gather Inc-Congested']
-    collectives_bursty = ['All-to-All Congested 0.01 0.1', 'All-to-All Congested 0.01 0.01', 'All-to-All Congested 0.01 0.001',
-                          'All-to-All Congested 0.0001 0.1', 'All-to-All Congested 0.0001 0.01', 'All-to-All Congested 0.0001 0.001',
-                          'All-to-All Congested 0.000001 0.1', 'All-to-All Congested 0.000001 0.01', 'All-to-All Congested 0.000001 0.001']
+    collectives_bursty = ['All-to-All Inc-Congested 0.01 0.1', 'All-to-All Inc-Congested 0.01 0.01', 'All-to-All Inc-Congested 0.01 0.001',
+                          'All-to-All A2A-Congested 0.01 0.1', 'All-to-All A2A-Congested 0.01 0.01', 'All-to-All A2A-Congested 0.01 0.001',
+                          'All-to-All Inc-Congested 0.0001 0.1', 'All-to-All Inc-Congested 0.0001 0.01', 'All-to-All Inc-Congested 0.0001 0.001',
+                          'All-to-All A2A-Congested 0.0001 0.1', 'All-to-All A2A-Congested 0.0001 0.01', 'All-to-All A2A-Congested 0.0001 0.001'
+                          'All-to-All Inc-Congested 0.000001 0.1', 'All-to-All Inc-Congested 0.000001 0.01', 'All-to-All Inc-Congested 0.000001 0.001',
+                          'All-to-All A2A-Congested 0.000001 0.1', 'All-to-All A2A-Congested 0.000001 0.01', 'All-to-All A2A-Congested 0.000001 0.001']
 
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB'] # ,'128MiB']
+    for i in range(len(messages)):
+        messages[i] = to_bytes(messages[i])
 
     systems=["leonardo", "cresco8"]
     LoadData(data, data_folder)
 
+    # for sys in systems:
+    #     for nodes in node_list:
+    #         DrawBandwidthPlot(data, f"PLOT_BW_{sys}_sustained_{nodes}", nodes, sys)
+            
     for sys in systems:
         for nodes in node_list:
-            DrawBandwidthPlot(data, f"PLOT_BW_{sys}_sustained_{nodes}", nodes, sys)
-
+            for collective in collectives_sustained:
+                for msg in messages:
+                    if "Congested" not in collective:
+                        continue
+                    DrawLatencyHeatmap(data, f"PLOT_HEATMAPS_{sys}_{collective}_{nodes}_{msg}", nodes, sys, collective, msg)
+        
     CleanData(data)
+    
+
 
     # LoadData(data, data_folder, node_list, systems, collectives_sustained, messages)
     # for nodes in node_list:

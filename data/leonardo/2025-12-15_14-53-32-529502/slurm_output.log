@@ -1,0 +1,565 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/leonardo/2025-12-15_14-53-32-529502 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/leonardo/2025-12-15_14-53-32-529502 ---
+--- [WORKER] Allocating nodes provided by SLURM: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467,1493,1517,1548,1554,1564,1583,1592,1606,1609,1643,1656,1668,1675,1684,1690,1701,1716,1728,1735,1744,1760,1762,1774] ---
+--- [INFO] Partition 0 (Collect=True): 16 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 16 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 8 -iter 1000
+[DEBUG]: Node List is: ['lrdn0417', 'lrdn0628', 'lrdn1439', 'lrdn1451', 'lrdn1493', 'lrdn1548', 'lrdn1564', 'lrdn1592', 'lrdn1609', 'lrdn1656', 'lrdn1675', 'lrdn1690', 'lrdn1716', 'lrdn1735', 'lrdn1760', 'lrdn1774']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0417,lrdn0628,lrdn1439,lrdn1451,lrdn1493,lrdn1548,lrdn1564,lrdn1592,lrdn1609,lrdn1656,lrdn1675,lrdn1690,lrdn1716,lrdn1735,lrdn1760,lrdn1774 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/bursty_noise_a2a 0.000001 0.001
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 64 -iter 1000
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 512 -iter 1000
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 4096 -iter 1000
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 32768 -iter 1000
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 262144 -iter 1000
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 2097152 -iter 1000
+[DEBUG]: Node List is: ['lrdn0360', 'lrdn0507', 'lrdn1418', 'lrdn1446', 'lrdn1467', 'lrdn1517', 'lrdn1554', 'lrdn1583', 'lrdn1606', 'lrdn1643', 'lrdn1668', 'lrdn1684', 'lrdn1701', 'lrdn1728', 'lrdn1744', 'lrdn1762']
+[DEBUG]: Detected CRAB_SYSTEM=leonardo. Adding SLURM option: --partition=boost_usr_prod
+[DEBUG]: SLURM command is: srun --export=ALL --partition=boost_usr_prod --nodelist lrdn0360,lrdn0507,lrdn1418,lrdn1446,lrdn1467,lrdn1517,lrdn1554,lrdn1583,lrdn1606,lrdn1643,lrdn1668,lrdn1684,lrdn1701,lrdn1728,lrdn1744,lrdn1762 --cpu-bind=socket -n 16 -N 16 /leonardo/home/userexternal/lpiarull/CRAB/benchmarks/blink/bin/agtr_comm_only -msgsize 16777216 -iter 1000
+--- [WARNING] App 0 ended with return code 16 ---
+--- [ERROR] App 0 failed to provide data.
+ Error: slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1643 [9]: pmixp_coll_ring.c:742: 0x14935803a380: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1643 [9]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:760: 0x14935803a380: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:762: my peerid: 9:lrdn1493
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:769: neighbor id: next 10:lrdn1517, prev 8:lrdn1467
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:779: Context ptr=0x14935803a3f8, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:779: Context ptr=0x14935803a430, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:779: Context ptr=0x14935803a468, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=0/fwd=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:825: 		 done contrib: -
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1643 [9]: pmixp_coll_ring.c:833: 	 buf (offset/size): 743/12631
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1418 [2]: pmixp_coll_ring.c:742: 0x15513003b440: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1418 [2]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:760: 0x15513003b440: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:762: my peerid: 2:lrdn0507
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:769: neighbor id: next 3:lrdn0628, prev 1:lrdn0417
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:779: Context ptr=0x15513003b4b8, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:779: Context ptr=0x15513003b4f0, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:779: Context ptr=0x15513003b528, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=9/fwd=10
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,0417,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0628,1418,1439,1446,1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1418 [2]: pmixp_coll_ring.c:833: 	 buf (offset/size): 7467/19355
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1446 [3]: pmixp_coll_ring.c:742: 0x1540f803b4a0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1446 [3]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:760: 0x1540f803b4a0: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:762: my peerid: 3:lrdn0628
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:769: neighbor id: next 4:lrdn1418, prev 2:lrdn0507
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:779: Context ptr=0x1540f803b518, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:779: Context ptr=0x1540f803b550, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:779: Context ptr=0x1540f803b588, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=10/fwd=11
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,0417,0507,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[1418,1439,1446,1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1446 [3]: pmixp_coll_ring.c:833: 	 buf (offset/size): 8210/20098
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn0507 [1]: pmixp_coll_ring.c:742: 0x147f34006a50: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn0507 [1]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:760: 0x147f34006a50: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:762: my peerid: 1:lrdn0417
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:769: neighbor id: next 2:lrdn0507, prev 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:779: Context ptr=0x147f34006ac8, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:779: Context ptr=0x147f34006b00, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:779: Context ptr=0x147f34006b38, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=8/fwd=9
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0507,0628,1418,1439,1446,1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0507 [1]: pmixp_coll_ring.c:833: 	 buf (offset/size): 6724/19204
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1517 [5]: pmixp_coll_ring.c:742: 0x14e160040100: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1517 [5]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:760: 0x14e160040100: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:762: my peerid: 5:lrdn1439
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:769: neighbor id: next 6:lrdn1446, prev 4:lrdn1418
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:779: Context ptr=0x14e160040178, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:779: Context ptr=0x14e1600401b0, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:779: Context ptr=0x14e1600401e8, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=12/fwd=13
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,0417,0507,0628,1418,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[1446,1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1517 [5]: pmixp_coll_ring.c:833: 	 buf (offset/size): 9696/21584
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn0360 [0]: pmixp_coll_ring.c:742: 0x14b72003a970: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn0360 [0]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:760: 0x14b72003a970: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:762: my peerid: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:769: neighbor id: next 1:lrdn0417, prev 15:lrdn1592
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:779: Context ptr=0x14b72003a9e8, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:779: Context ptr=0x14b72003aa20, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:779: Context ptr=0x14b72003aa58, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=7/fwd=8
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0417,0507,0628,1418,1439,1446,1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn0360 [0]: pmixp_coll_ring.c:833: 	 buf (offset/size): 5981/18461
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn0360 [0]: pmixp_coll_tree.c:1318: 0x14b718006b60: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn0360 [0]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1337: 0x14b718006b60: COLL_FENCE_TREE state seq=0 contribs: loc=0/prnt=0/child=2
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1339: my peerid: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1356: child contribs [15]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1383: 	 done contrib: lrdn[1606,1643]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1385: 	 wait contrib: lrdn[0507,1418,1446,1467,1517,1554,1583,1668,1684,1701,1728,1744,1762]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1392: status: coll=COLL_COLLECT upfw=COLL_SND_NONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 107/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1583 [7]: pmixp_coll_ring.c:742: 0x147464039170: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1583 [7]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:760: 0x147464039170: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:762: my peerid: 7:lrdn1451
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:769: neighbor id: next 8:lrdn1467, prev 6:lrdn1446
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:779: Context ptr=0x1474640391e8, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:779: Context ptr=0x147464039220, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:779: Context ptr=0x147464039258, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=14/fwd=15
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn1467
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1583 [7]: pmixp_coll_ring.c:833: 	 buf (offset/size): 11182/23070
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1467 [4]: pmixp_coll_ring.c:742: 0x152e0c006a20: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1467 [4]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:760: 0x152e0c006a20: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:762: my peerid: 4:lrdn1418
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:769: neighbor id: next 5:lrdn1439, prev 3:lrdn0628
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:779: Context ptr=0x152e0c006a98, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:779: Context ptr=0x152e0c006ad0, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:779: Context ptr=0x152e0c006b08, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=11/fwd=12
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,0417,0507,0628,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[1439,1446,1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1467 [4]: pmixp_coll_ring.c:833: 	 buf (offset/size): 8953/20841
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1554 [6]: pmixp_coll_ring.c:742: 0x1523d403a8c0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1554 [6]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:760: 0x1523d403a8c0: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:762: my peerid: 6:lrdn1446
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:769: neighbor id: next 7:lrdn1451, prev 5:lrdn1439
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:779: Context ptr=0x1523d403a938, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:779: Context ptr=0x1523d403a970, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:779: Context ptr=0x1523d403a9a8, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=13/fwd=14
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,0417,0507,0628,1418,1439,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1554 [6]: pmixp_coll_ring.c:833: 	 buf (offset/size): 10439/22327
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1606 [8]: pmixp_coll_ring.c:742: 0x145e5c006a20: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1606 [8]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:760: 0x145e5c006a20: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:762: my peerid: 8:lrdn1467
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:769: neighbor id: next 9:lrdn1493, prev 7:lrdn1451
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:779: Context ptr=0x145e5c006a98, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:779: Context ptr=0x145e5c006ad0, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:779: Context ptr=0x145e5c006b08, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=15/fwd=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1493,1517,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:827: 		 wait contrib: -
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_FINILIZE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1606 [8]: pmixp_coll_ring.c:833: 	 buf (offset/size): 0/23813
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1606 [8]: pmixp_coll_tree.c:1318: 0x145e6402f4f0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1606 [8]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1337: 0x145e6402f4f0: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1339: my peerid: 8:lrdn1467
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1606 [8]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1728 [13]: pmixp_coll_ring.c:742: 0x1494240069e0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1728 [13]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:760: 0x1494240069e0: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:762: my peerid: 13:lrdn1564
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:769: neighbor id: next 14:lrdn1583, prev 12:lrdn1554
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:779: Context ptr=0x149424006a58, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1701 [12]: pmixp_coll_ring.c:742: 0x14cedc03a340: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1701 [12]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:760: 0x14cedc03a340: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:762: my peerid: 12:lrdn1554
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:769: neighbor id: next 13:lrdn1564, prev 11:lrdn1548
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:779: Context ptr=0x14cedc03a3b8, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:779: Context ptr=0x14cedc03a3f0, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1762 [15]: pmixp_coll_ring.c:742: 0x14d7700069e0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1762 [15]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:760: 0x14d7700069e0: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:762: my peerid: 15:lrdn1592
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:769: neighbor id: next 0:lrdn0360, prev 14:lrdn1583
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:779: Context ptr=0x14d770006a58, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1668 [10]: pmixp_coll_ring.c:742: 0x151f88006a20: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1684 [11]: pmixp_coll_ring.c:742: 0x1521480069e0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1684 [11]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:760: 0x1521480069e0: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:762: my peerid: 11:lrdn1548
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:769: neighbor id: next 12:lrdn1554, prev 10:lrdn1517
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:779: Context ptr=0x152148006a58, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:779: Context ptr=0x152148006a90, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_reset_if_to: lrdn1744 [14]: pmixp_coll_ring.c:742: 0x147df00069e0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1744 [14]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:760: 0x147df00069e0: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:762: my peerid: 14:lrdn1583
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:769: neighbor id: next 15:lrdn1592, prev 13:lrdn1564
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:779: Context ptr=0x149424006a90, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:779: Context ptr=0x149424006ac8, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=4/fwd=5
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[1493,1517,1548,1554]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1728 [13]: pmixp_coll_ring.c:833: 	 buf (offset/size): 3715/15603
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:779: Context ptr=0x14cedc03a428, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=3/fwd=4
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[1493,1517,1548]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1701 [12]: pmixp_coll_ring.c:833: 	 buf (offset/size): 2972/14860
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:779: Context ptr=0x14d770006a90, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:779: Context ptr=0x14d770006ac8, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=6/fwd=7
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[1493,1517,1548,1554,1564,1583]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1762 [15]: pmixp_coll_ring.c:833: 	 buf (offset/size): 5201/17089
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1668 [10]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:760: 0x151f88006a20: COLL_FENCE_RING state seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:762: my peerid: 10:lrdn1517
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:769: neighbor id: next 11:lrdn1548, prev 9:lrdn1493
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:779: Context ptr=0x151f88006a98, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:779: Context ptr=0x151f88006ad0, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:779: Context ptr=0x151f88006b08, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=1/fwd=2
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:825: 		 done contrib: lrdn1493
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467,1548,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1668 [10]: pmixp_coll_ring.c:833: 	 buf (offset/size): 1486/13374
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:779: Context ptr=0x152148006ac8, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=2/fwd=3
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[1493,1517]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467,1554,1564,1583,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1684 [11]: pmixp_coll_ring.c:833: 	 buf (offset/size): 2229/14117
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:779: Context ptr=0x147df0006a58, #0, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:779: Context ptr=0x147df0006a90, #1, in-use=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:779: Context ptr=0x147df0006ac8, #2, in-use=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:790: 	 seq=0 contribs: loc=1/prev=5/fwd=6
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:792: 	 neighbor contribs [16]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:825: 		 done contrib: lrdn[1493,1517,1548,1554,1564]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:827: 		 wait contrib: lrdn[0360,0417,0507,0628,1418,1439,1446,1451,1467,1592]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:829: 	 status=PMIXP_COLL_RING_PROGRESS
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_ring_log: lrdn1744 [14]: pmixp_coll_ring.c:833: 	 buf (offset/size): 4458/16346
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1643 [9]: pmixp_coll_tree.c:1318: 0x14935803f470: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1643 [9]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1337: 0x14935803f470: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1339: my peerid: 9:lrdn1493
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1643 [9]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1418 [2]: pmixp_coll_tree.c:1318: 0x15513003bc00: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1418 [2]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1337: 0x15513003bc00: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1339: my peerid: 2:lrdn0507
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1418 [2]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1446 [3]: pmixp_coll_tree.c:1318: 0x1540f8035400: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1446 [3]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1337: 0x1540f8035400: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1339: my peerid: 3:lrdn0628
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1446 [3]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1517 [5]: pmixp_coll_tree.c:1318: 0x14e1600358b0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1517 [5]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1337: 0x14e1600358b0: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1339: my peerid: 5:lrdn1439
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1517 [5]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn0507 [1]: pmixp_coll_tree.c:1318: 0x147f3c03ba50: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn0507 [1]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1337: 0x147f3c03ba50: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1339: my peerid: 1:lrdn0417
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0507 [1]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn0360 [0]: pmixp_coll_tree.c:1318: 0x14b718006b60: collective timeout seq=1
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn0360 [0]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1337: 0x14b718006b60: COLL_FENCE_TREE state seq=1 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1339: my peerid: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1356: child contribs [15]:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1383: 	 done contrib: -
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1385: 	 wait contrib: lrdn[0507,1418,1446,1467,1517,1554,1583,1606,1643,1668,1684,1701,1728,1744,1762]
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1392: status: coll=COLL_COLLECT upfw=COLL_SND_NONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn0360 [0]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1554 [6]: pmixp_coll_tree.c:1318: 0x1523d4035cb0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1554 [6]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1337: 0x1523d4035cb0: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1339: my peerid: 6:lrdn1446
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1554 [6]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1467 [4]: pmixp_coll_tree.c:1318: 0x152e1403b810: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1467 [4]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1337: 0x152e1403b810: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1339: my peerid: 4:lrdn1418
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1467 [4]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1583 [7]: pmixp_coll_tree.c:1318: 0x1474640399a0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1583 [7]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1337: 0x1474640399a0: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1339: my peerid: 7:lrdn1451
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1583 [7]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1728 [13]: pmixp_coll_tree.c:1318: 0x14942c056a80: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1728 [13]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1337: 0x14942c056a80: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1339: my peerid: 13:lrdn1564
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1728 [13]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1701 [12]: pmixp_coll_tree.c:1318: 0x14cedc03f710: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1701 [12]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1337: 0x14cedc03f710: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1339: my peerid: 12:lrdn1554
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1701 [12]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1762 [15]: pmixp_coll_tree.c:1318: 0x14d778055d00: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1762 [15]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1337: 0x14d778055d00: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1339: my peerid: 15:lrdn1592
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1762 [15]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1668 [10]: pmixp_coll_tree.c:1318: 0x151f9003a6f0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1668 [10]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1337: 0x151f9003a6f0: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1339: my peerid: 10:lrdn1517
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1668 [10]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1684 [11]: pmixp_coll_tree.c:1318: 0x15215003a6f0: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1684 [11]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1337: 0x15215003a6f0: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1339: my peerid: 11:lrdn1548
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1684 [11]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_reset_if_to: lrdn1744 [14]: pmixp_coll_tree.c:1318: 0x147df8055e90: collective timeout seq=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_log: lrdn1744 [14]: pmixp_coll.c:286: Dumping collective state
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1337: 0x147df8055e90: COLL_FENCE_TREE state seq=0 contribs: loc=1/prnt=0/child=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1339: my peerid: 14:lrdn1583
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1342: root host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1346: prnt host: 0:lrdn0360
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1347: prnt contrib:
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1349: 	 [0:lrdn0360] false
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1392: status: coll=COLL_UPFWD upfw=COLL_SND_DONE dfwd=COLL_SND_NONE
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1394: dfwd status: dfwd_cb_cnt=0, dfwd_cb_wait=0
+slurmstepd: error:  mpi/pmix_v3: pmixp_coll_tree_log: lrdn1744 [14]: pmixp_coll_tree.c:1397: bufs (offset/size): upfw 88/16415, dfwd 69/16415
+[lrdn1643.leonardo.local:3332519] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1643.leonardo.local:3332519] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 8
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1643.leonardo.local:3332519] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1446.leonardo.local:3470736] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1446.leonardo.local:3470736] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 2
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1418.leonardo.local:2121239] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1418.leonardo.local:2121239] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 3
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1517.leonardo.local:394172] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1517.leonardo.local:394172] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 4
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn0360.leonardo.local:222461] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn0360.leonardo.local:222461] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 1
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1554.leonardo.local:1800405] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1554.leonardo.local:1800405] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 7
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1467.leonardo.local:2901754] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1467.leonardo.local:2901754] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 5
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1583.leonardo.local:206527] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1583.leonardo.local:206527] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 6
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1446.leonardo.local:3470736] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1418.leonardo.local:2121239] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1517.leonardo.local:394172] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn0360.leonardo.local:222461] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1728.leonardo.local:2178306] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1728.leonardo.local:2178306] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 12
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1554.leonardo.local:1800405] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1467.leonardo.local:2901754] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1583.leonardo.local:206527] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1701.leonardo.local:496214] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1701.leonardo.local:496214] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 13
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1668.leonardo.local:2918007] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1668.leonardo.local:2918007] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 11
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1762.leonardo.local:301022] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1762.leonardo.local:301022] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 14
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1684.leonardo.local:1077362] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1684.leonardo.local:1077362] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 10
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1744.leonardo.local:3827334] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1744.leonardo.local:3827334] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 15
+[LOG_CAT_COMMPATTERNS]   isend failed in  comm_allreduce_pml at iterations 0 
+
+[LOG_CAT_P2P] hmca_bcol_ucx_p2p address preexchange allreduce failed
+[lrdn1728.leonardo.local:2178306] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1701.leonardo.local:496214] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1668.leonardo.local:2918007] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1762.leonardo.local:301022] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1684.leonardo.local:1077362] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1744.leonardo.local:3827334] Error: coll_hcoll_module.c:310 - mca_coll_hcoll_comm_query() Hcol library init failed
+[lrdn1643.leonardo.local:3332519] pml_ucx.c:178  Error: Failed to receive UCX worker address: Not found (-13)
+[lrdn1643.leonardo.local:3332519] pml_ucx.c:477  Error: Failed to resolve UCX endpoint for rank 8
+[lrdn1643:3332519] *** An error occurred in MPI_Barrier
+[lrdn1643:3332519] *** reported by process [363427484,9]
+[lrdn1643:3332519] *** on communicator MPI_COMM_WORLD
+[lrdn1643:3332519] *** MPI_ERR_OTHER: known error not in list
+[lrdn1643:3332519] *** MPI_ERRORS_ARE_FATAL (processes in this communicator will now abort,
+[lrdn1643:3332519] ***    and potentially your MPI job)
+ ---
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+--- [WARNING] App 7 ended with return code -9 ---
+--- [ERROR] App 7 failed to provide data.
+ Error:  ---
+--- [WARNING] App 8 ended with return code 16 ---
+--- [INFO] Run 1 completata in 1406.0795 secondi ---
+
+Logging data...
+Dati per App 0 salvati in: ./data/leonardo/2025-12-15_14-53-32-529502/data_app_0.csv
+Dati per App 1 salvati in: ./data/leonardo/2025-12-15_14-53-32-529502/data_app_1.csv
+Dati per App 2 salvati in: ./data/leonardo/2025-12-15_14-53-32-529502/data_app_2.csv
+Dati per App 3 salvati in: ./data/leonardo/2025-12-15_14-53-32-529502/data_app_3.csv
+Dati per App 4 salvati in: ./data/leonardo/2025-12-15_14-53-32-529502/data_app_4.csv
+Dati per App 5 salvati in: ./data/leonardo/2025-12-15_14-53-32-529502/data_app_5.csv
+Nessun dato da salvare per App 6.
+Nessun dato da salvare per App 7.
+--- [WORKER] Engine run finished. ---
