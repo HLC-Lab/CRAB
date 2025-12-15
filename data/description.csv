@@ -1,1 +1,25 @@
 system,numnodes,allocation_mode,allocation_split,partition_split,partition_layout,ppn,out_format,extra,path
+leonardo,8,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-15_13-35-04-380838
+leonardo,8,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-15_13-35-07-646357
+leonardo,8,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-15_13-35-09-363597
+leonardo,8,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-15_13-35-11-730849
+leonardo,8,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-15_13-35-15-650342
+leonardo,8,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-15_13-35-17-446672
+leonardo,16,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-15_13-35-19-626342
+leonardo,16,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-15_13-35-21-431140
+leonardo,16,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-15_13-35-23-407809
+leonardo,16,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-15_13-35-25-120094
+leonardo,16,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-15_13-35-27-521253
+leonardo,16,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-15_13-35-29-219260
+leonardo,32,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-15_13-35-31-523877
+leonardo,32,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-15_13-35-33-235834
+leonardo,32,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-15_13-35-36-766984
+leonardo,32,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-15_13-35-39-519180
+leonardo,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-15_13-35-41-213559
+leonardo,32,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-15_13-35-43-562540
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All,./data/leonardo/2025-12-15_13-35-45-403161
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/2025-12-15_13-35-47-627101
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-15_13-35-49-433506
+leonardo,64,p,100-100,50:50,i,1,csv,All-Gather,./data/leonardo/2025-12-15_13-35-51-538926
+leonardo,64,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-15_13-35-53-332834
+leonardo,64,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-15_13-35-55-633268

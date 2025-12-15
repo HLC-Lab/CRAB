@@ -550,7 +550,7 @@ def LoadData(data, data_folder):
 
 if __name__ == "__main__":
 
-    node_list = [10, 20, 40, 60, 80, 160, 250]
+    node_list = [8, 16, 32, 64, 128, 256, 512]
     data_folder = f"data/description.csv"
 
     data = {
