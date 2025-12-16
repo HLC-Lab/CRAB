@@ -26,36 +26,37 @@ def DrawLatencyHeatmap(
     collective,
     msg
 ):
-    
-    print("HEAT MAP")
     # -----------------------------
     # Data preparation
     # -----------------------------
     df = pd.DataFrame(data)
-    
+
     df = df[
+        (df['nodes'] == nodes) &
+        (df['system'] == sys) &
         (df['collective'] == collective) &
+        (df['bytes'] == msg) &
         (df['burst_pause'] >= 0) &
         (df['burst_length'] >= 0)
     ]
-    print(df[(df['burst_pause'] == 0.0001 ) & (df['burst_length'] == 0.001)])
-
-    df = (
-        df
-        .groupby(['nodes', 'collective', 'system', 'bytes', 'burst_length', 'burst_pause'], as_index=False)
-        .agg(min_s=('speedup', 'max'))
-    )
-    print(df)
-
 
     if df.empty:
         raise ValueError("No data left after filtering")
+
+    # Mean over iterations
+    df = (
+        df
+        .groupby(['burst_length', 'burst_pause'], as_index=False)
+        .agg(max_latency=('avg_latency', 'max'))
+    )
+
+    #BISOGNA CALCOLARE LO SPEEDUP
 
     # Pivot for heatmap
     pivot = df.pivot(
         index='burst_length',
         columns='burst_pause',
-        values='min_s'
+        values='max_latency'
     )
 
     # -----------------------------
@@ -75,8 +76,6 @@ def DrawLatencyHeatmap(
         pivot,
         annot=True,
         fmt=".3f",
-        vmin=0.8,   # minimum
-        vmax=1,
         cmap=acid_cmap,
         annot_kws={"size": 30},
         ax=ax
@@ -349,7 +348,10 @@ def DrawBandwidthPlot(data, name, nodes, sys):
     plt.savefig(f'plots/{name}_line.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-def LoadData(data, data_folder, systems, collectives, messages, nodes):
+
+
+def LoadData(data, data_folder):
+
 
     with open(data_folder, newline="") as f:
         reader = csv.DictReader(f)
@@ -362,19 +364,7 @@ def LoadData(data, data_folder, systems, collectives, messages, nodes):
             data_path = os.path.join(path, f"data_app_0.csv")
             if not os.path.exists(data_path):
                 continue
-
-
-            if (int(data_nodes) not in nodes):
-                continue
             
-            if (system not in systems):
-                continue
-            
-            if (collective not in collectives):
-                continue
-
-            #forse è qui il problema
-
             nodes_for_bw = int(data_nodes) / 2
             print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
 
@@ -391,20 +381,15 @@ def LoadData(data, data_folder, systems, collectives, messages, nodes):
             csv_files = sorted(glob.glob(os.path.join(path, "data_app_*.csv")))
             for i in range(len(csv_files)):
 
-                # print("Accessing:", csv_files[i])
+                print("Accessing:", csv_files[i])
                 avg_lat = 0
-                skip = False
                 with open(csv_files[i], newline="") as f:
                     reader = csv.DictReader(f)
                     row_counter = 0
                     for row in reader:
+
                         latency = float(row[f"{i}_Max-Duration_s"])
                         m_bytes = int(row["msg_size"])
-
-                        if m_bytes not in messages:
-                            skip = True
-                            break
-
                         avg_lat += latency
                         bandwidth = ComputeBandwidth(latency, m_bytes, collective_name, nodes_for_bw)
                         data['latency'].append(latency)
@@ -417,37 +402,14 @@ def LoadData(data, data_folder, systems, collectives, messages, nodes):
                         data['nodes'].append(int(data_nodes))
                         data['burst_length'].append(burst_length if 'burst_length' in locals() else -1)
                         data['burst_pause'].append(burst_pause if 'burst_pause' in locals() else -1)
-                        data['speedup'].append(-1)
                         row_counter += 1
-                if not skip:
-                    data['avg_latency'].extend([avg_lat/row_counter] * row_counter)
-        
-
-def Speedup(data, collective):
-    df = pd.DataFrame(data)
-    print("Speedup starting")
-
-    df_baseline = df[
-        (df['collective'] == collective.split(" ")[0]) &
-        (df['burst_pause'] == -1) &
-        (df['burst_length'] == -1)
-    ]
-
-    df_baseline = (
-        df_baseline
-        .groupby(['nodes', 'collective', 'system', 'bytes', 'burst_length', 'burst_pause'], as_index=False)
-        .agg(max_latency=('avg_latency', 'max'))
-    )
-
-    baseline = df_baseline["max_latency"][0]
-    for i in range(len(data["collective"])):
-        data["speedup"][i] = baseline/data["avg_latency"][i] 
-    df = pd.DataFrame(data)
-
+                data['avg_latency'].extend([avg_lat/row_counter] * row_counter)
 
 if __name__ == "__main__":
 
+    node_list = [8, 16, 32, 64, 128, 256, 512]
     data_folder = f"data/description.csv"
+
     data = {
         'message': [],
         'bytes': [],
@@ -459,8 +421,7 @@ if __name__ == "__main__":
         'nodes': [],
         'burst_length': [],
         'burst_pause': [],
-        'avg_latency': [],
-        'speedup':[]
+        'avg_latency': []
     }
 
 
@@ -469,21 +430,16 @@ if __name__ == "__main__":
     collectives_bursty = ['All-to-All Inc-Congested 0.01 0.1', 'All-to-All Inc-Congested 0.01 0.01', 'All-to-All Inc-Congested 0.01 0.001',
                           'All-to-All A2A-Congested 0.01 0.1', 'All-to-All A2A-Congested 0.01 0.01', 'All-to-All A2A-Congested 0.01 0.001',
                           'All-to-All Inc-Congested 0.0001 0.1', 'All-to-All Inc-Congested 0.0001 0.01', 'All-to-All Inc-Congested 0.0001 0.001',
-                          'All-to-All A2A-Congested 0.0001 0.1', 'All-to-All A2A-Congested 0.0001 0.01', 'All-to-All A2A-Congested 0.0001 0.001',
+                          'All-to-All A2A-Congested 0.0001 0.1', 'All-to-All A2A-Congested 0.0001 0.01', 'All-to-All A2A-Congested 0.0001 0.001'
                           'All-to-All Inc-Congested 0.000001 0.1', 'All-to-All Inc-Congested 0.000001 0.01', 'All-to-All Inc-Congested 0.000001 0.001',
-                          'All-to-All A2A-Congested 0.000001 0.1', 'All-to-All A2A-Congested 0.000001 0.01', 'All-to-All A2A-Congested 0.000001 0.001',
-                          'All-Gather Inc-Congested 0.01 0.1', 'All-Gather Inc-Congested 0.01 0.01', 'All-Gather Inc-Congested 0.01 0.001',
-                          'All-Gather A2A-Congested 0.01 0.1', 'All-Gather A2A-Congested 0.01 0.01', 'All-Gather A2A-Congested 0.01 0.001',
-                          'All-Gather Inc-Congested 0.0001 0.1', 'All-Gather Inc-Congested 0.0001 0.01', 'All-Gather Inc-Congested 0.0001 0.001',
-                          'All-Gather A2A-Congested 0.0001 0.1', 'All-Gather A2A-Congested 0.0001 0.01', 'All-Gather A2A-Congested 0.0001 0.001',
-                          'All-Gather Inc-Congested 0.000001 0.1', 'All-Gather Inc-Congested 0.000001 0.01', 'All-Gather Inc-Congested 0.000001 0.001',
-                          'All-Gather A2A-Congested 0.000001 0.1', 'All-Gather A2A-Congested 0.000001 0.01', 'All-Gather A2A-Congested 0.000001 0.001',
-                          'All-to-All', 'All-Gather']
-    node_list = [8, 16, 32, 64] #, 128, 256, 512]
+                          'All-to-All A2A-Congested 0.000001 0.1', 'All-to-All A2A-Congested 0.000001 0.01', 'All-to-All A2A-Congested 0.000001 0.001']
+
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB'] # ,'128MiB']
     for i in range(len(messages)):
         messages[i] = to_bytes(messages[i])
+
     systems=["leonardo", "cresco8"]
+    LoadData(data, data_folder)
 
     # for sys in systems:
     #     for nodes in node_list:
@@ -495,10 +451,9 @@ if __name__ == "__main__":
                 for msg in messages:
                     if "Congested" not in collective:
                         continue
-                    LoadData(data, data_folder, [sys], collectives_bursty, [msg], [nodes])
-                    Speedup(data, collective)
-                    DrawLatencyHeatmap(data, f"PLOT_HEATMAPS_{sys}_{collective}_{nodes}_{msg}", nodes, sys, collective, msg)              
-                    CleanData(data)
+                    DrawLatencyHeatmap(data, f"PLOT_HEATMAPS_{sys}_{collective}_{nodes}_{msg}", nodes, sys, collective, msg)
+        
+    CleanData(data)
     
 
 
