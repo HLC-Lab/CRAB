@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-Gather Inc-Congested 0.0001 0.001",
-        "prevjob": "1928624",
+        "prevjob": "1928667",
         "slurm_partition": "cresco8_cpu",
         "slurm_account": "ssheneaadm"
     },
