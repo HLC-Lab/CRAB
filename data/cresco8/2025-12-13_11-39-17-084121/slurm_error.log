@@ -1,0 +1,13 @@
+[WORKER FATAL ERROR] could not convert string to float: '100, 100'
+Traceback (most recent call last):
+  File "/afs/enea.it/por/user/piarulli/CRAB/src/crab/cli/orchestrator.py", line 67, in run_from_cli
+    engine.run(
+  File "/afs/enea.it/por/user/piarulli/CRAB/src/crab/core/engine.py", line 285, in run
+    self._run_worker(config, environment, output_dir)
+  File "/afs/enea.it/por/user/piarulli/CRAB/src/crab/core/engine.py", line 637, in _run_worker
+    p_split_abs = get_abs_split(p_rule, num_p_apps, num_p_nodes)
+  File "/afs/enea.it/por/user/piarulli/CRAB/src/crab/core/engine.py", line 136, in get_abs_split
+    split_list = [float(x) for x in allocation_split.split(':')]
+  File "/afs/enea.it/por/user/piarulli/CRAB/src/crab/core/engine.py", line 136, in <listcomp>
+    split_list = [float(x) for x in allocation_split.split(':')]
+ValueError: could not convert string to float: '100, 100'
