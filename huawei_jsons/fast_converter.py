@@ -13,7 +13,7 @@ if __name__ == "__main__":
         "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/"
     }
 
-    for bench in BENCHES
+    for bench in BENCHES:
         config_file = f"huawei_cresco8_sustained/h_{bench}.json
         print(config_file)
 
