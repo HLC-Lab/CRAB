@@ -128,7 +128,7 @@ def main():
     system_data = {
         "name": "cresco8",
         "partition": "cresco8_cpu",
-        "account": "enea",
+        "account": "ssheneaadm",
         "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
     }
     # system_data = {
