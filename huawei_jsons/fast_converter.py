@@ -32,9 +32,9 @@ if __name__ == "__main__":
             else:
                 raise RuntimeError("No valid collective.")
 
-        if "inc" in bench:
+        if "inc-cong" in bench:
             config["applications"][str(8)]["path"] = system_data["path"]+"noise_incast.py"
-        elif "a2a" in bench:
+        elif "a2a-cong" in bench:
             config["applications"][str(8)]["path"] = system_data["path"]+"noise_a2a.py"
         else:
             raise RuntimeError("No valid noise.")
