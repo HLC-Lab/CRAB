@@ -36,8 +36,6 @@ if __name__ == "__main__":
             config["applications"][str(8)]["path"] = system_data["path"]+"noise_incast.py"
         elif "a2a-cong" in bench:
             config["applications"][str(8)]["path"] = system_data["path"]+"noise_a2a.py"
-        else:
-            raise RuntimeError("No valid noise.")
 
         with open(config_file, "w") as f:
             json.dump(config, f, indent=4)
