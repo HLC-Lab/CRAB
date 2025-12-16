@@ -14,7 +14,7 @@ if __name__ == "__main__":
     }
 
     for bench in BENCHES:
-        config_file = f"huawei_cresco8_sustained/h_{bench}.json
+        config_file = f"huawei_cresco8_sustained/h_{bench}.json"
         print(config_file)
 
         # --- Update JSON ---
