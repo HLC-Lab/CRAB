@@ -1,0 +1,6 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/cresco8/2025-12-13_11-39-20-945562 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/cresco8/2025-12-13_11-39-20-945562 ---
+--- [WORKER] Allocating nodes provided by SLURM: cresco8x[735-744] ---
+--- [INFO] Partition 0 (Collect=True): 5 nodes. Rule: '100, 100' ---
