@@ -378,3 +378,45 @@ cresco8,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.001,./da
 cresco8,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/cresco8/2025-12-16_09-16-09-776446
 cresco8,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.001,./data/cresco8/2025-12-16_09-16-10-431890
 
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-16_17-58-28-486755
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-16_17-58-29-294400
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-16_17-58-30-083049
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather,./data/cresco8/2025-12-16_17-58-30-890065
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/cresco8/2025-12-16_17-58-31-730198
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/cresco8/2025-12-16_17-58-32-608060
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.1,./data/cresco8/2025-12-16_17-58-33-388894
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.1,./data/cresco8/2025-12-16_17-58-34-158440
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.1,./data/cresco8/2025-12-16_17-58-34-934421
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.1,./data/cresco8/2025-12-16_17-58-35-771600
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.01,./data/cresco8/2025-12-16_17-58-36-560095
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.01,./data/cresco8/2025-12-16_17-58-37-477173
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.01,./data/cresco8/2025-12-16_17-58-38-353977
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.01,./data/cresco8/2025-12-16_17-58-39-121779
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.001,./data/cresco8/2025-12-16_17-58-40-086682
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.001,./data/cresco8/2025-12-16_17-58-41-024770
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.001,./data/cresco8/2025-12-16_17-58-41-805997
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.001,./data/cresco8/2025-12-16_17-58-42-596271
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.1,./data/cresco8/2025-12-16_17-58-43-388985
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.1,./data/cresco8/2025-12-16_17-58-44-167810
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.1,./data/cresco8/2025-12-16_17-58-44-941321
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.1,./data/cresco8/2025-12-16_17-58-45-700065
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.01,./data/cresco8/2025-12-16_17-58-46-465818
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.01,./data/cresco8/2025-12-16_17-58-47-390772
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.01,./data/cresco8/2025-12-16_17-58-48-167432
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.01,./data/cresco8/2025-12-16_17-58-48-957358
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.001,./data/cresco8/2025-12-16_17-58-49-735484
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.001,./data/cresco8/2025-12-16_17-58-50-508187
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.001,./data/cresco8/2025-12-16_17-58-51-277421
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.001,./data/cresco8/2025-12-16_17-58-52-048470
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.1,./data/cresco8/2025-12-16_17-58-52-816612
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.1,./data/cresco8/2025-12-16_17-58-53-601768
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.1,./data/cresco8/2025-12-16_17-58-54-390990
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.1,./data/cresco8/2025-12-16_17-58-55-165044
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.01,./data/cresco8/2025-12-16_17-58-55-934794
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.01,./data/cresco8/2025-12-16_17-58-56-702402
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.01,./data/cresco8/2025-12-16_17-58-57-468991
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.01,./data/cresco8/2025-12-16_17-58-58-236108
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.001,./data/cresco8/2025-12-16_17-58-59-006080
+cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.001,./data/cresco8/2025-12-16_17-58-59-783738
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/cresco8/2025-12-16_17-59-00-569981
+cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.001,./data/cresco8/2025-12-16_17-59-01-362229
