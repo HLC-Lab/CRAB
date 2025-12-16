@@ -124,19 +124,19 @@ def main():
     #128 MiB crea problemi
     #leo fino a 60
     #cresco8 non ha 60
-    node_list = [8, 16, 32, 64] #80, 160, 250]
-    # system_data = {
-    #     "name": "cresco8",
-    #     "partition": "cresco8_cpu",
-    #     "account": "enea",
-    #     "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
-    # }
+    node_list = [8, 16, 32, 64, 128] #80, 160, 250]
     system_data = {
-        "name": "leonardo",
-        "partition": "boost_usr_prod",
-        "account": "IscrB_SWING",
-        "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+        "name": "cresco8",
+        "partition": "cresco8_cpu",
+        "account": "enea",
+        "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
     }
+    # system_data = {
+    #    "name": "leonardo",
+    #    "partition": "boost_usr_prod",
+    #    "account": "IscrB_SWING",
+    #    "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+    # }
 
     prev_job = None
     # cmd = ["rm", "-rf", "data"]
@@ -152,6 +152,7 @@ def main():
     elif(TYPE == "all"):
         for nodes in node_list:
             prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
+        for nodes in node_list:    
             prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
 
 
