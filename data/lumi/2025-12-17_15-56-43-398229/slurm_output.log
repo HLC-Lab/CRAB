@@ -1,0 +1,49 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/lumi/2025-12-17_15-56-43-398229 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/lumi/2025-12-17_15-56-43-398229 ---
+--- [WORKER] Allocating nodes provided by SLURM: nid[005779-005794] ---
+--- [INFO] Partition 0 (Collect=True): 8 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 8 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 8 -iter 1000
+[DEBUG]: Node List is: ['nid005780', 'nid005782', 'nid005784', 'nid005786', 'nid005788', 'nid005790', 'nid005792', 'nid005794']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005780,nid005782,nid005784,nid005786,nid005788,nid005790,nid005792,nid005794 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/noise_incast -msgsize 16777216 -iter 100000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 64 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 512 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 4096 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 32768 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 262144 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 2097152 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793 --cpu-bind=socket -n 8 -N 8 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 16777216 -iter 1000
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+--- [WARNING] App 8 ended with return code -9 ---
+--- [INFO] Run 1 completata in 30.4583 secondi ---
+
+Logging data...
+Dati per App 0 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_0.csv
+Dati per App 1 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_1.csv
+Dati per App 2 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_2.csv
+Dati per App 3 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_3.csv
+Dati per App 4 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_4.csv
+Dati per App 5 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_5.csv
+Dati per App 6 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_6.csv
+Dati per App 7 salvati in: ./data/lumi/2025-12-17_15-56-43-398229/data_app_7.csv
+--- [WORKER] Engine run finished. ---

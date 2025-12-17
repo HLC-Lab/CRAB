@@ -419,3 +419,75 @@ cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.001,./da
 cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.001,./data/cresco8/2025-12-16_17-58-59-783738
 cresco8,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/cresco8/2025-12-16_17-59-00-569981
 cresco8,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.001,./data/cresco8/2025-12-16_17-59-01-362229
+lumi,8,p,100-100,50:50,i,1,csv,All-to-All,./data/lumi/2025-12-17_15-56-23-623803
+lumi,8,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/lumi/2025-12-17_15-56-26-518680
+lumi,8,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/lumi/2025-12-17_15-56-30-021745
+lumi,8,p,100-100,50:50,i,1,csv,All-Gather,./data/lumi/2025-12-17_15-56-33-331309
+lumi,8,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/lumi/2025-12-17_15-56-35-621857
+lumi,8,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/lumi/2025-12-17_15-56-37-653175
+lumi,16,p,100-100,50:50,i,1,csv,All-to-All,./data/lumi/2025-12-17_15-56-39-553328
+lumi,16,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/lumi/2025-12-17_15-56-41-570360
+lumi,16,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/lumi/2025-12-17_15-56-43-398229
+lumi,16,p,100-100,50:50,i,1,csv,All-Gather,./data/lumi/2025-12-17_15-56-46-178421
+lumi,16,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/lumi/2025-12-17_15-56-48-098303
+lumi,16,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/lumi/2025-12-17_15-56-49-974873
+lumi,32,p,100-100,50:50,i,1,csv,All-to-All,./data/lumi/2025-12-17_15-56-51-952869
+lumi,32,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/lumi/2025-12-17_15-56-53-859458
+lumi,32,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/lumi/2025-12-17_15-56-55-861543
+lumi,32,p,100-100,50:50,i,1,csv,All-Gather,./data/lumi/2025-12-17_15-56-57-957843
+lumi,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/lumi/2025-12-17_15-56-59-868276
+lumi,32,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/lumi/2025-12-17_15-57-01-773230
+lumi,64,p,100-100,50:50,i,1,csv,All-to-All,./data/lumi/2025-12-17_15-57-03-825122
+lumi,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/lumi/2025-12-17_15-57-05-766524
+lumi,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/lumi/2025-12-17_15-57-07-614854
+lumi,64,p,100-100,50:50,i,1,csv,All-Gather,./data/lumi/2025-12-17_15-57-10-074746
+lumi,64,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/lumi/2025-12-17_15-57-11-893742
+lumi,64,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/lumi/2025-12-17_15-57-13-920700
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All,./data/lumi/2025-12-17_15-57-15-968574
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/lumi/2025-12-17_15-57-17-850411
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/lumi/2025-12-17_15-57-19-595184
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather,./data/lumi/2025-12-17_15-57-22-208838
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/lumi/2025-12-17_15-57-24-106279
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/lumi/2025-12-17_15-57-25-979564
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All,./data/lumi/2025-12-17_20-41-02-065481
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/lumi/2025-12-17_20-41-10-598487
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/lumi/2025-12-17_20-41-13-183965
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather,./data/lumi/2025-12-17_20-41-17-782627
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/lumi/2025-12-17_20-41-20-149973
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/lumi/2025-12-17_20-41-22-270439
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.1,./data/lumi/2025-12-17_20-41-24-226155
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.1,./data/lumi/2025-12-17_20-41-25-842996
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.1,./data/lumi/2025-12-17_20-41-27-762690
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.1,./data/lumi/2025-12-17_20-41-29-785001
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.01,./data/lumi/2025-12-17_20-41-31-778422
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.01,./data/lumi/2025-12-17_20-41-33-812847
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.01,./data/lumi/2025-12-17_20-41-35-783900
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.01,./data/lumi/2025-12-17_20-41-37-784836
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.001,./data/lumi/2025-12-17_20-41-39-694467
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.001,./data/lumi/2025-12-17_20-41-41-662681
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.001,./data/lumi/2025-12-17_20-41-44-505842
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.001,./data/lumi/2025-12-17_20-41-46-466381
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.1,./data/lumi/2025-12-17_20-41-48-397148
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.1,./data/lumi/2025-12-17_20-41-50-346316
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.1,./data/lumi/2025-12-17_20-41-52-372883
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.1,./data/lumi/2025-12-17_20-41-54-375809
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.01,./data/lumi/2025-12-17_20-41-56-291769
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.01,./data/lumi/2025-12-17_20-41-58-275903
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.01,./data/lumi/2025-12-17_20-42-00-263316
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.01,./data/lumi/2025-12-17_20-42-02-261114
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.001,./data/lumi/2025-12-17_20-42-04-281282
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.001,./data/lumi/2025-12-17_20-42-06-275743
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.001,./data/lumi/2025-12-17_20-42-08-314862
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.001,./data/lumi/2025-12-17_20-42-10-386381
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.1,./data/lumi/2025-12-17_20-42-12-372305
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.1,./data/lumi/2025-12-17_20-42-14-494874
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.1,./data/lumi/2025-12-17_20-42-20-860886
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.1,./data/lumi/2025-12-17_20-42-22-773744
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.01,./data/lumi/2025-12-17_20-42-27-475930
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.01,./data/lumi/2025-12-17_20-42-29-389737
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.01,./data/lumi/2025-12-17_20-42-31-366220
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.01,./data/lumi/2025-12-17_20-42-33-457304
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.001,./data/lumi/2025-12-17_20-42-35-480138
+lumi,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.001,./data/lumi/2025-12-17_20-42-37-617535
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/lumi/2025-12-17_20-42-39-643226
+lumi,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.001,./data/lumi/2025-12-17_20-42-41-873628

@@ -1,0 +1,36 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/lumi/2025-12-17_15-56-53-859458 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/lumi/2025-12-17_15-56-53-859458 ---
+--- [WORKER] Allocating nodes provided by SLURM: nid[005779-005794,006353-006368] ---
+--- [INFO] Partition 0 (Collect=True): 16 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 16 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 8 -iter 1000
+[DEBUG]: Node List is: ['nid005780', 'nid005782', 'nid005784', 'nid005786', 'nid005788', 'nid005790', 'nid005792', 'nid005794', 'nid006354', 'nid006356', 'nid006358', 'nid006360', 'nid006362', 'nid006364', 'nid006366', 'nid006368']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005780,nid005782,nid005784,nid005786,nid005788,nid005790,nid005792,nid005794,nid006354,nid006356,nid006358,nid006360,nid006362,nid006364,nid006366,nid006368 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/noise_a2a -msgsize 16777216 -iter 100000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 64 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 512 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 4096 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 32768 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 262144 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 2097152 -iter 1000
+[DEBUG]: Node List is: ['nid005779', 'nid005781', 'nid005783', 'nid005785', 'nid005787', 'nid005789', 'nid005791', 'nid005793', 'nid006353', 'nid006355', 'nid006357', 'nid006359', 'nid006361', 'nid006363', 'nid006365', 'nid006367']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid005779,nid005781,nid005783,nid005785,nid005787,nid005789,nid005791,nid005793,nid006353,nid006355,nid006357,nid006359,nid006361,nid006363,nid006365,nid006367 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 16777216 -iter 1000
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+Ran 1005 iterations. Measured 1000 iterations.
+

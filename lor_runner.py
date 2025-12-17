@@ -115,54 +115,54 @@ def SustainedBenchmark(BENCHES, nodes, system_data, prev_job):
 def main():
     parser = argparse.ArgumentParser(description="Run chained jobs for different benchmarks.")
     parser.add_argument("--type", required=True, help="Benchmark type: 'sustained' for standard, 'bursty' for bursty, 'all' for both.")
+    parser.add_argument("--system", required=True, help="leonardo, cresco8 or lumi")
     args = parser.parse_args()
 
     TYPE = args.type  
+    SYS = args.system
     BENCHES = ["a2a", "a2a_a2a-cong", "a2a_inc-cong", "agtr", "agtr_a2a-cong", "agtr_inc-cong"]
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
-    #128 MiB crea problemi
-    #leo fino a 60
-    #cresco8 non ha 60
-    node_list = [8, 16, 32, 64, 128]
-    # system_data = {
-    #     "name": "cresco8",
-    #     "partition": "cresco8_cpu",
-    #     "account": "ssheneaadm",
-    #     "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
-    # }
-    # system_data = {
-    #    "name": "leonardo",
-    #    "partition": "boost_usr_prod",
-    #    "account": "IscrB_SWING",
-    #    "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
-    # }
-    system_data = {
-       "name": "lumi",
-       "partition": "small",
-       "account": "project_465001736",
-       "path": "/users/pasqualo/CRAB/wrappers/"
-    }
+
+    node_list = [256]
+
+    if SYS == "leonardo":
+        system_data = {
+            "name": "leonardo",
+            "partition": "boost_usr_prod",
+            "account": "IscrB_SWING",
+            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+        }
+    elif SYS == "cresco8":
+        system_data = {
+            "name": "cresco8",
+            "partition": "cresco8_cpu",
+            "account": "enea",
+            "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
+        }
+    elif SYS == "lumi":
+        system_data = {
+            "name": "lumi",
+            "partition": "standard-g",
+            "account": "project_465001736",
+            "path": "/users/pasqualo/CRAB/wrappers/"
+        }
+    else:
+        raise RuntimeError("No configuration for the system: " + SYS)
 
 
-    prev_job = None
-    # cmd = ["rm", "-rf", "data"]
-    # result = subprocess.run(cmd, capture_output=True, text=True)
-    # output = result.stdout + result.stderr
-
-    # if(TYPE == "sustained"):
-    #     for nodes in node_list:
-    #         prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
-    # elif(TYPE == "bursty"):
-    #     for nodes in node_list:
-    #         prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
-    # elif(TYPE == "all"):
-    #     for nodes in node_list:
-    #         prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
-    #     for nodes in node_list:    
-    #         prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
-
-    prev_job = BurstyBenchmark(["agtr_a2a-cong"], 16, ["0.000001"], ["0.1"], system_data, prev_job)
+    prev_job = "15408937"
+    if(TYPE == "sustained"):
+        for nodes in node_list:
+            prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
+    elif(TYPE == "bursty"):
+        for nodes in node_list:
+            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
+    elif(TYPE == "all"):
+        for nodes in node_list:
+            prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
+        for nodes in node_list:    
+            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
 
 
 
