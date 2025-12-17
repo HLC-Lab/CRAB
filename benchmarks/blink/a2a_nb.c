@@ -100,7 +100,7 @@ int main(int argc, char** argv){
     sched_setaffinity(0, sizeof(mask), &mask);*/
     
     /*allocate buffers*/
-    int send_buf_size, recv_buf_size;
+    size_t send_buf_size, recv_buf_size;
     unsigned char *send_buf;
     unsigned char *recv_buf;
     MPI_Request *requests;

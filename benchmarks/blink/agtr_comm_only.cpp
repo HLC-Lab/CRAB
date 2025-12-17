@@ -177,8 +177,8 @@ int main(int argc, char** argv){
     sched_setaffinity(0, sizeof(mask), &mask);*/
     
     /*allocate buffers*/
-    int msg_size_ints;
-    int send_buf_size, recv_buf_size;
+    size_t msg_size_ints;
+    size_t send_buf_size, recv_buf_size;
     int *send_buf;
     int *recv_buf;
     
