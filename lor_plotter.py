@@ -21,7 +21,8 @@ from matplotlib.colors import LinearSegmentedColormap
 
 def DrawLatencyHeatmap(
     data,
-    name,
+    fig,
+    ax,
     nodes,
     sys,
     collective,
@@ -44,13 +45,13 @@ def DrawLatencyHeatmap(
     df = (
         df
         .groupby(['burst_length', 'burst_pause'], as_index=False)
-        .agg(max_latency=('avg_latency', 'max'))
+        .agg(avg_speedup=('speedup', 'mean'))
     )
 
     pivot = df.pivot(
         index='burst_length',
         columns='burst_pause',
-        values='max_latency'
+        values='avg_speedup'
     )
 
     sns.set_style("whitegrid")
@@ -58,32 +59,55 @@ def DrawLatencyHeatmap(
 
     acid_cmap = LinearSegmentedColormap.from_list(
         "purple_acidgreen",
-        ["#FC4F49", "#29C35F"]
+        [ "#7E0000", "#EEFF00"]
     )
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    #fig, ax = plt.subplots(figsize=(10, 8))
+    fig = fig
+    ax = ax
 
+    mask = pivot > 1.0
+    
     hm = sns.heatmap(
         pivot,
+        mask = mask,
         annot=True,
         fmt=".3f",
         cmap=acid_cmap,
-        annot_kws={"size": 30},
+        vmin=0.6, vmax=1,
+        cbar=False,
+        annot_kws={"size": 40},
+        yticklabels=False,
         ax=ax
     )
+
+    mask_d = pivot.values
+
+    for i in range(mask_d.shape[0]):
+        for j in range(mask_d.shape[1]):
+            if mask_d[i, j] > 1.0:
+                ax.add_patch(
+                    plt.Rectangle(
+                        (j, i), 1, 1,
+                        fill=False,
+                        hatch='/',
+                        edgecolor='green',
+                        linewidth=0.5
+                    )
+                )
 
     ax.set_title(f"Message Size: {msg}", fontsize=32, pad=20)
     ax.set_xlabel("Burst Pause", fontsize=28)
     ax.set_ylabel("Burst Length", fontsize=28)
     ax.tick_params(axis='both', labelsize=24)
 
-    cbar = hm.collections[0].colorbar
-    cbar.ax.tick_params(labelsize=24)
-    cbar.set_label("Mean Speedup", fontsize=26)
+    # cbar = hm.collections[0].colorbar
+    # cbar.ax.tick_params(labelsize=24)
+    # cbar.set_label("Mean Speedup", fontsize=26)
 
     plt.tight_layout()
 
-    return fig
+    return hm
 
 
 # -------------------------
@@ -481,15 +505,24 @@ if __name__ == "__main__":
     for sys in systems:
         for nodes in node_list:
             for collective in collectives_sustained:
-                figures = []
-                for msg in messages:
+                done = True
+                heatmaps = []
+                fig, axes = plt.subplots(1, len(messages), figsize=(9 * len(messages), 8), sharex=True)
+                for ax, msg in zip(axes, messages):
                     if "Congested" not in collective:
+                        done = False
                         continue
                     LoadData(data, data_folder, [sys], collectives_bursty, [msg], [nodes])
                     Speedup(data, collective)
-                    fig=DrawLatencyHeatmap(data, f"PLOT_HEATMAPS_{sys}_{collective}_{nodes}_{msg}", nodes, sys, collective, msg)              
+                    hm=DrawLatencyHeatmap(data, fig, ax, nodes, sys, collective, msg)              
                     CleanData(data)
-                    figures.append(fig)
+                    heatmaps.append(hm)
+                if done:
+                    cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
+                    fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
+                    cbar_ax.tick_params(labelsize=40)  
+                    plt.savefig(f"plots/PLOT_HEATMAPS_{sys}_{collective}_{nodes}_{msg}", dpi=300, bbox_inches='tight')
+                    plt.close()
 
                 
     
