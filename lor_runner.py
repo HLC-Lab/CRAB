@@ -151,7 +151,7 @@ def main():
         raise RuntimeError("No configuration for the system: " + SYS)
 
 
-    prev_job = "15408937"
+    prev_job = None
     if(TYPE == "sustained"):
         for nodes in node_list:
             prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
