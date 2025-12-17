@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": 16,
+        "numnodes": 256,
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -11,8 +11,8 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-Gather A2A-Congested 0.000001 0.1",
-        "prevjob": "-1",
-        "slurm_partition": "small",
+        "prevjob": "15413226",
+        "slurm_partition": "standard-g",
         "slurm_account": "project_465001736"
     },
     "applications": {
