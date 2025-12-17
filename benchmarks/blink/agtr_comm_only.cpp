@@ -40,7 +40,7 @@ static inline int copy_buffer_different_dt (const void *input_buffer, size_t sco
 void allgather_memcpy(const void *sbuf, size_t scount, MPI_Datatype sdtype, void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm){
 
   int rank, size, sendto, recvfrom, i, recvdatafrom, senddatafrom;
-  ptrdiff_t rlb, rext;
+  MPI_Aint rlb, rext;
   char *tmpsend = NULL, *tmprecv = NULL;
 
   MPI_Comm_size(comm, &size);
@@ -48,7 +48,7 @@ void allgather_memcpy(const void *sbuf, size_t scount, MPI_Datatype sdtype, void
 
   MPI_Type_get_extent(rdtype, &rlb, &rext);
 
-  tmprecv = (char*) rbuf + (ptrdiff_t)rank * (ptrdiff_t)rcount * rext;
+  tmprecv = (char*) rbuf + rank * rcount * rext;
   if (MPI_IN_PLACE != sbuf) {
     tmpsend = (char*) sbuf;
     copy_buffer_different_dt(tmpsend, scount, sdtype, tmprecv, rcount, rdtype);
@@ -60,7 +60,7 @@ void allgather_ring(const void *sbuf, size_t scount, MPI_Datatype sdtype,
                    void* rbuf, size_t rcount, MPI_Datatype rdtype, MPI_Comm comm) {
 
   int rank, size, sendto, recvfrom, i, recvdatafrom, senddatafrom;
-  ptrdiff_t rlb, rext;
+  MPI_Aint rlb, rext;
   char *tmpsend = NULL, *tmprecv = NULL;
 
   MPI_Comm_size(comm, &size);
@@ -76,8 +76,8 @@ void allgather_ring(const void *sbuf, size_t scount, MPI_Datatype sdtype,
     recvdatafrom = (rank - i - 1 + size) % size;
     senddatafrom = (rank - i + size) % size;
 
-    tmprecv = (char*)rbuf + (ptrdiff_t)recvdatafrom * (ptrdiff_t)rcount * rext;
-    tmpsend = (char*)rbuf + (ptrdiff_t)senddatafrom * (ptrdiff_t)rcount * rext;
+    tmprecv = (char*)rbuf + recvdatafrom * rcount * rext;
+    tmpsend = (char*)rbuf + senddatafrom * rcount * rext;
 
     MPI_Sendrecv(tmpsend, rcount, rdtype, sendto, 0,
                        tmprecv, rcount, rdtype, recvfrom, 0,

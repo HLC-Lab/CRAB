@@ -7,14 +7,14 @@ if __name__ == "__main__":
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
     system_data = {
-        "name": "cresco8",
-        "partition": "cresco8_cpu",
-        "account": "ssheneaadm",
-        "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/"
+        "name": "lumi",
+        "partition": "small",
+        "account": "project_465001736",
+        "path": "/users/pasqualo/CRAB/wrappers/"
     }
 
     for bench in BENCHES:
-        config_file = f"huawei_cresco8_sustained/h_{bench}.json"
+        config_file = f"huawei_lumi_sustained/h_{bench}.json"
         print(config_file)
 
         # --- Update JSON ---
@@ -46,7 +46,7 @@ if __name__ == "__main__":
                 if "cong" not in bench:
                     continue
                 else:
-                    config_file = f"huawei_cresco8_bursty/h_{bench}_{bp}_{bl}.json"
+                    config_file = f"huawei_lumi_bursty/h_{bench}_{bp}_{bl}.json"
                 print(config_file)
 
                 # --- Update JSON ---
