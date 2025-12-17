@@ -7,14 +7,15 @@ if __name__ == "__main__":
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
     system_data = {
-        "name": "lumi",
-        "partition": "small",
-        "account": "project_465001736",
-        "path": "/users/pasqualo/CRAB/wrappers/"
+        "name": "cresco8",
+        "partition": "cresco8_cpu",
+        "account": "ssheneaadm",
+        "path": "/afs/enea.it/por/user/faltelli/CRAB/wrappers/"
     }
 
     for bench in BENCHES:
-        config_file = f"huawei_lumi_sustained/h_{bench}.json"
+        sys = system_data["name"]
+        config_file = f"huawei_{sys}_sustained/h_{bench}.json"
         print(config_file)
 
         # --- Update JSON ---
@@ -43,10 +44,11 @@ if __name__ == "__main__":
     for bp in pauses:
         for bl in lengths:
             for bench in BENCHES:
+                sys = system_data["name"]
                 if "cong" not in bench:
                     continue
                 else:
-                    config_file = f"huawei_lumi_bursty/h_{bench}_{bp}_{bl}.json"
+                    config_file = f"huawei_{sys}_bursty/h_{bench}_{bp}_{bl}.json"
                 print(config_file)
 
                 # --- Update JSON ---
