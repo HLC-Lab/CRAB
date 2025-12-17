@@ -125,35 +125,41 @@ def main():
     #leo fino a 60
     #cresco8 non ha 60
     node_list = [256]  # 512] # [8, 16, 32, 64, 128]
-    system_data = {
-        "name": "cresco8",
-        "partition": "cresco8_cpu",
-        "account": "ssheneaadm",
-        "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
-    }
     # system_data = {
-    #    "name": "leonardo",
-    #    "partition": "boost_usr_prod",
-    #    "account": "IscrB_SWING",
-    #    "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+    #     "name": "cresco8",
+    #     "partition": "cresco8_cpu",
+    #     "account": "ssheneaadm",
+    #     "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
     # }
+    system_data = {
+       "name": "leonardo",
+       "partition": "boost_usr_prod",
+       "account": "IscrB_SWING",
+       "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+    }
 
     prev_job = None
     # cmd = ["rm", "-rf", "data"]
     # result = subprocess.run(cmd, capture_output=True, text=True)
     # output = result.stdout + result.stderr
 
-    if(TYPE == "sustained"):
-        for nodes in node_list:
-            prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
-    elif(TYPE == "bursty"):
-        for nodes in node_list:
-            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
-    elif(TYPE == "all"):
-        for nodes in node_list:
-            prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
-        for nodes in node_list:    
-            prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
+    # if(TYPE == "sustained"):
+    #     for nodes in node_list:
+    #         prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
+    # elif(TYPE == "bursty"):
+    #     for nodes in node_list:
+    #         prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
+    # elif(TYPE == "all"):
+    #     for nodes in node_list:
+    #         prev_job = SustainedBenchmark(BENCHES, nodes, system_data, prev_job)
+    #     for nodes in node_list:    
+    #         prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
+
+    prev_job = BurstyBenchmark(["agtr_a2a-cong"], 16, ["0.000001"], ["0.1"], system_data, prev_job)
+    prev_job = BurstyBenchmark(["agtr_a2a-cong"], 32, ["0.000001"], ["0.1"], system_data, prev_job)
+    prev_job = BurstyBenchmark(["agtr_a2a-cong"], 32, ["0.000001"], ["0.001"], system_data, prev_job)
+    prev_job = BurstyBenchmark(["a2a_a2a-cong"], 64, ["0.01"], ["0.1"], system_data, prev_job)
+    prev_job = BurstyBenchmark(["a2a_inc-cong"], 64, ["0.0001"], ["0.1"], system_data, prev_job)
 
 
 if __name__ == "__main__":

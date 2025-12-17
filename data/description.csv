@@ -85,7 +85,7 @@ leonardo,16,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.001,./data
 leonardo,16,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.001,./data/leonardo/2025-12-15_14-51-48-591580
 leonardo,16,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-51-50-344780
 leonardo,16,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-51-53-436564
-leonardo,16,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-51-56-642870
+leonardo,16,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.1,./data/leonardo/2025-12-17_01-16-57-376788
 leonardo,16,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-51-58-314745
 leonardo,16,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.01,./data/leonardo/2025-12-15_14-52-00-543806
 leonardo,16,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.01,./data/leonardo/2025-12-15_14-52-02-242874
@@ -121,7 +121,7 @@ leonardo,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.001,./data
 leonardo,32,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.001,./data/leonardo/2025-12-15_14-53-08-533566
 leonardo,32,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-53-10-276376
 leonardo,32,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-53-12-707150
-leonardo,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-53-14-493571
+leonardo,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.1,./data/leonardo/2025-12-17_01-16-59-279427
 leonardo,32,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.1,./data/leonardo/2025-12-15_14-53-16-550098
 leonardo,32,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.01,./data/leonardo/2025-12-15_14-53-18-325426
 leonardo,32,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.01,./data/leonardo/2025-12-15_14-53-20-683610
@@ -129,9 +129,9 @@ leonardo,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.01,./dat
 leonardo,32,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.01,./data/leonardo/2025-12-15_14-53-24-683003
 leonardo,32,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.001,./data/leonardo/2025-12-15_14-53-26-415808
 leonardo,32,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.001,./data/leonardo/2025-12-15_14-53-29-445644
-leonardo,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/leonardo/2025-12-15_14-53-32-529502
+leonardo,32,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/leonardo/2025-12-17_01-17-00-863672
 leonardo,32,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.001,./data/leonardo/2025-12-15_14-53-34-270632
-leonardo,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.1,./data/leonardo/2025-12-15_14-53-36-650652
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.1,./data/leonardo/2025-12-17_01-17-04-225707
 leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.1,./data/leonardo/2025-12-15_14-53-38-351946
 leonardo,64,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.1,./data/leonardo/2025-12-15_14-53-40-516221
 leonardo,64,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.1,./data/leonardo/2025-12-15_14-53-42-326968
@@ -144,7 +144,7 @@ leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.001,./data/l
 leonardo,64,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.001,./data/leonardo/2025-12-15_14-53-56-514641
 leonardo,64,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.001,./data/leonardo/2025-12-15_14-53-58-228969
 leonardo,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.1,./data/leonardo/2025-12-15_14-54-01-321697
-leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.1,./data/leonardo/2025-12-15_14-54-04-521962
+leonardo,64,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.1,./data/leonardo/2025-12-17_01-17-05-973355
 leonardo,64,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.1,./data/leonardo/2025-12-15_14-54-06-232424
 leonardo,64,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.1,./data/leonardo/2025-12-15_14-54-08-608203
 leonardo,64,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.01,./data/leonardo/2025-12-15_14-54-10-355100
@@ -377,7 +377,6 @@ cresco8,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.001,./da
 cresco8,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.001,./data/cresco8/2025-12-16_09-16-09-142912
 cresco8,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/cresco8/2025-12-16_09-16-09-776446
 cresco8,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.001,./data/cresco8/2025-12-16_09-16-10-431890
-
 cresco8,256,p,100-100,50:50,i,1,csv,All-to-All,./data/cresco8/2025-12-16_17-58-28-486755
 cresco8,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/cresco8/2025-12-16_17-58-29-294400
 cresco8,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/cresco8/2025-12-16_17-58-30-083049
