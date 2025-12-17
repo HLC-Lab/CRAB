@@ -124,19 +124,26 @@ def main():
     #128 MiB crea problemi
     #leo fino a 60
     #cresco8 non ha 60
-    node_list = [256]  # 512] # [8, 16, 32, 64, 128]
+    node_list = [8, 16, 32, 64, 128]
     # system_data = {
     #     "name": "cresco8",
     #     "partition": "cresco8_cpu",
     #     "account": "ssheneaadm",
     #     "path": "/afs/enea.it/por/user/piarulli/CRAB/wrappers/"
     # }
+    # system_data = {
+    #    "name": "leonardo",
+    #    "partition": "boost_usr_prod",
+    #    "account": "IscrB_SWING",
+    #    "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+    # }
     system_data = {
-       "name": "leonardo",
-       "partition": "boost_usr_prod",
-       "account": "IscrB_SWING",
-       "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+       "name": "lumi",
+       "partition": "small",
+       "account": "project_465001736",
+       "path": "/users/pasqualo/CRAB/wrappers/"
     }
+
 
     prev_job = None
     # cmd = ["rm", "-rf", "data"]
@@ -156,10 +163,7 @@ def main():
     #         prev_job = BurstyBenchmark(BENCHES, nodes, pauses, lengths, system_data, prev_job)
 
     prev_job = BurstyBenchmark(["agtr_a2a-cong"], 16, ["0.000001"], ["0.1"], system_data, prev_job)
-    prev_job = BurstyBenchmark(["agtr_a2a-cong"], 32, ["0.000001"], ["0.1"], system_data, prev_job)
-    prev_job = BurstyBenchmark(["agtr_a2a-cong"], 32, ["0.000001"], ["0.001"], system_data, prev_job)
-    prev_job = BurstyBenchmark(["a2a_a2a-cong"], 64, ["0.01"], ["0.1"], system_data, prev_job)
-    prev_job = BurstyBenchmark(["a2a_inc-cong"], 64, ["0.0001"], ["0.1"], system_data, prev_job)
+
 
 
 if __name__ == "__main__":
