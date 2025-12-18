@@ -138,7 +138,7 @@ def main():
             "name": "cresco8",
             "partition": "cresco8_cpu",
             "account": "ssheneaadm",
-            "path": "/afs/enea.it/por/user/faltelli/CRAB/wrappers/"
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/"
         }
     elif SYS == "lumi":
         system_data = {
