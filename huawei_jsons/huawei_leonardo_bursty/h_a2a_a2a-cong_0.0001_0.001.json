@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": 128,
+        "numnodes": 256,
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -11,72 +11,128 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-to-All A2A-Congested 0.0001 0.001",
-        "prevjob": "29263195",
+        "prevjob": "15427268",
         "slurm_partition": "boost_usr_prod",
         "slurm_account": "IscrB_SWING"
     },
     "applications": {
         "0": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 8 -iter 1000",
             "collect": true,
             "start": "0",
             "end": ""
         },
         "1": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 64 -iter 1000",
             "collect": true,
             "start": "s0",
             "end": ""
         },
         "2": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 512 -iter 1000",
             "collect": true,
             "start": "s1",
             "end": ""
         },
         "3": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 4096 -iter 1000",
             "collect": true,
             "start": "s2",
             "end": ""
         },
         "4": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 32768 -iter 1000",
             "collect": true,
             "start": "s3",
             "end": ""
         },
         "5": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 262144 -iter 1000",
             "collect": true,
             "start": "s4",
             "end": ""
         },
         "6": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 2097152 -iter 1000",
             "collect": true,
             "start": "s5",
             "end": ""
         },
         "7": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 16777216 -iter 1000",
             "collect": true,
             "start": "s6",
             "end": ""
         },
         "8": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/bursty_noise_a2a.py",
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/bursty_noise_a2a.py",
+            "args": "-msgsize 8 -iter 1000",
+            "collect": true,
+            "start": "s7",
+            "end": ""
+        },
+        "9": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 64 -iter 1000",
+            "collect": true,
+            "start": "s8",
+            "end": ""
+        },
+        "10": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 512 -iter 1000",
+            "collect": true,
+            "start": "s9",
+            "end": ""
+        },
+        "11": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 4096 -iter 1000",
+            "collect": true,
+            "start": "s10",
+            "end": ""
+        },
+        "12": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 32768 -iter 1000",
+            "collect": true,
+            "start": "s11",
+            "end": ""
+        },
+        "13": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 262144 -iter 1000",
+            "collect": true,
+            "start": "s12",
+            "end": ""
+        },
+        "14": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 2097152 -iter 1000",
+            "collect": true,
+            "start": "s13",
+            "end": ""
+        },
+        "15": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 16777216 -iter 1000",
+            "collect": true,
+            "start": "s14",
+            "end": ""
+        },
+        "16": {
+            "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/a2a_comm_only.py",
             "args": "0.0001 0.001",
             "collect": false,
-            "start": "0",
+            "start": "s7",
             "end": "f"
         }
     }
