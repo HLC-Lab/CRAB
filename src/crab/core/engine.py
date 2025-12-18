@@ -374,8 +374,8 @@ class Engine:
             # There's a problem with QOSMinCpuNotSatisfied
 
             f.write(f"#SBATCH --partition={slurm_partition}\n")
-            f.write(f"#SBATCH --account=ssheneaadm\n")
-            f.write(f"#SBATCH --qos=ssheneaadm\n")
+            f.write(f"#SBATCH --account={slurm_account}\n")
+            #f.write(f"#SBATCH --qos=ssheneaadm\n")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":

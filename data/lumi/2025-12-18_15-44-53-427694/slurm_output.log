@@ -1,0 +1,41 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/lumi/2025-12-18_15-44-53-427694 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/lumi/2025-12-18_15-44-53-427694 ---
+--- [WORKER] Allocating nodes provided by SLURM: nid[007610-007641] ---
+--- [INFO] Partition 0 (Collect=True): 16 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 16 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 8 -iter 1000
+[DEBUG]: Node List is: ['nid007611', 'nid007613', 'nid007615', 'nid007617', 'nid007619', 'nid007621', 'nid007623', 'nid007625', 'nid007627', 'nid007629', 'nid007631', 'nid007633', 'nid007635', 'nid007637', 'nid007639', 'nid007641']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007611,nid007613,nid007615,nid007617,nid007619,nid007621,nid007623,nid007625,nid007627,nid007629,nid007631,nid007633,nid007635,nid007637,nid007639,nid007641 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/noise_incast -msgsize 16777216 -iter 100000
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 64 -iter 1000
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 512 -iter 1000
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 4096 -iter 1000
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 32768 -iter 1000
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 262144 -iter 1000
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 2097152 -iter 1000
+[DEBUG]: Node List is: ['nid007610', 'nid007612', 'nid007614', 'nid007616', 'nid007618', 'nid007620', 'nid007622', 'nid007624', 'nid007626', 'nid007628', 'nid007630', 'nid007632', 'nid007634', 'nid007636', 'nid007638', 'nid007640']
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid007610,nid007612,nid007614,nid007616,nid007618,nid007620,nid007622,nid007624,nid007626,nid007628,nid007630,nid007632,nid007634,nid007636,nid007638,nid007640 --cpu-bind=socket -n 16 -N 16 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 16777216 -iter 1000
+--- [WARNING] App 8 ended with return code -9 ---
+--- [INFO] Run 1 completata in 48.7700 secondi ---
+
+Logging data...
+Dati per App 0 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_0.csv
+Dati per App 1 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_1.csv
+Dati per App 2 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_2.csv
+Dati per App 3 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_3.csv
+Dati per App 4 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_4.csv
+Dati per App 5 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_5.csv
+Dati per App 6 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_6.csv
+Dati per App 7 salvati in: ./data/lumi/2025-12-18_15-44-53-427694/data_app_7.csv
+--- [WORKER] Engine run finished. ---

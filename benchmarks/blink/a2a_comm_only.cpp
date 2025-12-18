@@ -78,7 +78,7 @@ int main(int argc, char** argv){
     
     int rand_seed=1;
     
-    int msg_size=1024;
+    size_t msg_size=1024;
     int measure_granularity=1;
     max_samples=1000;
     
@@ -159,9 +159,9 @@ int main(int argc, char** argv){
     send_buf_size=msg_size*w_size;
     recv_buf_size=msg_size*w_size;
     
-    send_buf=(unsigned char*)malloc(send_buf_size);
-    recv_buf=(unsigned char*)malloc(recv_buf_size);
-    durations=(double *)malloc(sizeof(double)*max_samples);
+    send_buf=(unsigned char*)malloc_align(send_buf_size);
+    recv_buf=(unsigned char*)malloc_align(recv_buf_size);
+    durations=(double *)malloc_align(sizeof(double)*max_samples);
     
     if(send_buf==NULL){
         fprintf(stderr,"Failed to allocate send_buf on rank %d\n",my_rank);
@@ -182,10 +182,10 @@ int main(int argc, char** argv){
     /*print basic info to stdout*/
     if(my_rank==master_rank){
         if(endless){
-            printf("All-to-all with %d processes, msg-size: %d, test iterations: endless.\n"
+            printf("All-to-all with %d processes, msg-size: %zu, test iterations: endless.\n"
                     ,w_size,msg_size);
         }else{
-            printf("All-to-all with %d processes, msg-size: %d, test iterations: %d.\n"
+            printf("All-to-all with %d processes, msg-size: %zu, test iterations: %d.\n"
                     ,w_size,msg_size,max_iters);
         }
     }

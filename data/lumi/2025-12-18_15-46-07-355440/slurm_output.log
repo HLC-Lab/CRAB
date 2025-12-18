@@ -1,0 +1,10 @@
+--- [WORKER MODE DETECTED] Work dir: ./data/lumi/2025-12-18_15-46-07-355440 ---
+--- [WORKER] Environment loaded. Starting engine. ---
+--- [WORKER] Engine running in WORKER mode. ---
+--- [WORKER] Working directory is: ./data/lumi/2025-12-18_15-46-07-355440 ---
+--- [WORKER] Allocating nodes provided by SLURM: nid[005357-005362,005976-006023,007515-007537,007610-007635,007637-007661] ---
+--- [INFO] Partition 0 (Collect=True): 64 nodes. Rule: '100' ---
+--- [INFO] Partition 1 (Collect=False): 64 nodes. Rule: '100' ---
+
+Running Benchmarks...
+ Run 1:

@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    const int BUFFER_SIZE = 2 * 1024 * 1024;  // bytes per peer 2MiB
+    const size_t BUFFER_SIZE = 2 * 1024 * 1024;  // bytes per peer 2MiB
 
     // Each process will send a chunk to every other process
     unsigned char *send_buffer = (unsigned char*) malloc(BUFFER_SIZE*size); 

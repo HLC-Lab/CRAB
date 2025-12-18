@@ -103,7 +103,7 @@ int main(int argc, char** argv){
     
     int rand_seed=1;
     
-    int msg_size=1024;
+    size_t msg_size=1024;
     int measure_granularity=1;
     max_samples=1000;
     
@@ -184,7 +184,7 @@ int main(int argc, char** argv){
     
     if(msg_size%sizeof(int)!=0){
         if(my_rank==master_rank){
-                fprintf(stderr, "Msg-size (%d) must be divisible by size of int (%ld)",msg_size,sizeof(int));
+                fprintf(stderr, "Msg-size (%zu) must be divisible by size of int (%ld)",msg_size,sizeof(int));
                 exit(-1);
         }
     }
@@ -211,10 +211,10 @@ int main(int argc, char** argv){
     /*print basic info to stdout*/
     if(my_rank==master_rank){
         if(endless){
-            printf("All-reduce with %d processes, receiver rank: %d, msg-size: %d, test iterations: endless.\n"
+            printf("All-reduce with %d processes, receiver rank: %d, msg-size: %zu, test iterations: endless.\n"
                     ,w_size,master_rank,msg_size);
         }else{
-            printf("All-reduce with %d processes, receiver rank: %d, msg-size: %d, test iterations: %d.\n"
+            printf("All-reduce with %d processes, receiver rank: %d, msg-size: %zu, test iterations: %d.\n"
                     ,w_size,master_rank,msg_size,max_iters);
         }
     }
