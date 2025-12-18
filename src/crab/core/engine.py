@@ -375,8 +375,12 @@ class Engine:
 
             f.write(f"#SBATCH --partition={slurm_partition}\n")
             f.write(f"#SBATCH --account={slurm_account}\n")
-            #f.write(f"#SBATCH --qos=ssheneaadm\n")
-            f.write(f"#SBATCH --qos=boost_qos_bprod\n")
+            #! CRESCO
+            f.write(f"#SBATCH --qos=ssheneaadm\n")
+
+            #! LEO
+            #f.write(f"#SBATCH --gres=gpu:4\n")
+            #f.write(f"#SBATCH --qos=boost_qos_bprod\n")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
@@ -389,7 +393,6 @@ class Engine:
                 # self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
 
             #TODO: Capire il perche' di questi
-            f.write(f"#SBATCH --gres=gpu:4\n")
             f.write(f"#SBATCH --time=01:00:00\n\n")
                
             venv_path = os.path.join(os.getcwd(), '.venv/bin/activate')
@@ -479,8 +482,9 @@ class Engine:
 
                 if start_val.startswith("s"):
                     # Check sicurezza: no end='f' con start dipendente
-                    if end_val == 'f':
-                        raise Exception(f"[FATAL] App {num_apps} config error: dependency start ('{start_val}') cannot be combined with end='f'.")
+                    #! Lorenzo's modifications
+                    # if end_val == 'f':
+                    #     raise Exception(f"[FATAL] App {num_apps} config error: dependency start ('{start_val}') cannot be combined with end='f'.")
 
                     try:
                         target_id = int(start_val[1:])

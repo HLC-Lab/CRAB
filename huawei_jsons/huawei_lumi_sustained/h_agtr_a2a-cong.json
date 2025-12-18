@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": 256,
+        "numnodes": 16,
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-Gather A2A-Congested",
-        "prevjob": "15427233",
+        "prevjob": "15435509",
         "slurm_partition": "standard-g",
         "slurm_account": "project_465001736"
     },
@@ -73,7 +73,7 @@
             "end": ""
         },
         "8": {
-            "path": "/users/pasqualo/CRAB/wrappers/agtr_comm_only.py",
+            "path": "/users/pasqualo/CRAB/wrappers/noise_a2a.py",
             "args": "-msgsize 8 -iter 1000",
             "collect": true,
             "start": "s7",
