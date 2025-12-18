@@ -1,0 +1,97 @@
+nodes,collective,system,bytes,avg_speedup
+8,All-to-All,lumi,8,1.0
+8,All-to-All,lumi,64,1.0
+8,All-to-All,lumi,512,1.0
+8,All-to-All,lumi,4096,1.0
+8,All-to-All,lumi,32768,1.0
+8,All-to-All,lumi,262144,1.0
+8,All-to-All,lumi,2097152,1.0
+8,All-to-All,lumi,16777216,1.0
+8,All-to-All A2A-Congested,lumi,8,0.9987921383600942
+8,All-to-All A2A-Congested,lumi,64,0.9873383957085018
+8,All-to-All A2A-Congested,lumi,512,1.006164219645366
+8,All-to-All A2A-Congested,lumi,4096,0.9792677951921825
+8,All-to-All A2A-Congested,lumi,32768,0.9954189727176004
+8,All-to-All A2A-Congested,lumi,262144,0.9957330679654964
+8,All-to-All A2A-Congested,lumi,2097152,1.0221452357937066
+8,All-to-All A2A-Congested,lumi,16777216,0.9972848822385455
+8,All-to-All Inc-Congested,lumi,8,0.9740075407324775
+8,All-to-All Inc-Congested,lumi,64,0.9904154666175992
+8,All-to-All Inc-Congested,lumi,512,1.0094278743703728
+8,All-to-All Inc-Congested,lumi,4096,0.994052433076723
+8,All-to-All Inc-Congested,lumi,32768,0.9963885103949773
+8,All-to-All Inc-Congested,lumi,262144,0.9878115179766188
+8,All-to-All Inc-Congested,lumi,2097152,1.0142560564293948
+8,All-to-All Inc-Congested,lumi,16777216,0.998434123645006
+16,All-to-All,lumi,8,1.0
+16,All-to-All,lumi,64,1.0
+16,All-to-All,lumi,512,1.0
+16,All-to-All,lumi,4096,1.0
+16,All-to-All,lumi,32768,1.0
+16,All-to-All,lumi,262144,1.0
+16,All-to-All,lumi,2097152,1.0
+16,All-to-All,lumi,16777216,1.0
+16,All-to-All A2A-Congested,lumi,8,0.997889918999057
+16,All-to-All A2A-Congested,lumi,64,0.9410709192941445
+16,All-to-All A2A-Congested,lumi,512,1.0216058097106628
+16,All-to-All A2A-Congested,lumi,4096,0.9846703250553699
+16,All-to-All A2A-Congested,lumi,32768,0.9857891805698112
+16,All-to-All A2A-Congested,lumi,262144,1.0189515838623509
+16,All-to-All A2A-Congested,lumi,2097152,0.9957492628383845
+16,All-to-All A2A-Congested,lumi,16777216,1.0090056345684661
+16,All-to-All Inc-Congested,lumi,8,0.9980141603393768
+16,All-to-All Inc-Congested,lumi,64,0.9705961544778224
+16,All-to-All Inc-Congested,lumi,512,1.0003902593161123
+16,All-to-All Inc-Congested,lumi,4096,1.0056102345745341
+16,All-to-All Inc-Congested,lumi,32768,0.9789254093732559
+16,All-to-All Inc-Congested,lumi,262144,1.017308366170883
+16,All-to-All Inc-Congested,lumi,2097152,1.0047608907356067
+16,All-to-All Inc-Congested,lumi,16777216,1.0121184972316284
+32,All-to-All,lumi,8,1.0
+32,All-to-All,lumi,64,1.0
+32,All-to-All,lumi,512,1.0
+32,All-to-All,lumi,4096,1.0
+32,All-to-All,lumi,32768,1.0
+32,All-to-All,lumi,262144,1.0
+32,All-to-All,lumi,2097152,1.0
+32,All-to-All,lumi,16777216,1.0
+32,All-to-All A2A-Congested,lumi,8,0.9988314910950667
+32,All-to-All A2A-Congested,lumi,64,0.9954975282071371
+32,All-to-All A2A-Congested,lumi,512,0.98192285027353
+32,All-to-All A2A-Congested,lumi,4096,0.9726744386956608
+32,All-to-All A2A-Congested,lumi,32768,0.978493661119058
+32,All-to-All A2A-Congested,lumi,262144,1.0000299579787397
+32,All-to-All A2A-Congested,lumi,2097152,1.0110160907296946
+32,All-to-All A2A-Congested,lumi,16777216,1.003005723236809
+32,All-to-All Inc-Congested,lumi,8,1.0030557078672095
+32,All-to-All Inc-Congested,lumi,64,0.9968573533284968
+32,All-to-All Inc-Congested,lumi,512,0.9756522082563188
+32,All-to-All Inc-Congested,lumi,4096,1.0048349332300095
+32,All-to-All Inc-Congested,lumi,32768,0.9943956224034345
+32,All-to-All Inc-Congested,lumi,262144,0.9916807363554617
+32,All-to-All Inc-Congested,lumi,2097152,1.019917496955234
+32,All-to-All Inc-Congested,lumi,16777216,1.0211571669301374
+64,All-to-All,lumi,8,1.0
+64,All-to-All,lumi,64,1.0
+64,All-to-All,lumi,512,1.0
+64,All-to-All,lumi,4096,1.0
+64,All-to-All,lumi,32768,1.0
+64,All-to-All,lumi,262144,1.0
+64,All-to-All,lumi,2097152,1.0
+64,All-to-All,lumi,16777216,1.0
+64,All-to-All A2A-Congested,lumi,8,0.998261497340201
+64,All-to-All A2A-Congested,lumi,64,0.9910492394633715
+64,All-to-All A2A-Congested,lumi,512,0.991927282434508
+64,All-to-All A2A-Congested,lumi,4096,0.9994876763004009
+64,All-to-All A2A-Congested,lumi,32768,1.0085194683481
+64,All-to-All A2A-Congested,lumi,262144,0.9964115773628055
+64,All-to-All A2A-Congested,lumi,2097152,1.0700978555585388
+64,All-to-All A2A-Congested,lumi,16777216,1.0231234381716487
+64,All-to-All Inc-Congested,lumi,8,0.9838603802892423
+64,All-to-All Inc-Congested,lumi,64,0.993022683102393
+64,All-to-All Inc-Congested,lumi,512,1.0229555791481444
+64,All-to-All Inc-Congested,lumi,4096,1.0264998429387242
+64,All-to-All Inc-Congested,lumi,32768,1.0014075107148757
+64,All-to-All Inc-Congested,lumi,262144,1.0013793736870253
+64,All-to-All Inc-Congested,lumi,2097152,1.0666820744031908
+64,All-to-All Inc-Congested,lumi,16777216,1.0299349199431609
