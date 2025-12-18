@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-Gather",
-        "prevjob": "15413354",
+        "prevjob": "15427232",
         "slurm_partition": "standard-g",
         "slurm_account": "project_465001736"
     },
