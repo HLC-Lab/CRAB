@@ -10,7 +10,7 @@ if __name__ == "__main__":
         "name": "cresco8",
         "partition": "cresco8_cpu",
         "account": "ssheneaadm",
-        "path": "/afs/enea.it/por/user/faltelli/CRAB/wrappers/"
+        "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/"
     }
 
     for bench in BENCHES:
