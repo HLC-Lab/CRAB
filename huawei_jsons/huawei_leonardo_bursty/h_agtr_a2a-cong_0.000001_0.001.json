@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": 32,
+        "numnodes": 128,
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-Gather A2A-Congested 0.000001 0.001",
-        "prevjob": "29112288",
+        "prevjob": "29263346",
         "slurm_partition": "boost_usr_prod",
         "slurm_account": "IscrB_SWING"
     },
