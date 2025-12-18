@@ -16,6 +16,7 @@
         "slurm_account": "project_465001736"
     },
     "applications": {
+    "applications": {
         "0": {
             "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 8 -iter 1000",
@@ -73,10 +74,66 @@
             "end": ""
         },
         "8": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 8 -iter 1000",
+            "collect": true,
+            "start": "s7",
+            "end": ""
+        },
+        "9": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 64 -iter 1000",
+            "collect": true,
+            "start": "s8",
+            "end": ""
+        },
+        "10": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 512 -iter 1000",
+            "collect": true,
+            "start": "s9",
+            "end": ""
+        },
+        "11": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 4096 -iter 1000",
+            "collect": true,
+            "start": "s10",
+            "end": ""
+        },
+        "12": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 32768 -iter 1000",
+            "collect": true,
+            "start": "s11",
+            "end": ""
+        },
+        "13": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 262144 -iter 1000",
+            "collect": true,
+            "start": "s12",
+            "end": ""
+        },
+        "14": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 2097152 -iter 1000",
+            "collect": true,
+            "start": "s13",
+            "end": ""
+        },
+        "15": {
+            "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
+            "args": "-msgsize 16777216 -iter 1000",
+            "collect": true,
+            "start": "s14",
+            "end": ""
+        },
+        "16": {
             "path": "/users/pasqualo/CRAB/wrappers/bursty_noise_a2a.py",
             "args": "0.01 0.01",
             "collect": false,
-            "start": "0",
+            "start": "s7",
             "end": "f"
         }
     }

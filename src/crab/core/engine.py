@@ -361,7 +361,7 @@ class Engine:
             f.write(f"#SBATCH --output={os.path.join(data_directory, 'slurm_output.log')}\n")
             f.write(f"#SBATCH --error={os.path.join(data_directory, 'slurm_error.log')}\n")
             f.write(f"#SBATCH --nodes={num_nodes}\n")
-            f.write(f"#SBATCH --ntasks-per-node={ppn}\n")
+            f.write(f"#SBATCH --ntasks-per-node=32\n") #{ppn}
 
 
             # For tests only
@@ -376,6 +376,7 @@ class Engine:
             f.write(f"#SBATCH --partition={slurm_partition}\n")
             f.write(f"#SBATCH --account={slurm_account}\n")
             #f.write(f"#SBATCH --qos=ssheneaadm\n")
+            f.write(f"#SBATCH --qos=boost_qos_bprod\n")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":
@@ -388,7 +389,7 @@ class Engine:
                 # self.log("[DEBUG] Detected CRAB_SYSTEM=leonardo. Adding partition to SBATCH script.")
 
             #TODO: Capire il perche' di questi
-            #f.write(f"#SBATCH --gres=tmpfs:0\n")
+            f.write(f"#SBATCH --gres=gpu:4\n")
             f.write(f"#SBATCH --time=01:00:00\n\n")
                
             venv_path = os.path.join(os.getcwd(), '.venv/bin/activate')
