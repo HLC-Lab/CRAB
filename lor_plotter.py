@@ -20,13 +20,7 @@ from matplotlib.colors import LinearSegmentedColormap
 
 
 
-def DrawScalingHeatmap(
-    data,
-    fig,
-    ax,
-    sys,
-    collective,
-):
+def DrawScalingHeatmap(data, fig, ax, sys, collective):
     df = pd.DataFrame(data)
 
     df = df[
@@ -35,92 +29,83 @@ def DrawScalingHeatmap(
         (df['burst_pause'] == -1) &
         (df['burst_length'] == -1)
     ]
-
     if df.empty:
         raise ValueError("No data left after filtering")
 
-    df = (
-        df
-        .groupby(['bytes', 'nodes'], as_index=False)
-        .agg(avg_speedup=('speedup', 'mean'))
+    df = (df.groupby(['bytes', 'nodes'], as_index=False)
+            .agg(avg_speedup=('speedup', 'mean')))
+
+    pivot = df.pivot(index='bytes', columns='nodes', values='avg_speedup')
+
+    # ---------------------------
+    # Paper styling (same as DrawLatencyHeatmap)
+    # ---------------------------
+    sns.set_theme(
+        style="ticks",
+        context="talk",
+        font="DejaVu Sans",
+        rc={
+            "font.size": 40,
+            "axes.titlesize": 50,
+            "axes.labelsize": 40,
+            "xtick.labelsize": 40,
+            "ytick.labelsize": 40,
+            "axes.linewidth": 1.2,
+            "figure.dpi": 200,
+        }
     )
 
-    pivot = df.pivot(
-        index='bytes',
-        columns='nodes',
-        values='avg_speedup'
+    # ---------------------------
+    # Same colormap as DrawLatencyHeatmap
+    # ---------------------------
+    speedup_cmap = LinearSegmentedColormap.from_list(
+        "speedup_red_to_green_to_white",
+        [
+            (0.00, "#B2182B"),
+            (0.60, "#FDD17A"),
+            (0.90, "#B7E4A8"),
+            (0.95, "#1A9850"),
+            (1.00, "#F7F7F7"),
+        ],
+        N=256
     )
-
-    sns.set_style("whitegrid")
-    sns.set_context("talk")
-
-    acid_cmap = LinearSegmentedColormap.from_list(
-        "purple_acidgreen",
-        [ "#7E0000", "#1AFF00"]
-    )
-
-    fig = fig
-    ax = ax
-    
-    #mask = pivot > 1.0
 
     hm = sns.heatmap(
         pivot,
-        #mask=mask,
         annot=True,
-        fmt=".3f",
-        cmap=acid_cmap,
-        vmin=0, vmax=1,
+        fmt=".2f",
+        cmap=speedup_cmap,
+        vmin=0.0, vmax=1.0,
+        square=False,
+        linewidths=4,
+        linecolor="white",
         cbar=False,
-        annot_kws={"size": 40},
-        yticklabels=False,
+        annot_kws={"fontsize": 35},
         ax=ax
     )
 
-    mask_d = pivot.values
+    # Titles/labels (match style)
+    ax.set_title(f"{collective}", pad=16)
+    ax.set_xlabel("Nodes", labelpad=14, fontsize=35)
+    ax.set_ylabel("Message Size (bytes)", labelpad=14, fontsize=35)
 
-    for i in range(mask_d.shape[0]):
-        for j in range(mask_d.shape[1]):
-            if mask_d[i, j] > 1.0:
-                ax.add_patch(
-                    plt.Rectangle(
-                        (j, i), 1, 1,
-                        facecolor='#1AFF00',   # solid fill
-                        edgecolor='none',    # no border
-                        linewidth=0
-                    )
-                )
+    # Ticks
+    ax.tick_params(axis="both", which="major", length=12, width=2.5)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=0, ha="center", fontsize=30)
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=30)
 
-                # ax.text(
-                #     j + 0.5, i + 0.5,
-                #     '✓',
-                #     ha='center', va='center',
-                #     fontsize=64,
-                #     color='black',
-                #     fontweight='bold'
-                # )
+    # Like the other one: small at top (optional but consistent)
+    ax.invert_yaxis()
 
-    ax.set_title(f"{sys} {collective}", fontsize=32, pad=20)
-    ax.set_xlabel("Nodes", fontsize=28)
-    ax.set_ylabel("Message Siz", fontsize=28)
-    ax.tick_params(axis='both', labelsize=24)
+    # Remove spines
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     plt.tight_layout()
-
     return hm
 
 
-
-
-def DrawLatencyHeatmap(
-    data,
-    fig,
-    ax,
-    nodes,
-    sys,
-    collective,
-    msg
-):
+def DrawLatencyHeatmap(data, fig, ax, nodes, sys, collective, msg):
     df = pd.DataFrame(data)
 
     df = df[
@@ -131,85 +116,94 @@ def DrawLatencyHeatmap(
         (df['burst_pause'] >= 0) &
         (df['burst_length'] >= 0)
     ]
-
     if df.empty:
         raise ValueError("No data left after filtering")
 
-    df = (
-        df
-        .groupby(['burst_length', 'burst_pause'], as_index=False)
-        .agg(avg_speedup=('speedup', 'mean'))
+    df = (df.groupby(['burst_length', 'burst_pause'], as_index=False)
+            .agg(avg_speedup=('speedup', 'mean')))
+
+    pivot = df.pivot(index='burst_length', columns='burst_pause', values='avg_speedup')
+
+
+    pivot = pivot.copy()
+    pivot.index = (pd.to_numeric(pivot.index) * 1000).astype(int)
+    pivot.columns = (pd.to_numeric(pivot.columns) * 1000)
+
+    # ---------------------------
+    # Paper styling (big fonts)
+    # ---------------------------
+    sns.set_theme(
+        style="ticks",           # minimal background
+        context="talk",          # larger than "paper"
+        font="DejaVu Sans",
+        rc={
+            # global sizes
+            "font.size": 40,
+            "axes.titlesize": 50,
+            "axes.labelsize": 40,
+            "xtick.labelsize": 40,
+            "ytick.labelsize": 40,
+
+            # heatmap aesthetics
+            "axes.linewidth": 1.2,
+            "figure.dpi": 200,
+        }
     )
 
-    pivot = df.pivot(
-        index='burst_length',
-        columns='burst_pause',
-        values='avg_speedup'
+    # ---------------------------
+    # Colormap: low=red, ~0.95=green, 1.0=near-white
+    # (use slightly off-white so text stays readable)
+    # ---------------------------
+    speedup_cmap = LinearSegmentedColormap.from_list(
+        "speedup_red_to_green_to_white",
+        [
+            (0.00, "#B2182B"),  # deep red
+            (0.60, "#FDD17A"),  # warm yellow
+            (0.90, "#B7E4A8"),  # pale green
+            (0.95, "#1A9850"),  # green at 0.95
+            (1.00, "#F7F7F7"),  # near-white
+        ],
+        N=256
     )
 
-    sns.set_style("whitegrid")
-    sns.set_context("talk")
-
-    acid_cmap = LinearSegmentedColormap.from_list(
-        "purple_acidgreen",
-        [ "#7E0000", "#EEFF00"]
-    )
-
-    #fig, ax = plt.subplots(figsize=(10, 8))
-    fig = fig
-    ax = ax
-
-    mask = pivot > 1.0
-    
     hm = sns.heatmap(
         pivot,
-        mask = mask,
         annot=True,
-        fmt=".3f",
-        cmap=acid_cmap,
-        vmin=0.6, vmax=1,
+        fmt=".2f",
+        cmap=speedup_cmap,
+        vmin=0.0, vmax=1.0,
+        square=True,
+
+        # clean, high-contrast cell grid for papers
+        linewidths=4,
+        linecolor="white",
+
         cbar=False,
-        annot_kws={"size": 40},
-        yticklabels=False,
+
+        # big annotations
+        annot_kws={"fontsize": 35},
         ax=ax
     )
 
-    mask_d = pivot.values
+    # Titles/labels (bigger + tighter)
+    ax.set_title(f"{msg}", pad=16)
+    ax.set_xlabel("Burst Pause (ms)", labelpad=14, fontsize=35)
+    ax.set_ylabel("Burst Length (ms)", labelpad=14, fontsize=35)
 
-    for i in range(mask_d.shape[0]):
-        for j in range(mask_d.shape[1]):
-            if mask_d[i, j] > 1.0:
-                ax.add_patch(
-                    plt.Rectangle(
-                        (j, i), 1, 1,
-                        facecolor='#1AFF00',   # solid fill
-                        edgecolor='none',    # no border
-                        linewidth=0
-                    )
-                )
+    # Ticks: keep them readable and “paper-ish”
+    ax.tick_params(axis="both", which="major", length=12, width=2.5)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=0, ha="center", fontsize=30)
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=30)
 
-                ax.text(
-                    j + 0.5, i + 0.5,
-                    '✓',
-                    ha='center', va='center',
-                    fontsize=64,
-                    color='black',
-                    fontweight='bold'
-                )
+    # optional: makes small burst_length appear at top
+    ax.invert_yaxis()
 
-    ax.set_title(f"Message Size: {msg}", fontsize=32, pad=20)
-    ax.set_xlabel("Burst Pause", fontsize=28)
-    ax.set_ylabel("Burst Length", fontsize=28)
-    ax.tick_params(axis='both', labelsize=24)
-
-    # cbar = hm.collections[0].colorbar
-    # cbar.ax.tick_params(labelsize=24)
-    # cbar.set_label("Mean Speedup", fontsize=26)
+    # remove spines (clean)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     plt.tight_layout()
-
     return hm
-
 
 # -------------------------
 # NEW STUFF
@@ -472,26 +466,19 @@ def LoadData(data, data_folder, systems, collectives, messages, nodes):
             collective = row["extra"]
             data_nodes = row["numnodes"]
 
-            print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
 
             data_path = os.path.join(path, f"data_app_0.csv")
             if not os.path.exists(data_path):
-                print("diocane 0")
                 continue
-
-            print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
 
 
             if (int(data_nodes) not in nodes):
-                print("diocane nodi "+data_nodes)
                 continue
             
             if (system not in systems):
-                print("diocane system "+ system)
                 continue
             
             if (collective not in collectives):
-                print("diocane collective")
                 continue
 
             #forse è qui il problema
@@ -587,21 +574,22 @@ def SpeedupLAT(data, collective):
         (df['burst_pause'] == -1) &
         (df['burst_length'] == -1)
     ]
-
+    df_baseline.to_csv('plots/speedup_results.csv', index=False)
     df_baseline = (
         df_baseline
         .groupby(['nodes', 'collective', 'system', 'bytes', 'burst_length', 'burst_pause'], as_index=False)
         .agg(max_latency=('avg_latency', 'max'))
     )
-
-    baseline = df_baseline["max_latency"][0]
+    #df_baseline.to_csv('plots/speedup_results.csv', index=False)
+    baseline = df_baseline["max_latency"].iloc[0]
     for i in range(len(data["collective"])):
         data["speedup"][i] = baseline/data["avg_latency"][i] 
+    df_baseline.to_csv('plots/speedup_results.csv', index=False)
     df = pd.DataFrame(data)
 
 if __name__ == "__main__":
 
-    data_folder = f"data/description.csv"
+    data_folder = f"data/backup/description.csv"
     data = {
         'message': [],
         'bytes': [],
@@ -667,7 +655,7 @@ if __name__ == "__main__":
         "bur_nodes": [8, 16, 32, 64, 128]
     }
 
-    systems=[cresco8, leonardo, lumi]
+    systems=[cresco8, leonardo] #lumi
 
     # BASIC BANDWIDTH
     # for sys in systems:
@@ -675,28 +663,28 @@ if __name__ == "__main__":
     #         DrawBandwidthPlot(data, f"PLOT_BW_{sys}_sustained_{nodes}", nodes, sys)
     
     # HEATMAPS SPEEDUP
-    for sys in systems:
-        sys_name = sys["name"]
-        for nodes in sys["bur_nodes"]:
-            for collective in collectives_sustained:
-                done = True
-                heatmaps = []
-                fig, axes = plt.subplots(1, len(messages), figsize=(9 * len(messages), 8), sharex=True)
-                for ax, msg in zip(axes, messages):
-                    if "Congested" not in collective:
-                        done = False
-                        continue
-                    LoadData(data, data_folder, [sys_name], collectives_bursty, [msg], [nodes])
-                    SpeedupLAT(data, collective)
-                    hm=DrawLatencyHeatmap(data, fig, ax, nodes, sys_name, collective, msg)              
-                    CleanData(data)
-                    heatmaps.append(hm)
-                if done:
-                    cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
-                    fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
-                    cbar_ax.tick_params(labelsize=40)  
-                    plt.savefig(f"plots/PLOT_HEATMAPS_{sys_name}_{collective}_{nodes}_{msg}", dpi=300, bbox_inches='tight')
-                    plt.close()
+    # for sys in systems:
+    #     sys_name = sys["name"]
+    #     for nodes in sys["bur_nodes"]:
+    #         for collective in collectives_sustained:
+    #             done = True
+    #             heatmaps = []
+    #             fig, axes = plt.subplots(1, len(messages), figsize=(9 * len(messages), 8), sharex=True)
+    #             for ax, msg in zip(axes, messages):
+    #                 if "Congested" not in collective:
+    #                     done = False
+    #                     continue
+    #                 LoadData(data, data_folder, [sys_name], collectives_bursty, [msg], [nodes])
+    #                 SpeedupLAT(data, collective)
+    #                 hm=DrawLatencyHeatmap(data, fig, ax, nodes, sys_name, collective, msg)              
+    #                 CleanData(data)
+    #                 heatmaps.append(hm)
+    #             if done:
+    #                 cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
+    #                 fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
+    #                 cbar_ax.tick_params(labelsize=40)  
+    #                 plt.savefig(f"plots/PLOT_HEATMAPS_{sys_name}_{collective}_{nodes}_{msg}", dpi=300, bbox_inches='tight')
+    #                 plt.close()
 
                 
     colls = collectives_sustained_a2a.copy()
