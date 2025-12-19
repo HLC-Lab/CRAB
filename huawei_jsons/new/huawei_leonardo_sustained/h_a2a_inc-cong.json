@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": 256,
+        "numnodes": 128,
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
@@ -11,7 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-to-All Inc-Congested",
-        "prevjob": "15427231",
+        "prevjob": "29263378",
         "slurm_partition": "boost_usr_prod",
         "slurm_account": "IscrB_SWING"
     },
@@ -74,6 +74,7 @@
         },
         "8": {
             "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/noise_incast.py",
+<<<<<<< HEAD:huawei_jsons/new/huawei_leonardo_sustained/h_a2a_inc-cong.json
             "args": "-msgsize 8 -iter 1000",
             "collect": true,
             "start": "s7",
@@ -131,8 +132,11 @@
         "16": {
             "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 16777216 -iter 100000",
+=======
+            "args": "",
+>>>>>>> parent of 4ea90d4 (new tests):huawei_jsons/huawei_leonardo_sustained/h_a2a_inc-cong.json
             "collect": false,
-            "start": "s7",
+            "start": "0",
             "end": "f"
         }
     }
