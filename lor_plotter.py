@@ -61,11 +61,12 @@ def DrawScalingHeatmap(data, fig, ax, sys, collective):
     speedup_cmap = LinearSegmentedColormap.from_list(
         "speedup_red_to_green_to_white",
         [
-            (0.00, "#B2182B"),
-            (0.60, "#FDD17A"),
-            (0.90, "#B7E4A8"),
-            (0.95, "#1A9850"),
-            (1.00, "#F7F7F7"),
+            (0.00, "#680C17"),
+            (0.20, "#B2182B"),
+            (0.65, "#FD8B7A"),
+            (0.90, "#FDD17A"),
+            (0.95, "#B7E4A8"),
+            (1.00, "#1A9850"),
         ],
         N=256
     )
@@ -160,11 +161,12 @@ def DrawLatencyHeatmap(data, fig, ax, nodes, sys, collective, msg):
     speedup_cmap = LinearSegmentedColormap.from_list(
         "speedup_red_to_green_to_white",
         [
-            (0.00, "#B2182B"),  # deep red
-            (0.60, "#FDD17A"),  # warm yellow
-            (0.90, "#B7E4A8"),  # pale green
-            (0.95, "#1A9850"),  # green at 0.95
-            (1.00, "#F7F7F7"),  # near-white
+            (0.00, "#680C17"),
+            (0.20, "#B2182B"),
+            (0.65, "#FD8B7A"),
+            (0.90, "#FDD17A"),
+            (0.95, "#B7E4A8"),
+            (1.00, "#1A9850"),
         ],
         N=256
     )
@@ -189,31 +191,23 @@ def DrawLatencyHeatmap(data, fig, ax, nodes, sys, collective, msg):
     )
 
     # Titles/labels (bigger + tighter)
-    ax.set_title(f"", pad=16)
-    ax.set_xlabel("", labelpad=14, fontsize=35)
-    ax.set_ylabel("", labelpad=14, fontsize=35)
+    ax.set_title(f"{msg}", pad=16)
+    ax.set_xlabel("Burst Pause (ms)", labelpad=14, fontsize=35)
+    ax.set_ylabel("Burst Length (ms)", labelpad=14, fontsize=35)
 
     # Ticks: keep them readable and “paper-ish”
-    # ax.tick_params(axis="both", which="major", length=12, width=2.5)
-    # ax.set_xticklabels(ax.get_xticklabels(), rotation=0, ha="center", fontsize=30)
-    # ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=30)
-
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.tick_params(
-        axis="both",
-        which="both",
-        bottom=False, top=False, left=False, right=False,
-        labelbottom=False, labeltop=False, labelleft=False, labelright=False
-    )
+    ax.tick_params(axis="both", which="major", length=12, width=2.5)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=0, ha="center", fontsize=30)
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=30)
 
     # optional: makes small burst_length appear at top
     ax.invert_yaxis()
+
     # remove spines (clean)
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    # plt.tight_layout()
+    plt.tight_layout()
     return hm
 
 # -------------------------
@@ -796,21 +790,21 @@ if __name__ == "__main__":
         "bur_nodes": [64, 128]
     }
 
-    systems=[cresco8] #lumi, leonardo 
+    systems=[lumi, leonardo ] #lumi, leonardo  cresco8, 
 
     # # BASIC BANDWIDTH
     # for sys in systems:
     #     for nodes in node_list:
     #         DrawBandwidthPlot(data, f"PLOT_BW_{sys}_sustained_{nodes}", nodes, sys)
     
-    # HEATMAPS SPEEDUP
+    #HEATMAPS SPEEDUP
     for sys in systems:
         sys_name = sys["name"]
         for nodes in sys["bur_nodes"]:
             for collective in collectives_sustained:
                 done = True
                 heatmaps = []
-                fig, axes = plt.subplots(1, len(messages), figsize=(9 * len(messages), 8), sharex=True, gridspec_kw={"wspace": 0.01})
+                fig, axes = plt.subplots(1, len(messages), figsize=(9 * len(messages), 8), sharex=True)
                 for ax, msg in zip(axes, messages):
                     if "Congested" not in collective:
                         done = False
@@ -828,38 +822,32 @@ if __name__ == "__main__":
                     CleanData(data)
                     heatmaps.append(hm)
                 if done:
-                    fig.subplots_adjust(left=0.002, right=0.998, bottom=0.002, top=0.90, wspace=0.01)
-                    cbar = fig.colorbar(
-                        heatmaps[0].collections[0],
-                        ax=axes,
-                        orientation="horizontal",
-                        fraction=0.05,
-                        pad=0.02
-                    )
-                    cbar.ax.tick_params(labelsize=20)
+                    cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
+                    fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
+                    cbar_ax.tick_params(labelsize=40)  
                     plt.savefig(f"plots/PLOT_HEATMAPS_{sys_name}_{collective}_{nodes}_{msg}", dpi=300, bbox_inches='tight')
                     plt.close()
 
                 
-    # colls = collectives_sustained_a2a.copy()
-    # colls.pop()
-    # # HEATMAP SCALING
-    # for sys in systems:
-    #     sys_name = sys["name"]
-    #     heatmaps = []
-    #     fig, axes = plt.subplots(2, 1, figsize=(20 , 8 * 2), sharex=True)
-    #     for collective, ax in zip(colls, axes):
-    #         print(f"sys: {sys_name} collective: {collective}")
-    #         LoadData(data, data_folder, [sys_name], collectives_sustained_a2a, messages, sys["sus_nodes"])
-    #         SpeedupSCALE(data, collective)
-    #         hm=DrawScalingHeatmap(data, fig, ax, sys_name, collective)              
-    #         CleanData(data)
-    #         heatmaps.append(hm)
+    colls = collectives_sustained_a2a.copy()
+    colls.pop()
+    # HEATMAP SCALING
+    for sys in systems:
+        sys_name = sys["name"]
+        heatmaps = []
+        fig, axes = plt.subplots(2, 1, figsize=(20 , 8 * 2), sharex=True)
+        for collective, ax in zip(colls, axes):
+            print(f"sys: {sys_name} collective: {collective}")
+            LoadData(data, data_folder, [sys_name], collectives_sustained_a2a, messages, sys["sus_nodes"])
+            SpeedupSCALE(data, collective)
+            hm=DrawScalingHeatmap(data, fig, ax, sys_name, collective)              
+            CleanData(data)
+            heatmaps.append(hm)
 
-    #     cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
-    #     fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
-    #     cbar_ax.tick_params(labelsize=40)  
-    #     plt.savefig(f"plots/SCALING_{sys_name}_{collective}", dpi=300, bbox_inches='tight')
-    #     plt.close()
+        cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
+        fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
+        cbar_ax.tick_params(labelsize=40)  
+        plt.savefig(f"plots/SCALING_{sys_name}_{collective}", dpi=300, bbox_inches='tight')
+        plt.close()
     
 
