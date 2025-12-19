@@ -70,6 +70,9 @@ def DrawScalingHeatmap(data, fig, ax, sys, collective):
         N=256
     )
 
+    # Clip speedup values > 1.3 to 1.01
+    pivot = pivot.applymap(lambda x: 1.01 if x > 1.3 else x)
+
     hm = sns.heatmap(
         pivot,
         annot=True,
@@ -186,23 +189,31 @@ def DrawLatencyHeatmap(data, fig, ax, nodes, sys, collective, msg):
     )
 
     # Titles/labels (bigger + tighter)
-    ax.set_title(f"{msg}", pad=16)
-    ax.set_xlabel("Burst Pause (ms)", labelpad=14, fontsize=35)
-    ax.set_ylabel("Burst Length (ms)", labelpad=14, fontsize=35)
+    ax.set_title(f"", pad=16)
+    ax.set_xlabel("", labelpad=14, fontsize=35)
+    ax.set_ylabel("", labelpad=14, fontsize=35)
 
     # Ticks: keep them readable and “paper-ish”
-    ax.tick_params(axis="both", which="major", length=12, width=2.5)
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=0, ha="center", fontsize=30)
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=30)
+    # ax.tick_params(axis="both", which="major", length=12, width=2.5)
+    # ax.set_xticklabels(ax.get_xticklabels(), rotation=0, ha="center", fontsize=30)
+    # ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=30)
+
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.tick_params(
+        axis="both",
+        which="both",
+        bottom=False, top=False, left=False, right=False,
+        labelbottom=False, labeltop=False, labelleft=False, labelright=False
+    )
 
     # optional: makes small burst_length appear at top
     ax.invert_yaxis()
-
     # remove spines (clean)
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    plt.tight_layout()
+    # plt.tight_layout()
     return hm
 
 # -------------------------
@@ -456,7 +467,10 @@ def DrawBandwidthPlot(data, name, nodes, sys):
     plt.savefig(f'plots/{name}_line.png', dpi=300, bbox_inches='tight')
     plt.close()
 
-def LoadData(data, data_folder, systems, collectives, messages, nodes):
+
+
+
+def LoadData_LUMI_ONLY(data, data_folder, systems, collectives, messages, nodes):
 
     with open(data_folder, newline="") as f:
         reader = csv.DictReader(f)
@@ -471,6 +485,120 @@ def LoadData(data, data_folder, systems, collectives, messages, nodes):
             if not os.path.exists(data_path):
                 continue
 
+
+            if (int(data_nodes) not in nodes):
+                continue
+            
+            if (system not in systems):
+                continue
+            
+            if (collective not in collectives):
+                continue
+
+            #forse è qui il problema
+
+            nodes_for_bw = int(data_nodes) / 2
+            # print(f"Processing path: {path}, system: {system}, collective: {collective}, nodes: {data_nodes}")
+
+            collective_string = collective.strip().split(" ")
+            if len(collective_string) == 1:
+                collective_name = collective_string[0]
+            elif len(collective_string) > 1:
+                collective_name = collective_string[0]+" "+collective_string[1]
+            
+            if len(collective_string) > 2:
+                burst_pause = float(collective_string[2])
+                burst_length = float(collective_string[3])
+
+
+            for i in range(8):
+                i_base = i
+                i_cong = i + 8
+
+                base_sum = 0.0
+                base_rows = 0
+                cong_sum = 0.0
+                cong_rows = 0
+
+                base_path = os.path.join(path, f"data_app_{i_base}.csv")
+                cong_path = os.path.join(path, f"data_app_{i_cong}.csv")
+
+                # --- baseline ---
+                with open(base_path, newline="") as f:
+                    reader = csv.DictReader(f)
+                    for row_counter, row in enumerate(reader):
+                        m_bytes = int(row["msg_size"])
+                        if m_bytes not in messages:
+                            continue   # <-- important
+
+                        latency = float(row[f"{i_base}_Max-Duration_s"])
+                        base_sum += latency
+                        base_rows += 1
+                        bandwidth = ComputeBandwidth(latency, m_bytes, collective_name, nodes_for_bw)
+                        data['latency'].append(latency)
+                        data['bandwidth'].append(bandwidth)
+                        data['message'].append(str(m_bytes))
+                        data['collective'].append(collective_name)
+                        data['bytes'].append(m_bytes)
+                        data['system'].append(system)
+                        data['iteration'].append(row_counter)
+                        data['nodes'].append(int(data_nodes))
+                        data['burst_length'].append(burst_length if 'burst_length' in locals() else -1)
+                        data['burst_pause'].append(burst_pause if 'burst_pause' in locals() else -1)
+
+
+                if base_rows == 0:
+                    continue
+
+                lat_baseline = base_sum / base_rows
+                data['avg_latency'].extend([lat_baseline] * base_rows)
+                data['speedup'].extend([1.0] * base_rows)
+
+                # --- congested ---
+                with open(cong_path, newline="") as f:
+                    reader = csv.DictReader(f)
+                    for row_counter, row in enumerate(reader):
+                        m_bytes = int(row["msg_size"])
+                        if m_bytes not in messages:
+                            continue   # <-- important
+
+                        latency = float(row[f"{i_cong}_Max-Duration_s"])
+                        cong_sum += latency
+                        cong_rows += 1
+                        bandwidth = ComputeBandwidth(latency, m_bytes, collective_name, nodes_for_bw)
+                        data['latency'].append(latency)
+                        data['bandwidth'].append(bandwidth)
+                        data['message'].append(str(m_bytes))
+                        data['collective'].append(collective_name)
+                        data['bytes'].append(m_bytes)
+                        data['system'].append(system)
+                        data['iteration'].append(row_counter)
+                        data['nodes'].append(int(data_nodes))
+                        data['burst_length'].append(burst_length if 'burst_length' in locals() else -1)
+                        data['burst_pause'].append(burst_pause if 'burst_pause' in locals() else -1)
+
+
+                if cong_rows == 0:
+                    continue
+
+                lat_cong = cong_sum / cong_rows
+                data['avg_latency'].extend([lat_cong] * cong_rows)
+                data['speedup'].extend([lat_baseline / lat_cong] * cong_rows)
+
+
+def LoadData(data, data_folder, systems, collectives, messages, nodes):
+
+    with open(data_folder, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            path = row["path"]
+            system = row["system"]
+            collective = row["extra"]
+            data_nodes = row["numnodes"]
+
+            data_path = os.path.join(path, f"data_app_0.csv")
+            if not os.path.exists(data_path):
+                continue
 
             if (int(data_nodes) not in nodes):
                 continue
@@ -589,7 +717,7 @@ def SpeedupLAT(data, collective):
 
 if __name__ == "__main__":
 
-    data_folder = f"data/backup/description.csv"
+    data_folder = f"data/description.csv"
     data = {
         'message': [],
         'bytes': [],
@@ -622,7 +750,20 @@ if __name__ == "__main__":
                           'All-Gather Inc-Congested 0.000001 0.1', 'All-Gather Inc-Congested 0.000001 0.01', 'All-Gather Inc-Congested 0.000001 0.001',
                           'All-Gather A2A-Congested 0.000001 0.1', 'All-Gather A2A-Congested 0.000001 0.01', 'All-Gather A2A-Congested 0.000001 0.001',
                           'All-to-All', 'All-Gather']
-    
+
+    collectives_bursty_lumi = ['All-to-All Inc-Congested 0.01 0.1', 'All-to-All Inc-Congested 0.01 0.01', 'All-to-All Inc-Congested 0.01 0.001',
+                            'All-to-All A2A-Congested 0.01 0.1', 'All-to-All A2A-Congested 0.01 0.01', 'All-to-All A2A-Congested 0.01 0.001',
+                            'All-to-All Inc-Congested 0.0001 0.1', 'All-to-All Inc-Congested 0.0001 0.01', 'All-to-All Inc-Congested 0.0001 0.001',
+                            'All-to-All A2A-Congested 0.0001 0.1', 'All-to-All A2A-Congested 0.0001 0.01', 'All-to-All A2A-Congested 0.0001 0.001',
+                            'All-to-All Inc-Congested 0.000001 0.1', 'All-to-All Inc-Congested 0.000001 0.01', 'All-to-All Inc-Congested 0.000001 0.001',
+                            'All-to-All A2A-Congested 0.000001 0.1', 'All-to-All A2A-Congested 0.000001 0.01', 'All-to-All A2A-Congested 0.000001 0.001',
+                            'All-Gather Inc-Congested 0.01 0.1', 'All-Gather Inc-Congested 0.01 0.01', 'All-Gather Inc-Congested 0.01 0.001',
+                            'All-Gather A2A-Congested 0.01 0.1', 'All-Gather A2A-Congested 0.01 0.01', 'All-Gather A2A-Congested 0.01 0.001',
+                            'All-Gather Inc-Congested 0.0001 0.1', 'All-Gather Inc-Congested 0.0001 0.01', 'All-Gather Inc-Congested 0.0001 0.001',
+                            'All-Gather A2A-Congested 0.0001 0.1', 'All-Gather A2A-Congested 0.0001 0.01', 'All-Gather A2A-Congested 0.0001 0.001',
+                            'All-Gather Inc-Congested 0.000001 0.1', 'All-Gather Inc-Congested 0.000001 0.01', 'All-Gather Inc-Congested 0.000001 0.001',
+                            'All-Gather A2A-Congested 0.000001 0.1', 'All-Gather A2A-Congested 0.000001 0.01', 'All-Gather A2A-Congested 0.000001 0.001']
+
     messages = ['8B', '64B', '512B', '4KiB', '32KiB', '256KiB', '2MiB', '16MiB'] # ,'128MiB']
     for i in range(len(messages)):
         messages[i] = to_bytes(messages[i])
@@ -634,7 +775,7 @@ if __name__ == "__main__":
         "account": "IscrB_SWING",
         "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/",
         "sus_nodes": [8, 16, 32, 64],
-        "bur_nodes": [8, 16, 32, 64]
+        "bur_nodes": [64]
     }
 
     lumi = {
@@ -642,7 +783,7 @@ if __name__ == "__main__":
         "partition": "standard-g",
         "account": "project_465001736",
         "path": "/users/pasqualo/CRAB/wrappers/",
-        "sus_nodes": [8, 16, 32, 64],
+        "sus_nodes": [8, 16, 32, 64, 128, 256],
         "bur_nodes": [256]
     }
 
@@ -652,59 +793,73 @@ if __name__ == "__main__":
         "account": "ssheneaadm",
         "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/",
         "sus_nodes": [8, 16, 32, 64, 128, 256],
-        "bur_nodes": [8, 16, 32, 64, 128]
+        "bur_nodes": [64, 128]
     }
 
-    systems=[cresco8, leonardo] #lumi
+    systems=[cresco8] #lumi, leonardo 
 
-    # BASIC BANDWIDTH
+    # # BASIC BANDWIDTH
     # for sys in systems:
     #     for nodes in node_list:
     #         DrawBandwidthPlot(data, f"PLOT_BW_{sys}_sustained_{nodes}", nodes, sys)
     
     # HEATMAPS SPEEDUP
-    # for sys in systems:
-    #     sys_name = sys["name"]
-    #     for nodes in sys["bur_nodes"]:
-    #         for collective in collectives_sustained:
-    #             done = True
-    #             heatmaps = []
-    #             fig, axes = plt.subplots(1, len(messages), figsize=(9 * len(messages), 8), sharex=True)
-    #             for ax, msg in zip(axes, messages):
-    #                 if "Congested" not in collective:
-    #                     done = False
-    #                     continue
-    #                 LoadData(data, data_folder, [sys_name], collectives_bursty, [msg], [nodes])
-    #                 SpeedupLAT(data, collective)
-    #                 hm=DrawLatencyHeatmap(data, fig, ax, nodes, sys_name, collective, msg)              
-    #                 CleanData(data)
-    #                 heatmaps.append(hm)
-    #             if done:
-    #                 cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
-    #                 fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
-    #                 cbar_ax.tick_params(labelsize=40)  
-    #                 plt.savefig(f"plots/PLOT_HEATMAPS_{sys_name}_{collective}_{nodes}_{msg}", dpi=300, bbox_inches='tight')
-    #                 plt.close()
-
-                
-    colls = collectives_sustained_a2a.copy()
-    colls.pop()
-    # HEATMAP SCALING
     for sys in systems:
         sys_name = sys["name"]
-        heatmaps = []
-        fig, axes = plt.subplots(2, 1, figsize=(20 , 8 * 2), sharex=True)
-        for collective, ax in zip(colls, axes):
-            LoadData(data, data_folder, [sys_name], collectives_sustained_a2a, messages, sys["sus_nodes"])
-            SpeedupSCALE(data, collective)
-            hm=DrawScalingHeatmap(data, fig, ax, sys_name, collective)              
-            CleanData(data)
-            heatmaps.append(hm)
+        for nodes in sys["bur_nodes"]:
+            for collective in collectives_sustained:
+                done = True
+                heatmaps = []
+                fig, axes = plt.subplots(1, len(messages), figsize=(9 * len(messages), 8), sharex=True, gridspec_kw={"wspace": 0.01})
+                for ax, msg in zip(axes, messages):
+                    if "Congested" not in collective:
+                        done = False
+                        continue
 
-        cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
-        fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
-        cbar_ax.tick_params(labelsize=40)  
-        plt.savefig(f"plots/SCALING_{sys_name}_{collective}", dpi=300, bbox_inches='tight')
-        plt.close()
+                    print(f"sys: {sys_name} nodes: {nodes} collective: {collective} msg: {msg}")
+
+                    # if sys == lumi:
+                    #     LoadData_LUMI_ONLY(data, lumi_data_folder, [sys_name], collectives_bursty_lumi, [msg], [nodes])
+                    # else:
+                    LoadData(data, data_folder, [sys_name], collectives_bursty, [msg], [nodes])
+                    SpeedupLAT(data, collective)
+                   
+                    hm=DrawLatencyHeatmap(data, fig, ax, nodes, sys_name, collective, msg)              
+                    CleanData(data)
+                    heatmaps.append(hm)
+                if done:
+                    fig.subplots_adjust(left=0.002, right=0.998, bottom=0.002, top=0.90, wspace=0.01)
+                    cbar = fig.colorbar(
+                        heatmaps[0].collections[0],
+                        ax=axes,
+                        orientation="horizontal",
+                        fraction=0.05,
+                        pad=0.02
+                    )
+                    cbar.ax.tick_params(labelsize=20)
+                    plt.savefig(f"plots/PLOT_HEATMAPS_{sys_name}_{collective}_{nodes}_{msg}", dpi=300, bbox_inches='tight')
+                    plt.close()
+
+                
+    # colls = collectives_sustained_a2a.copy()
+    # colls.pop()
+    # # HEATMAP SCALING
+    # for sys in systems:
+    #     sys_name = sys["name"]
+    #     heatmaps = []
+    #     fig, axes = plt.subplots(2, 1, figsize=(20 , 8 * 2), sharex=True)
+    #     for collective, ax in zip(colls, axes):
+    #         print(f"sys: {sys_name} collective: {collective}")
+    #         LoadData(data, data_folder, [sys_name], collectives_sustained_a2a, messages, sys["sus_nodes"])
+    #         SpeedupSCALE(data, collective)
+    #         hm=DrawScalingHeatmap(data, fig, ax, sys_name, collective)              
+    #         CleanData(data)
+    #         heatmaps.append(hm)
+
+    #     cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
+    #     fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
+    #     cbar_ax.tick_params(labelsize=40)  
+    #     plt.savefig(f"plots/SCALING_{sys_name}_{collective}", dpi=300, bbox_inches='tight')
+    #     plt.close()
     
 

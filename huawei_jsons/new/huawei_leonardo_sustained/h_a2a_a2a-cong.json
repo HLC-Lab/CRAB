@@ -74,67 +74,7 @@
         },
         "8": {
             "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/noise_a2a.py",
-<<<<<<< HEAD:huawei_jsons/new/huawei_leonardo_sustained/h_a2a_a2a-cong.json
-            "args": "-msgsize 8 -iter 1000",
-            "collect": true,
-            "start": "s7",
-            "end": ""
-        },
-        "9": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 64 -iter 1000",
-            "collect": true,
-            "start": "s8",
-            "end": ""
-        },
-        "10": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 512 -iter 1000",
-            "collect": true,
-            "start": "s9",
-            "end": ""
-        },
-        "11": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 4096 -iter 1000",
-            "collect": true,
-            "start": "s10",
-            "end": ""
-        },
-        "12": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 32768 -iter 1000",
-            "collect": true,
-            "start": "s11",
-            "end": ""
-        },
-        "13": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 262144 -iter 1000",
-            "collect": true,
-            "start": "s12",
-            "end": ""
-        },
-        "14": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 2097152 -iter 1000",
-            "collect": true,
-            "start": "s13",
-            "end": ""
-        },
-        "15": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 16777216 -iter 1000",
-            "collect": true,
-            "start": "s14",
-            "end": ""
-        },
-        "16": {
-            "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/a2a_comm_only.py",
-            "args": "-msgsize 16777216 -iter 100000",
-=======
             "args": "",
->>>>>>> parent of 4ea90d4 (new tests):huawei_jsons/huawei_leonardo_sustained/h_a2a_a2a-cong.json
             "collect": false,
             "start": "0",
             "end": "f"

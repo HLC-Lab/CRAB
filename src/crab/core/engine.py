@@ -361,7 +361,7 @@ class Engine:
             f.write(f"#SBATCH --output={os.path.join(data_directory, 'slurm_output.log')}\n")
             f.write(f"#SBATCH --error={os.path.join(data_directory, 'slurm_error.log')}\n")
             f.write(f"#SBATCH --nodes={num_nodes}\n")
-            f.write(f"#SBATCH --ntasks-per-node={ppn}\n") #{ppn}
+            f.write(f"#SBATCH --ntasks-per-node=32\n") #{ppn}
 
 
             # For tests only
@@ -376,11 +376,11 @@ class Engine:
             f.write(f"#SBATCH --partition={slurm_partition}\n")
             f.write(f"#SBATCH --account={slurm_account}\n")
             #! CRESCO
-            f.write(f"#SBATCH --qos=ssheneaadm\n")
+            #f.write(f"#SBATCH --qos=ssheneaadm\n")
 
             #! LEO BPROD
-            #f.write(f"#SBATCH --gres=gpu:4\n")
-            #f.write(f"#SBATCH --qos=boost_qos_bprod\n")
+            f.write(f"#SBATCH --gres=gpu:4\n")
+            f.write(f"#SBATCH --qos=boost_qos_bprod\n")
 
             #! LEO STANDARD
             #f.write(f"#SBATCH --gres=tmpfs:0\n")
