@@ -10,7 +10,7 @@ if __name__ == "__main__":
         "name": "leonardo",
         "partition": "boost_usr_prod",
         "account": "IscrB_SWING",
-        "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/"
+        "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
     }
 
     for bench in BENCHES:
