@@ -1,7 +1,7 @@
---- [WORKER MODE DETECTED] Work dir: ./data/lumi/2025-12-19_01-27-30-164740 ---
+--- [WORKER MODE DETECTED] Work dir: ./data/lumi/2025-12-19_01-27-32-175838 ---
 --- [WORKER] Environment loaded. Starting engine. ---
 --- [WORKER] Engine running in WORKER mode. ---
---- [WORKER] Working directory is: ./data/lumi/2025-12-19_01-27-30-164740 ---
+--- [WORKER] Working directory is: ./data/lumi/2025-12-19_01-27-32-175838 ---
 --- [WORKER] Allocating nodes provided by SLURM: nid[006073-006080] ---
 --- [INFO] Partition 0 (Collect=True): 4 nodes. Rule: '100' ---
 --- [INFO] Partition 1 (Collect=False): 4 nodes. Rule: '100' ---
@@ -27,7 +27,7 @@ Running Benchmarks...
 [DEBUG]: Node List is: ['nid006073', 'nid006075', 'nid006077', 'nid006079']
 [DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid006073,nid006075,nid006077,nid006079 --cpu-bind=socket -n 4 -N 4 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 8 -iter 1000
 [DEBUG]: Node List is: ['nid006074', 'nid006076', 'nid006078', 'nid006080']
-[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid006074,nid006076,nid006078,nid006080 --cpu-bind=socket -n 4 -N 4 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/bursty_noise_a2a 0.0001 0.1
+[DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid006074,nid006076,nid006078,nid006080 --cpu-bind=socket -n 4 -N 4 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/bursty_noise_incast 0.0001 0.1
 [DEBUG]: Node List is: ['nid006073', 'nid006075', 'nid006077', 'nid006079']
 [DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid006073,nid006075,nid006077,nid006079 --cpu-bind=socket -n 4 -N 4 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 64 -iter 1000
 [DEBUG]: Node List is: ['nid006073', 'nid006075', 'nid006077', 'nid006079']
@@ -43,23 +43,23 @@ Running Benchmarks...
 [DEBUG]: Node List is: ['nid006073', 'nid006075', 'nid006077', 'nid006079']
 [DEBUG]: SLURM command is: srun --export=ALL  --nodelist nid006073,nid006075,nid006077,nid006079 --cpu-bind=socket -n 4 -N 4 /pfs/lustrep4/users/pasqualo/CRAB/benchmarks/blink/bin/a2a_comm_only -msgsize 16777216 -iter 1000
 --- [WARNING] App 16 ended with return code -9 ---
---- [INFO] Run 1 completata in 22.2278 secondi ---
+--- [INFO] Run 1 completata in 23.2607 secondi ---
 
 Logging data...
-Dati per App 0 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_0.csv
-Dati per App 1 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_1.csv
-Dati per App 2 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_2.csv
-Dati per App 3 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_3.csv
-Dati per App 4 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_4.csv
-Dati per App 5 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_5.csv
-Dati per App 6 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_6.csv
-Dati per App 7 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_7.csv
-Dati per App 8 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_8.csv
-Dati per App 9 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_9.csv
-Dati per App 10 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_10.csv
-Dati per App 11 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_11.csv
-Dati per App 12 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_12.csv
-Dati per App 13 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_13.csv
-Dati per App 14 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_14.csv
-Dati per App 15 salvati in: ./data/lumi/2025-12-19_01-27-30-164740/data_app_15.csv
+Dati per App 0 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_0.csv
+Dati per App 1 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_1.csv
+Dati per App 2 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_2.csv
+Dati per App 3 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_3.csv
+Dati per App 4 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_4.csv
+Dati per App 5 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_5.csv
+Dati per App 6 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_6.csv
+Dati per App 7 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_7.csv
+Dati per App 8 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_8.csv
+Dati per App 9 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_9.csv
+Dati per App 10 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_10.csv
+Dati per App 11 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_11.csv
+Dati per App 12 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_12.csv
+Dati per App 13 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_13.csv
+Dati per App 14 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_14.csv
+Dati per App 15 salvati in: ./data/lumi/2025-12-19_01-27-32-175838/data_app_15.csv
 --- [WORKER] Engine run finished. ---
