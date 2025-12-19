@@ -1,0 +1,139 @@
+{
+    "global_options": {
+        "numnodes": 8,
+        "ppn": "1",
+        "allocationmode": "p",
+        "partitionsplit": "50:50",
+        "allocationsplit": "100-100",
+        "partitionlayout": "i",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "1200.0",
+        "outformat": "csv",
+        "extrainfo": "All-to-All A2A-Congested 0.000001 0.01",
+        "prevjob": "1956565",
+        "slurm_partition": "cresco8_cpu",
+        "slurm_account": "ssheneaadm"
+    },
+    "applications": {
+        "0": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 8 -iter 1000",
+            "collect": true,
+            "start": "0",
+            "end": ""
+        },
+        "1": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 64 -iter 1000",
+            "collect": true,
+            "start": "s0",
+            "end": ""
+        },
+        "2": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 512 -iter 1000",
+            "collect": true,
+            "start": "s1",
+            "end": ""
+        },
+        "3": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 4096 -iter 1000",
+            "collect": true,
+            "start": "s2",
+            "end": ""
+        },
+        "4": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 32768 -iter 1000",
+            "collect": true,
+            "start": "s3",
+            "end": ""
+        },
+        "5": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 262144 -iter 1000",
+            "collect": true,
+            "start": "s4",
+            "end": ""
+        },
+        "6": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 2097152 -iter 1000",
+            "collect": true,
+            "start": "s5",
+            "end": ""
+        },
+        "7": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 16777216 -iter 1000",
+            "collect": true,
+            "start": "s6",
+            "end": ""
+        },
+        "8": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/bursty_noise_a2a.py",
+            "args": "-msgsize 8 -iter 1000",
+            "collect": true,
+            "start": "s7",
+            "end": ""
+        },
+        "9": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 64 -iter 1000",
+            "collect": true,
+            "start": "s8",
+            "end": ""
+        },
+        "10": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 512 -iter 1000",
+            "collect": true,
+            "start": "s9",
+            "end": ""
+        },
+        "11": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 4096 -iter 1000",
+            "collect": true,
+            "start": "s10",
+            "end": ""
+        },
+        "12": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 32768 -iter 1000",
+            "collect": true,
+            "start": "s11",
+            "end": ""
+        },
+        "13": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 262144 -iter 1000",
+            "collect": true,
+            "start": "s12",
+            "end": ""
+        },
+        "14": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 2097152 -iter 1000",
+            "collect": true,
+            "start": "s13",
+            "end": ""
+        },
+        "15": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "-msgsize 16777216 -iter 1000",
+            "collect": true,
+            "start": "s14",
+            "end": ""
+        },
+        "16": {
+            "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/agtr_comm_only.py",
+            "args": "0.000001 0.01",
+            "collect": false,
+            "start": "s7",
+            "end": "f"
+        }
+    }
+}
