@@ -546,3 +546,39 @@ leonardo,256,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested,./data/leonardo/20
 leonardo,256,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested,./data/leonardo/2025-12-19_16-50-25-561008
 leonardo,256,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested,./data/leonardo/2025-12-19_16-50-27-365879
 leonardo,256,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested,./data/leonardo/2025-12-19_16-50-29-175543
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.1,./data/lumi/2025-12-19_19-20-17-355747
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.1,./data/lumi/2025-12-19_19-20-20-494571
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.1,./data/lumi/2025-12-19_19-20-23-392187
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.1,./data/lumi/2025-12-19_19-20-26-466643
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.01,./data/lumi/2025-12-19_19-20-29-840709
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.01,./data/lumi/2025-12-19_19-20-31-788958
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.01,./data/lumi/2025-12-19_19-20-33-656169
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.01,./data/lumi/2025-12-19_19-20-35-575465
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.01 0.001,./data/lumi/2025-12-19_19-20-37-447455
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.01 0.001,./data/lumi/2025-12-19_19-20-39-361969
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.01 0.001,./data/lumi/2025-12-19_19-20-41-209187
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.01 0.001,./data/lumi/2025-12-19_19-20-43-112514
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.1,./data/lumi/2025-12-19_19-20-44-996202
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.1,./data/lumi/2025-12-19_19-20-47-084655
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.1,./data/lumi/2025-12-19_19-20-49-075317
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.1,./data/lumi/2025-12-19_19-20-50-942300
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.01,./data/lumi/2025-12-19_19-20-52-959402
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.01,./data/lumi/2025-12-19_19-20-54-858681
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.01,./data/lumi/2025-12-19_19-20-56-756564
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.01,./data/lumi/2025-12-19_19-20-58-676808
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.0001 0.001,./data/lumi/2025-12-19_19-21-00-686402
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.0001 0.001,./data/lumi/2025-12-19_19-21-02-689780
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.0001 0.001,./data/lumi/2025-12-19_19-21-04-657198
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.0001 0.001,./data/lumi/2025-12-19_19-21-06-556347
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.1,./data/lumi/2025-12-19_19-21-08-563729
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.1,./data/lumi/2025-12-19_19-21-10-492687
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.1,./data/lumi/2025-12-19_19-21-12-406300
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.1,./data/lumi/2025-12-19_19-21-14-481216
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.01,./data/lumi/2025-12-19_19-21-16-474481
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.01,./data/lumi/2025-12-19_19-21-18-490230
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.01,./data/lumi/2025-12-19_19-21-20-459630
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.01,./data/lumi/2025-12-19_19-21-22-460908
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All A2A-Congested 0.000001 0.001,./data/lumi/2025-12-19_19-21-24-385233
+lumi,128,p,100-100,50:50,i,1,csv,All-to-All Inc-Congested 0.000001 0.001,./data/lumi/2025-12-19_19-21-26-482256
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather A2A-Congested 0.000001 0.001,./data/lumi/2025-12-19_19-21-28-377098
+lumi,128,p,100-100,50:50,i,1,csv,All-Gather Inc-Congested 0.000001 0.001,./data/lumi/2025-12-19_19-21-30-299285
