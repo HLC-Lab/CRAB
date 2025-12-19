@@ -361,7 +361,7 @@ class Engine:
             f.write(f"#SBATCH --output={os.path.join(data_directory, 'slurm_output.log')}\n")
             f.write(f"#SBATCH --error={os.path.join(data_directory, 'slurm_error.log')}\n")
             f.write(f"#SBATCH --nodes={num_nodes}\n")
-            f.write(f"#SBATCH --ntasks-per-node=32\n") #{ppn}
+            f.write(f"#SBATCH --ntasks-per-node={ppn}\n") #{ppn}
 
 
             # For tests only
@@ -378,9 +378,12 @@ class Engine:
             #! CRESCO
             f.write(f"#SBATCH --qos=ssheneaadm\n")
 
-            #! LEO
+            #! LEO BPROD
             #f.write(f"#SBATCH --gres=gpu:4\n")
             #f.write(f"#SBATCH --qos=boost_qos_bprod\n")
+
+            #! LEO STANDARD
+            #f.write(f"#SBATCH --gres=tmpfs:0\n")
 
             #TODO: rimettere l'if (per qualche motivo non funge)
             #if os.environ.get("CRAB_SYSTEM") == "leonardo":

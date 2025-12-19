@@ -3,14 +3,14 @@ import subprocess
 import argparse
 
 if __name__ == "__main__":
-    BENCHES = ["a2a_a2a-cong", "a2a_inc-cong", "agtr_a2a-cong", "agtr_inc-cong"]
+    BENCHES = ["a2a", "a2a_a2a-cong", "a2a_inc-cong", "agtr", "agtr_a2a-cong", "agtr_inc-cong"]
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
     system_data = {
-        "name": "leonardo",
-        "partition": "boost_usr_prod",
-        "account": "IscrB_SWING",
-        "path": "/leonardo/home/userexternal/lpiarulli/CRAB/wrappers/"
+        "name": "cresco8",
+        "partition": "cresco8_cpu",
+        "account": "ssheneaadm",
+        "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/"
     }
 
     for bench in BENCHES:
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         config.setdefault("global_options", {})
         config["global_options"]["slurm_partition"] = system_data["partition"]
         config["global_options"]["slurm_account"] = system_data["account"]
-        for i in range(17):
+        for i in range(8):
             if "agtr" in bench:
                 config["applications"][str(i)]["path"] = system_data["path"]+"agtr_comm_only.py"
             elif "a2a" in bench:
@@ -58,7 +58,7 @@ if __name__ == "__main__":
                 config.setdefault("global_options", {})
                 config["global_options"]["slurm_partition"] = system_data["partition"]
                 config["global_options"]["slurm_account"] = system_data["account"]
-                for i in range(17):
+                for i in range(8):
                     if "agtr" in bench:
                         config["applications"][str(i)]["path"] = system_data["path"]+"agtr_comm_only.py"
                     elif "a2a" in bench:
