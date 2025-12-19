@@ -122,7 +122,7 @@ def main():
     pauses = ["0.01","0.0001","0.000001"]
     lengths = ["0.1","0.01","0.001"]
 
-    node_list = [128] #128,256
+    node_list = [64, 128] #128,256
 
     if SYS == "leonardo":
         system_data = {
