@@ -11,11 +11,7 @@
         "timeout": "1200.0",
         "outformat": "csv",
         "extrainfo": "All-to-All A2A-Congested 0.0001 0.01",
-<<<<<<< HEAD:huawei_jsons/new/huawei_cresco8_bursty/h_a2a_a2a-cong_0.0001_0.01.json
-        "prevjob": "1956731",
-=======
         "prevjob": "1956220",
->>>>>>> parent of 4ea90d4 (new tests):huawei_jsons/huawei_cresco8_bursty/h_a2a_a2a-cong_0.0001_0.01.json
         "slurm_partition": "cresco8_cpu",
         "slurm_account": "ssheneaadm"
     },
