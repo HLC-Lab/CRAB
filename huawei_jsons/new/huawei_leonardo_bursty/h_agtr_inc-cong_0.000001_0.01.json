@@ -10,8 +10,13 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
+<<<<<<< HEAD:huawei_jsons/new/huawei_leonardo_bursty/h_agtr_inc-cong_0.000001_0.01.json
         "extrainfo": "All-to-All A2A-Congested 0.000001 0.01",
         "prevjob": "29412945",
+=======
+        "extrainfo": "All-Gather Inc-Congested 0.000001 0.01",
+        "prevjob": "29263338",
+>>>>>>> parent of 4ea90d4 (new tests):huawei_jsons/huawei_leonardo_bursty/h_agtr_inc-cong_0.000001_0.01.json
         "slurm_partition": "boost_usr_prod",
         "slurm_account": "IscrB_SWING"
     },
@@ -74,6 +79,7 @@
         },
         "8": {
             "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/bursty_noise_incast.py",
+<<<<<<< HEAD:huawei_jsons/new/huawei_leonardo_bursty/h_agtr_inc-cong_0.000001_0.01.json
             "args": "-msgsize 8 -iter 1000",
             "collect": true,
             "start": "s7",
@@ -131,8 +137,11 @@
         "16": {
             "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/agtr_comm_only.py",
             "args": "0.000001 0.01",
+=======
+            "args": "0.000001 0.001",
+>>>>>>> parent of 4ea90d4 (new tests):huawei_jsons/huawei_leonardo_bursty/h_agtr_inc-cong_0.000001_0.01.json
             "collect": false,
-            "start": "s7",
+            "start": "0",
             "end": "f"
         }
     }

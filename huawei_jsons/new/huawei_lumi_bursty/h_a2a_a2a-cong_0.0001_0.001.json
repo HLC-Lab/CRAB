@@ -16,6 +16,7 @@
         "slurm_account": "project_465001736"
     },
     "applications": {
+    "applications": {
         "0": {
             "path": "/users/pasqualo/CRAB/wrappers/a2a_comm_only.py",
             "args": "-msgsize 8 -iter 1000",
