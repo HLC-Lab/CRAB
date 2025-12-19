@@ -13,10 +13,10 @@ if __name__ == "__main__":
     #     "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/"
     # }
     system_data = {
-        "name": "leonardo",
-        "partition": "boost_usr_prod",
-        "account": "IscrB_SWING",
-        "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/"
+        "name": "lumi",
+        "partition": "standard-g",
+        "account": "project_465001736",
+        "path": "/users/pasqualo/CRAB/wrappers/"
     }
 
     for bench in BENCHES:
