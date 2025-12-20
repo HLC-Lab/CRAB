@@ -129,9 +129,13 @@ def DrawLatencyHeatmap(data, fig, ax, nodes, sys, collective, msg):
     pivot = df.pivot(index='burst_length', columns='burst_pause', values='avg_speedup')
 
 
+
     pivot = pivot.copy()
+    pivot = pivot.applymap(lambda x: 1.01 if x >= 1.1 else x)
     pivot.index = (pd.to_numeric(pivot.index) * 1000).astype(int)
     pivot.columns = (pd.to_numeric(pivot.columns) * 1000)
+
+
 
     # ---------------------------
     # Paper styling (big fonts)
@@ -690,19 +694,18 @@ def SpeedupSCALE(data, collective):
 def SpeedupLAT(data, collective):
     df = pd.DataFrame(data)
     print("Speedup starting")
-
+    
     df_baseline = df[
-        (df['collective'] == collective.split(" ")[0]) &
-        (df['burst_pause'] == -1) &
-        (df['burst_length'] == -1)
+        (df['collective'] == collective.split(" ")[0]) #&
+        # (df['burst_pause'] == -1) &
+        # (df['burst_length'] == -1)
     ]
-    df_baseline.to_csv('plots/speedup_results.csv', index=False)
+    
     df_baseline = (
         df_baseline
         .groupby(['nodes', 'collective', 'system', 'bytes', 'burst_length', 'burst_pause'], as_index=False)
         .agg(max_latency=('avg_latency', 'max'))
     )
-    #df_baseline.to_csv('plots/speedup_results.csv', index=False)
     baseline = df_baseline["max_latency"].iloc[0]
     for i in range(len(data["collective"])):
         data["speedup"][i] = baseline/data["avg_latency"][i] 
@@ -730,7 +733,7 @@ if __name__ == "__main__":
 
     collectives_sustained = ['All-to-All', 'All-to-All A2A-Congested', 'All-to-All Inc-Congested',
                              'All-Gather', 'All-Gather A2A-Congested', 'All-Gather Inc-Congested']
-    collectives_sustained_a2a = ['All-to-All A2A-Congested', 'All-to-All Inc-Congested', 'All-to-All']
+    collectives_sustained_a2a = ['All-Gather A2A-Congested', 'All-Gather Inc-Congested','All-Gather']
     collectives_bursty = ['All-to-All Inc-Congested 0.01 0.1', 'All-to-All Inc-Congested 0.01 0.01', 'All-to-All Inc-Congested 0.01 0.001',
                           'All-to-All A2A-Congested 0.01 0.1', 'All-to-All A2A-Congested 0.01 0.01', 'All-to-All A2A-Congested 0.01 0.001',
                           'All-to-All Inc-Congested 0.0001 0.1', 'All-to-All Inc-Congested 0.0001 0.01', 'All-to-All Inc-Congested 0.0001 0.001',
@@ -768,8 +771,8 @@ if __name__ == "__main__":
         "partition": "boost_usr_prod",
         "account": "IscrB_SWING",
         "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/",
-        "sus_nodes": [8, 16, 32, 64],
-        "bur_nodes": [64]
+        "sus_nodes": [8, 16, 32, 64, 128],
+        "bur_nodes": [128]
     }
 
     lumi = {
@@ -778,7 +781,7 @@ if __name__ == "__main__":
         "account": "project_465001736",
         "path": "/users/pasqualo/CRAB/wrappers/",
         "sus_nodes": [8, 16, 32, 64, 128, 256],
-        "bur_nodes": [256]
+        "bur_nodes": [64, 256]
     }
 
     cresco8 = {
@@ -790,7 +793,7 @@ if __name__ == "__main__":
         "bur_nodes": [64, 128]
     }
 
-    systems=[lumi, leonardo ] #lumi, leonardo  cresco8, 
+    systems=[leonardo] #lumi, leonardo  cresco8, 
 
     # # BASIC BANDWIDTH
     # for sys in systems:
@@ -829,25 +832,25 @@ if __name__ == "__main__":
                     plt.close()
 
                 
-    colls = collectives_sustained_a2a.copy()
-    colls.pop()
-    # HEATMAP SCALING
-    for sys in systems:
-        sys_name = sys["name"]
-        heatmaps = []
-        fig, axes = plt.subplots(2, 1, figsize=(20 , 8 * 2), sharex=True)
-        for collective, ax in zip(colls, axes):
-            print(f"sys: {sys_name} collective: {collective}")
-            LoadData(data, data_folder, [sys_name], collectives_sustained_a2a, messages, sys["sus_nodes"])
-            SpeedupSCALE(data, collective)
-            hm=DrawScalingHeatmap(data, fig, ax, sys_name, collective)              
-            CleanData(data)
-            heatmaps.append(hm)
+    # colls = collectives_sustained_a2a.copy()
+    # colls.pop()
+    # # # HEATMAP SCALING
+    # for sys in systems:
+    #     sys_name = sys["name"]
+    #     heatmaps = []
+    #     fig, axes = plt.subplots(2, 1, figsize=(20 , 8 * 2), sharex=True)
+    #     for collective, ax in zip(colls, axes):
+    #         print(f"sys: {sys_name} collective: {collective}")
+    #         LoadData(data, data_folder, [sys_name], collectives_sustained_a2a, messages, sys["sus_nodes"])
+    #         SpeedupSCALE(data, collective)
+    #         hm=DrawScalingHeatmap(data, fig, ax, sys_name, collective)              
+    #         CleanData(data)
+    #         heatmaps.append(hm)
 
-        cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
-        fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
-        cbar_ax.tick_params(labelsize=40)  
-        plt.savefig(f"plots/SCALING_{sys_name}_{collective}", dpi=300, bbox_inches='tight')
-        plt.close()
+    #     cbar_ax = fig.add_axes([0.123, 1.15, 0.78, 0.03])  # [left, bottom, width, height]
+    #     fig.colorbar(heatmaps[0].collections[0], cax=cbar_ax, orientation="horizontal")
+    #     cbar_ax.tick_params(labelsize=40)  
+    #     plt.savefig(f"plots/SCALING_{sys_name}_{collective}", dpi=300, bbox_inches='tight')
+    #     plt.close()
     
 

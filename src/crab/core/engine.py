@@ -379,8 +379,8 @@ class Engine:
             #f.write(f"#SBATCH --qos=ssheneaadm\n")
 
             #! LEO BPROD
-            #f.write(f"#SBATCH --gres=gpu:4\n")
-            #f.write(f"#SBATCH --qos=boost_qos_bprod\n")
+            f.write(f"#SBATCH --gres=gpu:4\n")
+            f.write(f"#SBATCH --qos=boost_qos_bprod\n")
 
             #! LEO STANDARD
             #f.write(f"#SBATCH --gres=tmpfs:0\n")
