@@ -495,6 +495,8 @@ class ExperimentRunner:
 # 4. ENGINE (Orchestrator & Worker Entry Point)
 # =============================================================================
 
+# ... (Imports e classi precedenti rimangono uguali) ...
+
 class Engine:
     def __init__(self, log_callback: Callable[[str], None] = print):
         self.log = log_callback
@@ -505,11 +507,81 @@ class Engine:
         else:
             self._run_orchestrator(config, environment)
 
+    def _generate_sbatch_header(self, global_opts: Dict[str, Any], data_directory: str) -> List[str]:
+        """
+        Generates the list of #SBATCH lines handling defaults, overrides, and security.
+        """
+        # 1. Definizione dei Parametri Protetti (Il framework vince sempre)
+        # Mappa: Chiave -> Valore calcolato dal framework
+        protected_defaults = {
+            'nodes': f"--nodes={global_opts.get('numnodes')}",
+            'ntasks-per-node': f"--ntasks-per-node={global_opts.get('ppn', 1)}",
+            # Alias comuni da bloccare
+            'N': f"--nodes={global_opts.get('numnodes')}", 
+            'n': None, # Blocchiamo -n per sicurezza se l'utente prova a passarlo
+        }
+
+        # 2. Definizione dei Default Sovrascrivibili
+        # Mappa: Chiave univoca -> Stringa completa direttiva
+        directives_map = {
+            'job-name': f"--job-name=crab_{global_opts.get('extrainfo', 'job')[:10]}",
+            'output': f"--output={os.path.join(data_directory, 'slurm_output.log')}",
+            'error': f"--error={os.path.join(data_directory, 'slurm_error.log')}",
+            'time': f"--time={global_opts.get('walltime', '00:10:00')}"
+        }
+
+        # Uniamo i protetti alla mappa (per averli come base)
+        for k, v in protected_defaults.items():
+            if v: directives_map[k] = v
+
+        # 3. Parsing Direttive Utente (dal JSON)
+        user_directives = global_opts.get('sbatch_directives', [])
+        
+        # Supporto legacy: se l'utente passa un dict invece di una lista, lo convertiamo
+        if isinstance(user_directives, dict):
+            converted = []
+            for k, v in user_directives.items():
+                if v is True: converted.append(f"--{k}")
+                elif v is False: continue
+                else: converted.append(f"--{k}={v}")
+            user_directives = converted
+
+        for raw_directive in user_directives:
+            directive = str(raw_directive).strip()
+            
+            # A. Security Check (Newline Injection)
+            if '\n' in directive or '\r' in directive:
+                self.log(f"[SECURITY WARN] Skipping directive containing newlines: {directive}")
+                continue
+
+            # B. Estrazione Chiave (Key Extraction)
+            # Esempio: "--account=ABC" -> "account"
+            # Esempio: "--exclusive" -> "exclusive"
+            # Esempio: "-J jobname" -> "J"
+            clean_str = directive.lstrip('-')
+            if '=' in clean_str:
+                key = clean_str.split('=')[0]
+            else:
+                key = clean_str.split()[0] # Gestisce casi rari come "-J name" se passati come stringa unica
+            
+            # C. Conflict Resolution
+            if key in protected_defaults:
+                self.log(f"[CONFIG WARN] User directive '{directive}' ignored. '{key}' is managed by Crab to ensure stability.")
+                continue
+            
+            if key in ['output', 'error', 'o', 'e']:
+                self.log(f"[CONFIG WARN] User overrode log path with '{directive}'. Standard logging might be lost.")
+            
+            # D. Apply (Last write wins for user defaults, except protected)
+            directives_map[key] = directive
+
+        # 4. Rendering
+        # Restituiamo i valori (le stringhe complete)
+        return [f"#SBATCH {v}" for v in directives_map.values()]
+
     def _run_orchestrator(self, config: Dict[str, Any], environment: Dict[str, Any]):
-        """Parses config, creates directories, and submits the SLURM job."""
         self.log("Engine running in ORCHESTRATOR mode.")
         
-        # Legacy support: if 'experiments' missing, wrap 'applications' into a default experiment
         if "experiments" not in config:
             if "applications" in config:
                 config["experiments"] = {"default_ex": {"apps": config.pop("applications")}}
@@ -519,7 +591,6 @@ class Engine:
         g_opts = config.get('global_options', {})
         data_path = g_opts.get('datapath', './data')
         num_nodes = int(g_opts.get('numnodes'))
-        ppn = int(g_opts.get('ppn', 1))
         
         # Setup Directory
         desc_file = os.path.join(data_path, "description.csv")
@@ -528,7 +599,6 @@ class Engine:
             with open(desc_file, 'w') as f:
                 f.write('system,numnodes,extra,path\n')
 
-        # Unique ID
         runner_id = (environment.get("CRAB_SYSTEM", "unknown") + "/" + 
                      datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f'))
         data_directory = os.path.join(data_path, runner_id)
@@ -537,53 +607,49 @@ class Engine:
         with open(desc_file, 'a+') as f:
             f.write(f"{environment.get('CRAB_SYSTEM')},{num_nodes},{g_opts.get('extrainfo')},{data_directory}\n")
 
-        # Save context for worker
         with open(os.path.join(data_directory, 'config.json'), 'w') as f:
             json.dump(config, f, indent=4)
         with open(os.path.join(data_directory, 'environment.json'), 'w') as f:
             json.dump(environment, f, indent=4)
 
-        # Generate SBATCH
+        # --- GENERAZIONE HEADER SBATCH DINAMICO ---
+        sbatch_headers = self._generate_sbatch_header(g_opts, data_directory)
+
         script_path = os.path.join(data_directory, 'crab_job.sh')
         cmd = f"{sys.executable} {os.path.abspath(sys.argv[0])} --worker --workdir {data_directory}"
         
         with open(script_path, 'w') as f:
             f.write("#!/bin/bash\n\n")
-            f.write(f"#SBATCH --job-name=crab_{g_opts.get('extrainfo', '')[:10]}\n")
-            f.write(f"#SBATCH --output={os.path.join(data_directory, 'slurm_output.log')}\n")
-            f.write(f"#SBATCH --error={os.path.join(data_directory, 'slurm_error.log')}\n")
-            f.write(f"#SBATCH --nodes={num_nodes}\n")
-            f.write(f"#SBATCH --ntasks-per-node={ppn}\n")
-            f.write(f"#SBATCH --time={g_opts.get('walltime', '01:00:00')}\n")
             
-            # Platform specific (Example: Leonardo)
-            if environment.get("CRAB_SYSTEM") == "leonardo":
-                f.write("#SBATCH --partition=boost_usr_prod\n")
-                f.write("#SBATCH --account=IscrB_SWING\n")
-                f.write("#SBATCH --gres=tmpfs:0\n")
+            # Scrittura direttive calcolate
+            for line in sbatch_headers:
+                f.write(f"{line}\n")
+            
 
             venv = os.path.join(os.getcwd(), '.venv/bin/activate')
             if os.path.exists(venv):
                 f.write(f"\nsource {venv}\n")
             
+            # Pre-run commands (facoltativo, utile per caricare moduli)
+            pre_cmds = g_opts.get('pre_run_commands', [])
+            for c in pre_cmds:
+                f.write(f"{c}\n")
+            
             f.write(f"\n{cmd}\n")
 
-        # Submit
         self.log(f"Submitting: sbatch {script_path}")
         out = subprocess.check_output(['sbatch', script_path], text=True)
         self.log(out.strip())
 
     def _run_worker(self, config: Dict[str, Any], environment: Dict[str, Any], output_dir: str):
-        """Worker mode: Sequentially runs experiments in the allocated job."""
+        # ... (Il worker rimane identico a prima) ...
+        # (Incolla qui il codice di _run_worker che hai già)
         self.log("--- [WORKER] Started ---")
         
-        # Restore Environment
         orig_env = os.environ.copy()
         os.environ.update(environment)
         
         try:
-            # 1. Acquire Resources (Nodes)
-            # We parse the SLURM node list once for the whole job.
             node_file = "worker_nodelist.txt"
             with open(node_file, "w") as f:
                 subprocess.call(["scontrol", "show", "hostnames", os.environ.get('SLURM_NODELIST')], stdout=f)
@@ -592,16 +658,12 @@ class Engine:
             
             global_opts = config.get('global_options', {})
             experiments = config.get('experiments', {})
-            
-            # Sort experiments to ensure deterministic order (ex0, ex1, ex2...)
             sorted_exp_ids = sorted(experiments.keys())
 
-            # 2. Sequential Execution Loop
             for exp_id in sorted_exp_ids:
                 exp_config = experiments[exp_id]
                 self.log(f"\n=== Starting Experiment: {exp_id} ===")
                 
-                # Instantiate Runner
                 runner = ExperimentRunner(
                     exp_name=exp_id,
                     config=exp_config,
@@ -610,7 +672,6 @@ class Engine:
                     output_dir=output_dir,
                     log_fn=self.log
                 )
-                
                 try:
                     runner.setup()
                     runner.execute()
@@ -620,9 +681,8 @@ class Engine:
                     import traceback
                     traceback.print_exc()
                 finally:
-                    # Defensive Cleanup between experiments
                     runner.teardown()
-                    time.sleep(2) # Allow OS to reclaim sockets/handles
+                    time.sleep(2)
             
             self.log("--- [WORKER] All experiments finished ---")
 
