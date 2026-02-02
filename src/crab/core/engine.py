@@ -311,6 +311,14 @@ class ExperimentRunner:
             path = details.get("path")
             if not path: continue
 
+            # Controlla la ENV CRAB_WRAPPERS_PATH
+            if not os.path.isabs(path) and "CRAB_WRAPPERS_PATH" in os.environ:
+                path = os.path.join(os.environ["CRAB_WRAPPERS_PATH"], path)
+            
+            if not os.path.exists(path):
+                 self.log(f"[ERROR] Wrapper not found at: {path}")
+                 raise FileNotFoundError(f"Wrapper not found: {path}")
+
             # Load App Class
             mod_app = load_module(path)
             args = details.get("args", "")
@@ -534,7 +542,19 @@ class Engine:
         for k, v in protected_defaults.items():
             if v: directives_map[k] = v
 
-        # 3. Parsing Direttive Utente (dal JSON)
+
+        # Recuero i default di sistema passati dall'Orchestrator
+        system_defaults = global_opts.get('system_sbatch', [])
+
+        # Parsiamo prima i system defaults (bassa priorità rispetto all'utente, alta rispetto ai base)
+        for raw in system_defaults:
+             key = raw.lstrip('-').split('=')[0]
+             # Non sovrascriviamo i protected
+             if key not in protected_defaults: 
+                 directives_map[key] = raw
+
+
+        # 3. Parsing Direttive Utente (dal JSON, Override Finale)
         user_directives = global_opts.get('sbatch_directives', [])
         
         # Supporto legacy: se l'utente passa un dict invece di una lista, lo convertiamo
@@ -629,11 +649,13 @@ class Engine:
             venv = os.path.join(os.getcwd(), '.venv/bin/activate')
             if os.path.exists(venv):
                 f.write(f"\nsource {venv}\n")
-            
-            # Pre-run commands (facoltativo, utile per caricare moduli)
-            pre_cmds = g_opts.get('pre_run_commands', [])
-            for c in pre_cmds:
-                f.write(f"{c}\n")
+
+            # Recuperiamo la lista passata dall'Orchestrator nel config
+            system_header = g_opts.get('system_header', [])
+            if system_header:
+                f.write("\n# --- System Setup (Modules & Environment) ---\n")
+                for line in system_header:
+                    f.write(f"{line}\n")
             
             f.write(f"\n{cmd}\n")
 
