@@ -1,0 +1,365 @@
+{
+    "global_options": {
+        "numnodes": "256",
+        "ppn": "1",
+        "allocationmode": "p",
+        "partitionsplit": "e",
+        "allocationsplit": "e",
+        "minruns": "3",
+        "maxruns": "5",
+        "timeout": "10800.0",
+        "convergeall": true,
+        "outformat": "csv",
+        "extrainfo": "256nodes_comprehensive_test",
+        "sbatch_directives": {
+            "account": "IscrB_SWING",
+            "partition": "boost_usr_prod",
+            "exclusive": true,
+            "time": "02:00:00",
+            "job-name": "crab_256n_scale"
+        }
+    },
+    "experiments": {
+        "01_scale_a2a_1KB": {
+            "description": "Scalability Test 1/8: All-to-All su 256 nodi, 1KB msg size.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1024 -iter 1000",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "02_scale_a2a_4KB": {
+            "description": "Scalability Test 2/8: 4KB msg size.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "03_scale_a2a_64KB": {
+            "description": "Scalability Test 3/8: 64KB msg size.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 65536 -iter 500",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "04_scale_a2a_1MB": {
+            "description": "Scalability Test 4/8: 1MB msg size.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "05_scale_a2a_4MB": {
+            "description": "Scalability Test 5/8: 4MB msg size.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 4194304 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "06_scale_a2a_16MB": {
+            "description": "Scalability Test 6/8: 16MB msg size.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 16777216 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "07_scale_a2a_64MB": {
+            "description": "Scalability Test 7/8: 64MB msg size.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 67108864 -iter 20",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "08_scale_a2a_1GB": {
+            "description": "Scalability Test 8/8: 1GB msg size (Stress Bandwidth).",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1073741824 -iter 10",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "09_dep_sequential_chain": {
+            "description": "Test Dipendenze: App 1 parte SOLO quando App 0 ha finito (Chain).",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 1048576 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "s0",
+                    "end": ""
+                }
+            }
+        },
+        "10_dep_parallel_delayed": {
+            "description": "Test Temporale: App 0 parte a T=0, App 1 parte a T=5s (Parallel execution).",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "5",
+                    "end": ""
+                }
+            }
+        },
+        "11_dep_killer_aggressor": {
+            "description": "Test Aggressore 'f': L'aggressore (App 1) viene ucciso quando la Vittima (App 0) finisce.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 65536 -iter 1000000",
+                    "collect": false,
+                    "partition": "0",
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "12_dep_killer_chain": {
+            "description": "Chain Killer: App 1 parte dopo App 0, App 2 vive finchè App 1 vive.",
+            "apps": {
+                "0": {
+                    "path": "barrier.py",
+                    "args": "-iter 1000",
+                    "collect": false,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "s0",
+                    "end": ""
+                },
+                "2": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 65536 -iter 1000000",
+                    "collect": false,
+                    "partition": "0",
+                    "start": "s0",
+                    "end": "f"
+                }
+            }
+        },
+        "13_int_split_a2a_vs_incast": {
+            "description": "Interferenza 128 vs 128: A2A (Vittima) vs Incast (Aggressore).",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 4194304 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 4194304 -iter 1000",
+                    "collect": false,
+                    "partition": "1",
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "14_int_split_ring_vs_a2a": {
+            "description": "Interferenza 128 vs 128: Ring (Vittima) vs A2A (Aggressore Pesante).",
+            "apps": {
+                "0": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 4194304 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 4194304 -iter 1000",
+                    "collect": false,
+                    "partition": "1",
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "15_int_split_ardc_vs_bdc": {
+            "description": "Confronto Collettive: ARDC (Part 0) vs BDC (Part 1) running concurrently.",
+            "apps": {
+                "0": {
+                    "path": "ardc_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "bdc_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": "1",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "16_int_quiet_neighbor": {
+            "description": "Baseline Rumore: Eseguo A2A su 128 nodi, lasciando gli altri 128 IDLE.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "17_bench_ardc_full": {
+            "description": "Funzionalità: Test All-Reduce Doubling su 256 nodi.",
+            "apps": {
+                "0": {
+                    "path": "ardc_b.py",
+                    "args": "-msgsize 1048576 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "18_bench_bdc_full": {
+            "description": "Funzionalità: Test Binomial Doubling su 256 nodi.",
+            "apps": {
+                "0": {
+                    "path": "bdc_b.py",
+                    "args": "-msgsize 1048576 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "19_bench_incast_full": {
+            "description": "Funzionalità: Test Incast su 256 nodi (Many to One).",
+            "apps": {
+                "0": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 1048576 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "20_bench_ring_nb_full": {
+            "description": "Funzionalità: Test Ring Non-Blocking su 256 nodi.",
+            "apps": {
+                "0": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "21_override_long_run": {
+            "description": "Override Test: JobName cambiato e Time limit esteso per questo run.",
+            "sbatch_directives": {
+                "time": "03:00:00",
+                "job-name": "crab_override_test"
+            },
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 5000",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        }
+    }
+}
