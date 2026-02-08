@@ -1,5 +1,7 @@
 import os
 import shlex
+
+from typing import List, Optional # Aggiunto typing per chiarezza
 class wl_manager:
     # Generates a script that can be used to run all the benchmarks specified in the schedule.
     def write_script(self, runner_args, schedules, nams, name, splits, node_file, ppn):
@@ -22,15 +24,20 @@ class wl_manager:
 
         # --- LOGICA DEL WRAPPER ---
         if pre_commands and len(pre_commands) > 0:
-            # 1. Uniamo i comandi di setup e il comando finale con '&&'
-            #    Così se un module load fallisce, l'app non parte.
-            full_sequence = " && ".join(pre_commands + [cmd])
+            # 1. Silenziamo ogni comando preliminare
+            #    Aggiungiamo ' >/dev/null 2>&1' a ciascun comando dell'header
+            #    Questo butta via sia stdout che stderr dei moduli.
+            #    Se vuoi vedere gli errori ma non l'output, usa solo ' >/dev/null'
+            silenced_pre_commands = [f"{c} >/dev/null 2>&1" for c in pre_commands]
             
-            # 2. Escaping delle virgolette singole per sicurezza dentro bash -c '...'
-            #    Sostituisce ' con '\'' (chiudi stringa, escape apice, riapri stringa)
+            # 2. Uniamo i comandi silenziati e il comando finale con '&&'
+            #    Nota: cmd (l'app) NON viene silenziato, perché ci serve il suo output!
+            full_sequence = " && ".join(silenced_pre_commands + [cmd])
+            
+            # 3. Escaping delle virgolette singole per sicurezza dentro bash -c '...'
             safe_sequence = full_sequence.replace("'", "'\\''")
             
-            # 3. Avvolgiamo tutto in bash -c
+            # 4. Avvolgiamo tutto in bash -c
             final_cmd = f"bash -c '{safe_sequence}'"
         else:
             # Nessun pre-comando, esecuzione diretta (Legacy/Simple mode)
