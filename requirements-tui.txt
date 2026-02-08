@@ -1,0 +1,2 @@
+textual>=6.1.0
+textual-fspicker>=0.5.0
