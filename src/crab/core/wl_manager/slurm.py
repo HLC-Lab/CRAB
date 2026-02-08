@@ -11,22 +11,40 @@ class wl_manager:
         script.write('\n\t\tdone\n\tdone\ndone')
         script.close()
 
+
     # Returns a string that can be used to run command 'cmd'
-    # on the nodes in 'node_list' with 'ppn' processes per node.
-    def run_job(self, node_list, ppn, cmd):
+    # on the nodes in 'node_list' with 'ppn' processes per node,
+    # executing "pre_commands" before cmd
+    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None):
         num_nodes = len(node_list)
         node_list_string = ','.join(node_list)
         node_list_arg = '--nodelist ' + node_list_string
 
+        # --- LOGICA DEL WRAPPER ---
+        if pre_commands and len(pre_commands) > 0:
+            # 1. Uniamo i comandi di setup e il comando finale con '&&'
+            #    Così se un module load fallisce, l'app non parte.
+            full_sequence = " && ".join(pre_commands + [cmd])
+            
+            # 2. Escaping delle virgolette singole per sicurezza dentro bash -c '...'
+            #    Sostituisce ' con '\'' (chiudi stringa, escape apice, riapri stringa)
+            safe_sequence = full_sequence.replace("'", "'\\''")
+            
+            # 3. Avvolgiamo tutto in bash -c
+            final_cmd = f"bash -c '{safe_sequence}'"
+        else:
+            # Nessun pre-comando, esecuzione diretta (Legacy/Simple mode)
+            final_cmd = cmd
+        # --------------------------
 
         slurm_string = (
             'srun --export=ALL ' +
             node_list_arg + ' ' +
-            os.environ.get("CRAB_PINNING_FLAGS", "") + ' ' + # Usiamo .get() per sicurezza
+            os.environ.get("CRAB_PINNING_FLAGS", "") + ' ' + 
             '-n ' + str(ppn * num_nodes) + ' ' +
             '-N ' + str(num_nodes) + ' ' +
-            cmd
-        ).strip() # .strip() rimuove spazi extra all'inizio o alla fine
+            final_cmd  # Usiamo il comando calcolato (wrapped o raw)
+        ).strip() 
 
         print("[DEBUG]: SLURM command is: " + slurm_string)
         return slurm_string

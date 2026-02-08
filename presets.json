@@ -132,8 +132,8 @@
         ],
         "header": [
             "module purge",
-            "module load openmpi/4.1.4",
-            "module load cuda/11.8"
+            "module load openmpi",
+            "module load cuda/11.8",
         ]
     },
     "local": {

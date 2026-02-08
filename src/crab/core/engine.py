@@ -63,14 +63,17 @@ def check_CI(container_list: List[DataContainer], alpha: float, beta: float, con
             check = check and container.converged
     return check
 
-def run_job(job, wlmanager, ppn: int):
+def run_job(job, wlmanager, ppn: int, pre_commands: List[str] = None):
     """launches an application process via the workload manager."""
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
     
-    cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app())
+    # Passa pre_commands al workload manager
+    cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app(), pre_commands=pre_commands)
+    
     if not cmd_string:
         cmd_string = "echo a > /dev/null"
+        raise Exception
     
     cmd = shlex.split(cmd_string)
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
@@ -380,6 +383,10 @@ class ExperimentRunner:
         alpha = float(self.global_opts.get('alpha', 0.05))
         beta = float(self.global_opts.get('beta', 0.05))
 
+        # Recupera l'header dalle opzioni globali (dove l'Orchestrator lo ha messo)
+        # Default a lista vuota se non esiste
+        system_header = self.global_opts.get('system_header', [])
+
         # Schedule Logic Preparation
         dependency_map = {}
         static_schedule = []
@@ -430,7 +437,7 @@ class ExperimentRunner:
                         aid, action, _ = curr_schedule.pop(0)
                         if action == 's':
                             if aid not in running:
-                                run_job(self.apps[aid], self.wlmanager, self.ppn)
+                                run_job(self.apps[aid], self.wlmanager, self.ppn, pre_commands=system_header)
                                 running.add(aid)
                         elif action == 'k':
                             if aid in running:
@@ -453,7 +460,7 @@ class ExperimentRunner:
                     started_deps = []
                     for waiter, target in curr_deps.items():
                         if target in finished:
-                            run_job(self.apps[waiter], self.wlmanager, self.ppn)
+                            run_job(self.apps[waiter], self.wlmanager, self.ppn, pre_commands=system_header)
                             running.add(waiter)
                             if waiter in rel_durations:
                                 curr_schedule.append((waiter, 'k', now + rel_durations[waiter]))
