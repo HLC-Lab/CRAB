@@ -447,12 +447,48 @@ class ExperimentRunner:
 
                     # 2. Check process status
                     for aid in list(running):
-                        if self.apps[aid].process.poll() is not None:
-                            # Ended naturally
+                        proc = self.apps[aid].process
+                        if proc.poll() is not None:
+                            # Il processo è terminato
                             try:
-                                out, err = self.apps[aid].process.communicate()
+                                out, err = proc.communicate()
                                 self.apps[aid].set_output(out, err)
-                            except: pass
+                                
+                                # --- INIZIO MODIFICA: Error Logging ---
+                                if proc.returncode != 0:
+                                    # Costruiamo il messaggio di errore
+                                    error_msg = (
+                                        f"\n[CRAB ERROR] Experiment '{self.name}' - App {aid} failed!\n"
+                                        f"Return Code: {proc.returncode}\n"
+                                    )
+                                    
+                                    # Decodifica STDERR (byte -> string) per sicurezza
+                                    if err:
+                                        decoded_err = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
+                                        error_msg += f"--- STDERR ---\n{decoded_err}\n"
+                                    
+                                    # Decodifica STDOUT (spesso MPI stampa errori qui)
+                                    if out:
+                                        decoded_out = out.decode('utf-8', errors='replace') if isinstance(out, bytes) else out
+                                        error_msg += f"--- STDOUT TAIL ---\n{decoded_out[-2000:]}\n" # Ultimi 2000 caratteri
+                                    
+                                    error_msg += "------------------------------------------------\n"
+
+                                    # 1. Stampa su sys.stderr (finisce in slurm_error.log)
+                                    print(error_msg, file=sys.stderr, flush=True)
+                                    
+                                    # 2. Salva un file di log dedicato nella cartella dell'esperimento
+                                    try:
+                                        log_path = os.path.join(self.exp_dir, f"error_app_{aid}.log")
+                                        with open(log_path, "w") as f:
+                                            f.write(error_msg)
+                                    except Exception as e:
+                                        print(f"[CRAB WARNING] Could not write error log file: {e}", file=sys.stderr)
+                                # --- FINE MODIFICA ---
+
+                            except Exception as e:
+                                self.log(f"[INTERNAL ERROR] Failed reading output for app {aid}: {e}")
+
                             running.remove(aid)
                             finished.add(aid)
 

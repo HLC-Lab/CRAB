@@ -85,6 +85,10 @@ def run_from_cli():
             
             print(f"--- [WORKER] Environment loaded. Starting engine. ---", flush=True)
 
+
+            # Time execution
+            start = time.time()
+
             engine = Engine(log_callback=print)
             engine.run(
                 config=benchmark_config, 
@@ -92,7 +96,12 @@ def run_from_cli():
                 is_worker=True,
                 output_dir=work_dir
             )
+
+            elapsed_time = start - time.time()
+            total = timedelta(seconds=int(elapsed_time))
+
             print(f"--- [WORKER] Engine run finished. ---", flush=True)
+            print(f"--- Took: " + str(total) + " ---", flush=True)
 
         except Exception as e:
             print(f"[WORKER FATAL ERROR] {e}", file=sys.stderr, flush=True)
