@@ -1,0 +1,363 @@
+{
+    "global_options": {
+        "name": "test-64-nodes",
+        "numnodes": "64",
+        "ppn": "1",
+        "allocationmode": "p",
+        "partitionsplit": "e",
+        "allocationsplit": "e",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "1800.0",
+        "convergeall": true,
+        "outformat": "csv",
+        "extrainfo": "64nodes_limit_test",
+        "sbatch_directives": {
+            "account": "IscrB_SWING",
+            "partition": "boost_usr_prod",
+            "time": "00:30:00",
+            "job-name": "crab_64n_test"
+        }
+    },
+    "experiments": {
+        "01_scale_a2a_1KB": {
+            "description": "Scalability 1/5: 1KB. Warmup rete.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1024 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "02_scale_a2a_64KB": {
+            "description": "Scalability 2/5: 64KB.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 65536 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "03_scale_a2a_256KB": {
+            "description": "Scalability 3/5: 256KB.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 262144 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "04_scale_a2a_1MB": {
+            "description": "Scalability 4/5: 1MB.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "05_scale_a2a_4MB": {
+            "description": "Scalability 5/5: 4MB (Safe Limit).",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 4194304 -iter 20",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "06_bench_ardc_small": {
+            "description": "Collective Test: All-Reduce Doubling 4KB.",
+            "apps": {
+                "0": {
+                    "path": "ardc_b.py",
+                    "args": "-msgsize 4096 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "07_bench_bdc_small": {
+            "description": "Collective Test: Binomial Doubling 4KB.",
+            "apps": {
+                "0": {
+                    "path": "bdc_b.py",
+                    "args": "-msgsize 4096 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "08_bench_incast_small": {
+            "description": "Collective Test: Incast 4KB.",
+            "apps": {
+                "0": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 4096 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "09_bench_ring_small": {
+            "description": "Topology Test: Ring NB 4KB.",
+            "apps": {
+                "0": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 4096 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "10_dep_chain_reaction": {
+            "description": "Dependency: A2A (P0) -> start -> Ring (P0).",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 65536 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 65536 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "s0",
+                    "end": ""
+                }
+            }
+        },
+        "11_dep_delayed_parallel": {
+            "description": "Time Start: App 0 parte a T=0, App 1 parte a T=5s.",
+            "apps": {
+                "0": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1024 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "5",
+                    "end": ""
+                }
+            }
+        },
+        "12_killer_aggressor": {
+            "description": "Killer Flag 'f': Aggressor (Incast) muore quando Victim (A2A) finisce.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 262144 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 65536 -iter 1000000",
+                    "collect": false,
+                    "partition": "0",
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "13_int_split_a2a_vs_incast": {
+            "description": "Interferenza 32 vs 32: A2A (Vittima) vs Incast (Aggressore).",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 262144 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": false,
+                    "partition": "1",
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "14_int_split_ring_vs_bdc": {
+            "description": "Interferenza 32 vs 32: Ring vs Binomial Doubling.",
+            "apps": {
+                "0": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 1048576 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "bdc_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": false,
+                    "partition": "1",
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "15_int_split_ardc_vs_noise": {
+            "description": "Interferenza: ARDC vs Random Noise (Incast veloce).",
+            "apps": {
+                "0": {
+                    "path": "ardc_b.py",
+                    "args": "-msgsize 262144 -iter 100",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 4096 -iter 10000",
+                    "collect": false,
+                    "partition": "1",
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "16_int_concurrent_a2a": {
+            "description": "Concurrent: Due A2A indipendenti su due metà del cluster.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 50",
+                    "collect": true,
+                    "partition": "1",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "17_dep_complex_triangular": {
+            "description": "Complex: App 0 parte. App 1 parte dopo 2s. App 2 parte quando App 1 finisce.",
+            "apps": {
+                "0": {
+                    "path": "barrier.py",
+                    "args": "-iter 500",
+                    "collect": false,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 4096 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "2",
+                    "end": ""
+                },
+                "2": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 4096 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "s1",
+                    "end": ""
+                }
+            }
+        },
+        "18_long_iter_check": {
+            "description": "Stability: Iterazioni medie (500) su 1KB per check stabilità temporale.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1024 -iter 500",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "19_sbatch_override_1": {
+            "description": "Override Name: JobName cambiato in 'crab_test_19'.",
+            "sbatch_directives": {
+                "job-name": "crab_test_19"
+            },
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 20",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "20_sbatch_override_2": {
+            "description": "Override Time: Estende timeout specifico. A2A 2MB.",
+            "sbatch_directives": {
+                "time": "00:40:00",
+                "job-name": "crab_final_push"
+            },
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 2097152 -iter 50",
+                    "collect": true,
+                    "partition": "0",
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        }
+    }
+}

@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 # Aggiungi 'src' al path di sistema PRIMA di qualsiasi altro import custom
@@ -98,7 +99,7 @@ def run_from_cli():
                 output_dir=work_dir
             )
 
-            elapsed_time = start - time.time()
+            elapsed_time = time.time() - start
             total = timedelta(seconds=int(elapsed_time))
 
             print(f"--- [WORKER] Engine run finished. ---", flush=True)

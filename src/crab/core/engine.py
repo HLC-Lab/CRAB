@@ -568,7 +568,7 @@ class Engine:
             'nodes': f"--nodes={global_opts.get('numnodes')}",
             'ntasks-per-node': f"--ntasks-per-node={global_opts.get('ppn', 1)}",
             # Alias comuni da bloccare
-            'N': f"--nodes={global_opts.get('numnodes')}", 
+            'N': None, 
             'n': None, # Blocchiamo -n per sicurezza se l'utente prova a passarlo
         }
 
@@ -662,9 +662,27 @@ class Engine:
             with open(desc_file, 'w') as f:
                 f.write('system,numnodes,extra,path\n')
 
-        runner_id = (environment.get("CRAB_SYSTEM", "unknown") + "/" + 
-                     datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f'))
+        # 1. Genera timestamp base
+        timestamp_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')
+        
+        # 2. Cerca il nome custom nelle opzioni
+        custom_name = g_opts.get('name', '')
+        
+        if custom_name:
+            # Sanificazione: mantieni solo alfanumerici, trattini e underscore
+            # Sostituisci spazi o altri caratteri con '_'
+            safe_name = "".join([c if c.isalnum() or c in ('-', '_') else '_' for c in str(custom_name)])
+            # Formato: NAME_TIMESTAMP
+            folder_name = f"{safe_name}_{timestamp_str}"
+        else:
+            # Fallback legacy: solo TIMESTAMP
+            folder_name = timestamp_str
+
+        # 3. Costruzione path finale
+        runner_id = (environment.get("CRAB_SYSTEM", "unknown") + "/" + folder_name)
         data_directory = os.path.join(data_path, runner_id)
+        # --------------------------------------
+
         os.makedirs(data_directory, exist_ok=True)
 
         with open(desc_file, 'a+') as f:
