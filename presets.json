@@ -128,6 +128,7 @@
         "sbatch": [
             "--account=IscrB_SWING",
             "--partition=boost_usr_prod",
+            "--exclusive",
             "--gres=tmpfs:0"
         ],
         "header": [
@@ -162,12 +163,12 @@
             "CRAB_MINIFE_PATH": ""
         },
         "sbatch": [
-            "--account=cresco8",
-            "--partition=cresco8_cpu"
+            "--account=enea",
+            "--partition=cresco8_cpu",
+            "--auks=yes",
+            "--exclusive"
         ],
         "header": [
-            "module purge",
-            "module load openmpi"
         ]
     },
     "local": {
