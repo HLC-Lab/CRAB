@@ -142,7 +142,7 @@
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
-                    "start": "s7",
+                    "start": "0",
                     "end": ""
                 }
             }
