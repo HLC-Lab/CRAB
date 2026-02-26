@@ -137,6 +137,13 @@
                     "collect": true,
                     "start": "s6",
                     "end": ""
+                },
+                "8": {
+                    "path": "a2a_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s7",
+                    "end": ""
                 }
             }
         },
@@ -198,6 +205,13 @@
                     "collect": true,
                     "start": "s6",
                     "end": ""
+                },
+                "8": {
+                    "path": "bursty_noise_a2a.py",
+                    "args": "0.000001 0.01",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f"
                 }
             }
         },
