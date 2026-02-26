@@ -137,13 +137,6 @@
                     "collect": true,
                     "start": "s6",
                     "end": ""
-                },
-                "8": {
-                    "path": "bursty_noise_a2a.py",
-                    "args": "0.000001 0.001",
-                    "collect": false,
-                    "start": "0",
-                    "end": "f"
                 }
             }
         },
@@ -205,13 +198,6 @@
                     "collect": true,
                     "start": "s6",
                     "end": ""
-                },
-                "8": {
-                    "path": "bursty_noise_a2a.py",
-                    "args": "0.000001 0.01",
-                    "collect": false,
-                    "start": "0",
-                    "end": "f"
                 }
             }
         },
