@@ -509,6 +509,14 @@ class ExperimentRunner:
                     
                     time.sleep(0.05)
 
+                # ── Lorenzo's modifications ──────────────────────────────
+                # Kill "f" apps now that all other work is done
+                for i, app in enumerate(self.apps):
+                    if str(app.config_end) == 'f':
+                        if hasattr(app, 'process') and app.process.poll() is None:
+                            end_job(app)
+                # ─────────────────────────────────────────────────────────
+
                 # Collect Data
                 c_idx = 0
                 for app in self.apps:
