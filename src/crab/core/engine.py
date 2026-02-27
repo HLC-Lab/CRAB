@@ -428,6 +428,8 @@ class ExperimentRunner:
                 running = set()
                 finished = set()
 
+                f_app_ids = {i for i, app in enumerate(self.apps) if str(app.config_end) == 'f'}
+
                 # Inner Event Loop
                 while True:
                     now = time.time() - run_start
@@ -504,8 +506,8 @@ class ExperimentRunner:
                             started_deps.append(waiter)
                     for s in started_deps: del curr_deps[s]
 
-                    if not curr_schedule and not curr_deps and not running:
-                        break # Run finished
+                    if not curr_schedule and not curr_deps and not (running - f_app_ids):
+                        break
                     
                     time.sleep(0.05)
 
