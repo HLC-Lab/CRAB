@@ -1,0 +1,1 @@
+# N process apps always active. When one dies, another spawns.
