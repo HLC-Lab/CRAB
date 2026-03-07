@@ -1,0 +1,41 @@
+{
+	"pattern_1": {
+		"placement_type": "random",
+		"gpus_per_node": 4,
+		"n_total_nodes": 92,
+		"n_total_jobs": 16,
+		"n_micro_jobs": 10,
+		"n_medium_jobs": 5,
+		"n_large_jobs": 1,
+		"small_jobs": {
+			"job_1":{
+				"strategy": "DP",
+				"nodes": 2
+			},
+			"job_2":{
+				"strategy": "DP",
+				"nodes": 2
+			},
+			"job_3":{
+				"strategy": "DP",
+				"nodes": 2
+			},
+			"job_4":{
+				"strategy": "DP+PP",
+				"nodes": 4
+			},
+			"job_5":{
+				"strategy": "FSDP",
+				"nodes": 8
+			}
+		},
+		"large_jobs": {
+			"job_1":{
+				"strategy": "DP+PP+TP",
+				"nodes": 32
+			}
+		}
+	}
+}
+	
+		

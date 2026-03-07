@@ -30,6 +30,8 @@ import shlex
 import subprocess
 import sys
 import time
+import json
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -79,12 +81,6 @@ def compute_split(n: int) -> tuple[int, int]:
     n_micro  = n - n_medium
     return n_micro, n_medium
 
-def parse_nodelist(raw: str) -> tuple[str, list[str]]:
-    """Parse name[node01,node02,node03] into (name, ['node01', 'node02', 'node03'])."""
-    nodelist_raw = raw.strip().split("[")
-    name  = nodelist_raw[0]
-    nodes = nodelist_raw[1].rstrip("]")
-    return (name, [n.strip() for n in nodes.split(",") if n.strip()])
 
 def pick_nodes(all_nodes: list[str], job_type: str) -> list[str]:
     """Sample nodes without replacement for one job."""
@@ -118,7 +114,7 @@ def job_output_path(out_dir: Path, uid: str) -> Path:
 # Job launch
 # ---------------------------------------------------------------------------
 
-def launch(job_type: str, name: str, nodes: list[str], extra_flags: list[str],
+def launch(job_type: str, nodes: list[str], extra_flags: list[str],
            out_dir: Path, log_path: Path, task_id: int) -> subprocess.Popen:
     """Launch one srun job and return its Popen handle."""
     uid      = f"{job_type}_{task_id}"
@@ -129,7 +125,7 @@ def launch(job_type: str, name: str, nodes: list[str], extra_flags: list[str],
 
     cmd = [
         "srun",
-        f"--nodelist={name}[{nodelist}]",
+        f"--nodelist={nodelist}",
         f"--ntasks-per-node={TASKS_PER_NODE}",
         f"--cpus-per-task={CPUS_PER_TASK}",
         f"--job-name={uid}",
@@ -165,7 +161,6 @@ def launch(job_type: str, name: str, nodes: list[str], extra_flags: list[str],
     proc.uid      = uid       # type: ignore[attr-defined]
     proc.job_type = job_type  # type: ignore[attr-defined]
     proc.nodes    = nodes     # type: ignore[attr-defined]
-    proc.name     = name      # type: ignore[attr-defined]
     proc.app      = app       # type: ignore[attr-defined]
     proc.job_out  = job_out   # type: ignore[attr-defined]
     return proc
@@ -195,49 +190,30 @@ def drain_live(proc: subprocess.Popen) -> None:
 # Main scheduler loop
 # ---------------------------------------------------------------------------
 
-def run_scheduler(n: int, name: str, all_nodes: list[str], out_dir: Path,
+def run_scheduler(jobs: dict, out_dir: Path,
                   extra_flags: list[str]) -> None:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     log_path = out_dir / SCHEDULER_LOG_NAME
-
-    n_micro, n_medium = compute_split(n)
-
-    # Validate node pool
-    if len(all_nodes) < MICROJOB_NODE_COUNT:
-        log(f"ERROR: Need at least {MICROJOB_NODE_COUNT} nodes for microjobs, "
-            f"got {len(all_nodes)}.", log_path)
-        sys.exit(1)
-    if len(all_nodes) < min(MEDIUM_NODE_CHOICES):
-        log(f"ERROR: Need at least {min(MEDIUM_NODE_CHOICES)} nodes for medium jobs, "
-            f"got {len(all_nodes)}.", log_path)
-        sys.exit(1)
 
     # Write scheduler log header
     with open(log_path, "w") as f:
         f.write(
             f"SLURM srun Scheduler Log\n"
             f"Started  : {ts()}\n"
-            f"Total N  : {n}  (micro={n_micro}, medium={n_medium})\n"
-            f"Nodes    : {', '.join(all_nodes)}\n"
-            f"Layout   : micro={MICROJOB_NODE_COUNT} nodes x {TASKS_PER_NODE} tasks/node x {CPUS_PER_TASK} cpu/task\n"
-            f"           medium={MEDIUM_NODE_CHOICES} nodes x {TASKS_PER_NODE} tasks/node x {CPUS_PER_TASK} cpu/task\n"
             f"Output   : {out_dir.resolve()}/\n"
             f"{'=' * 72}\n"
         )
 
     task_id = 0
-
     # Launch initial batch
     running: list[subprocess.Popen] = []
-    for job_type, count in [("micro", n_micro), ("medium", n_medium)]:
-        for _ in range(count):
-            nodes = pick_nodes(all_nodes, job_type)
-            proc  = launch(job_type, name, nodes, extra_flags, out_dir, log_path, task_id)
-            running.append(proc)
-            task_id += 1
+    for job in jobs["small_jobs"]:
+        proc  = launch(job["strategy"], job["nodes"], extra_flags, out_dir, log_path, task_id)
+        running.append(proc)
+        task_id += 1
 
-    log(f"All {n} jobs submitted. Monitoring for completions…", log_path)
+    log(f"All {len(running)} jobs submitted. Monitoring for completions…", log_path)
 
     # Poll loop
     while running:
@@ -267,7 +243,7 @@ def run_scheduler(n: int, name: str, all_nodes: list[str], out_dir: Path,
 
                 # Launch replacement of the same type reusing the same nodelist
                 replacement = launch(
-                    proc.job_type, proc.name, proc.nodes,                   # type: ignore[attr-defined]
+                    proc.job_type, proc.nodes,                   # type: ignore[attr-defined]
                     extra_flags, out_dir, log_path, task_id,
                 )
                 still_running.append(replacement)
@@ -276,6 +252,31 @@ def run_scheduler(n: int, name: str, all_nodes: list[str], out_dir: Path,
         running = still_running
         log(f"Active jobs: {len(running)}/{n}", log_path)
 
+
+# ---------------------------------------------------------------------------
+# NODELISTS PARSING (Now only random)
+# ---------------------------------------------------------------------------
+
+def load_node_list(path: str) -> list[str]:
+    """Accept a plain text file (one node per line) or a JSON list."""
+    with open(path) as f:
+        content = f.read().strip()
+    try:
+        nodes = json.loads(content)
+        if not isinstance(nodes, list):
+            raise ValueError("JSON node file must contain a list.")
+        return [str(n) for n in nodes]
+    except json.JSONDecodeError:
+        return [line.strip() for line in content.splitlines() if line.strip()]
+
+
+def collect_jobs(pattern: dict) -> list[tuple[str, str, dict]]:
+    """Return a flat list of (group, job_id, job_spec) tuples."""
+    jobs = []
+    for group in ("small_jobs", "large_jobs"):
+        for job_id, spec in pattern.get(group, {}).items():
+            jobs.append((group, job_id, spec))
+    return jobs
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -290,8 +291,10 @@ def parse_args() -> argparse.Namespace:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--jobs", type=int,
-                        help="Total number of concurrent srun jobs to maintain.")
+    parser.add_argument("--pattern", "-p", required=True,
+        metavar="FILE",
+        help="Path to the pattern JSON file. Uses built-in default if omitted.",
+    )
     parser.add_argument("--nodelist", required=True, metavar="NODELIST",
                         help="Nodes in bracket format: name[node01,node02,...].")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, metavar="DIR",
@@ -301,20 +304,48 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def assign_nodes(config_json: str, available_nodes: list) -> dict:
+    config = json.loads(config_json)
+    available = available_nodes.copy()
+    result = {}
+
+    for pattern_name, pattern in config.items():
+        jobs = pattern.get("small_jobs", {})
+        for job_id, job_info in jobs.items():
+            nodes_needed = job_info["nodes"]
+
+            if len(available) < nodes_needed:
+                raise ValueError(
+                    f"needs {nodes_needed}, only {len(available)} left."
+                )
+
+            assigned = [available.pop(0) for _ in range(nodes_needed)]
+
+            result[f"{"small_jobs"}_{job_id}"] = {
+                "strategy": job_info["strategy"],
+                "nodelist": assigned
+            }
+
+    return result
+
 def main() -> None:
     args = parse_args()
-    if args.N < 1:
-        print("ERROR: N must be at least 1.", file=sys.stderr)
-        sys.exit(1)
 
-    name, nodes = parse_nodelist(args.nodelist)
+    nodes = args.nodelist.strip().split(",")
     if not nodes:
         print(f"ERROR: No nodes parsed from '{args.nodelist}'", file=sys.stderr)
         sys.exit(1)
 
+    jobs = assign_nodes(args.pattern, available_nodes=nodes)
+    #! PRINT IT TO UNDERSTAND IF IT IS WORKING CORRECTLY
+    print(jobs)
+
     out_dir     = Path(args.output_dir)
     extra_flags = args.srun_extra.split() if args.srun_extra.strip() else []
-    run_scheduler(args.N, name, nodes, out_dir, extra_flags)
+
+
+    #! I'M NOT SURE THAT WORKS, MUST BE FIXED. USING JSON CONFIGURATION
+    run_scheduler(jobs, out_dir, extra_flags)
 
 
 if __name__ == "__main__":
