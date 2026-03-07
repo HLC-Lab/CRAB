@@ -3,7 +3,7 @@
         "numnodes": "16",
         "ppn": "1",
         "allocationmode": "p",
-        "partitionsplit": "10:90",
+        "partitionsplit": "95:5",
         "allocationsplit": "100-100",
         "partitionlayout": "i",
         "minruns": "1",
@@ -13,13 +13,13 @@
         "extrainfo": "AI-training-annalysis",
         "sbatch_directives": {
             "time": "00:20:00",
-            "job-name": "AI-training-annalysis",
+            "job-name": "AI-training-analysis",
             "exclusive": true
         }
     },
     "experiments": {
-        "baseline": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+        "exp1": {
+            "description": "AI Training Analysis with Workerpool and A2A Communication",
             "apps": {
                 "0": {
                     "path": "workerpool.py",

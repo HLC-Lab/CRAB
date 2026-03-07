@@ -27,11 +27,11 @@ class wl_manager:
         print(f"[DEBUG]: {cmd.split('/')}")
 
         #! THE WORKERPOOL HANDLES THE SRUN
-        if (cmd.split('/')[-1].strip() == "workerpool_scheduler.py"):
+        if (cmd.split('/')[-1].split(" ")[0] == "workerpool_scheduler.py"):
             
             workerpool_string = (
                 'python ' +
-                cmd +
+                cmd + ' ' +
                 node_list_arg
             )
             final_string = workerpool_string
