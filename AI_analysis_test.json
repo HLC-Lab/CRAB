@@ -1,6 +1,6 @@
 {
     "global_options": {
-        "numnodes": "16",
+        "numnodes": "10",
         "ppn": "4",
         "allocationmode": "p",
         "partitionsplit": "35:65",
@@ -27,13 +27,6 @@
                     "collect": false,
                     "start": "0",
                     "end": "f"
-                },
-                "1": {
-                    "path": "a2a_comm_only.py",
-                    "args": "-msgsize 16777216 -iter 100000",
-                    "collect": true,
-                    "start": "0",
-                    "end": ""
                 }
             }
         }
