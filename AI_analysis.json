@@ -23,14 +23,14 @@
             "apps": {
                 "0": {
                     "path": "workerpool.py",
-                    "args": "--pattern=benchmarks/workerpool/pattern_1.json",
+                    "args": "--pattern=benchmarks/workerpool/pattern_1.json --output-dir=benchmarks/workerpool/workerpool_out",
                     "collect": false,
                     "start": "0",
                     "end": "f"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
-                    "args": "-msgsize 16777216 -iter 100000",
+                    "args": "-msgsize 16777216 -iter 10000",
                     "collect": true,
                     "start": "0",
                     "end": ""
