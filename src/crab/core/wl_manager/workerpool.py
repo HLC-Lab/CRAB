@@ -17,14 +17,15 @@ class wl_manager:
     # on the nodes in 'node_list' with 'ppn' processes per node,
     # executing "pre_commands" before cmd
     def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None):
-        #! Come gestiamo la lista dei nodi? perchè andrebbe aggiunto lrdn[]...
+        
+        print("[INFO] Workload manager is launching with WorkerPool", flush=True)
+
         num_nodes = len(node_list)
         node_list_string = ','.join(node_list)
         node_list_arg = '--nodelist ' + node_list_string
-
         final_string = ""
 
-        print(f"[DEBUG]: {cmd.split('/')}")
+        print(f"[INFO]: {cmd.split('/')}", flush=True)
 
         #! THE WORKERPOOL HANDLES THE SRUN
         if (cmd.split(" ")[0].split('/')[-1] == "workerpool_scheduler.py"):
@@ -72,7 +73,7 @@ class wl_manager:
             final_string = slurm_string
 
 
-        print("[DEBUG]: SLURM command is: " + final_string)
+        print("[INFO]: SLURM command is: " + final_string, flush=True)
         return final_string
     
 

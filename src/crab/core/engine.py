@@ -78,6 +78,7 @@ def run_job(job, wlmanager, ppn: int, pre_commands: List[str] = None):
     cmd = shlex.split(cmd_string)
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
     job.set_process(process)
+    print(f"[INFO] Launched App {job.id_num} with PID {process.pid} on nodes {job.node_list}", flush=True)
 
 def end_job(job):
     """Forcefully terminates a job and retrieves output."""
@@ -519,6 +520,8 @@ class ExperimentRunner:
                             end_job(app)
                 # ─────────────────────────────────────────────────────────
 
+                #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
+                #! read_data is defined from the wrapper, we need to make it clear
                 # Collect Data
                 c_idx = 0
                 for app in self.apps:
