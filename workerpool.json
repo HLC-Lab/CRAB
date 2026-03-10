@@ -2,10 +2,8 @@
     "global_options": {
         "numnodes": "16",
         "ppn": "4",
-        "allocationmode": "p",
-        "partitionsplit": "e",
-        "allocationsplit": "100-100",
-        "partitionlayout": "p",
+        "allocationmode": "l",
+        "allocationsplit": "100",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "1200.0",
@@ -22,18 +20,11 @@
             "description": "AI Training Analysis with Workerpool and A2A Communication",
             "apps": {
                 "0": {
-                    "path": "a2a_comm_only.py",
-                    "args": "-msgsize 16777216 -iter 10000",
-                    "collect": true,
-                    "start": "0",
-                    "end": ""
-                },
-                "1": {
                     "path": "workerpool.py",
                     "args": "--pattern=benchmarks/workerpool/pattern_1.json --output-dir=benchmarks/workerpool/workerpool_out",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": ""
                 }
             }
         }
