@@ -17,7 +17,7 @@ class wl_manager:
     # Returns a string that can be used to run command 'cmd'
     # on the nodes in 'node_list' with 'ppn' processes per node,
     # executing "pre_commands" before cmd
-    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None):
+    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None, data_path: str = None) -> str:
         num_nodes = len(node_list)
         node_list_string = ','.join(node_list)
         node_list_arg = '--nodelist ' + node_list_string

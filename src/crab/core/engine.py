@@ -63,13 +63,13 @@ def check_CI(container_list: List[DataContainer], alpha: float, beta: float, con
             check = check and container.converged
     return check
 
-def run_job(job, wlmanager, ppn: int, pre_commands: List[str] = None):
+def run_job(job, wlmanager, ppn: int, pre_commands: List[str] = None, data_path: str = None):
     """launches an application process via the workload manager."""
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
     
     # Passa pre_commands al workload manager
-    cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app(), pre_commands=pre_commands)
+    cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app(), pre_commands=pre_commands, data_path=data_path)
     
     if not cmd_string:
         cmd_string = "echo a > /dev/null"
@@ -372,7 +372,7 @@ class ExperimentRunner:
                         DataContainer(app.id_num, meta["conv"], meta["name"], meta["unit"], msg_size)
                     )
 
-    def execute(self):
+    def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""
         self.log(f"[{self.name}] Execution started.")
         
@@ -440,7 +440,7 @@ class ExperimentRunner:
                         aid, action, _ = curr_schedule.pop(0)
                         if action == 's':
                             if aid not in running:
-                                run_job(self.apps[aid], self.wlmanager, self.ppn, pre_commands=system_header)
+                                run_job(self.apps[aid], self.wlmanager, self.ppn, pre_commands=system_header, data_path=data_path),
                                 running.add(aid)
                         elif action == 'k':
                             if aid in running:
@@ -770,7 +770,7 @@ class Engine:
                 )
                 try:
                     runner.setup()
-                    runner.execute()
+                    runner.execute(output_dir)
                     runner.save_results()
                 except Exception as e:
                     self.log(f"[ERROR] Experiment {exp_id} failed: {e}")

@@ -16,7 +16,7 @@ class wl_manager:
     # Returns a string that can be used to run command 'cmd'
     # on the nodes in 'node_list' with 'ppn' processes per node,
     # executing "pre_commands" before cmd
-    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None):
+    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None, data_path: str = None) -> str:
         
         print("[INFO] Workload manager is launching with WorkerPool", flush=True)
 
@@ -33,6 +33,7 @@ class wl_manager:
             workerpool_string = (
                 'python ' +
                 cmd + ' ' +
+                "--output-dir " + data_path + '/workerpool_output ' +
                 node_list_arg
             )
             final_string = workerpool_string

@@ -21,7 +21,7 @@
             "apps": {
                 "0": {
                     "path": "workerpool.py",
-                    "args": "--pattern=benchmarks/workerpool/pattern_1.json --output-dir=benchmarks/workerpool/workerpool_out",
+                    "args": "--walltime=30 --pattern=benchmarks/workerpool/pattern_1.json",
                     "collect": false,
                     "start": "0",
                     "end": ""
