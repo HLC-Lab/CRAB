@@ -10,6 +10,7 @@ from typing import Dict, Any
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from crab.core.engine import Engine
+from crab.log import get_logger, LogLevel
 
 def load_environment_config(preset_arg: str) -> Dict[str, Any]:
     presets_filename = "presets.json"
