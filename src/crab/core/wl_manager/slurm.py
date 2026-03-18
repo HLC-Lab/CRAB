@@ -53,5 +53,6 @@ class wl_manager:
             final_cmd  # Usiamo il comando calcolato (wrapped o raw)
         ).strip() 
 
-        print("[DEBUG]: SLURM command is: " + slurm_string)
+        #TODO: capire se toglierlo per il logger
+        # print("[DEBUG]: SLURM command is: " + slurm_string)
         return slurm_string

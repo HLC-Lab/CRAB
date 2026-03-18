@@ -22,5 +22,6 @@ class wl_manager:
                   os.environ["CRAB_PINNING_FLAGS"] + " " + \
                   os.environ["CRAB_MPIRUN_HOSTNAMES_FLAG"] + " " + node_list_string + " " + \
                   "-np " + str(ppn*num_nodes) + " " + cmd
-        print("[DEBUG]: MPI command is: " + job_cmd)
+        #TODO: capire se toglierlo per il logger
+        # print("[DEBUG]: MPI command is: " + job_cmd)
         return job_cmd

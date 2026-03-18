@@ -5,3 +5,4 @@ __pycache__/
 configs/
 hosts
 data/
+.todo

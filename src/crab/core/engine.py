@@ -12,7 +12,9 @@ import pandas
 import shlex
 import json
 import shutil
-from typing import List, Dict, Any, Callable, Optional, Union
+from typing import List, Dict, Any, Optional, Union
+
+from crab.log import CrabLogger
 
 # =============================================================================
 # 1. DATA CONTAINERS & UTILITIES
@@ -63,12 +65,17 @@ def check_CI(container_list: List[DataContainer], alpha: float, beta: float, con
             check = check and container.converged
     return check
 
-def run_job(job, wlmanager, ppn: int, pre_commands: List[str] = None, data_path: str = None):
-    """launches an application process via the workload manager."""
+def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str] = None, live_stream: bool = False, data_path: str = None):
+    """
+    Launch an application process via the workload manager.
+
+    When live_stream=True, stdout is read line-by-line in a background
+    thread and forwarded through the logger in real time. The reader
+    thread is stored on job._stream_thread for later joining.
+    """
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
     
-    # Passa pre_commands al workload manager
     cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app(), pre_commands=pre_commands, data_path=data_path)
     
     if not cmd_string:
@@ -76,25 +83,42 @@ def run_job(job, wlmanager, ppn: int, pre_commands: List[str] = None, data_path:
         raise Exception
     
     cmd = shlex.split(cmd_string)
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
-    job.set_process(process)
-    print(f"[INFO] Launched App {job.id_num} with PID {process.pid} on nodes {job.node_list}", flush=True)
 
-def end_job(job):
+    if live_stream:
+        # Stdout piped line-by-line to the logger thread;
+        # stderr still fully captured for post-run inspection
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, shell=False)
+        job.set_process(process)
+        app_label = f"App {job.id_num}"
+        job._stream_thread = logger.stream_process(process, app_label)
+    else:
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE, shell=False)
+        job.set_process(process)
+        job._stream_thread = None
+
+    logger.info(f"Launched App {job.id_num}  PID={process.pid}  nodes={job.node_list}")
+
+
+def end_job(job, logger: CrabLogger):
     """Forcefully terminates a job and retrieves output."""
     if hasattr(job, 'process') and job.process:
         job.process.kill()
+        if hasattr(job, '_stream_thread') and job._stream_thread:
+            job._stream_thread.join(timeout=2.0)
         out, err = job.process.communicate()
         job.set_output(out, err)
+        logger.debug(f"Killed App {job.id_num}")
 
-def wait_timed(job, timeout_sec: float) -> bool:
+def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:
     """Waits for a job with a timeout. Returns True if timed out."""
     try:
         out, err = job.process.communicate(timeout=timeout_sec)
         job.set_output(out, err)
         return False
     except subprocess.TimeoutExpired:
-        end_job(job)
+        end_job(job, logger)
         return True
 
 def log_data(out_format: str, path_prefix: str, data_containers: List[DataContainer]):
@@ -265,12 +289,12 @@ class ExperimentRunner:
     Isolates setup, execution, and teardown.
     """
     def __init__(self, exp_name: str, config: Dict[str, Any], global_options: Dict[str, Any], 
-                 node_list: List[str], output_dir: str, log_fn: Callable):
+                 node_list: List[str], output_dir: str, logger: CrabLogger):
         self.name = exp_name
         self.config = config
         self.global_opts = global_options
         self.node_list = node_list
-        self.log = log_fn
+        self.log = logger.enter(exp_name)
         
         # Paths
         self.exp_dir = os.path.join(output_dir, self.name)
@@ -284,7 +308,7 @@ class ExperimentRunner:
 
     def setup(self):
         """Loads apps, workload manager, and calculates node layout."""
-        self.log(f"[{self.name}] Setting up...")
+        self.log.info("Setting up...")
         
         # 1. Load Applications
         self.apps = []
@@ -320,7 +344,7 @@ class ExperimentRunner:
                 path = os.path.join(os.environ["CRAB_WRAPPERS_PATH"], path)
             
             if not os.path.exists(path):
-                 self.log(f"[ERROR] Wrapper not found at: {path}")
+                 self.log.error(f"Wrapper not found at: {path}")
                  raise FileNotFoundError(f"Wrapper not found: {path}")
 
             # Load App Class
@@ -374,7 +398,7 @@ class ExperimentRunner:
 
     def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""
-        self.log(f"[{self.name}] Execution started.")
+        self.log.info("Execution started")
         
         # Params
         min_runs = int(self.global_opts.get('minruns', 10))
@@ -420,7 +444,9 @@ class ExperimentRunner:
                 if runs >= max_runs or (runs >= min_runs and converged) or elapsed >= timeout:
                     break
 
-                self.log(f"[{self.name}] Run {runs+1}...")
+                run_log = self.log.enter(f"Run {runs + 1}")
+                run_log.info("Started")
+
                 run_start = time.time()
                 
                 # Reset ephemeral schedule for this run
@@ -440,11 +466,16 @@ class ExperimentRunner:
                         aid, action, _ = curr_schedule.pop(0)
                         if action == 's':
                             if aid not in running:
-                                run_job(self.apps[aid], self.wlmanager, self.ppn, pre_commands=system_header, data_path=data_path),
+                                app_log = run_log.enter(f"App {aid}")
+                                concurrent = len(static_schedule) > 1 or len(dependency_map) > 0
+                                run_job(self.apps[aid], self.wlmanager, self.ppn,
+                                        logger=app_log, pre_commands=system_header,
+                                        live_stream=concurrent, data_path=data_path)
+
                                 running.add(aid)
                         elif action == 'k':
                             if aid in running:
-                                end_job(self.apps[aid])
+                                end_job(self.apps[aid], run_log)
                                 running.remove(aid)
                                 finished.add(aid)
 
@@ -452,45 +483,43 @@ class ExperimentRunner:
                     for aid in list(running):
                         proc = self.apps[aid].process
                         if proc.poll() is not None:
-                            # Il processo è terminato
+                            app_log = run_log.enter(f"App {aid}")
                             try:
                                 out, err = proc.communicate()
                                 self.apps[aid].set_output(out, err)
-                                
-                                # --- INIZIO MODIFICA: Error Logging ---
-                                if proc.returncode != 0:
-                                    # Costruiamo il messaggio di errore
-                                    error_msg = (
-                                        f"\n[CRAB ERROR] Experiment '{self.name}' - App {aid} failed!\n"
-                                        f"Return Code: {proc.returncode}\n"
-                                    )
-                                    
-                                    # Decodifica STDERR (byte -> string) per sicurezza
-                                    if err:
-                                        decoded_err = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
-                                        error_msg += f"--- STDERR ---\n{decoded_err}\n"
-                                    
-                                    # Decodifica STDOUT (spesso MPI stampa errori qui)
-                                    if out:
-                                        decoded_out = out.decode('utf-8', errors='replace') if isinstance(out, bytes) else out
-                                        error_msg += f"--- STDOUT TAIL ---\n{decoded_out[-2000:]}\n" # Ultimi 2000 caratteri
-                                    
-                                    error_msg += "------------------------------------------------\n"
 
-                                    # 1. Stampa su sys.stderr (finisce in slurm_error.log)
-                                    print(error_msg, file=sys.stderr, flush=True)
-                                    
-                                    # 2. Salva un file di log dedicato nella cartella dell'esperimento
+
+                                exit_code = proc.returncode
+                                if exit_code != 0:
+                                    app_log.error(f"FAILED  exit={exit_code}")
+
+                                    # Forward stderr through the logger
+                                    if err:
+                                        stderr_text = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
+                                        app_log.app_output("", stderr_text)
+
+                                    # Write detailed error log to experiment dir
                                     try:
-                                        log_path = os.path.join(self.exp_dir, f"error_app_{aid}.log")
-                                        with open(log_path, "w") as f:
-                                            f.write(error_msg)
-                                    except Exception as e:
-                                        print(f"[CRAB WARNING] Could not write error log file: {e}", file=sys.stderr)
-                                # --- FINE MODIFICA ---
+                                        err_path = os.path.join(self.exp_dir, f"error_app_{aid}.log")
+                                        with open(err_path, "w") as f:
+                                            f.write(f"App {aid} exit={exit_code}\n")
+                                            if err:
+                                                decoded = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
+                                                f.write(decoded)
+                                    except Exception:
+                                        app_log.warning("Could not write error log file")
+                                else:
+                                    app_log.info(f"FINISHED  exit=0")
+                                    # Forward stdout (post-run) if not already live-streamed
+                                    if not (hasattr(self.apps[aid], '_stream_thread') and self.apps[aid]._stream_thread):
+                                        if out:
+                                            stdout_text = out.decode('utf-8', errors='replace') if isinstance(out, bytes) else out
+                                            app_log.app_output(stdout_text)
+
+
 
                             except Exception as e:
-                                self.log(f"[INTERNAL ERROR] Failed reading output for app {aid}: {e}")
+                                app_log.error(f"Failed reading output: {e}")
 
                             running.remove(aid)
                             finished.add(aid)
@@ -499,7 +528,10 @@ class ExperimentRunner:
                     started_deps = []
                     for waiter, target in curr_deps.items():
                         if target in finished:
-                            run_job(self.apps[waiter], self.wlmanager, self.ppn, pre_commands=system_header)
+                            dep_log = run_log.enter(f"App {waiter}")
+                            run_job(self.apps[waiter], self.wlmanager, self.ppn,
+                                    logger=dep_log, pre_commands=system_header,
+                                    live_stream=True)
                             running.add(waiter)
                             if waiter in rel_durations:
                                 curr_schedule.append((waiter, 'k', now + rel_durations[waiter]))
@@ -535,6 +567,8 @@ class ExperimentRunner:
                 runs += 1
                 if runs >= min_runs:
                     converged = check_CI(self.data_containers, alpha, beta, converge_all, runs)
+                    if converged:
+                        self.log.info(f"Converged at run {runs}")
 
         finally:
             self.teardown()
@@ -553,7 +587,7 @@ class ExperimentRunner:
             out_fmt = self.global_opts.get('outformat', 'csv')
             prefix = os.path.join(self.exp_dir, 'data')
             log_data(out_fmt, prefix, self.data_containers)
-            self.log(f"[{self.name}] Data saved to {self.exp_dir}")
+            self.log.info(f"Data saved to {self.exp_dir}")
 
 # =============================================================================
 # 4. ENGINE (Orchestrator & Worker Entry Point)
@@ -562,8 +596,8 @@ class ExperimentRunner:
 # ... (Imports e classi precedenti rimangono uguali) ...
 
 class Engine:
-    def __init__(self, log_callback: Callable[[str], None] = print):
-        self.log = log_callback
+    def __init__(self, logger: CrabLogger):
+        self.log = logger
 
     def run(self, config: Dict[str, Any], environment: Dict[str, Any], is_worker: bool = False, output_dir: str = None):
         if is_worker:
@@ -627,7 +661,7 @@ class Engine:
             
             # A. Security Check (Newline Injection)
             if '\n' in directive or '\r' in directive:
-                self.log(f"[SECURITY WARN] Skipping directive containing newlines: {directive}")
+                self.log.warning(f"Skipping directive containing newlines: {directive}")
                 continue
 
             # B. Estrazione Chiave (Key Extraction)
@@ -642,11 +676,11 @@ class Engine:
             
             # C. Conflict Resolution
             if key in protected_defaults:
-                self.log(f"[CONFIG WARN] User directive '{directive}' ignored. '{key}' is managed by Crab to ensure stability.")
+                self.log.warning(f"User directive '{directive}' ignored. '{key}' is managed by CRAB.")
                 continue
             
             if key in ['output', 'error', 'o', 'e']:
-                self.log(f"[CONFIG WARN] User overrode log path with '{directive}'. Standard logging might be lost.")
+                self.log.warning(f"User overrode log path with '{directive}'. Standard logging might be lost.")
             
             # D. Apply (Last write wins for user defaults, except protected)
             directives_map[key] = directive
@@ -656,7 +690,7 @@ class Engine:
         return [f"#SBATCH {v}" for v in directives_map.values()]
 
     def _run_orchestrator(self, config: Dict[str, Any], environment: Dict[str, Any]):
-        self.log("Engine running in ORCHESTRATOR mode.")
+        self.log.info("Engine running in ORCHESTRATOR mode")
         
         if "experiments" not in config:
             if "applications" in config:
@@ -733,14 +767,12 @@ class Engine:
             
             f.write(f"\n{cmd}\n")
 
-        self.log(f"Submitting: sbatch {script_path}")
+        self.log.info(f"Submitting: sbatch {script_path}")
         out = subprocess.check_output(['sbatch', script_path], text=True)
-        self.log(out.strip())
+        self.log.info(out.strip())
 
     def _run_worker(self, config: Dict[str, Any], environment: Dict[str, Any], output_dir: str):
-        # ... (Il worker rimane identico a prima) ...
-        # (Incolla qui il codice di _run_worker che hai già)
-        self.log("--- [WORKER] Started ---")
+        self.log.info("Worker started")
         
         orig_env = os.environ.copy()
         os.environ.update(environment)
@@ -751,14 +783,16 @@ class Engine:
                 subprocess.call(["scontrol", "show", "hostnames", os.environ.get('SLURM_NODELIST')], stdout=f)
             nodes_df = pandas.read_csv(node_file, header=None)
             full_node_list = nodes_df.iloc[:, 0].tolist()
+            self.log.info(f"Allocated {len(full_node_list)} node(s)")
             
             global_opts = config.get('global_options', {})
             experiments = config.get('experiments', {})
             sorted_exp_ids = sorted(experiments.keys())
+            total_exps = len(sorted_exp_ids)
 
-            for exp_id in sorted_exp_ids:
+            for idx, exp_id in enumerate(sorted_exp_ids, 1):
                 exp_config = experiments[exp_id]
-                self.log(f"\n=== Starting Experiment: {exp_id} ===")
+                self.log.info(f"Starting experiment [{idx}/{total_exps}]: {exp_id}")
                 
                 runner = ExperimentRunner(
                     exp_name=exp_id,
@@ -766,21 +800,21 @@ class Engine:
                     global_options=global_opts,
                     node_list=full_node_list,
                     output_dir=output_dir,
-                    log_fn=self.log
+                    logger=self.log,
                 )
                 try:
                     runner.setup()
                     runner.execute(output_dir)
                     runner.save_results()
                 except Exception as e:
-                    self.log(f"[ERROR] Experiment {exp_id} failed: {e}")
+                    self.log.error(f"Experiment {exp_id} failed: {e}")
                     import traceback
                     traceback.print_exc()
                 finally:
                     runner.teardown()
                     time.sleep(2)
             
-            self.log("--- [WORKER] All experiments finished ---")
+            self.log.info("All experiments finished")
 
         finally:
             os.environ.clear()
