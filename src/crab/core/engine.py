@@ -549,7 +549,7 @@ class ExperimentRunner:
                 for i, app in enumerate(self.apps):
                     if str(app.config_end) == 'f':
                         if hasattr(app, 'process') and app.process.poll() is None:
-                            end_job(app)
+                            end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
