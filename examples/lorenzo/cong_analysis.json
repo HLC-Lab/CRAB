@@ -1,5 +1,6 @@
 {
     "global_options": {
+        "name": "cong",
         "numnodes": "8",
         "ppn": "1",
         "allocationmode": "p",

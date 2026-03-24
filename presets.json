@@ -132,6 +132,8 @@
             "--gres=tmpfs:0"
         ],
         "header": [
+          "module purge",
+          "module load openmpi"
         ]
     },
     "cresco8": {
