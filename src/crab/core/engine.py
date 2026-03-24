@@ -84,30 +84,39 @@ def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str
     
     cmd = shlex.split(cmd_string)
 
-    if live_stream:
-        # Stdout piped line-by-line to the logger thread;
-        # stderr still fully captured for post-run inspection
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, shell=False)
-        job.set_process(process)
-        app_label = f"App {job.id_num}"
-        job._stream_thread = logger.stream_process(process, app_label)
-    else:
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, shell=False)
-        job.set_process(process)
-        job._stream_thread = None
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, shell=False)
+    job.set_process(process)
+    
+    # 1. Initialize the silent buffer
+    job.raw_stdout_buffer = []
+
+    # 2. Define and start the silent reader thread
+    def _silent_reader():
+        try:
+            for line in iter(process.stdout.readline, b""):
+                job.raw_stdout_buffer.append(line)
+        except (ValueError, OSError):
+            pass # Process killed or pipe closed
+
+    job._stream_thread = threading.Thread(target=_silent_reader, daemon=True)
+    job._stream_thread.start()
 
     logger.info(f"Launched App {job.id_num}  PID={process.pid}  nodes={job.node_list}")
-
 
 def end_job(job, logger: CrabLogger):
     """Forcefully terminates a job and retrieves output."""
     if hasattr(job, 'process') and job.process:
         job.process.kill()
+        
         if hasattr(job, '_stream_thread') and job._stream_thread:
             job._stream_thread.join(timeout=2.0)
-        out, err = job.process.communicate()
+            
+        _, err = job.process.communicate()
+        
+        # Reconstruct stdout from the silent buffer
+        out = b"".join(getattr(job, 'raw_stdout_buffer', []))
+        
         job.set_output(out, err)
         logger.debug(f"Killed App {job.id_num}")
 
@@ -478,22 +487,29 @@ class ExperimentRunner:
                                 end_job(self.apps[aid], run_log)
                                 running.remove(aid)
                                 finished.add(aid)
-
                     # 2. Check process status
                     for aid in list(running):
                         proc = self.apps[aid].process
                         if proc.poll() is not None:
                             app_log = run_log.enter(f"App {aid}")
                             try:
-                                out, err = proc.communicate()
-                                self.apps[aid].set_output(out, err)
+                                # Ensure silent thread is finished reading
+                                if hasattr(self.apps[aid], '_stream_thread') and self.apps[aid]._stream_thread:
+                                    self.apps[aid]._stream_thread.join(timeout=2.0)
 
+                                # stdout is already consumed by the thread, so communicate() only gets stderr
+                                _, err = proc.communicate()
+                                
+                                # Reconstruct stdout from the buffer
+                                out = b"".join(getattr(self.apps[aid], 'raw_stdout_buffer', []))
+                                
+                                self.apps[aid].set_output(out, err)
 
                                 exit_code = proc.returncode
                                 if exit_code != 0:
                                     app_log.error(f"FAILED  exit={exit_code}")
 
-                                    # Forward stderr through the logger
+                                    # We STILL forward stderr, because errors should be visible in slurm_output.log
                                     if err:
                                         stderr_text = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
                                         app_log.app_output("", stderr_text)
@@ -510,13 +526,8 @@ class ExperimentRunner:
                                         app_log.warning("Could not write error log file")
                                 else:
                                     app_log.info(f"FINISHED  exit=0")
-                                    # Forward stdout (post-run) if not already live-streamed
-                                    if not (hasattr(self.apps[aid], '_stream_thread') and self.apps[aid]._stream_thread):
-                                        if out:
-                                            stdout_text = out.decode('utf-8', errors='replace') if isinstance(out, bytes) else out
-                                            app_log.app_output(stdout_text)
-
-
+                                    # REMOVED: The logic that forwarded 'out' to app_log.app_output
+                                    # Data is now silently waiting in self.apps[aid].stdout for the CSV parser.
 
                             except Exception as e:
                                 app_log.error(f"Failed reading output: {e}")
