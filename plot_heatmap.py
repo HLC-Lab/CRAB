@@ -101,13 +101,19 @@ def plot_heatmaps(data_dir: Path, output_path: Path, col_suffix: str):
         print("No data found.")
         return
 
-    vmin, vmax = min(all_vals), max(all_vals)
-    abs_max = max(abs(vmax - 1.0), abs(vmin - 1.0), 0.01)
-    norm = mcolors.TwoSlopeNorm(
-        vmin=max(1e-6, 1.0 - abs_max),
-        vcenter=1.0,
-        vmax=1.0 + abs_max,
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "speedup_red_to_green_to_white",
+        [
+            (0.00, "#680C17"),
+            (0.20, "#B2182B"),
+            (0.65, "#FD8B7A"),
+            (0.90, "#FDD17A"),
+            (0.95, "#B7E4A8"),
+            (1.00, "#1A9850"),
+        ],
+        N=256,
     )
+    norm = mcolors.Normalize(vmin=0.0, vmax=1.0)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -128,8 +134,8 @@ def plot_heatmaps(data_dir: Path, output_path: Path, col_suffix: str):
                 continue
 
             im = ax.imshow(
-                mat, aspect="auto", origin="lower",
-                cmap="RdYlGn", norm=norm,
+                np.clip(mat, 0.0, 1.0), aspect="auto", origin="lower",
+                cmap=cmap, norm=norm,
             )
             ax.set_xticks(range(len(burst_gaps)))
             ax.set_xticklabels([fmt_val(v) for v in burst_gaps], rotation=45, ha="right")
@@ -159,7 +165,7 @@ def plot_heatmaps(data_dir: Path, output_path: Path, col_suffix: str):
 
         fig.suptitle(
             f"Speedup heatmap — congestion: {cong_type}  "
-            f"(baseline / congested)  |  green > 1 = baseline faster",
+            f"(baseline / congested)  |  green = 1 = no impact, red < 1 = congested slower",
             fontsize=13,
         )
         plt.tight_layout()
