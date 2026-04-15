@@ -3,7 +3,6 @@
         "description": "Common settings shared across all presets",
         "env": {
             "CRAB_ROOT": "__CWD__",
-            "CRAB_WRAPPERS_PATH": "__CWD__/wrappers"
         },
         "sbatch": [],
         "header": []
@@ -16,9 +15,6 @@
             "CRAB_PINNING_FLAGS": "--cpu-bind=map_cpu=1,73,145,217",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "",
-            "CRAB_MINIFE_PATH": ""
         },
         "sbatch": [],
         "header": []
@@ -32,9 +28,6 @@
             "CRAB_PINNING_FLAGS": "",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "/home/marcio/Documenti/Uni/Tirocinio/graph500/src/graph500_reference_bfs",
-            "CRAB_MINIFE_PATH": ""
         },
         "sbatch": [],
         "header": []
@@ -48,9 +41,6 @@
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "",
-            "CRAB_MINIFE_PATH": ""
         },
         "sbatch": [],
         "header": []
@@ -66,9 +56,6 @@
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "workerpool",
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "",
-            "CRAB_MINIFE_PATH": "",
             "NCCL_IB_SL": "${NCCL_IB_SL}"
         },
         "sbatch": [
@@ -92,9 +79,6 @@
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "",
-            "CRAB_MINIFE_PATH": ""
         },
         "sbatch": [
             "--account=enea",
@@ -114,9 +98,6 @@
             "CRAB_PINNING_FLAGS": "",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "mpi",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "",
-            "CRAB_MINIFE_PATH": "",
         },
         "sbatch": [],
         "header": []
@@ -129,9 +110,6 @@
             "CRAB_PINNING_FLAGS": "${CRAB_PINNING_FLAGS}",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "",
-            "CRAB_MINIFE_PATH": ""
         },
         "sbatch": [],
         "header": []
@@ -145,9 +123,6 @@
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
-            "CRAB_AMG_PATH": "",
-            "CRAB_G500_PATH": "",
-            "CRAB_MINIFE_PATH": ""
         },
         "sbatch": [],
         "header": []
@@ -161,9 +136,6 @@
             "CRAB_PINNING_FLAGS": "--cpu-bind=map_cpu:2,2",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "-mca plm_rsh_no_tree_spawn 1 --map-by node -mca btl openib,self,sm -mca btl_openib_if_include mlx4_0 -mca orte_base_help_aggregate 0",
             "CRAB_WL_MANAGER": "mpi",
-            "CRAB_AMG_PATH": "/scratch/2/t2hx/AMG/test/amg",
-            "CRAB_G500_PATH": "/scratch/2/t2hx/graph500/mpi/runnable",
-            "CRAB_MINIFE_PATH": "/scratch/2/t2hx/miniFE/ref/src/miniFE.x"
         },
         "sbatch": [],
         "header": []

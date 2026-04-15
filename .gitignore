@@ -6,3 +6,8 @@ configs/
 hosts
 data/
 .todo.md
+
+# CRAB Setup & Benchmarks
+/benchmarks/
+/config/paths.json
+/config/paths.json.bak

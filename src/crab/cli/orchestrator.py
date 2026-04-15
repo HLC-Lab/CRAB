@@ -11,9 +11,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 from crab.core.engine import Engine
 from crab.log import get_logger, LogLevel
+import crab.setup.memory as memory
 
 def load_environment_config(preset_arg: str) -> Dict[str, Any]:
-    presets_filename = "presets.json"
+    presets_filename = "config/presets.json"
     try:
         with open(presets_filename, 'r') as f:
             all_presets = json.load(f)
@@ -142,6 +143,17 @@ def run_from_cli():
                 selected_preset = "local"
 
             logger.info(f"Loading preset '{selected_preset}'")
+
+            # 1. Carica la configurazione strutturata (Env, Sbatch, Header)
+            # Make sure your load_environment_config function is pointing to "config/presets.json" now!
+            preset_config = load_environment_config(selected_preset)
+            
+            # 2. Prepara le variabili d'ambiente (risolve __CWD__ etc)
+            execution_env = prepare_execution_environment(preset_config["env"])
+            benchmark_paths = memory.load_paths()
+            for env_key, abs_path in benchmark_paths.items():
+                execution_env[env_key] = abs_path
+            # --------------------------------------------------------
 
             # 1. Carica la configurazione strutturata (Env, Sbatch, Header)
             preset_config = load_environment_config(selected_preset)
