@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "crab"
+version = "0.1.0"
+description = "Co-Running Applications Benchmarking framework"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "rich>=13.0.0",
+    "pandas"
+]
+
+[project.scripts]
+crab = "crab.cli.orchestrator:main"
+crab-setup = "crab.setup.wizard:run"
