@@ -5,4 +5,4 @@ __pycache__/
 configs/
 hosts
 data/
-.todo
+.todo.md
