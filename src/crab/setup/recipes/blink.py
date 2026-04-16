@@ -1,51 +1,67 @@
 import os
-import subprocess
 import shutil
-from typing import Tuple
+from typing import Tuple, Optional, Callable
 from .base import BenchmarkRecipe
 
 class BlinkRecipe(BenchmarkRecipe):
     
     @property
     def name(self) -> str:
-        return "Blink"
+        return "Blink Suite"
 
     @property
     def env_key(self) -> str:
         return "CRAB_BLINK_PATH"
 
     def check_dependencies(self) -> Tuple[bool, str]:
-        if not shutil.which("cmake"):
-            return False, "CMake is missing. Suggestion: `module load cmake`"
-        if not shutil.which("g++") and not shutil.which("icpc"):
-            return False, "C++ compiler missing. Suggestion: `module load gcc`"
+        if not shutil.which("make"):
+            return False, "Make is missing."
+        # Assuming CC or mpicc is required to build the C files
+        if not shutil.which("cc") and not shutil.which("gcc") and not shutil.which("mpicc"):
+            return False, "C compiler missing. Suggestion: `module load gcc` or `module load openmpi`"
         return True, "Dependencies found."
 
-    def download_and_build(self, target_dir: str) -> Tuple[bool, str]:
-        try:
-            # Clone
-            repo_url = "https://github.com/HLC-Lab/blink.git"
-            subprocess.run(["git", "clone", repo_url, target_dir], check=True, capture_output=True)
+    def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
+        # 1. Clone the new blink-clean repo
+        repo_url = "https://github.com/SharkGamerZ/blink-clean.git"
+        if not self.run_command_streamed(["git", "clone", repo_url, target_dir], cwd=".", step_name="Cloning Repository...", log_callback=log_callback):
+            return False, "Git clone failed."
             
-            # Setup Build Dir
-            build_dir = os.path.join(target_dir, "build")
-            os.makedirs(build_dir, exist_ok=True)
+        # 2. Ensure bin/ directory exists (git doesn't track empty folders, and Make might fail without it)
+        bin_dir = os.path.join(target_dir, "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        
+        # 3. Compile using raw Make
+        if not self.run_command_streamed(["make", "-j"], cwd=target_dir, step_name="Compiling Binaries...", log_callback=log_callback):
+            return False, "Make compilation failed."
             
-            # CMake & Make
-            subprocess.run(["cmake", ".."], cwd=build_dir, check=True, capture_output=True)
-            subprocess.run(["make", "-j"], cwd=build_dir, check=True, capture_output=True)
+        # 4. Verify Output (Check if at least one expected binary was created)
+        expected_binary = os.path.join(bin_dir, "ping-pong_b")
+        if os.path.exists(expected_binary):
+            # Return the path to the bin DIRECTORY, not a single file
+            return True, bin_dir
             
-            # Verify Output
-            binary_path = os.path.join(build_dir, "blink")
-            if os.path.exists(binary_path):
-                return True, binary_path
-            return False, "Compilation finished, but 'blink' binary was not found in build/."
-            
-        except subprocess.CalledProcessError as e:
-            err_msg = e.stderr.decode('utf-8') if e.stderr else str(e)
-            return False, f"Build command failed:\n{err_msg}"
-        except Exception as e:
-            return False, f"Unexpected error during build: {str(e)}"
+        return False, "Compilation finished, but executables were not found in bin/."
 
     def verify_existing(self, path: str) -> bool:
-        return os.path.isfile(path) and os.access(path, os.X_OK)
+        """
+        Since Blink is a suite, we verify that the path is a directory
+        and contains typical Blink executables.
+        """
+        if not os.path.isdir(path):
+            return False
+            
+        # Check if it contains at least one known Blink executable
+        test_binary = os.path.join(path, "ping-pong_b")
+        return os.path.isfile(test_binary) and os.access(test_binary, os.X_OK)
+
+    def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
+        """
+        Override fast_search to look for the 'bin' directory of blink.
+        """
+        # Check local CRAB installations first
+        local_target = os.path.join(crab_benchmarks_dir, "blink_suite", "bin")
+        if self.verify_existing(local_target):
+            return local_target
+            
+        return None

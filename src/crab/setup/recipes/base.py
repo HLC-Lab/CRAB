@@ -1,7 +1,8 @@
 import os
 import shutil
+import subprocess
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 
 class BenchmarkRecipe(ABC):
     """
@@ -31,11 +32,13 @@ class BenchmarkRecipe(ABC):
         pass
 
     @abstractmethod
-    def download_and_build(self, target_dir: str) -> Tuple[bool, str]:
+    def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
         """
         Logic to clone and compile the benchmark.
         Args:
             target_dir (str): Typically CRAB_ROOT/benchmarks/<benchmark_name>.
+            log_callback (Callable): Pass real-time updates back to the UI. 
+                                     Takes (msg_type: "step" | "log", message: str).
         Returns:
             Tuple[bool, str]: (True, absolute_path_to_binary) or (False, error_message).
         """
@@ -51,22 +54,46 @@ class BenchmarkRecipe(ABC):
     def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
         """
         Tier 1 Auto-Detect. 
-        Provides a default implementation that checks the local benchmarks folder
-        and the system $PATH. Child classes can override this if they need to look
-        in specific HPC directories like /opt/ or /usr/local/.
         """
-        # Guess the binary name based on the env_key (e.g., CRAB_G500_PATH -> g500)
-        # Recipes can override this method entirely if this assumption is wrong.
         binary_name = self.env_key.replace("CRAB_", "").replace("_PATH", "").lower()
         
-        # 1. Check local CRAB installations first
         local_target = os.path.join(crab_benchmarks_dir, binary_name)
         if self.verify_existing(local_target):
             return local_target
             
-        # 2. Check standard system $PATH
         system_path = shutil.which(binary_name)
         if system_path and self.verify_existing(system_path):
             return system_path
             
         return None
+
+    def run_command_streamed(self, cmd: list, cwd: str, step_name: str, log_callback: Optional[Callable[[str, str], None]]) -> bool:
+        """
+        A built-in helper method for recipes. Runs a shell command, reads it line by line, 
+        and streams the output back to the UI via the log_callback.
+        """
+        if log_callback:
+            log_callback("step", step_name)
+            
+        try:
+            process = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # Merge stderr into stdout
+                text=True,
+                bufsize=1  # Line buffered
+            )
+            
+            # Stream output in real-time
+            if process.stdout:
+                for line in iter(process.stdout.readline, ''):
+                    if log_callback and line.strip():
+                        log_callback("log", line.strip())
+                        
+            process.wait()
+            return process.returncode == 0
+        except Exception as e:
+            if log_callback:
+                log_callback("log", f"CRITICAL ERROR: {str(e)}")
+            return False
