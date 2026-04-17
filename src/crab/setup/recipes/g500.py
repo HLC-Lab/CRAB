@@ -1,7 +1,7 @@
 import os
 import subprocess
 import shutil
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Callable
 from .base import BenchmarkRecipe
 
 class G500Recipe(BenchmarkRecipe):
@@ -21,43 +21,52 @@ class G500Recipe(BenchmarkRecipe):
             return False, "Make is missing."
         return True, "Dependencies found."
 
-    def download_and_build(self, target_dir: str) -> Tuple[bool, str]:
+    def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
+        # 1. Clone the repository
+        repo_url = "https://github.com/graph500/graph500.git"
+        if not self.run_command_streamed(["git", "clone", repo_url, target_dir], cwd=".", step_name="Cloning Repository...", log_callback=log_callback):
+            return False, "Git clone failed."
+            
+        # 2. Generate the mandatory make.inc file in the root folder
+        make_inc_path = os.path.join(target_dir, "make.inc")
+        make_inc_content = "CC = mpicc\nCFLAGS = -O3 -std=c99 -Wall\nLDLIBS = -lm\n"
         try:
-            repo_url = "https://github.com/graph500/graph500.git"
-            subprocess.run(["git", "clone", repo_url, target_dir], check=True, capture_output=True)
-            
-            # G500 uses standard make inside the /src folder
-            src_dir = os.path.join(target_dir, "src")
-            subprocess.run(["make", "-j"], cwd=src_dir, check=True, capture_output=True)
-            
-            binary_path = os.path.join(src_dir, "graph500_reference_bfs")
-            if os.path.exists(binary_path):
-                return True, binary_path
-            return False, "Compilation finished, but 'graph500_reference_bfs' was not found."
-            
-        except subprocess.CalledProcessError as e:
-            err_msg = e.stderr.decode('utf-8') if e.stderr else str(e)
-            return False, f"Build command failed:\n{err_msg}"
+            with open(make_inc_path, "w") as f:
+                f.write(make_inc_content)
+            if log_callback:
+                log_callback("log", "Generated make.inc with mpicc bindings.")
         except Exception as e:
-            return False, f"Unexpected error during build: {str(e)}"
+            return False, f"Failed to generate make.inc: {e}"
+            
+        # 3. Compile inside the src/ folder
+        src_dir = os.path.join(target_dir, "src")
+        if not self.run_command_streamed(["make", "-j"], cwd=src_dir, step_name="Compiling Binaries...", log_callback=log_callback):
+            return False, "Make compilation failed."
+            
+        # 4. Verify Output
+        binary_path = os.path.join(src_dir, "graph500_reference_bfs")
+        if os.path.exists(binary_path):
+            # Return the DIRECTORY, not the single file
+            return True, src_dir
+            
+        return False, "Compilation finished, but 'graph500_reference_bfs' was not found in src/."
 
     def verify_existing(self, path: str) -> bool:
-        return os.path.isfile(path) and os.access(path, os.X_OK)
+        """
+        Verify that the path is a directory and contains the G500 binary.
+        """
+        if not os.path.isdir(path):
+            return False
+            
+        test_binary = os.path.join(path, "graph500_reference_bfs")
+        return os.path.isfile(test_binary) and os.access(test_binary, os.X_OK)
 
     def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
         """
-        OVERRIDE: Graph500's binary is not named 'g500', so we must specify it.
+        Look for the 'src' directory of graph500.
         """
-        expected_binary = "graph500_reference_bfs"
-        
-        # 1. Check local CRAB installations first
-        local_target = os.path.join(crab_benchmarks_dir, "graph500", "src", expected_binary)
+        local_target = os.path.join(crab_benchmarks_dir, "graph500", "src")
         if self.verify_existing(local_target):
             return local_target
-            
-        # 2. Check system PATH
-        system_path = shutil.which(expected_binary)
-        if system_path and self.verify_existing(system_path):
-            return system_path
             
         return None

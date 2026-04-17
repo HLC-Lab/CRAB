@@ -1,7 +1,7 @@
-import sys
 import os
-sys.path.append(os.path.dirname(__file__))
-from base import base
+
+# Clean import directly from the installed framework
+from crab.wrappers.base import base
 
 class app(base):
     exists = True
@@ -32,7 +32,8 @@ class app(base):
             self.exists = False
             return None
         else:
-            return os.environ[env_name]
+            # Join the injected directory with the specific executable name
+            return os.path.join(os.environ[env_name], "graph500_reference_bfs")
 
     def read_data(self):
         if self.exists:
@@ -44,7 +45,8 @@ class app(base):
             data = [[float(x.split(' ')[-1])] for x in lines]
             return data
         else:
-            return [[0]*self.num_metrics]
+            # Fallback if binary isn't found
+            return [[0] * len(self.metadata)]
 
     def get_bench_name(self):
         return "Graph500"
