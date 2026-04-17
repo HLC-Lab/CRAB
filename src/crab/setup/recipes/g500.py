@@ -29,7 +29,7 @@ class G500Recipe(BenchmarkRecipe):
             
         # 2. Generate the mandatory make.inc file in the root folder
         make_inc_path = os.path.join(target_dir, "make.inc")
-        make_inc_content = "CC = mpicc\nCFLAGS = -O3 -std=c99 -Wall\nLDLIBS = -lm\n"
+        make_inc_content = "CC = mpicc\nCFLAGS = -O3 -std=c99 -Wall -fcommon\nLDLIBS = -lm -lrt\n"
         try:
             with open(make_inc_path, "w") as f:
                 f.write(make_inc_content)
