@@ -27,26 +27,19 @@ class G500Recipe(BenchmarkRecipe):
         if not self.run_command_streamed(["git", "clone", repo_url, target_dir], cwd=".", step_name="Cloning Repository...", log_callback=log_callback):
             return False, "Git clone failed."
             
-        # 2. Generate the mandatory make.inc file in the root folder
-        make_inc_path = os.path.join(target_dir, "make.inc")
-        make_inc_content = "CC = mpicc\nCFLAGS = -O3 -std=c99 -Wall -fcommon\nLDLIBS = -lm -lrt\n"
-        try:
-            with open(make_inc_path, "w") as f:
-                f.write(make_inc_content)
-            if log_callback:
-                log_callback("log", "Generated make.inc with mpicc bindings.")
-        except Exception as e:
-            return False, f"Failed to generate make.inc: {e}"
-            
-        # 3. Compile inside the src/ folder
+        # 2. Compile inside the src/ folder with injected flags
+        # Graph500 3.0 uses the MPICC variable in its Makefile. 
+        # By setting MPICC="mpicc -fcommon", we safely fix the GCC 10 linker error 
+        # without overwriting the Makefile's internal CFLAGS.
         src_dir = os.path.join(target_dir, "src")
-        if not self.run_command_streamed(["make", "-j"], cwd=src_dir, step_name="Compiling Binaries...", log_callback=log_callback):
+        build_cmd = ["make", "MPICC=mpicc -fcommon", "-j"]
+        
+        if not self.run_command_streamed(build_cmd, cwd=src_dir, step_name="Compiling Binaries...", log_callback=log_callback):
             return False, "Make compilation failed."
             
-        # 4. Verify Output
+        # 3. Verify Output
         binary_path = os.path.join(src_dir, "graph500_reference_bfs")
         if os.path.exists(binary_path):
-            # Return the DIRECTORY, not the single file
             return True, src_dir
             
         return False, "Compilation finished, but 'graph500_reference_bfs' was not found in src/."
