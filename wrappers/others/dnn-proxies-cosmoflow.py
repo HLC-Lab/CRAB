@@ -1,0 +1,24 @@
+import os
+import sys
+sys.path.append(os.path.dirname(__file__))
+from base import base,sizeof_fmt
+
+class app(base):  
+    metadata = [
+        {'name': 'avg-iteration-runtime', 'unit': 's', 'conv': True},
+    ]
+
+    def get_binary_path(self):
+        return os.environ["CRAB_ROOT"] + "/src/dnn-proxies/bin/cosmoflow"
+    
+    def read_data(self):
+        output = self.stdout
+        lines = output.split('\n')
+        outline = lines[-2]
+        return [[float(outline.split(" ")[-2])]]
+
+    def get_bench_name(self):
+        return "CosmoFlow Proxy"
+    
+    def get_bench_input(self):
+        return ""
