@@ -56,7 +56,7 @@
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "workerpool",
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
-            "NCCL_IB_SL": "${NCCL_IB_SL}"
+            "NCCL_IB_SL": "${UCX_IB_SL}"
         },
         "sbatch": [
             "--account=IscrC_FOCAL",
