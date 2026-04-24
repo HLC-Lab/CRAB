@@ -134,7 +134,7 @@ def run():
                     
                     def render_build_ui() -> Panel:
                         step_text = Text(f"🟢 {current_step}", style="bold yellow")
-                        log_text = Text("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))
+                        log_text = Text.from_markup("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))
                         return Panel(Group(step_text, Text(""), log_text), title=f"[cyan]Building {recipe.name}[/cyan]", border_style="cyan")
 
                     with Live(render_build_ui(), console=console, refresh_per_second=15) as live:

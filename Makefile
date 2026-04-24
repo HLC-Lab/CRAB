@@ -4,7 +4,6 @@ VENV_DIR = .venv
 PIP = $(VENV_DIR)/bin/pip
 CRAB_SETUP = $(VENV_DIR)/bin/crab-setup
 
-
 # Checks if is already installed
 install:
 	@if [ -x "$(CRAB_SETUP)" ]; then \

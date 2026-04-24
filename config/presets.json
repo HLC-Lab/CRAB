@@ -2,7 +2,7 @@
     "_common": {
         "description": "Common settings shared across all presets",
         "env": {
-            "CRAB_ROOT": "__CWD__",
+            "CRAB_ROOT": "__CWD__"
         },
         "sbatch": [],
         "header": []
@@ -14,7 +14,7 @@
             "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
             "CRAB_PINNING_FLAGS": "--cpu-bind=map_cpu=1,73,145,217",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
-            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_WL_MANAGER": "slurm"
         },
         "sbatch": [],
         "header": []
@@ -27,7 +27,7 @@
             "CRAB_MPIRUN_HOSTNAMES_FLAG": "-H",
             "CRAB_PINNING_FLAGS": "",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
-            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_WL_MANAGER": "slurm"
         },
         "sbatch": [],
         "header": []
@@ -40,7 +40,7 @@
             "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
-            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
+            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3"
         },
         "sbatch": [],
         "header": []
@@ -56,7 +56,7 @@
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "workerpool",
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
-            "NCCL_IB_SL": "${NCCL_IB_SL}"
+            "NCCL_IB_SL": "${UCX_IB_SL}"
         },
         "sbatch": [
             "--account=IscrC_FOCAL",
@@ -78,7 +78,7 @@
             "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
-            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
+            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3"
         },
         "sbatch": [
             "--account=enea",
@@ -86,8 +86,7 @@
             "--auks=yes",
             "--exclusive"
         ],
-        "header": [
-        ]
+        "header": []
     },
     "local": {
         "description": "Local Development Environment (OpenMPI)",
@@ -97,7 +96,7 @@
             "CRAB_MPIRUN_HOSTNAMES_FLAG": "-H",
             "CRAB_PINNING_FLAGS": "",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
-            "CRAB_WL_MANAGER": "mpi",
+            "CRAB_WL_MANAGER": "mpi"
         },
         "sbatch": [],
         "header": []
@@ -109,7 +108,7 @@
             "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
             "CRAB_PINNING_FLAGS": "${CRAB_PINNING_FLAGS}",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
-            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_WL_MANAGER": "slurm"
         },
         "sbatch": [],
         "header": []
@@ -122,7 +121,7 @@
             "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
             "CRAB_WL_MANAGER": "slurm",
-            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
+            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3"
         },
         "sbatch": [],
         "header": []
@@ -135,7 +134,7 @@
             "CRAB_MPIRUN_HOSTNAMES_FLAG": "-H",
             "CRAB_PINNING_FLAGS": "--cpu-bind=map_cpu:2,2",
             "CRAB_MPIRUN_ADDITIONAL_FLAGS": "-mca plm_rsh_no_tree_spawn 1 --map-by node -mca btl openib,self,sm -mca btl_openib_if_include mlx4_0 -mca orte_base_help_aggregate 0",
-            "CRAB_WL_MANAGER": "mpi",
+            "CRAB_WL_MANAGER": "mpi"
         },
         "sbatch": [],
         "header": []

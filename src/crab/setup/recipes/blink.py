@@ -16,9 +16,8 @@ class BlinkRecipe(BenchmarkRecipe):
     def check_dependencies(self) -> Tuple[bool, str]:
         if not shutil.which("make"):
             return False, "Make is missing."
-        # Assuming CC or mpicc is required to build the C files
-        if not shutil.which("cc") and not shutil.which("gcc") and not shutil.which("mpicc"):
-            return False, "C compiler missing. Suggestion: `module load gcc` or `module load openmpi`"
+        if not shutil.which("mpicc"):
+            return False, "MPI compiler (mpicc) missing. Suggestion: `module load openmpi` or your cluster's MPI module."
         return True, "Dependencies found."
 
     def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
@@ -30,9 +29,9 @@ class BlinkRecipe(BenchmarkRecipe):
         # 2. Ensure bin/ directory exists (git doesn't track empty folders, and Make might fail without it)
         bin_dir = os.path.join(target_dir, "bin")
         os.makedirs(bin_dir, exist_ok=True)
-        
-        # 3. Compile using raw Make
-        if not self.run_command_streamed(["make", "-j"], cwd=target_dir, step_name="Compiling Binaries...", log_callback=log_callback):
+
+        # 3. Compile using raw Make, explicitly injecting mpicc
+        if not self.run_command_streamed(["make", "CC=mpicc", "-j"], cwd=target_dir, step_name="Compiling Binaries...", log_callback=log_callback):
             return False, "Make compilation failed."
             
         # 4. Verify Output (Check if at least one expected binary was created)

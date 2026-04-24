@@ -1,7 +1,7 @@
 import os
 import subprocess
 import shutil
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Callable
 from .base import BenchmarkRecipe
 
 class G500Recipe(BenchmarkRecipe):
@@ -21,43 +21,45 @@ class G500Recipe(BenchmarkRecipe):
             return False, "Make is missing."
         return True, "Dependencies found."
 
-    def download_and_build(self, target_dir: str) -> Tuple[bool, str]:
-        try:
-            repo_url = "https://github.com/graph500/graph500.git"
-            subprocess.run(["git", "clone", repo_url, target_dir], check=True, capture_output=True)
+    def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
+        # 1. Clone the repository
+        repo_url = "https://github.com/graph500/graph500.git"
+        if not self.run_command_streamed(["git", "clone", repo_url, target_dir], cwd=".", step_name="Cloning Repository...", log_callback=log_callback):
+            return False, "Git clone failed."
             
-            # G500 uses standard make inside the /src folder
-            src_dir = os.path.join(target_dir, "src")
-            subprocess.run(["make", "-j"], cwd=src_dir, check=True, capture_output=True)
+        # 2. Compile inside the src/ folder with injected flags
+        # Graph500 3.0 uses the MPICC variable in its Makefile. 
+        # By setting MPICC="mpicc -fcommon", we safely fix the GCC 10 linker error 
+        # without overwriting the Makefile's internal CFLAGS.
+        src_dir = os.path.join(target_dir, "src")
+        build_cmd = ["make", "MPICC=mpicc -fcommon", "-j"]
+        
+        if not self.run_command_streamed(build_cmd, cwd=src_dir, step_name="Compiling Binaries...", log_callback=log_callback):
+            return False, "Make compilation failed."
             
-            binary_path = os.path.join(src_dir, "graph500_reference_bfs")
-            if os.path.exists(binary_path):
-                return True, binary_path
-            return False, "Compilation finished, but 'graph500_reference_bfs' was not found."
+        # 3. Verify Output
+        binary_path = os.path.join(src_dir, "graph500_reference_bfs")
+        if os.path.exists(binary_path):
+            return True, src_dir
             
-        except subprocess.CalledProcessError as e:
-            err_msg = e.stderr.decode('utf-8') if e.stderr else str(e)
-            return False, f"Build command failed:\n{err_msg}"
-        except Exception as e:
-            return False, f"Unexpected error during build: {str(e)}"
+        return False, "Compilation finished, but 'graph500_reference_bfs' was not found in src/."
 
     def verify_existing(self, path: str) -> bool:
-        return os.path.isfile(path) and os.access(path, os.X_OK)
+        """
+        Verify that the path is a directory and contains the G500 binary.
+        """
+        if not os.path.isdir(path):
+            return False
+            
+        test_binary = os.path.join(path, "graph500_reference_bfs")
+        return os.path.isfile(test_binary) and os.access(test_binary, os.X_OK)
 
     def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
         """
-        OVERRIDE: Graph500's binary is not named 'g500', so we must specify it.
+        Look for the 'src' directory of graph500.
         """
-        expected_binary = "graph500_reference_bfs"
-        
-        # 1. Check local CRAB installations first
-        local_target = os.path.join(crab_benchmarks_dir, "graph500", "src", expected_binary)
+        local_target = os.path.join(crab_benchmarks_dir, "graph500", "src")
         if self.verify_existing(local_target):
             return local_target
-            
-        # 2. Check system PATH
-        system_path = shutil.which(expected_binary)
-        if system_path and self.verify_existing(system_path):
-            return system_path
             
         return None
