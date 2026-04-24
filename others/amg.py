@@ -14,7 +14,7 @@ class app(base):
     ]
 
     def get_binary_path(self):
-        env_name = "CRAB_AMG_PATH"
+        env_name = "CRAB_PATH_AMG"
         if env_name not in os.environ or os.environ[env_name] == "":
             self.exists = False
             return None
