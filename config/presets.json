@@ -2,7 +2,8 @@
     "_common": {
         "description": "Common settings shared across all presets",
         "env": {
-            "CRAB_ROOT": "__CWD__"
+            "CRAB_ROOT": "__CWD__",
+            "CRAB_PATH_WRAPPERS": "__CWD__/wrappers"
         },
         "sbatch": [],
         "header": []

@@ -11,7 +11,7 @@ class BlinkRecipe(BenchmarkRecipe):
 
     @property
     def env_key(self) -> str:
-        return "CRAB_BLINK_PATH"
+        return "CRAB_PATH_BLINK"
 
     def check_dependencies(self) -> Tuple[bool, str]:
         if not shutil.which("make"):

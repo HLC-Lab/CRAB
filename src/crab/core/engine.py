@@ -349,9 +349,9 @@ class ExperimentRunner:
             path = details.get("path")
             if not path: continue
 
-            # Controlla la ENV CRAB_WRAPPERS_PATH
-            if not os.path.isabs(path) and "CRAB_WRAPPERS_PATH" in os.environ:
-                path = os.path.join(os.environ["CRAB_WRAPPERS_PATH"], path)
+            # Controlla la ENV CRAB_PATH_WRAPPERS
+            if not os.path.isabs(path) and "CRAB_PATH_WRAPPERS" in os.environ:
+                path = os.path.join(os.environ["CRAB_PATH_WRAPPERS"], path)
             
             if not os.path.exists(path):
                  self.log.error(f"Wrapper not found at: {path}")

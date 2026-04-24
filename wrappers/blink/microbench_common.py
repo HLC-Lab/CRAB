@@ -13,7 +13,7 @@ class microbench(base):
 
     def get_path(self, name):
         # 2. Use the path dynamically injected by the Orchestrator/Paths memory
-        blink_dir = os.environ.get("CRAB_BLINK_PATH", "")
+        blink_dir = os.environ.get("CRAB_PATH_BLINK", "")
         return os.path.join(blink_dir, name)
 
     def read_data(self):

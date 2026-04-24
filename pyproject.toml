@@ -19,6 +19,7 @@ dependencies = [
     "Pygments>=2.19.2",
     "python-dateutil>=2.9.0.post0",
     "pytz>=2025.2",
+    "questionary>=2.0.1",
     "rich>=14.1.0",
     "scipy>=1.13.1",
     "six>=1.17.0",

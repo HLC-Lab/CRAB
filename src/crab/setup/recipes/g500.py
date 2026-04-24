@@ -12,7 +12,7 @@ class G500Recipe(BenchmarkRecipe):
 
     @property
     def env_key(self) -> str:
-        return "CRAB_G500_PATH"
+        return "CRAB_PATH_G500"
 
     def check_dependencies(self) -> Tuple[bool, str]:
         if not shutil.which("mpicc"):

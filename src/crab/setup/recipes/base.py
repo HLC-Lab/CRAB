@@ -55,7 +55,7 @@ class BenchmarkRecipe(ABC):
         """
         Tier 1 Auto-Detect. 
         """
-        binary_name = self.env_key.replace("CRAB_", "").replace("_PATH", "").lower()
+        binary_name = self.env_key.replace("CRAB_PATH_", "").lower()
         
         local_target = os.path.join(crab_benchmarks_dir, binary_name)
         if self.verify_existing(local_target):
