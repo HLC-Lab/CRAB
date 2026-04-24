@@ -1,5 +1,7 @@
 .PHONY: install setup clean venv _install_core _check_python
 
+.DEFAULT_GOAL := install
+
 VENV_DIR = .venv
 PIP = $(VENV_DIR)/bin/pip
 CRAB_SETUP = $(VENV_DIR)/bin/crab-setup
