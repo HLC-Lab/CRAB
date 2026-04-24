@@ -6,8 +6,10 @@ configs/
 hosts
 data/
 .todo.md
+*.egg-info/
 
 # CRAB Setup & Benchmarks
 /benchmarks/
 /config/paths.json
 /config/paths.json.bak
+
