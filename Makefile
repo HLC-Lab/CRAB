@@ -9,13 +9,13 @@ CRAB_SETUP = $(VENV_DIR)/bin/crab-setup
 # 0. The Guardrail (Fails instantly if Python is too old)
 _check_python:
 	@python3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 8) else sys.exit(0)' || \
-	(echo "\n============================================================"; \
+	(echo "============================================================"; \
 	 echo "[!] ERROR: CRAB requires Python 3.8 or higher."; \
 	 echo "    You are currently using: $$(python3 --version 2>&1)"; \
 	 echo ""; \
 	 echo "    Suggestion: Run \`module load python\` or activate a modern"; \
 	 echo "    Python environment before running \`make\` again."; \
-	 echo "============================================================\n"; exit 1)
+	 echo "============================================================"; exit 1)
 
 # 1. The Virtual Environment Builder
 venv: _check_python
@@ -25,7 +25,7 @@ venv: _check_python
 # 2. The Traffic Cop (Checks if already installed)
 install:
 	@if [ -x "$(CRAB_SETUP)" ]; then \
-		echo "\n============================================================"; \
+		echo "============================================================"; \
 		echo "[!] CRAB is already installed in this directory."; \
 		echo ""; \
 		echo "To configure new benchmarks, activate your environment:"; \
@@ -33,7 +33,7 @@ install:
 		echo "    crab-setup"; \
 		echo ""; \
 		echo "To completely reinstall, run \`make clean\` first."; \
-		echo "============================================================\n"; \
+		echo "============================================================"; \
 	else \
 		$(MAKE) _install_core; \
 	fi
