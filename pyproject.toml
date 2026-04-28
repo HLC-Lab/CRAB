@@ -9,6 +9,7 @@ description = "Co-Running Applications Benchmarking framework"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
+    "argcomplete>=3.3.0",
     "linkify-it-py>=2.0.3",
     "markdown-it-py>=3.0.0",
     "mdit-py-plugins>=0.4.2",
@@ -35,5 +36,5 @@ tui = [
 ]
 
 [project.scripts]
-crab = "crab.cli.orchestrator:main"
+crab = "crab.cli.orchestrator:run_from_cli"
 crab-setup = "crab.setup.wizard:run"

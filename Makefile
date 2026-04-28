@@ -21,6 +21,13 @@ _check_python:
 venv: _check_python
 	python3 -m venv $(VENV_DIR)
 	$(PIP) install --upgrade pip
+	$(PIP) install argcomplete
+	# Bash/Zsh shell
+	@echo 'eval "$$(register-python-argcomplete crab)"' >> $(VENV_DIR)/bin/activate
+	@echo 'eval "$$(register-python-argcomplete cli.py)"' >> $(VENV_DIR)/bin/activate
+	# Fish Shell
+	@echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish
+	@echo 'register-python-argcomplete --shell fish cli.py | source' >> $(VENV_DIR)/bin/activate.fish
 
 # 2. The Traffic Cop (Checks if already installed)
 install:

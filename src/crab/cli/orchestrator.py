@@ -1,4 +1,6 @@
 import argparse
+import argcomplete
+from argcomplete.completers import FilesCompleter
 import json
 import os
 import sys
@@ -9,8 +11,6 @@ from typing import Dict, Any
 # Aggiungi 'src' al path di sistema PRIMA di qualsiasi altro import custom
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from crab.core.engine import Engine
-from crab.log import get_logger, LogLevel
 import crab.setup.memory as memory
 
 def load_environment_config(preset_arg: str) -> Dict[str, Any]:
@@ -50,8 +50,10 @@ def load_environment_config(preset_arg: str) -> Dict[str, Any]:
         "header": final_header
     }
 
-def _parse_log_level(raw: str) -> LogLevel:
+def _parse_log_level(raw: str) -> 'LogLevel':
     """Convert a CLI string to a LogLevel, defaulting to INFO."""
+    from crab.log import LogLevel
+
     mapping = {"DEBUG": LogLevel.DEBUG, "INFO": LogLevel.INFO,
                "WARNING": LogLevel.WARNING, "ERROR": LogLevel.ERROR,
                "CRITICAL": LogLevel.CRITICAL}
@@ -75,10 +77,27 @@ def prepare_execution_environment(env_dict: Dict[str, str]) -> Dict[str, str]:
         final_env[key] = os.path.expandvars(value)
     return final_env
 
+def _preset_completer(prefix, parsed_args, **kwargs):
+    """Dynamically parses presets.json for tab-autocompletion."""
+    # Build absolute path: orchestrator.py -> cli -> crab -> src -> root -> config/presets.json
+    # TODO: really ugly the relative import, to fix
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    presets_filename = os.path.join(base_dir, "config", "presets.json")
+    try:
+        with open(presets_filename, 'r') as f:
+            all_presets = json.load(f)
+        # Filter out internal and example templates
+        valid_presets = [k for k in all_presets.keys() if k not in ["_common", "example_preset"]]
+        return [p for p in valid_presets if p.startswith(prefix)]
+    except Exception:
+        return []
+
 def run_from_cli():
     # --- WORKER MODE ---
     if "--worker" in sys.argv:
         # Workers read CRAB_LOG_LEVEL from the environment (set by presets)
+        from crab.log import get_logger
+
         logger = get_logger()
         try:
             workdir_index = sys.argv.index("--workdir") + 1
@@ -100,6 +119,8 @@ def run_from_cli():
 
             # Time execution
             start = time.time()
+
+            from crab.core.engine import Engine
 
             engine = Engine(logger=logger)
             engine.run(
@@ -123,13 +144,23 @@ def run_from_cli():
     # --- ORCHESTRATOR MODE ---
     else:
         parser = argparse.ArgumentParser(description="CRAB Benchmarking Orchestrator.")
-        parser.add_argument("-c", "--config", dest="app_config_file", required=True, help="Path to the JSON benchmark config.")
-        parser.add_argument("-p", "--preset", help="Name of the preset to use.")
+        
+        # Attach the FilesCompleter, restricting it to .json files
+        parser.add_argument("-c", "--config", dest="app_config_file", required=True, help="Path to the JSON benchmark config.").completer = FilesCompleter(allowednames=('.json',))
+        
+        # Attach our custom preset completer
+        parser.add_argument("-p", "--preset", help="Name of the preset to use.").completer = _preset_completer
+        
         parser.add_argument("--log-level", dest="log_level", default=None, help="Log verbosity (DEBUG, INFO, WARNING, ERROR, CRITICAL).")
         parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
+
+        # THIS MUST BE CALLED BEFORE parse_args()
+        argcomplete.autocomplete(parser)
         args = parser.parse_args()
 
         # CLI flag overrides the env var
+        from crab.log import get_logger
+
         level = _parse_log_level(args.log_level) if args.log_level else None
         logger = get_logger(level=level)
 
@@ -174,6 +205,8 @@ def run_from_cli():
             benchmark_config["global_options"]["system_header"] = preset_config["header"]
 
             logger.info(f"Starting engine with preset '{selected_preset}'")
+
+            from crab.core.engine import Engine
 
             engine = Engine(logger=logger)
             engine.run(
