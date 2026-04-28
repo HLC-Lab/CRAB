@@ -4,7 +4,7 @@ __pycache__/
 .env
 configs/
 hosts
-data/
+/data/
 .todo.md
 *.egg-info/
 
