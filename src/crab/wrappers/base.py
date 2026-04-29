@@ -12,6 +12,9 @@ class base:
         self.id_num = id_num
         self.args = args
         self.collect_flag = collect_flag
+        self.node_list = []
+        self.num_nodes = 0
+        self.process = None
 
     def set_process(self, process):
         self.process = process
