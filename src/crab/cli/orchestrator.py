@@ -56,22 +56,17 @@ def _parse_log_level(raw: str) -> 'LogLevel':
     return mapping.get(raw.upper().strip(), LogLevel.INFO)
 
 
-def prepare_execution_environment(env_dict: Dict[str, str]) -> Dict[str, str]:
-    """Processa SOLO le variabili d'ambiente (sostituzione __CWD__ e expandvars)"""
-    execution_env = os.environ.copy()
+def prepare_execution_environment(env_dict: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Builds a clean dictionary of framework-specific variables.
+    Does NOT copy the system environment. Does NOT expand bash variables yet.
+    """
     processed_env = {}
-    
     for key, value in env_dict.items():
         if isinstance(value, str):
             value = value.replace("__CWD__", os.getcwd())
         processed_env[key] = str(value)
-    
-    execution_env.update(processed_env)
-    
-    final_env = {}
-    for key, value in execution_env.items():
-        final_env[key] = os.path.expandvars(value)
-    return final_env
+    return processed_env
 
 def execute_worker(work_dir: str, log_level_str: str = None):
     """Executes the worker logic directly from provided arguments."""
