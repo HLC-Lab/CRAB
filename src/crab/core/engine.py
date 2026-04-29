@@ -159,7 +159,7 @@ class Engine:
         sbatch_headers = self._generate_sbatch_header(g_opts, data_directory)
 
         script_path = os.path.join(data_directory, 'crab_job.sh')
-        cmd = f"{sys.executable} {os.path.abspath(sys.argv[0])} --worker --workdir {data_directory}"
+        cmd = f"{sys.executable} {os.path.abspath(sys.argv[0])} worker --workdir {data_directory}"
         
         with open(script_path, 'w') as f:
             f.write("#!/bin/bash\n\n")
