@@ -4,7 +4,7 @@
 
 VENV_DIR = .venv
 PIP = $(VENV_DIR)/bin/pip
-CRAB_SETUP = $(VENV_DIR)/bin/crab-setup
+CRAB_BIN = $(VENV_DIR)/bin/crab
 
 # 0. The Guardrail (Fails instantly if Python is too old)
 _check_python:
@@ -24,36 +24,34 @@ venv: _check_python
 	$(PIP) install argcomplete
 	# Bash/Zsh shell
 	@echo 'eval "$$(register-python-argcomplete crab)"' >> $(VENV_DIR)/bin/activate
-	@echo 'eval "$$(register-python-argcomplete cli.py)"' >> $(VENV_DIR)/bin/activate
 	# Fish Shell
 	@echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish
-	@echo 'register-python-argcomplete --shell fish cli.py | source' >> $(VENV_DIR)/bin/activate.fish
 
 # 2. The Traffic Cop (Checks if already installed)
 install:
-	@if [ -x "$(CRAB_SETUP)" ]; then \
-		echo "============================================================"; \
-		echo "[!] CRAB is already installed in this directory."; \
-		echo ""; \
-		echo "To configure new benchmarks, activate your environment:"; \
-		echo "    source $(VENV_DIR)/bin/activate"; \
-		echo "    crab-setup"; \
-		echo ""; \
-		echo "To completely reinstall, run \`make clean\` first."; \
-		echo "============================================================"; \
+	@if [ -x "$(CRAB_BIN)" ]; then \
+	    echo "============================================================"; \
+	    echo "[!] CRAB is already installed in this directory."; \
+	    echo ""; \
+	    echo "To configure new benchmarks, activate your environment:"; \
+	    echo "    source $(VENV_DIR)/bin/activate"; \
+	    echo "    crab setup"; \
+	    echo ""; \
+	    echo "To completely reinstall, run \`make clean\` first."; \
+	    echo "============================================================"; \
 	else \
-		$(MAKE) _install_core; \
+	    $(MAKE) _install_core; \
 	fi
 
 # 3. The Actual Installation
 _install_core: venv
 	$(PIP) install -e .
-	@echo "\n[✔] CRAB core installed in virtual environment."
-	@echo "Launching setup wizard to configure benchmarks...\n"
-	$(CRAB_SETUP)
+	@echo "[✔] CRAB core installed in virtual environment."
+	@echo "Launching setup wizard to configure benchmarks..."
+	$(CRAB_BIN) setup
 
 setup:
-	$(CRAB_SETUP)
+	$(CRAB_BIN) setup
 
 clean:
 	@echo "Cleaning up build artifacts..."

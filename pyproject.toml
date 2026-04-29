@@ -36,5 +36,4 @@ tui = [
 ]
 
 [project.scripts]
-crab = "crab.cli.orchestrator:run_from_cli"
-crab-setup = "crab.setup.wizard:run"
+crab = "crab.cli.main:cli_router"
