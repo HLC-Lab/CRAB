@@ -31,7 +31,7 @@ class BlinkRecipe(BenchmarkRecipe):
         os.makedirs(bin_dir, exist_ok=True)
 
         # 3. Compile using raw Make, explicitly injecting mpicc
-        if not self.run_command_streamed(["make", "CC=mpicc", "CXX=mpicc", "-j"], cwd=target_dir, step_name="Compiling Binaries...", log_callback=log_callback):
+        if not self.run_command_streamed(["make", "CC=mpicc", "CXX=mpicxx", "-j"], cwd=target_dir, step_name="Compiling Binaries...", log_callback=log_callback):
             return False, "Make compilation failed."
             
         # 4. Verify Output (Check if at least one expected binary was created)
