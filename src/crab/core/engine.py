@@ -187,7 +187,8 @@ class Engine:
         self.log.info(out.strip())
 
 
-def _run_worker(self, config: Dict[str, Any], environment: Dict[str, Any], output_dir: str):
+
+    def _run_worker(self, config: Dict[str, Any], environment: Dict[str, Any], output_dir: str):
         self.log.info("Worker started")
         
         orig_env = os.environ.copy()
@@ -195,7 +196,7 @@ def _run_worker(self, config: Dict[str, Any], environment: Dict[str, Any], outpu
         # Safely expand and inject the framework delta into the compute node's native environment
         for key, val in environment.items():
             os.environ[key] = os.path.expandvars(str(val))
-        
+
         try:
             node_file = "worker_nodelist.txt"
             with open(node_file, "w") as f:
