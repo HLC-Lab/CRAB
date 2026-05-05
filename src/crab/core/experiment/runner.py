@@ -272,8 +272,19 @@ class ExperimentRunner:
                             started_deps.append(waiter)
                     for s in started_deps: del curr_deps[s]
 
+
                     if not curr_schedule and not curr_deps and not (running - f_app_ids):
                         break
+                    
+                    # Check if the global elapsed time has exceeded the timeout
+                    if (time.time() - global_start) >= timeout:
+                        run_log.error(f"HARD TIMEOUT: Experiment exceeded {timeout}s mid-run. MPI Deadlock detected.")
+                        for active_aid in list(running):
+                            try:
+                                self.apps[active_aid].process.kill()
+                            except:
+                                pass
+                        break # Break the inner loop, forcing a teardown
                     
                     time.sleep(0.05)
 
