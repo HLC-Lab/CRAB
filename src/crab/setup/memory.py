@@ -3,12 +3,16 @@ import json
 import shutil
 from typing import Dict, Optional
 from rich.console import Console
+from pathlib import Path
 
 # We'll use Rich for safe warning prints
 console = Console()
 
-# Define standard paths
-CRAB_ROOT = os.getcwd()
+# Calculate the absolute physical root of the CRAB framework
+# memory.py is in src/crab/setup/. Moving up 3 parents resolves to the project root.
+_base_path = Path(__file__).resolve().parents[3]
+
+CRAB_ROOT = str(_base_path)
 CONFIG_DIR = os.path.join(CRAB_ROOT, "config")
 PATHS_FILE = os.path.join(CONFIG_DIR, "paths.json")
 
