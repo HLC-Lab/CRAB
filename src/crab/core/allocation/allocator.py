@@ -3,29 +3,43 @@ from typing import List, Dict, Any
   
 class NodeAllocator:  
     """Encapsulates all strategies for mapping nodes to applications."""  
-  
-    @staticmethod  
-    def get_abs_split(split_str: str, num_apps: int, num_nodes: int) -> List[int]:  
-        """Calculates absolute node counts based on percentage or equal split."""  
-        if split_str == 'e':  
-            split_list = [100.0 / num_apps] * num_apps  
-        else:  
-            split_list = [float(x) for x in split_str.split(':')]  
-  
-        if sum(split_list) > 100.1: # float tolerance  
-            raise Exception("Splits percentages exceed 100.")  
-          
-        split_list = split_list[:num_apps]  
-        split_absolute = []  
-        for split in split_list[:-1]:  
-            split_absolute.append(int(math.ceil(num_nodes * split / 100)))  
-          
-        if num_apps == 1:  
-            split_absolute = [int(math.ceil(num_nodes * split_list[0] / 100))]  
-        else:  
-            split_absolute.append(num_nodes - sum(split_absolute))  
-              
-        return split_absolute  
+
+    @staticmethod
+    def _apply_largest_remainder(total_items: int, percentages: List[float]) -> List[int]:
+        """Distributes integer items based on percentages using the Largest Remainder Method."""
+        exact_shares = [total_items * (p / 100.0) for p in percentages]
+        base_alloc = [int(math.floor(share)) for share in exact_shares]
+        
+        # Calculate the deficit (remainder) for each index
+        remainders = [(i, exact_shares[i] - base_alloc[i]) for i in range(len(exact_shares))]
+        missing = total_items - sum(base_alloc)
+        
+        # Sort by largest remainder descending
+        remainders.sort(key=lambda x: x[1], reverse=True)
+        
+        # Distribute the missing nodes to those closest to a whole node
+        for i in range(missing):
+            base_alloc[remainders[i][0]] += 1
+            
+        return base_alloc
+
+    @staticmethod
+    def get_abs_split(split_str: str, num_apps: int, num_nodes: int) -> List[int]:
+        """Calculates absolute node counts based on percentage or equal split."""
+        if split_str == 'e':
+            split_list = [100.0 / num_apps] * num_apps
+        else:
+            split_list = [float(x) for x in split_str.split(':')]
+
+        if sum(split_list) > 100.1: # float tolerance
+            raise Exception("Splits percentages exceed 100.")
+        
+        # Pad with zeros if fewer splits are provided than apps
+        while len(split_list) < num_apps:
+            split_list.append(0.0)
+            
+        split_list = split_list[:num_apps]
+        return NodeAllocator._apply_largest_remainder(num_nodes, split_list)
   
     @staticmethod  
     def allocate_linear(apps: List[Any], node_list: List[str], split_counts: List[int]):  
@@ -72,15 +86,12 @@ class NodeAllocator:
             # Auto-detect based on app partition_ids  
             used_ids = set(getattr(a, 'partition_id', 0) for a in apps)  
             max_p = max(used_ids) + 1 if used_ids else 1  
-            pt_counts = [int(math.ceil(num_nodes / max_p)) for _ in range(max_p)]  
-            # Adjust remainder  
-            diff = sum(pt_counts) - num_nodes  
-            if diff != 0: pt_counts[-1] -= diff  
+            percs = [100.0 / max_p] * max_p
         else:  
             percs = [float(x) for x in partition_split.split(':')]  
-            pt_counts = [int(math.ceil(num_nodes * p / 100)) for p in percs[:-1]]  
-            pt_counts.append(num_nodes - sum(pt_counts))  
-  
+            
+        pt_counts = NodeAllocator._apply_largest_remainder(num_nodes, percs)
+
         # 2. Assign nodes to Partitions (Linear vs Interleaved)  
         partitions_nodes = [[] for _ in range(len(pt_counts))]  
           
