@@ -3,6 +3,8 @@ import argcomplete
 from argcomplete.completers import FilesCompleter
 import os
 import json
+import sys
+import subprocess
 
 def _preset_completer(prefix, parsed_args, **kwargs):
     """Dynamically parses presets.json for tab-autocompletion."""
@@ -24,8 +26,46 @@ def handle_setup(args):
     from crab.setup.wizard import run as run_wizard
     run_wizard()
 
+
 def handle_tui(args):
-    from crab.tui.app import BenchmarkApp
+    """
+    Handles the TUI launch with lazy loading and auto-installation 
+    of optional dependencies.
+    """
+    try:
+        # Architect Protocol: Delayed import to avoid 'Import Tax' on CLI
+        from crab.tui.app import BenchmarkApp
+    except ImportError:
+        # Analyst Protocol: Diagnose missing optional dependencies
+        print("[!] TUI dependencies (textual) are not installed.")
+        
+        # Interactive prompt using standard input
+        try:
+            confirm = input("Would you like to install the 'tui' optional dependencies now? (y/N): ").lower()
+        except EOFError:
+            return
+
+        if confirm == 'y':
+            print(f"[*] Installing 'textual' and 'textual-fspicker' into {sys.prefix}...")
+            try:
+                # We use sys.executable to ensure we install into the active .venv
+                # We call 'pip install' on the local package with the [tui] extra
+                subprocess.check_call([
+                    sys.executable, "-m", "pip", "install", "crab[tui]"
+                ])
+                print("[+] Installation successful. Launching TUI...")
+                
+                # Re-attempt the import now that the environment is populated
+                from crab.tui.app import BenchmarkApp
+            except Exception as e:
+                print(f"[ERROR] Auto-installation failed: {e}")
+                print("Please run 'pip install -e .[tui]' manually to fix this.")
+                return
+        else:
+            print("Aborting. The TUI requires optional dependencies to run.")
+            return
+
+    # Initialize and execute the Textual App
     app = BenchmarkApp()
     app.run()
 
