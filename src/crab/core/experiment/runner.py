@@ -278,7 +278,7 @@ class ExperimentRunner:
                     
                     # Check if the global elapsed time has exceeded the timeout
                     if (time.time() - global_start) >= timeout:
-                        run_log.error(f"HARD TIMEOUT: Experiment exceeded {timeout}s mid-run. MPI Deadlock detected.")
+                        run_log.error(f"HARD TIMEOUT: Experiment exceeded {timeout}s mid-run.")
                         for active_aid in list(running):
                             try:
                                 self.apps[active_aid].process.kill()
