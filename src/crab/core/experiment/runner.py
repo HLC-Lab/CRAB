@@ -26,12 +26,17 @@ class ExperimentRunner:
         # Paths  
         self.exp_dir = os.path.join(output_dir, self.name)  
         os.makedirs(self.exp_dir, exist_ok=True)  
-          
+
+        # Configuration Merge
+        local_opts = self.config.get("local_options", {})
+        self.exp_opts = {**self.global_opts, **local_opts}
+
         # State  
         self.apps = []  
         self.wlmanager = None  
         self.data_containers = []  
-        self.ppn = int(global_options.get('ppn', 1))  
+        # Force PPN to strictly obey the physical global allocation
+        self.ppn = int(self.global_opts.get('ppn', 1))
   
     def setup(self):  
         """Loads apps, workload manager, and calculates node layout."""  
@@ -92,11 +97,10 @@ class ExperimentRunner:
             idx_counter += 1  
   
         # 2. Allocate Nodes  
-        mode = self.global_opts.get('allocationmode', 'l')  
+        mode = self.exp_opts.get('allocationmode', 'l')  
           
-        # Merge experiment specific overrides into options for allocator  
-        alloc_options = self.global_opts.copy()  
-        # (Future: allow experiment config to override global_opts for splitting)  
+        # Pass the unified experiment options to the allocator
+        alloc_options = self.exp_opts.copy()
 
         if mode == 'p':
             NodeAllocator.allocate_partitioned(self.apps, self.node_list, alloc_options)
@@ -128,15 +132,15 @@ class ExperimentRunner:
         self.log.info("Execution started")
         
         # Params
-        min_runs = int(self.global_opts.get('minruns', 10))
-        max_runs = int(self.global_opts.get('maxruns', 20))
-        timeout = float(self.global_opts.get('timeout', 1200.0))
-        converge_all = bool(self.global_opts.get('convergeall', False))
-        alpha = float(self.global_opts.get('alpha', 0.05))
-        beta = float(self.global_opts.get('beta', 0.05))
+        min_runs = int(self.exp_opts.get('minruns', 10))
+        max_runs = int(self.exp_opts.get('maxruns', 20))
+        timeout = float(self.exp_opts.get('timeout', 1200.0))
+        converge_all = bool(self.exp_opts.get('convergeall', False))
+        alpha = float(self.exp_opts.get('alpha', 0.05))
+        beta = float(self.exp_opts.get('beta', 0.05))
 
         # Recupera l'header dalle opzioni globali (dove l'Orchestrator lo ha messo)
-        # Default a lista vuota se non esiste
+        # Default a lista vuota se non esiste. Header is strictly global.
         system_header = self.global_opts.get('system_header', [])
 
         # Schedule Logic Preparation
@@ -313,7 +317,7 @@ class ExperimentRunner:
     def save_results(self):
         """Persists data to disk."""
         if self.data_containers:
-            out_fmt = self.global_opts.get('outformat', 'csv')
+            out_fmt = self.exp_opts.get('outformat', 'csv')
             prefix = os.path.join(self.exp_dir, 'data')
             log_data(out_fmt, prefix, self.data_containers)
             self.log.info(f"Data saved to {self.exp_dir}")
