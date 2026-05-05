@@ -231,19 +231,25 @@ class ExperimentRunner:
                                 if exit_code != 0:
                                     app_log.error(f"FAILED  exit={exit_code}")
 
-                                    # We STILL forward stderr, because errors should be visible in slurm_output.log
-                                    if err:
-                                        stderr_text = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
-                                        app_log.app_output("", stderr_text)
+                                    # Extract both streams
+                                    stdout_text = out.decode('utf-8', errors='replace') if isinstance(out, bytes) else out
+                                    stderr_text = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
 
-                                    # Write detailed error log to experiment dir
+                                    # Forward BOTH streams to the console if they exist
+                                    if stdout_text.strip():
+                                        app_log.app_output("STDOUT Dump:", stdout_text)
+                                    if stderr_text and stderr_text.strip():
+                                        app_log.app_output("STDERR Dump:", stderr_text)
+
+                                    # Write detailed error log to experiment dir, including both streams
                                     try:
                                         err_path = os.path.join(self.exp_dir, f"error_app_{aid}.log")
                                         with open(err_path, "w") as f:
                                             f.write(f"App {aid} exit={exit_code}\n")
-                                            if err:
-                                                decoded = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
-                                                f.write(decoded)
+                                            if stdout_text.strip():
+                                                f.write(f"\n--- STDOUT ---\n{stdout_text}\n")
+                                            if stderr_text and stderr_text.strip():
+                                                f.write(f"\n--- STDERR ---\n{stderr_text}\n")
                                     except Exception:
                                         app_log.warning("Could not write error log file")
                                 else:
