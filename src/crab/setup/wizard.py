@@ -185,10 +185,10 @@ def run():
                 if success:
                     final_path = result
                     console.print(f"\n[bold green]Build successful![/bold green] Located at: {final_path}")
-                    time.sleep(1) # Brief pause so it doesn't instantly flash away
+                    console.input("\n[dim]Press [Enter] to continue...[/dim]")
                 else:
                     console.print(f"\n[bold red]Build failed:[/bold red]\n{result}")
-                    console.input("\n[dim]Press [Enter] to continue...[/dim]") # Only pause manually on an error
+                    console.input("\n[dim]Press [Enter] to continue...[/dim]")
 
         # --- Post-Config Save ---
         if final_path:
