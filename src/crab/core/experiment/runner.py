@@ -59,10 +59,17 @@ class ExperimentRunner:
             spec.loader.exec_module(mod)  
             return mod  
   
+
         # WLM Loading  
         wlm_name = os.environ.get("CRAB_WL_MANAGER", "slurm") # default  
-        wlm_path = f"./src/crab/core/wl_manager/{wlm_name}.py"  
-        self.wlmanager = load_module(wlm_path).wl_manager()  
+        
+        # Anchor the path dynamically to this script's location
+        # __file__ is .../src/crab/core/experiment/runner.py
+        # Walking up one level takes us to .../src/crab/core/
+        core_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        wlm_path = os.path.join(core_dir, "wl_manager", f"{wlm_name}.py")
+        
+        self.wlmanager = load_module(wlm_path).wl_manager()
   
         # App Instantiation  
         idx_counter = 0  

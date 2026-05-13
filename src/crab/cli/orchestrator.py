@@ -7,10 +7,13 @@ from typing import Dict, Any
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
+# Walk up: cli -> crab -> src -> CRAB_ROOT
+CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
 import crab.setup.memory as memory
 
 def load_environment_config(preset_arg: str) -> Dict[str, Any]:
-    presets_filename = "config/presets.json"
+    presets_filename = os.path.join(CRAB_ROOT, "config", "presets.json")
     try:
         with open(presets_filename, 'r') as f:
             all_presets = json.load(f)

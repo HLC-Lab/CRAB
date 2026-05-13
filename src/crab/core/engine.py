@@ -10,6 +10,8 @@ from crab.log import CrabLogger
 from crab.core.experiment import ExperimentRunner
 import pandas
 
+CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
 class Engine:
     def __init__(self, logger: CrabLogger):
         self.log = logger
@@ -114,7 +116,7 @@ class Engine:
                 raise ValueError("Config must contain 'experiments' or 'applications'.")
 
         g_opts = config.get('global_options', {})
-        data_path = g_opts.get('datapath', './data')
+        data_path = g_opts.get('datapath', os.path.join(CRAB_ROOT, 'data'))
         num_nodes = int(g_opts.get('numnodes'))
         
         # Setup Directory
@@ -169,7 +171,7 @@ class Engine:
                 f.write(f"{line}\n")
             
 
-            venv = os.path.join(os.getcwd(), '.venv/bin/activate')
+            venv = os.path.join(CRAB_ROOT, '.venv', 'bin', 'activate')
             if os.path.exists(venv):
                 f.write(f"\nsource {venv}\n")
 
