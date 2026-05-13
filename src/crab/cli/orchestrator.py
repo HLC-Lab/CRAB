@@ -67,7 +67,7 @@ def prepare_execution_environment(env_dict: Dict[str, Any]) -> Dict[str, str]:
     processed_env = {}
     for key, value in env_dict.items():
         if isinstance(value, str):
-            value = value.replace("__CWD__", os.getcwd())
+            value = value.replace("__CWD__", CRAB_ROOT)
         processed_env[key] = str(value)
     return processed_env
 
