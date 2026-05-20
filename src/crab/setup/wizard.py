@@ -154,6 +154,9 @@ def run():
                 console.input("\n[dim]Press [Enter] to continue...[/dim]")
                 continue
 
+            from rich.prompt import Prompt
+            arch = Prompt.ask("Select Build Architecture", choices=["cpu", "gpu"], default="cpu")
+
             handle_cleanup(recipe.benchmark_id)
             target_dir = os.path.join(BENCHMARKS_DIR, recipe.benchmark_id)
             
@@ -172,7 +175,7 @@ def run():
                     elif msg_type == "log": recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
                     live.update(render_build_ui())
                     
-                success, result = recipe.download_and_build(target_dir, log_callback=live_callback)
+                success, result = recipe.download_and_build(target_dir, arch=arch, log_callback=live_callback)
 
             if success:
                 # Expecting format: "/path/to/bin|arch"
