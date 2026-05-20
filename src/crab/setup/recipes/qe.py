@@ -21,6 +21,9 @@ class QERecipe(BenchmarkRecipe):
             return False, "CMake is required to build QE from source."
         return True, "Dependencies found."
 
+    def verify_existing(self, path: str) -> bool:
+        return os.path.exists(os.path.join(path, "pw.x"))
+
     def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
         # Helper to run commands with the injected pre_commands
         def run_with_env(cmd_list, step_name):

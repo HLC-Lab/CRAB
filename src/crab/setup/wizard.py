@@ -211,27 +211,6 @@ def run():
                     "post_run": []
                 }
             }
-            # Only add target_arch if it was detected
-            if 'target_arch' in locals():
-                new_receipt['target_arch'] = target_arch
-
-            memory.save_receipt(recipe.benchmark_id, new_receipt)
-            console.print(f"\n[bold green]✅ {recipe.name} receipt generated successfully![/bold green]")
-        else:
-            console.print(f"\n[yellow]⚠️ {recipe.name} configuration skipped or failed.[/yellow]")
-
-        # Create and save the Environment Receipt
-        if final_path:
-            new_receipt = {
-                "id": recipe.benchmark_id,
-                "type": receipt_type,
-                "binary_path": final_path,
-                "launcher_override": recipe.launcher_override,
-                "hooks": {
-                    "pre_run": pre_run_hooks,
-                    "post_run": []
-                }
-            }
             memory.save_receipt(recipe.benchmark_id, new_receipt)
             console.print(f"\n[bold green]✅ {recipe.name} receipt generated successfully![/bold green]")
         else:
@@ -239,6 +218,7 @@ def run():
 
     print_header(title="Setup Complete")
     console.print(Panel.fit("[bold green]All requested benchmarks have been processed.[/bold green]\nRun CRAB Orchestrator to start benchmarking.", border_style="green"))
+
 
 if __name__ == "__main__":
     run()
