@@ -30,6 +30,13 @@ class app(base):
     def benchmark_id(self) -> str:
         return "g500"
 
+    def get_binary_path(self):
+        # Retrieve the directory stored in the receipt
+        base_dir = super().get_binary_path()
+        if base_dir:
+            return os.path.join(base_dir, "graph500_reference_bfs")
+        return None
+
     def read_data(self):
         if self.exists:
             output = self.stdout
