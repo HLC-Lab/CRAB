@@ -10,12 +10,11 @@ class app(base):
 
     @property
     def metadata(self) -> list:
-        # This tells the core runner what metrics we are collecting
         return [
             {
                 "name": "wall_time",
                 "unit": "seconds",
-                "conv": 1.0  # Direct multiplier conversion
+                "conv": 1.0  
             }
         ]
 
@@ -23,10 +22,7 @@ class app(base):
         receipt = self.get_receipt()
         if not receipt:
             return None
-        # CMake puts executables inside build/bin/ relative to the target_dir
-        # target_dir contains 'build', so we point to target_dir/build/bin/pw.x
         base_path = receipt.get("binary_path", "")
-        # If binary_path currently points to target_dir/bin, step up and into build/bin
         if base_path.endswith("bin"):
             base_path = os.path.dirname(base_path)
         return os.path.join(base_path, "build", "bin", "pw.x")
@@ -38,18 +34,21 @@ class app(base):
         if not input_file or not os.path.exists(input_file):
             raise FileNotFoundError(f"Input file not found: {input_file}")
 
-        # Setup Sandbox
+        # Pin sandbox directory directly inside the active tracking workspace
         sandbox_dir = os.path.join(os.getcwd(), "scratch")
         os.makedirs(sandbox_dir, exist_ok=True)
         
-        # Handle Pseudopotentials
+        # Explicitly copy original input for benchmark provenance
+        shutil.copy(input_file, os.path.join(os.getcwd(), "original_input.in"))
+        
+        # Handle Pseudopotentials inside tracking context
         target_pseudo_dir = os.path.join(sandbox_dir, "pseudo")
         if pseudo_dir_source and os.path.exists(pseudo_dir_source):
             if not os.path.exists(target_pseudo_dir):
                 shutil.copytree(pseudo_dir_source, target_pseudo_dir)
         
-        # Modify .in file for Sandbox redirection
-        modified_in = "modified_input.in"
+        # Modify .in file for explicit runtime output directions
+        modified_in = os.path.join(os.getcwd(), "modified_input.in")
         with open(input_file, 'r') as f_in, open(modified_in, 'w') as f_out:
             for line in f_in:
                 if "outdir" in line.lower():
@@ -66,19 +65,22 @@ class app(base):
         if not hasattr(self, 'stdout') or not self.stdout:
             return [[0.0]]
 
-        # Handle both raw bytes and already-decoded strings safely
         if isinstance(self.stdout, bytes):
             content = self.stdout.decode('utf-8', errors='replace')
         else:
             content = str(self.stdout)
         
-        # Look for the characteristic QE ending line
-        wall_match = re.search(r"(?:WALL|Total wall time:)\s*(?:([\d.]+)h)?\s*(?:([\d.]+)m)?\s*([\d.]+)s", content, re.IGNORECASE)
-        
-        if wall_match:
-            hours = float(wall_match.group(1)) if wall_match.group(1) else 0.0
-            minutes = float(wall_match.group(2)) if wall_match.group(2) else 0.0
-            seconds = float(wall_match.group(3))
+        # Check standard inline layout: e.g., "  12.75s WALL"
+        match_inline = re.search(r"([\d.]+)\s*s\s*WALL", content, re.IGNORECASE)
+        if match_inline:
+            return [[float(match_inline.group(1))]]
+
+        # Fallback layout check: e.g., "Total wall time:     0m 5.12s"
+        match_legacy = re.search(r"Total wall time:\s*(?:([\d.]+)h)?\s*(?:([\d.]+)m)?\s*([\d.]+)s", content, re.IGNORECASE)
+        if match_legacy:
+            hours = float(match_legacy.group(1)) if match_legacy.group(1) else 0.0
+            minutes = float(match_legacy.group(2)) if match_legacy.group(2) else 0.0
+            seconds = float(match_legacy.group(3))
             
             total_seconds = (hours * 3600) + (minutes * 60) + seconds
             return [[total_seconds]]
