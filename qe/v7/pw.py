@@ -23,7 +23,13 @@ class app(base):
         receipt = self.get_receipt()
         if not receipt:
             return None
-        return os.path.join(receipt.get("binary_path", ""), "pw.x")
+        # CMake puts executables inside build/bin/ relative to the target_dir
+        # target_dir contains 'build', so we point to target_dir/build/bin/pw.x
+        base_path = receipt.get("binary_path", "")
+        # If binary_path currently points to target_dir/bin, step up and into build/bin
+        if base_path.endswith("bin"):
+            base_path = os.path.dirname(base_path)
+        return os.path.join(base_path, "build", "bin", "pw.x")
 
     def run_app(self):
         input_file = getattr(self, 'input_file', None)
