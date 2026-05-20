@@ -154,8 +154,12 @@ def run():
                 console.input("\n[dim]Press [Enter] to continue...[/dim]")
                 continue
 
-            from rich.prompt import Prompt
+            env_cmd = Prompt.ask("Enter module load commands", default="module load gcc openmpi")
             arch = Prompt.ask("Select Build Architecture", choices=["cpu", "gpu"], default="cpu")
+
+            # INJECT CONFIG INTO RECIPE
+            recipe.arch = arch
+            recipe.pre_commands = env_cmd.split(" && ")
 
             handle_cleanup(recipe.benchmark_id)
             target_dir = os.path.join(BENCHMARKS_DIR, recipe.benchmark_id)
@@ -175,7 +179,7 @@ def run():
                     elif msg_type == "log": recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
                     live.update(render_build_ui())
                     
-                success, result = recipe.download_and_build(target_dir, arch=arch, log_callback=live_callback)
+                success, result = recipe.download_and_build(target_dir, log_callback=live_callback)
 
             if success:
                 # Expecting format: "/path/to/bin|arch"
