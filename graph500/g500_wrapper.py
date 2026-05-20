@@ -26,14 +26,9 @@ class app(base):
         {'name': 'stddev_valid'       , 'unit': 's', 'conv': True},
     ]
 
-    def get_binary_path(self):
-        env_name = "CRAB_PATH_G500"
-        if env_name not in os.environ or os.environ[env_name] == "":
-            self.exists = False
-            return None
-        else:
-            # Join the injected directory with the specific executable name
-            return os.path.join(os.environ[env_name], "graph500_reference_bfs")
+    @property
+    def benchmark_id(self) -> str:
+        return "g500"
 
     def read_data(self):
         if self.exists:

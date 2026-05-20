@@ -3,6 +3,10 @@ import os
 from crab.wrappers.base import base, sizeof_fmt
 
 class microbench(base):
+    @property
+    def benchmark_id(self) -> str:
+        return "blink"
+
     metadata = [
         {'name': 'Avg-Duration'     , 'unit': 's', 'conv': True }, 
         {'name': 'Min-Duration'     , 'unit': 's', 'conv': False},
@@ -12,8 +16,11 @@ class microbench(base):
     ]
 
     def get_path(self, name):
-        # 2. Use the path dynamically injected by the Orchestrator/Paths memory
-        blink_dir = os.environ.get("CRAB_PATH_BLINK", "")
+        # Read the directory from the new receipt system
+        receipt = self.get_receipt()
+        if not receipt:
+            return None
+        blink_dir = receipt.get("binary_path", "")
         return os.path.join(blink_dir, name)
 
     def read_data(self):
