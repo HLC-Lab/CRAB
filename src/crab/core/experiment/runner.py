@@ -231,7 +231,7 @@ class ExperimentRunner:
                                 concurrent = len(static_schedule) > 1 or len(dependency_map) > 0
                                 
                                 # --- Merge Hooks and Override Launcher ---
-                                merged_pre_commands = system_header + self.apps[aid].get_pre_commands()
+                                merged_pre_commands = self.apps[aid].get_pre_commands()
                                 launcher_override = self.apps[aid].get_launcher_override()
 
                                 run_job(self.apps[aid], self.wlmanager, self.ppn,
@@ -306,7 +306,7 @@ class ExperimentRunner:
                             dep_log = run_log.enter(f"App {waiter}")
                             
                             # --- Merge Hooks and Override Launcher ---
-                            merged_pre_commands = system_header + self.apps[waiter].get_pre_commands()
+                            merged_pre_commands = self.apps[waiter].get_pre_commands()
                             launcher_override = self.apps[waiter].get_launcher_override()
 
                             run_job(self.apps[waiter], self.wlmanager, self.ppn,

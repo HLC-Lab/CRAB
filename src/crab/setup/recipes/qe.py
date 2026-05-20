@@ -13,8 +13,6 @@ class QERecipe(BenchmarkRecipe):
     def name(self) -> str: return "Quantum ESPRESSO"
     @property
     def benchmark_id(self) -> str: return "quantum_espresso"
-    @property
-    def launcher_override(self) -> str: return "mpirun"
 
     def check_dependencies(self) -> Tuple[bool, str]:
         if not shutil.which("cmake"):
@@ -41,7 +39,16 @@ class QERecipe(BenchmarkRecipe):
             wrapped_cmd = ["bash", "-c", f"{' && '.join(self.pre_commands)} && {' '.join(cmd_list)}"]
             return self.run_command_streamed(wrapped_cmd, working_dir, step_name, log_callback)
 
-        cmake_flags = ["cmake", "..", "-DCMAKE_INSTALL_PREFIX=.."]
+        cmake_flags = [
+                "cmake", "..", 
+                "-DCMAKE_INSTALL_PREFIX=..",
+                "-DCMAKE_C_COMPILER=mpicc",
+                "-DCMAKE_Fortran_COMPILER=mpif90",
+                "-DQE_ENABLE_OPENMP=ON",
+                "-DQE_ENABLE_MPI=ON",
+                "-DQE_FFTW_VENDOR=Internal"
+                ]
+
         if self.arch == "gpu":
             cmake_flags.append("-DQE_ENABLE_CUDA=ON")
             
