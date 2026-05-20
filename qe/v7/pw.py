@@ -1,6 +1,7 @@
 import os
 import re
 import shutil
+import inspect
 from crab.wrappers.base import base
 
 class app(base):
@@ -27,6 +28,19 @@ class app(base):
             base_path = os.path.dirname(base_path)
         return os.path.join(base_path, "build", "bin", "pw.x")
 
+    def _get_experiment_dir(self):
+        """Dynamically extracts the CRAB experiment output directory from the engine stack."""
+        frame = inspect.currentframe()
+        try:
+            while frame:
+                # CRAB's runner.execute() explicitly uses the variable 'output_dir'
+                if 'output_dir' in frame.f_locals and isinstance(frame.f_locals['output_dir'], str):
+                    return frame.f_locals['output_dir']
+                frame = frame.f_back
+        finally:
+            del frame
+        return os.getcwd()
+
     def run_app(self):
         input_file = getattr(self, 'input_file', None)
         pseudo_dir_source = getattr(self, 'pseudo_dir', None)
@@ -34,21 +48,22 @@ class app(base):
         if not input_file or not os.path.exists(input_file):
             raise FileNotFoundError(f"Input file not found: {input_file}")
 
-        # Pin sandbox directory directly inside the active tracking workspace
-        sandbox_dir = os.path.join(os.getcwd(), "scratch")
+        # 1. Anchor everything to the actual CRAB experiment directory
+        exp_dir = self._get_experiment_dir()
+        sandbox_dir = os.path.join(exp_dir, "scratch")
         os.makedirs(sandbox_dir, exist_ok=True)
         
-        # Explicitly copy original input for benchmark provenance
-        shutil.copy(input_file, os.path.join(os.getcwd(), "original_input.in"))
+        # 2. Preserve provenance (copy original input to experiment dir)
+        shutil.copy(input_file, os.path.join(exp_dir, "original_input.in"))
         
-        # Handle Pseudopotentials inside tracking context
+        # 3. Handle Pseudopotentials locally inside the experiment
         target_pseudo_dir = os.path.join(sandbox_dir, "pseudo")
         if pseudo_dir_source and os.path.exists(pseudo_dir_source):
             if not os.path.exists(target_pseudo_dir):
                 shutil.copytree(pseudo_dir_source, target_pseudo_dir)
         
-        # Modify .in file for explicit runtime output directions
-        modified_in = os.path.join(os.getcwd(), "modified_input.in")
+        # 4. Modify .in file to force Absolute Paths for the sandbox
+        modified_in = os.path.join(exp_dir, "modified_input.in")
         with open(input_file, 'r') as f_in, open(modified_in, 'w') as f_out:
             for line in f_in:
                 if "outdir" in line.lower():
@@ -58,6 +73,7 @@ class app(base):
                 else:
                     f_out.write(line)
         
+        # 5. Return execution string using explicit absolute paths
         binary = self.get_binary_path()
         return f"{binary} -in {modified_in}"
 
@@ -65,24 +81,25 @@ class app(base):
         if not hasattr(self, 'stdout') or not self.stdout:
             return [[0.0]]
 
-        if isinstance(self.stdout, bytes):
-            content = self.stdout.decode('utf-8', errors='replace')
-        else:
-            content = str(self.stdout)
+        # base.py already decodes stdout to a string
+        content = str(self.stdout)
         
-        # Check standard inline layout: e.g., "  12.75s WALL"
+        # Dump a physical .out file into the experiment directory for user review
+        exp_dir = self._get_experiment_dir()
+        with open(os.path.join(exp_dir, "pw.out"), "w") as f_out:
+            f_out.write(content)
+        
+        # 1. Match inline format: e.g., "  11.98s CPU     12.75s WALL"
         match_inline = re.search(r"([\d.]+)\s*s\s*WALL", content, re.IGNORECASE)
         if match_inline:
             return [[float(match_inline.group(1))]]
 
-        # Fallback layout check: e.g., "Total wall time:     0m 5.12s"
+        # 2. Legacy format fallback: e.g., "Total wall time:     0m 5.12s"
         match_legacy = re.search(r"Total wall time:\s*(?:([\d.]+)h)?\s*(?:([\d.]+)m)?\s*([\d.]+)s", content, re.IGNORECASE)
         if match_legacy:
             hours = float(match_legacy.group(1)) if match_legacy.group(1) else 0.0
             minutes = float(match_legacy.group(2)) if match_legacy.group(2) else 0.0
             seconds = float(match_legacy.group(3))
-            
-            total_seconds = (hours * 3600) + (minutes * 60) + seconds
-            return [[total_seconds]]
+            return [[(hours * 3600) + (minutes * 60) + seconds]]
             
         return [[0.0]]
