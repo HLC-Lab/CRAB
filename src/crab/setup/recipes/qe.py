@@ -13,6 +13,8 @@ class QERecipe(BenchmarkRecipe):
     def name(self) -> str: return "Quantum ESPRESSO"
     @property
     def benchmark_id(self) -> str: return "quantum_espresso"
+    @property
+    def launcher_override(self) -> str: return "mpirun"
 
     def check_dependencies(self) -> Tuple[bool, str]:
         if not shutil.which("cmake"):
