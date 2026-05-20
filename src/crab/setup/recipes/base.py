@@ -2,12 +2,11 @@ import os
 import shutil
 import subprocess
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple, Callable
+from typing import Optional, Tuple, Callable, List
 
 class BenchmarkRecipe(ABC):
     """
     The strict contract for all CRAB benchmark installation recipes.
-    Any new benchmark added to CRAB must inherit from this class.
     """
     
     @property
@@ -18,44 +17,38 @@ class BenchmarkRecipe(ABC):
 
     @property
     @abstractmethod
-    def env_key(self) -> str:
-        """The environment variable key used in CRAB memory (e.g., 'CRAB_G500_PATH')."""
+    def benchmark_id(self) -> str:
+        """The unique identifier for the receipt (e.g., 'g500', 'quantum_espresso')."""
         pass
+
+    @property
+    def launcher_override(self) -> str:
+        """Override the cluster's default launcher (e.g., return 'mpirun' instead of 'srun')."""
+        return ""
+
+    @property
+    def pre_run_hooks(self) -> List[str]:
+        """Commands to run before the benchmark executes (e.g., specific exports)."""
+        return []
 
     @abstractmethod
     def check_dependencies(self) -> Tuple[bool, str]:
-        """
-        Pre-flight check before building from source.
-        Returns:
-            Tuple[bool, str]: (True, "Success message") or (False, "Error/Module load suggestion").
-        """
+        """Pre-flight check before building from source."""
         pass
 
     @abstractmethod
     def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
-        """
-        Logic to clone and compile the benchmark.
-        Args:
-            target_dir (str): Typically CRAB_ROOT/benchmarks/<benchmark_name>.
-            log_callback (Callable): Pass real-time updates back to the UI. 
-                                     Takes (msg_type: "step" | "log", message: str).
-        Returns:
-            Tuple[bool, str]: (True, absolute_path_to_binary) or (False, error_message).
-        """
+        """Logic to clone and compile the benchmark."""
         pass
 
     @abstractmethod
     def verify_existing(self, path: str) -> bool:
-        """
-        Validates if the user-provided path actually contains the expected, executable binary.
-        """
+        """Validates if the user-provided path actually contains the expected, executable binary."""
         pass
 
     def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
-        """
-        Tier 1 Auto-Detect. 
-        """
-        binary_name = self.env_key.replace("CRAB_PATH_", "").lower()
+        """Tier 1 Auto-Detect."""
+        binary_name = self.benchmark_id.lower()
         
         local_target = os.path.join(crab_benchmarks_dir, binary_name)
         if self.verify_existing(local_target):
@@ -68,29 +61,19 @@ class BenchmarkRecipe(ABC):
         return None
 
     def run_command_streamed(self, cmd: list, cwd: str, step_name: str, log_callback: Optional[Callable[[str, str], None]]) -> bool:
-        """
-        A built-in helper method for recipes. Runs a shell command, reads it line by line, 
-        and streams the output back to the UI via the log_callback.
-        """
+        """Runs a shell command and streams the output."""
         if log_callback:
             log_callback("step", step_name)
             
         try:
             process = subprocess.Popen(
-                cmd,
-                cwd=cwd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,  # Merge stderr into stdout
-                text=True,
-                bufsize=1  # Line buffered
+                cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                text=True, bufsize=1
             )
-            
-            # Stream output in real-time
             if process.stdout:
                 for line in iter(process.stdout.readline, ''):
                     if log_callback and line.strip():
                         log_callback("log", line.strip())
-                        
             process.wait()
             return process.returncode == 0
         except Exception as e:

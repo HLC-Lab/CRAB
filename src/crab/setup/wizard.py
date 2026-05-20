@@ -1,7 +1,6 @@
 import os
 import shutil
 import subprocess
-import time
 from collections import deque
 from rich.console import Console, Group
 from rich.prompt import Prompt, Confirm
@@ -9,30 +8,25 @@ from rich.panel import Panel
 from rich.text import Text
 from rich.live import Live
 
-# 1. The New Interactive Menu Imports
 import questionary
 from questionary import Choice
 
-# Import our custom modules
 import crab.setup.memory as memory
 from crab.setup.registry import discover_recipes
 
 console = Console()
 
-# 2. Hardened Pathing
 _SETUP_DIR = os.path.dirname(os.path.abspath(__file__))
 CRAB_ROOT = os.path.abspath(os.path.join(_SETUP_DIR, "..", "..", ".."))
 BENCHMARKS_DIR = os.path.join(CRAB_ROOT, "benchmarks")
 
 def print_header(total_recipes: int | None = None, title: str = "Welcome to the CRAB Setup Wizard"):
-    """Clears the terminal and prints the pinned Welcome Banner."""
     console.clear()
     console.print(Panel.fit(f"[bold cyan]🦀 {title}[/bold cyan]", border_style="cyan"))
     if total_recipes is not None:
         console.print(f"Found [bold]{total_recipes}[/bold] supported benchmarks.\n")
 
 def run_deep_search(binary_name: str) -> str | None:
-    """Tier 2 Auto-Detect: Searches the user's home directory."""
     console.print(f"[dim]Running deep search for '{binary_name}' in ~/... This might take a minute.[/dim]")
     try:
         home_dir = os.path.expanduser("~")
@@ -40,29 +34,27 @@ def run_deep_search(binary_name: str) -> str | None:
             ["find", home_dir, "-name", binary_name, "-type", "f", "-executable"],
             capture_output=True, text=True
         )
-        paths = result.stdout.strip().split("\n")
-        paths = [p for p in paths if p]
-        if paths:
-            return paths[0]
+        paths = [p for p in result.stdout.strip().split("\n") if p]
+        if paths: return paths[0]
     except Exception as e:
         console.print(f"[red]Deep search failed: {e}[/red]")
     return None
 
-def handle_cleanup(env_key: str):
-    """Checks if an old CRAB-managed build exists and offers to delete it."""
-    old_path = memory.get_path(env_key)
-    if old_path and old_path.startswith(BENCHMARKS_DIR):
-        rel_path = os.path.relpath(old_path, BENCHMARKS_DIR)
-        base_folder = rel_path.split(os.sep)[0]
-        full_dir_to_delete = os.path.join(BENCHMARKS_DIR, base_folder)
-        
-        if os.path.exists(full_dir_to_delete):
-            if Confirm.ask(f"[yellow]Found old build at {full_dir_to_delete}. Delete it to save space?[/yellow]", default=True):
-                shutil.rmtree(full_dir_to_delete)
-                console.print(f"[green]Cleaned up {full_dir_to_delete}[/green]")
+def handle_cleanup(benchmark_id: str):
+    receipt = memory.get_receipt(benchmark_id)
+    if receipt and receipt.get("type") == "source":
+        old_path = receipt.get("binary_path", "")
+        if old_path.startswith(BENCHMARKS_DIR):
+            rel_path = os.path.relpath(old_path, BENCHMARKS_DIR)
+            base_folder = rel_path.split(os.sep)[0]
+            full_dir_to_delete = os.path.join(BENCHMARKS_DIR, base_folder)
+            
+            if os.path.exists(full_dir_to_delete):
+                if Confirm.ask(f"[yellow]Found old build at {full_dir_to_delete}. Delete it to save space?[/yellow]", default=True):
+                    shutil.rmtree(full_dir_to_delete)
+                    console.print(f"[green]Cleaned up {full_dir_to_delete}[/green]")
 
 def run():
-    """Main entry point for the Wizard."""
     os.makedirs(BENCHMARKS_DIR, exist_ok=True)
     recipes = discover_recipes()
     
@@ -71,47 +63,38 @@ def run():
         console.print("[red]No benchmark recipes found in registry. Exiting.[/red]")
         return
 
-    # --- PHASE 1: The Master Menu ---
     print_header(len(recipes))
     console.print("[bold]Select the benchmarks you want to install or configure:[/bold]")
     console.print("[dim](Use Space to toggle, Up/Down to navigate, Enter to confirm)[/dim]\n")
 
     choices = []
     for recipe in recipes:
-        current_path = memory.get_path(recipe.env_key)
-        if current_path:
-            # If it's already configured, it is UNCHECKED by default to prevent accidental overwrites
-            title = f"{recipe.name} (Already configured at: {current_path})"
+        receipt = memory.get_receipt(recipe.benchmark_id)
+        if receipt:
+            title = f"{recipe.name} (Configured: {receipt.get('type')})"
             choices.append(Choice(title=title, value=recipe, checked=False))
         else:
-            # If it's NOT configured, it is CHECKED by default so they can just hit Enter
             title = f"{recipe.name} (Not configured)"
             choices.append(Choice(title=title, value=recipe, checked=True))
 
     selected_recipes = questionary.checkbox(
-        "Benchmarks:",
-        choices=choices,
-        qmark="🦀",
+        "Benchmarks:", choices=choices, qmark="🦀",
         style=questionary.Style([('highlighted', 'fg:cyan bold')])
     ).ask()
 
-    # If the user pressed Ctrl+C or unselected everything
     if not selected_recipes:
         console.print("\n[yellow]No benchmarks selected. Exiting.[/yellow]")
         return
 
-    # --- PHASE 2: The Execution Loop ---
     total_selected = len(selected_recipes)
 
     for i, recipe in enumerate(selected_recipes):
         print_header(title=f"Configuring {recipe.name} ({i + 1}/{total_selected})")
         
-        current_path = memory.get_path(recipe.env_key)
-        
-        # As requested: if they selected an already-configured benchmark, double check
-        if current_path:
-            console.print(f"✅ [bold green]{recipe.name}[/bold green] is already configured.")
-            console.print(f"   Path: [dim]{current_path}[/dim]\n")
+        receipt = memory.get_receipt(recipe.benchmark_id)
+        if receipt:
+            console.print(f"✅ [bold green]{recipe.name}[/bold green] is already configured via {receipt.get('type')}.")
+            console.print(f"   Binary: [dim]{receipt.get('binary_path')}[/dim]\n")
             if not Confirm.ask(f"Do you want to completely reconfigure {recipe.name}?", default=False):
                 continue
         else:
@@ -120,21 +103,23 @@ def run():
         console.print("[bold]How would you like to configure it?[/bold]")
         console.print("  [1] Auto-detect existing installation")
         console.print("  [2] Provide manual path")
-        console.print(f"  [3] Download and build from source (into {BENCHMARKS_DIR})")
+        console.print("  [3] Load via Environment Module (e.g. module load qe/7.4)")
+        console.print(f"  [4] Download and build from source (into {BENCHMARKS_DIR})")
         
-        choice = Prompt.ask("Select an option", choices=["1", "2", "3"], default="1")
+        choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4"], default="1")
+        
         final_path = None
+        receipt_type = "binary"
+        pre_run_hooks = recipe.pre_run_hooks.copy()
 
         if choice == "1":
             console.print("[dim]Running fast search...[/dim]")
             final_path = recipe.fast_search(BENCHMARKS_DIR)
-            
             if final_path:
                 console.print(f"[green]Found executable at:[/green] {final_path}")
             else:
-                binary_name = recipe.env_key.replace("CRAB_PATH_", "").lower()
                 if Confirm.ask("[yellow]Fast search failed. Run deep system search? (May be slow)[/yellow]", default=False):
-                    final_path = run_deep_search(binary_name)
+                    final_path = run_deep_search(recipe.benchmark_id.lower())
                     if final_path and recipe.verify_existing(final_path):
                         console.print(f"[green]Found executable at:[/green] {final_path}")
                     else:
@@ -144,8 +129,7 @@ def run():
         elif choice == "2":
             while True:
                 user_path = Prompt.ask("Enter the absolute path to the executable/folder (or 'q' to cancel)")
-                if user_path.lower() == 'q':
-                    break
+                if user_path.lower() == 'q': break
                 if recipe.verify_existing(user_path):
                     final_path = user_path
                     break
@@ -153,47 +137,66 @@ def run():
                     console.print("[red]Invalid path or file is not executable. Try again.[/red]")
 
         elif choice == "3":
+            # TRACK A: Module Loading
+            receipt_type = "module"
+            module_cmd = Prompt.ask("Enter the exact module command (e.g., 'module load quantum-espresso')")
+            binary_name = Prompt.ask("Enter the executable name provided by the module (e.g., 'pw.x')")
+            
+            pre_run_hooks.insert(0, module_cmd) # Inject module load before recipe hooks
+            final_path = binary_name
+
+        elif choice == "4":
+            # TRACK B: Source Build
             success, msg = recipe.check_dependencies()
             if not success:
                 console.print(f"\n[bold red]Dependency Check Failed:[/bold red] {msg}")
                 console.print("[yellow]Skipping build. Please load required modules and try again.[/yellow]")
                 console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                continue
+
+            handle_cleanup(recipe.benchmark_id)
+            target_dir = os.path.join(BENCHMARKS_DIR, recipe.benchmark_id)
+            
+            current_step = "Initializing..."
+            recent_logs = deque(maxlen=6)
+            
+            def render_build_ui() -> Panel:
+                step_text = Text(f"🟢 {current_step}", style="bold yellow")
+                log_text = Text.from_markup("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))
+                return Panel(Group(step_text, Text(""), log_text), title=f"[cyan]Building {recipe.name}[/cyan]", border_style="cyan")
+
+            with Live(render_build_ui(), console=console, refresh_per_second=15) as live:
+                def live_callback(msg_type: str, msg: str):
+                    nonlocal current_step
+                    if msg_type == "step": current_step = msg
+                    elif msg_type == "log": recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
+                    live.update(render_build_ui())
+                    
+                success, result = recipe.download_and_build(target_dir, log_callback=live_callback)
+
+            if success:
+                final_path = result
+                receipt_type = "source"
+                console.print(f"\n[bold green]Build successful![/bold green] Located at: {final_path}")
             else:
-                handle_cleanup(recipe.env_key)
-                target_dir = os.path.join(BENCHMARKS_DIR, recipe.name.lower().replace(" ", "_"))
-                
-                # --- REAL-TIME LIVE BUILD UI ---
-                current_step = "Initializing..."
-                recent_logs = deque(maxlen=6)
-                
-                def render_build_ui() -> Panel:
-                    step_text = Text(f"🟢 {current_step}", style="bold yellow")
-                    log_text = Text.from_markup("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))
-                    return Panel(Group(step_text, Text(""), log_text), title=f"[cyan]Building {recipe.name}[/cyan]", border_style="cyan")
+                console.print(f"\n[bold red]Build failed:[/bold red]\n{result}")
+                console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                continue
 
-                with Live(render_build_ui(), console=console, refresh_per_second=15) as live:
-                    def live_callback(msg_type: str, msg: str):
-                        nonlocal current_step
-                        if msg_type == "step":
-                            current_step = msg
-                        elif msg_type == "log":
-                            recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
-                        live.update(render_build_ui())
-                        
-                    success, result = recipe.download_and_build(target_dir, log_callback=live_callback)
-
-                if success:
-                    final_path = result
-                    console.print(f"\n[bold green]Build successful![/bold green] Located at: {final_path}")
-                    console.input("\n[dim]Press [Enter] to continue...[/dim]")
-                else:
-                    console.print(f"\n[bold red]Build failed:[/bold red]\n{result}")
-                    console.input("\n[dim]Press [Enter] to continue...[/dim]")
-
-        # --- Post-Config Save ---
+        # Create and save the Environment Receipt
         if final_path:
-            memory.save_path(recipe.env_key, final_path)
-            console.print(f"\n[bold green]✅ {recipe.name} configured successfully![/bold green]")
+            new_receipt = {
+                "id": recipe.benchmark_id,
+                "type": receipt_type,
+                "binary_path": final_path,
+                "launcher_override": recipe.launcher_override,
+                "hooks": {
+                    "pre_run": pre_run_hooks,
+                    "post_run": []
+                }
+            }
+            memory.save_receipt(recipe.benchmark_id, new_receipt)
+            console.print(f"\n[bold green]✅ {recipe.name} receipt generated successfully![/bold green]")
         else:
             console.print(f"\n[yellow]⚠️ {recipe.name} configuration skipped or failed.[/yellow]")
 

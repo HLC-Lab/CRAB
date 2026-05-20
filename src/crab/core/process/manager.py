@@ -4,23 +4,19 @@ import threading
 from typing import List  
 from crab.log import CrabLogger  
   
-def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str] = None, live_stream: bool = False, data_path: str = None):  
+def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str] = None, live_stream: bool = False, data_path: str = None, launcher: str = None):  
     """  
     Launch an application process via the workload manager.  
-  
-    When live_stream=True, stdout is read line-by-line in a background  
-    thread and forwarded through the logger in real time. The reader  
-    thread is stored on job._stream_thread for later joining.  
     """  
     if not job.node_list:  
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")  
       
-    cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app(), pre_commands=pre_commands, data_path=data_path)  
+    cmd_string = wlmanager.run_job(job.node_list, ppn, job.run_app(), pre_commands=pre_commands, data_path=data_path, launcher=launcher)  
       
     if not cmd_string:  
         cmd_string = "echo a > /dev/null"  
-        raise Exception  
-      
+        raise Exception
+
     cmd = shlex.split(cmd_string)  
   
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE,  

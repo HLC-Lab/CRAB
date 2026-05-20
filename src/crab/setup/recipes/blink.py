@@ -10,8 +10,8 @@ class BlinkRecipe(BenchmarkRecipe):
         return "Blink Suite"
 
     @property
-    def env_key(self) -> str:
-        return "CRAB_PATH_BLINK"
+    def benchmark_id(self) -> str:
+        return "blink"
 
     def check_dependencies(self) -> Tuple[bool, str]:
         if not shutil.which("make"):

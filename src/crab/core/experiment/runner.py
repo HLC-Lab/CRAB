@@ -206,9 +206,15 @@ class ExperimentRunner:
                             if aid not in running:
                                 app_log = run_log.enter(f"App {aid}")
                                 concurrent = len(static_schedule) > 1 or len(dependency_map) > 0
+                                
+                                # --- Merge Hooks and Override Launcher ---
+                                merged_pre_commands = system_header + self.apps[aid].get_pre_commands()
+                                launcher_override = self.apps[aid].get_launcher_override()
+
                                 run_job(self.apps[aid], self.wlmanager, self.ppn,
-                                        logger=app_log, pre_commands=system_header,
-                                        live_stream=concurrent, data_path=data_path)
+                                        logger=app_log, pre_commands=merged_pre_commands,
+                                        live_stream=concurrent, data_path=data_path,
+                                        launcher=launcher_override)
 
                                 running.add(aid)
                         elif action == 'k':
@@ -275,9 +281,16 @@ class ExperimentRunner:
                     for waiter, target in curr_deps.items():
                         if target in finished:
                             dep_log = run_log.enter(f"App {waiter}")
+                            
+                            # --- Merge Hooks and Override Launcher ---
+                            merged_pre_commands = system_header + self.apps[waiter].get_pre_commands()
+                            launcher_override = self.apps[waiter].get_launcher_override()
+
                             run_job(self.apps[waiter], self.wlmanager, self.ppn,
-                                    logger=dep_log, pre_commands=system_header,
-                                    live_stream=True)
+                                    logger=dep_log, pre_commands=merged_pre_commands,
+                                    live_stream=True, data_path=data_path,
+                                    launcher=launcher_override)
+                                    
                             running.add(waiter)
                             if waiter in rel_durations:
                                 curr_schedule.append((waiter, 'k', now + rel_durations[waiter]))

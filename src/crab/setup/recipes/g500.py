@@ -10,9 +10,10 @@ class G500Recipe(BenchmarkRecipe):
     def name(self) -> str:
         return "Graph500"
 
+
     @property
-    def env_key(self) -> str:
-        return "CRAB_PATH_G500"
+    def benchmark_id(self) -> str:
+        return "g500"
 
     def check_dependencies(self) -> Tuple[bool, str]:
         if not shutil.which("mpicc"):

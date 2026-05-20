@@ -1,68 +1,70 @@
 import os
 import json
 import shutil
-from typing import Dict, Optional
+import glob
+from typing import Dict, Optional, Any
 from rich.console import Console
 from pathlib import Path
 
-# We'll use Rich for safe warning prints
 console = Console()
 
 # Calculate the absolute physical root of the CRAB framework
-# memory.py is in src/crab/setup/. Moving up 3 parents resolves to the project root.
 _base_path = Path(__file__).resolve().parents[3]
 
 CRAB_ROOT = str(_base_path)
 CONFIG_DIR = os.path.join(CRAB_ROOT, "config")
-PATHS_FILE = os.path.join(CONFIG_DIR, "paths.json")
+ENV_DIR = os.path.join(CONFIG_DIR, "environments")
 
-def ensure_config_dir():
-    """Ensures the config directory exists."""
-    os.makedirs(CONFIG_DIR, exist_ok=True)
+def ensure_env_dir():
+    """Ensures the environments directory exists."""
+    os.makedirs(ENV_DIR, exist_ok=True)
 
-def load_paths() -> Dict[str, str]:
-    """
-    Loads the configured benchmark paths from paths.json.
-    Includes a failsafe for corrupted JSON files.
-    """
-    if not os.path.exists(PATHS_FILE):
-        return {}
+def save_receipt(benchmark_id: str, receipt: Dict[str, Any]):
+    """Saves a rich environment receipt for a benchmark."""
+    ensure_env_dir()
+    receipt_file = os.path.join(ENV_DIR, f"{benchmark_id}.json")
+    
+    with open(receipt_file, 'w') as f:
+        json.dump(receipt, f, indent=4)
+
+def get_receipt(benchmark_id: str) -> Optional[Dict[str, Any]]:
+    """Loads a benchmark receipt. Returns None if not configured."""
+    receipt_file = os.path.join(ENV_DIR, f"{benchmark_id}.json")
+    
+    # Fallback to check if it's not configured
+    if not os.path.exists(receipt_file):
+        return None
         
     try:
-        with open(PATHS_FILE, 'r') as f:
+        with open(receipt_file, 'r') as f:
             return json.load(f)
     except json.JSONDecodeError:
-        # THE FAILSAFE: Backup the corrupted file instead of overwriting it
-        backup_file = f"{PATHS_FILE}.bak"
-        shutil.copy2(PATHS_FILE, backup_file)
+        # FAILSAFE: Backup corrupted receipt
+        backup_file = f"{receipt_file}.bak"
+        shutil.copy2(receipt_file, backup_file)
         
-        console.print(f"[bold red]Warning:[/bold red] The file [yellow]{PATHS_FILE}[/yellow] is corrupted.")
+        console.print(f"[bold red]Warning:[/bold red] The receipt [yellow]{receipt_file}[/yellow] is corrupted.")
         console.print(f"A backup has been saved to [yellow]{backup_file}[/yellow].")
-        console.print("Starting with a fresh configuration.")
-        
-        return {}
+        return None
     except Exception as e:
-        console.print(f"[bold red]Error reading paths.json:[/bold red] {e}")
-        return {}
+        console.print(f"[bold red]Error reading receipt {benchmark_id}:[/bold red] {e}")
+        return None
 
-def save_path(benchmark_env_key: str, absolute_path: str):
-    """Saves or updates a single benchmark path in paths.json."""
-    ensure_config_dir()
-    paths = load_paths()
-    paths[benchmark_env_key] = absolute_path
+def remove_receipt(benchmark_id: str):
+    """Safely removes a benchmark receipt."""
+    receipt_file = os.path.join(ENV_DIR, f"{benchmark_id}.json")
+    if os.path.exists(receipt_file):
+        os.remove(receipt_file)
+
+def get_all_receipts() -> Dict[str, Dict[str, Any]]:
+    """Returns a dictionary of all configured benchmarks and their receipts."""
+    ensure_env_dir()
+    receipts = {}
     
-    with open(PATHS_FILE, 'w') as f:
-        json.dump(paths, f, indent=4)
-
-def get_path(benchmark_env_key: str) -> Optional[str]:
-    """Returns the path for a specific benchmark, or None if not configured."""
-    paths = load_paths()
-    return paths.get(benchmark_env_key)
-
-def remove_path(benchmark_env_key: str):
-    """Removes a benchmark from the paths configuration safely."""
-    paths = load_paths()
-    if benchmark_env_key in paths:
-        del paths[benchmark_env_key]
-        with open(PATHS_FILE, 'w') as f:
-            json.dump(paths, f, indent=4)
+    for file in glob.glob(os.path.join(ENV_DIR, "*.json")):
+        bench_id = Path(file).stem
+        receipt = get_receipt(bench_id)
+        if receipt:
+            receipts[bench_id] = receipt
+            
+    return receipts
