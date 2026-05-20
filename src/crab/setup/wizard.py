@@ -175,13 +175,43 @@ def run():
                 success, result = recipe.download_and_build(target_dir, log_callback=live_callback)
 
             if success:
-                final_path = result
-                receipt_type = "source"
-                console.print(f"\n[bold green]Build successful![/bold green] Located at: {final_path}")
+                # Expecting format: "/path/to/bin|arch"
+                path, arch = result.split('|')
+                
+                new_receipt = {
+                    "id": recipe.benchmark_id,
+                    "type": "source",
+                    "binary_path": path,      # e.g., /.../bin
+                    "target_arch": arch,      # e.g., "gpu"
+                    "launcher_override": recipe.launcher_override,
+                    "hooks": {"pre_run": pre_run_hooks, "post_run": []}
+                }
+                memory.save_receipt(recipe.benchmark_id, new_receipt)
             else:
                 console.print(f"\n[bold red]Build failed:[/bold red]\n{result}")
                 console.input("\n[dim]Press [Enter] to continue...[/dim]")
                 continue
+
+        # Create and save the Environment Receipt
+        if final_path:
+            new_receipt = {
+                "id": recipe.benchmark_id,
+                "type": receipt_type,
+                "binary_path": final_path,
+                "launcher_override": recipe.launcher_override,
+                "hooks": {
+                    "pre_run": pre_run_hooks,
+                    "post_run": []
+                }
+            }
+            # Only add target_arch if it was detected
+            if 'target_arch' in locals():
+                new_receipt['target_arch'] = target_arch
+
+            memory.save_receipt(recipe.benchmark_id, new_receipt)
+            console.print(f"\n[bold green]✅ {recipe.name} receipt generated successfully![/bold green]")
+        else:
+            console.print(f"\n[yellow]⚠️ {recipe.name} configuration skipped or failed.[/yellow]")
 
         # Create and save the Environment Receipt
         if final_path:

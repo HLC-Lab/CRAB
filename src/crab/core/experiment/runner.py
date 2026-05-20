@@ -90,8 +90,31 @@ class ExperimentRunner:
             mod_app = load_module(path)  
             args = details.get("args", "")  
             collect = details.get("collect", False)  
-              
-            app_instance = mod_app.app(idx_counter, collect, args)  
+            
+            # Instantiate the app
+            app_instance = mod_app.app(idx_counter, collect, args) 
+
+            # --- DYNAMIC CONFIG INJECTION ---
+            # Any key in the JSON 'apps' config that isn't a reserved CRAB keyword
+            # gets injected as an attribute into the app instance.
+            reserved_keys = ["path", "args", "collect", "start", "end", "partition"]
+            for key, value in details.items():
+                if key not in reserved_keys:
+                    setattr(app_instance, key, value)
+            # --------------------------------
+
+            
+            # --- ARCHITECTURE GUARDRAIL ---
+            receipt = app_instance.get_receipt()
+            target_arch = receipt.get("target_arch") if receipt else None
+            
+            if target_arch == "gpu":
+                # Check for GPU-specific SLURM flags or environment variables
+                # This is a basic check; adjust based on your Leonardo partition needs
+                partition = self.global_opts.get("sbatch_directives", {}).get("partition", "")
+                if "cpu" in partition:
+                     raise RuntimeError(f"Architecture Mismatch: {recipe.name} is built for GPU but partition is {partition}")
+            # ------------------------------
               
             # Timing & Partition Metadata  
             start_val = str(details.get("start", "0"))  
