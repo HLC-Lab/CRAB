@@ -63,14 +63,16 @@ class app(base):
         return f"{binary} -in {modified_in}"
 
     def read_data(self) -> list:
-        # self.stdout contains the raw bytes of the output string after completion
         if not hasattr(self, 'stdout') or not self.stdout:
             return [[0.0]]
 
-        content = self.stdout.decode('utf-8', errors='replace')
+        # Handle both raw bytes and already-decoded strings safely
+        if isinstance(self.stdout, bytes):
+            content = self.stdout.decode('utf-8', errors='replace')
+        else:
+            content = str(self.stdout)
         
-        # Look for the characteristic QE ending line: e.g., "PWSCF        :     0m 4.50s CPU     0m 5.21s WALL"
-        # Or alternative: "Total wall time:     0m 5.21s"
+        # Look for the characteristic QE ending line
         wall_match = re.search(r"(?:WALL|Total wall time:)\s*(?:([\d.]+)h)?\s*(?:([\d.]+)m)?\s*([\d.]+)s", content, re.IGNORECASE)
         
         if wall_match:
