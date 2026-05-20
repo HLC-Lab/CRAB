@@ -145,11 +145,16 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
         with open(app_config_file, 'r') as f:
             benchmark_config = json.load(f)
 
+
         if "global_options" not in benchmark_config:
             benchmark_config["global_options"] = {}
         
-        benchmark_config["global_options"]["system_sbatch"] = preset_config["sbatch"]
-        benchmark_config["global_options"]["system_header"] = preset_config["header"]
+        # Only inject the system preset if the user didn't provide their own overrides in the JSON
+        if "system_sbatch" not in benchmark_config["global_options"]:
+            benchmark_config["global_options"]["system_sbatch"] = preset_config["sbatch"]
+        
+        if "system_header" not in benchmark_config["global_options"]:
+            benchmark_config["global_options"]["system_header"] = preset_config["header"]
 
         logger.info(f"Starting engine with preset '{selected_preset}'")
 

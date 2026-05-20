@@ -81,25 +81,21 @@ class app(base):
         if not hasattr(self, 'stdout') or not self.stdout:
             return [[0.0]]
 
-        # base.py already decodes stdout to a string
         content = str(self.stdout)
         
-        # Dump a physical .out file into the experiment directory for user review
+        # Dump a physical .out file into the experiment directory
         exp_dir = self._get_experiment_dir()
         with open(os.path.join(exp_dir, "pw.out"), "w") as f_out:
             f_out.write(content)
         
-        # 1. Match inline format: e.g., "  11.98s CPU     12.75s WALL"
+        # Explicitly lock onto the final master summary block line: "PWSCF        :      0.43s CPU      0.47s WALL"
+        match_pwscf = re.search(r"PWSCF\s*:\s*[\d.]+\s*s\s*CPU\s*([\d.]+)\s*s\s*WALL", content, re.IGNORECASE)
+        if match_pwscf:
+            return [[float(match_pwscf.group(1))]]
+
+        # Fallback inline layout check
         match_inline = re.search(r"([\d.]+)\s*s\s*WALL", content, re.IGNORECASE)
         if match_inline:
             return [[float(match_inline.group(1))]]
-
-        # 2. Legacy format fallback: e.g., "Total wall time:     0m 5.12s"
-        match_legacy = re.search(r"Total wall time:\s*(?:([\d.]+)h)?\s*(?:([\d.]+)m)?\s*([\d.]+)s", content, re.IGNORECASE)
-        if match_legacy:
-            hours = float(match_legacy.group(1)) if match_legacy.group(1) else 0.0
-            minutes = float(match_legacy.group(2)) if match_legacy.group(2) else 0.0
-            seconds = float(match_legacy.group(3))
-            return [[(hours * 3600) + (minutes * 60) + seconds]]
             
         return [[0.0]]
