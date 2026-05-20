@@ -134,10 +134,13 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
 
         preset_config = load_environment_config(selected_preset)
         execution_env = prepare_execution_environment(preset_config["env"])
-        benchmark_paths = memory.load_paths()
+        all_receipts = memory.get_all_receipts()
         
-        for env_key, abs_path in benchmark_paths.items():
-            execution_env[env_key] = abs_path
+        for bench_id, receipt in all_receipts.items():
+            # Injecting into the environment for backward compatibility 
+            # with any legacy wrappers that haven't updated to use get_receipt()
+            env_key = f"CRAB_PATH_{bench_id.upper()}"
+            execution_env[env_key] = receipt.get("binary_path", "")
         
         with open(app_config_file, 'r') as f:
             benchmark_config = json.load(f)
