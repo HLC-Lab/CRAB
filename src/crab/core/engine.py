@@ -38,8 +38,11 @@ class Engine:
 
         # 2. Definizione dei Default Sovrascrivibili
         # Mappa: Chiave univoca -> Stringa completa direttiva
+        raw_info = str(global_opts.get('extrainfo', 'job'))
+        safe_info = "".join([c if c.isalnum() else '_' for c in raw_info])[:10]
+        
         directives_map = {
-            'job-name': f"--job-name=crab_{global_opts.get('extrainfo', 'job')[:10]}",
+            'job-name': f"--job-name=crab_{safe_info}",
             'output': f"--output={os.path.join(data_directory, 'slurm_output.log')}",
             'error': f"--error={os.path.join(data_directory, 'slurm_error.log')}",
             'time': f"--time={global_opts.get('walltime', '00:10:00')}"
