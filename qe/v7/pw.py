@@ -40,7 +40,7 @@ class app(base):
             base_path = os.path.dirname(base_path)
         return os.path.join(base_path, "build", "bin", "pw.x")
 
-def run_app(self):
+    def run_app(self):
         input_file = getattr(self, 'input_file', None)
         pseudo_dir_source = getattr(self, 'pseudo_dir', None)
         
@@ -53,6 +53,7 @@ def run_app(self):
         os.makedirs(sandbox_dir, exist_ok=True)
         
         # 2. Preserve provenance (copy original input to run dir)
+        import shutil
         shutil.copy(input_file, os.path.join(run_dir, "original_input.in"))
         
         # 3. Handle Pseudopotentials locally inside the experiment run
@@ -72,11 +73,11 @@ def run_app(self):
                 else:
                     f_out.write(line)
         
-        # 5. Return execution string using explicit absolute paths
+        # 5. Return execution string using robust OS-level file redirection
         binary = self.get_binary_path()
-        return f"{binary} -in {modified_in}"
+        return f"{binary} < {modified_in}"
 
-def read_data(self) -> list:
+    def read_data(self) -> list:
         if not hasattr(self, 'stdout') or not self.stdout:
             return [[0.0]]
 
@@ -87,6 +88,7 @@ def read_data(self) -> list:
         with open(os.path.join(run_dir, "pw.out"), "w") as f_out:
             f_out.write(content)
         
+        import re
         # Explicitly lock onto the final master summary block line: "PWSCF        :      0.43s CPU      0.47s WALL"
         match_pwscf = re.search(r"PWSCF\s*:\s*[\d.]+\s*s\s*CPU\s*([\d.]+)\s*s\s*WALL", content, re.IGNORECASE)
         if match_pwscf:
