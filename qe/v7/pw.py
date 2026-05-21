@@ -40,42 +40,29 @@ class app(base):
             base_path = os.path.dirname(base_path)
         return os.path.join(base_path, "build", "bin", "pw.x")
 
-    def _get_experiment_dir(self):
-        """Dynamically extracts the CRAB experiment output directory from the engine stack."""
-        frame = inspect.currentframe()
-        try:
-            while frame:
-                # CRAB's runner.execute() explicitly uses the variable 'output_dir'
-                if 'output_dir' in frame.f_locals and isinstance(frame.f_locals['output_dir'], str):
-                    return frame.f_locals['output_dir']
-                frame = frame.f_back
-        finally:
-            del frame
-        return os.getcwd()
-
-    def run_app(self):
+def run_app(self):
         input_file = getattr(self, 'input_file', None)
         pseudo_dir_source = getattr(self, 'pseudo_dir', None)
         
         if not input_file or not os.path.exists(input_file):
             raise FileNotFoundError(f"Input file not found: {input_file}")
 
-        # 1. Anchor everything to the actual CRAB experiment directory
-        exp_dir = self._get_experiment_dir()
-        sandbox_dir = os.path.join(exp_dir, "scratch")
+        # 1. Use the explicitly injected run directory
+        run_dir = getattr(self, 'run_dir', os.getcwd())
+        sandbox_dir = os.path.join(run_dir, "scratch")
         os.makedirs(sandbox_dir, exist_ok=True)
         
-        # 2. Preserve provenance (copy original input to experiment dir)
-        shutil.copy(input_file, os.path.join(exp_dir, "original_input.in"))
+        # 2. Preserve provenance (copy original input to run dir)
+        shutil.copy(input_file, os.path.join(run_dir, "original_input.in"))
         
-        # 3. Handle Pseudopotentials locally inside the experiment
+        # 3. Handle Pseudopotentials locally inside the experiment run
         target_pseudo_dir = os.path.join(sandbox_dir, "pseudo")
         if pseudo_dir_source and os.path.exists(pseudo_dir_source):
             if not os.path.exists(target_pseudo_dir):
                 shutil.copytree(pseudo_dir_source, target_pseudo_dir)
         
         # 4. Modify .in file to force Absolute Paths for the sandbox
-        modified_in = os.path.join(exp_dir, "modified_input.in")
+        modified_in = os.path.join(run_dir, "modified_input.in")
         with open(input_file, 'r') as f_in, open(modified_in, 'w') as f_out:
             for line in f_in:
                 if "outdir" in line.lower():
@@ -89,15 +76,15 @@ class app(base):
         binary = self.get_binary_path()
         return f"{binary} -in {modified_in}"
 
-    def read_data(self) -> list:
+def read_data(self) -> list:
         if not hasattr(self, 'stdout') or not self.stdout:
             return [[0.0]]
 
         content = str(self.stdout)
         
-        # Dump a physical .out file into the experiment directory
-        exp_dir = self._get_experiment_dir()
-        with open(os.path.join(exp_dir, "pw.out"), "w") as f_out:
+        # Dump a physical .out file into the isolated run directory
+        run_dir = getattr(self, 'run_dir', os.getcwd())
+        with open(os.path.join(run_dir, "pw.out"), "w") as f_out:
             f_out.write(content)
         
         # Explicitly lock onto the final master summary block line: "PWSCF        :      0.43s CPU      0.47s WALL"
