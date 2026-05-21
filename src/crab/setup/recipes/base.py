@@ -2,7 +2,27 @@ import os
 import shutil
 import subprocess
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple, Callable, List
+from typing import Optional, Tuple, Callable, List, Dict, Any
+from dataclasses import dataclass, field
+
+@dataclass
+class BuildParameter:
+    name: str
+    description: str
+    choices: Optional[List[str]] = None
+    default: str = ""
+
+@dataclass
+class BuildManifest:
+    """Declares what a recipe requires from the user/system to build."""
+    requires_modules: bool = True
+    parameters: List[BuildParameter] = field(default_factory=list)
+
+@dataclass
+class BuildResult:
+    """Unified return schema for source compilations."""
+    binary_path: str
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 class BenchmarkRecipe(ABC):
     """
@@ -23,7 +43,7 @@ class BenchmarkRecipe(ABC):
 
     @property
     def launcher_override(self) -> str:
-        """Override the cluster's default launcher (e.g., return 'mpirun' instead of 'srun')."""
+        """Override the cluster's default launcher (e.g., 'mpirun')."""
         return ""
 
     @property
@@ -31,19 +51,30 @@ class BenchmarkRecipe(ABC):
         """Commands to run before the benchmark executes (e.g., specific exports)."""
         return []
 
+    @property
+    def build_manifest(self) -> BuildManifest:
+        """Declares dynamic input requirements. Default requires modules, no parameters."""
+        return BuildManifest()
+
     @abstractmethod
-    def check_dependencies(self) -> Tuple[bool, str]:
-        """Pre-flight check before building from source."""
+    def check_dependencies(self, env: Dict[str, str]) -> Tuple[bool, str]:
+        """Pre-flight check before building, evaluating a modified environment context."""
         pass
 
     @abstractmethod
-    def download_and_build(self, target_dir: str, log_callback: Optional[Callable[[str, str], None]] = None) -> Tuple[bool, str]:
-        """Logic to clone and compile the benchmark."""
+    def download_and_build(
+        self, 
+        target_dir: str, 
+        params: Dict[str, str], 
+        env: Dict[str, str], 
+        log_callback: Optional[Callable[[str, str], None]] = None
+    ) -> Tuple[bool, Optional[BuildResult], str]:
+        """Logic to clone and compile the benchmark using context-aware environment maps."""
         pass
 
     @abstractmethod
     def verify_existing(self, path: str) -> bool:
-        """Validates if the user-provided path actually contains the expected, executable binary."""
+        """Validates if the target path contains the expected executable/directory structure."""
         pass
 
     def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
@@ -60,14 +91,22 @@ class BenchmarkRecipe(ABC):
             
         return None
 
-    def run_command_streamed(self, cmd: list, cwd: str, step_name: str, log_callback: Optional[Callable[[str, str], None]]) -> bool:
-        """Runs a shell command and streams the output."""
+    def run_command_streamed(
+        self, 
+        cmd: List[str], 
+        cwd: str, 
+        step_name: str, 
+        env: Optional[Dict[str, str]], 
+        log_callback: Optional[Callable[[str, str], None]]
+    ) -> bool:
+        """Runs a command natively and streams output using an explicit environment map."""
         if log_callback:
             log_callback("step", step_name)
             
         try:
             process = subprocess.Popen(
-                cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                cmd, cwd=cwd, env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
                 text=True, bufsize=1
             )
             if process.stdout:
