@@ -1,7 +1,6 @@
 import os
 import shutil
 import subprocess
-import env_modules_python  # Ensure environment wrapper dependencies exist or use subshell tracking
 from collections import deque
 from typing import Dict, Any
 
@@ -222,6 +221,8 @@ def run():
             console.print(f"\n[bold green]=== {recipe.name} receipt generated successfully ===[/bold green]\n")
         else:
             console.print(f"\n[yellow]⚠️ {recipe.name} action skipped or path mapping incomplete.[/yellow]\n")
+
+        console.input("\n[dim]Press [Enter] to continue...[/dim]")
 
     print_header(title="Configuration Phase Terminated")
     console.print(Panel.fit("[bold green]All targeted receipt setups have been synchronized successfully.[/bold green]", border_style="green"))
