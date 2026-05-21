@@ -27,7 +27,15 @@ class app(base):
         receipt = self.get_receipt()
         if not receipt:
             return None
+            
         base_path = receipt.get("binary_path", "")
+        install_type = receipt.get("type", "source")
+        
+        # If loaded via module, the binary is already in the system PATH.
+        if install_type == "module":
+            return base_path
+            
+        # If compiled from source, construct the physical absolute path.
         if base_path.endswith("bin"):
             base_path = os.path.dirname(base_path)
         return os.path.join(base_path, "build", "bin", "pw.x")
