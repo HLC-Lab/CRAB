@@ -18,8 +18,9 @@ def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str
         cmd_string = "echo a > /dev/null"  
 
     # 2. Write the Execution Wrapper
-    # Hide the scripts in a .wrappers folder to prevent directory pollution
-    script_dir = os.path.join(data_path, ".wrappers")
+    # Route the scripts into the isolated run directory to preserve provenance
+    run_dir = getattr(job, 'run_dir', data_path)
+    script_dir = os.path.join(run_dir, ".wrappers")
     os.makedirs(script_dir, exist_ok=True)
     script_path = os.path.join(script_dir, f"app_{job.id_num}.sh")
     
