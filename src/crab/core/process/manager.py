@@ -1,13 +1,12 @@
 import os
 import subprocess  
-import shlex  
 import threading  
 from typing import List  
 from crab.log import CrabLogger  
   
 def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str] = None, live_stream: bool = False, data_path: str = None, launcher: str = None):  
     """  
-    Launch an application process via the workload manager.  
+    Launch an application process via the workload manager using a physical execution wrapper.
     """  
     if not job.node_list:  
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")  
@@ -17,32 +16,33 @@ def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str
       
     if not cmd_string:  
         cmd_string = "echo a > /dev/null"  
-        raise Exception
 
-    # 2. Assemble a full shell pipeline. 
-    # We prepend the pre_commands explicitly here because shlex.split() breaks logical operators (&&, export).
-    full_script = []
-    if pre_commands:
-        full_script.extend(pre_commands)
-    full_script.append(cmd_string)
+    # 2. Write the Execution Wrapper
+    # Hide the scripts in a .wrappers folder to prevent directory pollution
+    script_dir = os.path.join(data_path, ".wrappers")
+    os.makedirs(script_dir, exist_ok=True)
+    script_path = os.path.join(script_dir, f"app_{job.id_num}.sh")
     
-    final_cmd_string = " && ".join(full_script)
+    with open(script_path, "w") as f:
+        f.write("#!/bin/bash\n")
+        # Natively bring the cluster's module command to life
+        f.write("if [ -f /etc/profile.d/modules.sh ]; then\n")
+        f.write("    source /etc/profile.d/modules.sh\n")
+        f.write("fi\n\n")
+        
+        # Inject application-specific hooks cleanly
+        if pre_commands:
+            for cmd in pre_commands:
+                f.write(f"{cmd}\n")
+        
+        f.write("\n# Execute workload\n")
+        f.write(f"{cmd_string}\n")
 
-    # 3. Sanitize Lmod environment corruption.
-    # Lmod exports bash functions (like 'module') as variables (BASH_FUNC_module%%).
-    # When Python spawns a bash subshell, it inherits these and crashes parsing them.
-    # We strip them to guarantee a pristine execution environment.
-    clean_env = os.environ.copy()
-    lmod_keys = [k for k in clean_env.keys() if k.startswith('BASH_FUNC_')]
-    for k in lmod_keys:
-        del clean_env[k]
-
-    # 4. Execute as a native shell script.
+    # 3. Execute the physical script as a clean subprocess
     process = subprocess.Popen(
-        ["bash", "-c", final_cmd_string], 
+        ["bash", script_path], 
         stdout=subprocess.PIPE,  
         stderr=subprocess.PIPE, 
-        env=clean_env,
         shell=False
     )  
     job.set_process(process)  
@@ -62,7 +62,7 @@ def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str
     job._stream_thread.start()  
   
     logger.info(f"Launched App {job.id_num}  PID={process.pid}  nodes={job.node_list}")  
-  
+
 def end_job(job, logger: CrabLogger):  
     """Forcefully terminates a job and retrieves output."""  
     if hasattr(job, 'process') and job.process:  
