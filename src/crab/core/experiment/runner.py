@@ -209,6 +209,10 @@ class ExperimentRunner:
                 run_log.info("Started")
 
                 run_start = time.time()
+
+                for app in self.apps:
+                    app.run_dir = os.path.join(self.exp_dir, f"run_{runs + 1}")
+                    os.makedirs(app.run_dir, exist_ok=True)
                 
                 # Reset ephemeral schedule for this run
                 curr_schedule = sorted(static_schedule, key=lambda x: x[2])
