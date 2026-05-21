@@ -19,6 +19,10 @@ class app(base):
             }
         ]
 
+    def get_launcher_override(self) -> str:
+        # Force the framework to use mpirun, bypassing the Slurm defaults
+        return "mpirun"
+
     def get_binary_path(self):
         receipt = self.get_receipt()
         if not receipt:
