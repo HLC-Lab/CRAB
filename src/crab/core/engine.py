@@ -122,12 +122,7 @@ class Engine:
         data_path = g_opts.get('datapath', os.path.join(CRAB_ROOT, 'data'))
         num_nodes = int(g_opts.get('numnodes'))
         
-        # Setup Directory
-        desc_file = os.path.join(data_path, "description.csv")
         os.makedirs(data_path, exist_ok=True)
-        if not os.path.isfile(desc_file):
-            with open(desc_file, 'w') as f:
-                f.write('system,numnodes,extra,path\n')
 
         # 1. Genera timestamp base
         timestamp_str = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S-%f')
@@ -151,9 +146,6 @@ class Engine:
         # --------------------------------------
 
         os.makedirs(data_directory, exist_ok=True)
-
-        with open(desc_file, 'a+') as f:
-            f.write(f"{environment.get('CRAB_SYSTEM')},{num_nodes},{g_opts.get('extrainfo')},{data_directory}\n")
 
         with open(os.path.join(data_directory, 'config.json'), 'w') as f:
             json.dump(config, f, indent=4)
