@@ -419,14 +419,14 @@ class ExperimentRunner:
 
     def _write_to_registry(self, status):
         """
-        Appends a data row for this experiment to the system-level registry.csv.
+        Appends a data row for this experiment to the system-level metadata.csv.
         Uses exclusive POSIX file locking to guarantee process safety on shared HPC filesystems.
         """
         try:
             # Traversal: self.exp_dir is system/job_name_timestamp/experiment_name
             job_dir = os.path.dirname(self.exp_dir)
             system_dir = os.path.dirname(job_dir)
-            registry_path = os.path.join(system_dir, "registry.csv")
+            registry_path = os.path.join(system_dir, "metadata.csv")
 
             job_basename = os.path.basename(job_dir)
             exp_basename = os.path.basename(self.exp_dir)
