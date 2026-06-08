@@ -1,6 +1,7 @@
 import os  
 import pathlib  
 import importlib.util  
+import shutil
 import time  
 from typing import List, Dict, Any  
   
@@ -210,6 +211,8 @@ class ExperimentRunner:
 
                 run_start = time.time()
 
+                run_successful = True
+
                 for app in self.apps:
                     app.run_dir = os.path.join(self.exp_dir, f"run_{runs + 1}")
                     os.makedirs(app.run_dir, exist_ok=True)
@@ -270,6 +273,7 @@ class ExperimentRunner:
                                 exit_code = proc.returncode
                                 if exit_code != 0:
                                     app_log.error(f"FAILED  exit={exit_code}")
+                                    run_successful = False
 
                                     # Extract both streams
                                     stdout_text = out.decode('utf-8', errors='replace') if isinstance(out, bytes) else out
@@ -360,6 +364,20 @@ class ExperimentRunner:
                             self.data_containers[c_idx].data.extend(series)
                             self.data_containers[c_idx].num_samples.append(len(series))
                             c_idx += 1
+
+                # Clean Dirs Policy
+                # Default to True for maximum data safety if the flag is missing
+                retain_files = bool(self.exp_opts.get("retain_files", True))
+
+                if not retain_files and run_successful:
+                    # Target the shared run directory container
+                    # Using the directory path from the first app in the schedule
+                    if self.apps:
+                        target_run_dir = getattr(self.apps[0], "run_dir", None)
+                        if target_run_dir and os.path.exists(target_run_dir):
+                            # ignore_errors=True prevents transient parallel filesystem locks 
+                            # from crashing the orchestrator loop
+                            shutil.rmtree(target_run_dir, ignore_errors=True)
 
                 runs += 1
                 if runs >= min_runs:
