@@ -16,9 +16,6 @@ class pw_base(base):
     def metadata(self) -> list:
         return [{"name": "wall_time", "unit": "seconds", "conv": 1.0}]
 
-    def get_launcher_override(self) -> str:
-        return "mpirun"
-
     def get_binary_path(self):
         receipt = self.get_receipt()
         if not receipt:

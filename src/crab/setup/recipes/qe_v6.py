@@ -70,17 +70,30 @@ class QERecipeV6(BenchmarkRecipe):
         os.makedirs(build_dir, exist_ok=True)
 
         target_arch = params.get("arch", "cpu")
-        cmake_flags = [
-            "cmake", "..",
-            "-DCMAKE_INSTALL_PREFIX=..",
-            "-DCMAKE_C_COMPILER=mpicc",
-            "-DCMAKE_Fortran_COMPILER=mpif90",
-            "-DQE_ENABLE_OPENMP=ON",
-            "-DQE_ENABLE_MPI=ON",
-            "-DQE_FFTW_VENDOR=Internal"
-        ]
+
         if target_arch == "gpu":
-            cmake_flags.append("-DQE_ENABLE_CUDA=ON")
+            # QE v6 GPU requires NVHPC compilers; -DQE_ENABLE_CUDA=ON is still the v6 flag
+            cmake_flags = [
+                "cmake", "..",
+                "-DCMAKE_INSTALL_PREFIX=..",
+                "-DCMAKE_Fortran_COMPILER=nvfortran",
+                "-DCMAKE_C_COMPILER=nvc",
+                "-DCMAKE_CXX_COMPILER=nvc++",
+                "-DQE_ENABLE_MPI=ON",
+                "-DQE_ENABLE_OPENMP=ON",
+                "-DQE_FFTW_VENDOR=Internal",
+                "-DQE_ENABLE_CUDA=ON",
+            ]
+        else:
+            cmake_flags = [
+                "cmake", "..",
+                "-DCMAKE_INSTALL_PREFIX=..",
+                "-DCMAKE_C_COMPILER=mpicc",
+                "-DCMAKE_Fortran_COMPILER=mpif90",
+                "-DQE_ENABLE_OPENMP=ON",
+                "-DQE_ENABLE_MPI=ON",
+                "-DQE_FFTW_VENDOR=Internal",
+            ]
 
         if not self.run_command_streamed(cmake_flags, build_dir, "Configuring QE with CMake...", env, log_callback):
             return False, None, "CMake configuration failed."
