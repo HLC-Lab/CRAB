@@ -442,7 +442,7 @@ class ExperimentRunner:
             numnodes = self.global_opts.get("numnodes", 1)
             
             # Target ppn across common layout dictionary keys
-            ppn = self.exp_opts.get("ppn", self.local_options.get("ppn", "unknown"))
+            ppn = getattr(self, "ppn", "unknown")
 
             # Space-separated, alphabetically sorted unique application identifiers
             unique_apps = sorted(list(set([
