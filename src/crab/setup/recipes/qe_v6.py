@@ -72,13 +72,15 @@ class QERecipeV6(BenchmarkRecipe):
         target_arch = params.get("arch", "cpu")
 
         if target_arch == "gpu":
-            # QE v6 GPU requires NVHPC compilers; -DQE_ENABLE_CUDA=ON is still the v6 flag
+            # Use MPI wrappers as base compilers so cmake FindMPI succeeds.
+            # When nvhpc is loaded, mpif90/mpicc wrap nvfortran/nvc automatically.
+            # v6 still uses -DQE_ENABLE_CUDA=ON (the -DQE_GPU flag is v7+ only).
             cmake_flags = [
                 "cmake", "..",
                 "-DCMAKE_INSTALL_PREFIX=..",
-                "-DCMAKE_Fortran_COMPILER=nvfortran",
-                "-DCMAKE_C_COMPILER=nvc",
-                "-DCMAKE_CXX_COMPILER=nvc++",
+                "-DCMAKE_Fortran_COMPILER=mpif90",
+                "-DCMAKE_C_COMPILER=mpicc",
+                "-DCMAKE_CXX_COMPILER=mpicxx",
                 "-DQE_ENABLE_MPI=ON",
                 "-DQE_ENABLE_OPENMP=ON",
                 "-DQE_FFTW_VENDOR=Internal",
