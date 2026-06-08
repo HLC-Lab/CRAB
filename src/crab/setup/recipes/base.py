@@ -42,6 +42,11 @@ class BenchmarkRecipe(ABC):
         pass
 
     @property
+    def suite(self) -> str:
+        """Group name for wizard display. Defaults to name."""
+        return self.name
+
+    @property
     def launcher_override(self) -> str:
         """Override the cluster's default launcher (e.g., 'mpirun')."""
         return ""

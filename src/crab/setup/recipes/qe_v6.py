@@ -1,0 +1,92 @@
+import os
+import shutil
+from typing import Tuple, Optional, Callable, Dict
+from .base import BenchmarkRecipe, BuildManifest, BuildParameter, BuildResult
+
+_QE_V6_TAG = "qe-6.8"
+
+
+class QERecipeV6(BenchmarkRecipe):
+
+    @property
+    def name(self) -> str: return "Quantum ESPRESSO v6"
+
+    @property
+    def suite(self) -> str: return "Quantum ESPRESSO"
+
+    @property
+    def benchmark_id(self) -> str: return "qe-v6"
+
+    @property
+    def launcher_override(self) -> str: return "mpirun"
+
+    @property
+    def build_manifest(self) -> BuildManifest:
+        return BuildManifest(
+            requires_modules=True,
+            parameters=[
+                BuildParameter(
+                    name="arch",
+                    description="Select Target Architecture",
+                    choices=["cpu", "gpu"],
+                    default="cpu"
+                )
+            ]
+        )
+
+    def check_dependencies(self, env: Dict[str, str]) -> Tuple[bool, str]:
+        if not shutil.which("cmake", path=env.get("PATH")):
+            return False, "CMake is required to build QE from source."
+        return True, "Dependencies found."
+
+    def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
+        local_target = os.path.join(crab_benchmarks_dir, self.benchmark_id)
+        build_bin = os.path.join(local_target, "build", "bin")
+        if os.path.exists(os.path.join(build_bin, "pw.x")):
+            return build_bin
+        system_path = shutil.which("pw.x")
+        if system_path:
+            return os.path.dirname(os.path.abspath(system_path))
+        return None
+
+    def verify_existing(self, path: str) -> bool:
+        return (
+            os.path.exists(os.path.join(path, "pw.x")) or
+            os.path.exists(os.path.join(path, "build", "bin", "pw.x"))
+        )
+
+    def download_and_build(
+        self, target_dir: str, params: Dict[str, str], env: Dict[str, str],
+        log_callback: Optional[Callable[[str, str], None]] = None
+    ) -> Tuple[bool, Optional[BuildResult], str]:
+        repo_url = "https://gitlab.com/QEF/q-e.git"
+        if not self.run_command_streamed(
+            ["git", "clone", "--branch", _QE_V6_TAG, "--depth", "1", repo_url, target_dir],
+            ".", f"Cloning Q-E {_QE_V6_TAG}...", env, log_callback
+        ):
+            return False, None, "Clone failed."
+
+        build_dir = os.path.join(target_dir, "build")
+        os.makedirs(build_dir, exist_ok=True)
+
+        target_arch = params.get("arch", "cpu")
+        cmake_flags = [
+            "cmake", "..",
+            "-DCMAKE_INSTALL_PREFIX=..",
+            "-DCMAKE_C_COMPILER=mpicc",
+            "-DCMAKE_Fortran_COMPILER=mpif90",
+            "-DQE_ENABLE_OPENMP=ON",
+            "-DQE_ENABLE_MPI=ON",
+            "-DQE_FFTW_VENDOR=Internal"
+        ]
+        if target_arch == "gpu":
+            cmake_flags.append("-DQE_ENABLE_CUDA=ON")
+
+        if not self.run_command_streamed(cmake_flags, build_dir, "Configuring QE with CMake...", env, log_callback):
+            return False, None, "CMake configuration failed."
+
+        if not self.run_command_streamed(["make", "-j"], build_dir, "Building QE...", env, log_callback):
+            return False, None, "Make build failed."
+
+        bin_dir = os.path.join(target_dir, "bin")
+        return True, BuildResult(binary_path=bin_dir, metadata={"target_arch": target_arch}), "QE v6 built successfully."

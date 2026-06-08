@@ -2,7 +2,7 @@ import os
 import shutil
 import subprocess
 from collections import deque
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from rich.console import Console, Group
 from rich.prompt import Prompt, Confirm
@@ -33,11 +33,10 @@ def capture_module_environment(module_cmd: str) -> Dict[str, str]:
     if not module_cmd:
         return base_env
     try:
-        # Source standard cluster layout variables cleanly
         init_snippet = ". /etc/profile.d/modules.sh" if os.path.exists("/etc/profile.d/modules.sh") else "true"
         full_cmd = f"{init_snippet} && {module_cmd} && env"
         result = subprocess.run(["bash", "-c", full_cmd], capture_output=True, text=True, check=True)
-        
+
         parsed_env = {}
         for line in result.stdout.splitlines():
             if "=" in line:
@@ -73,43 +72,78 @@ def handle_cleanup(benchmark_id: str):
                     shutil.rmtree(target_cleanup)
                     console.print(f"[green]Cleaned up historical records: {target_cleanup}[/green]")
 
+def _group_recipes_by_suite(recipes) -> Dict[str, List]:
+    groups: Dict[str, List] = {}
+    for recipe in recipes:
+        suite = getattr(recipe, 'suite', recipe.name)
+        groups.setdefault(suite, []).append(recipe)
+    return groups
+
 def run():
     os.makedirs(BENCHMARKS_DIR, exist_ok=True)
     recipes = discover_recipes()
-    
+
     if not recipes:
         print_header()
         console.print("[red]No benchmark recipes found in registry. Exiting.[/red]")
         return
 
+    groups = _group_recipes_by_suite(recipes)
     print_header(len(recipes))
     console.print("[bold]Select the benchmarks you want to install or configure:[/bold]")
     console.print("[dim](Use Space to toggle, Up/Down to navigate, Enter to confirm)[/dim]\n")
 
-    choices = []
-    for recipe in recipes:
-        receipt = memory.get_receipt(recipe.benchmark_id)
-        if receipt:
-            title = f"{recipe.name} (Configured: {receipt.get('type')})"
-            choices.append(Choice(title=title, value=recipe, checked=False))
-        else:
-            title = f"{recipe.name} (Not configured)"
-            choices.append(Choice(title=title, value=recipe, checked=True))
+    # Step 1: Suite-level checkboxes
+    suite_choices = []
+    for suite_name, suite_recipes in groups.items():
+        configured = any(memory.get_receipt(r.benchmark_id) for r in suite_recipes)
+        suffix = "(Configured)" if configured else "(Not configured)"
+        suite_choices.append(Choice(
+            title=f"{suite_name} {suffix}",
+            value=suite_name,
+            checked=not configured
+        ))
 
-    selected_recipes = questionary.checkbox(
-        "Benchmarks:", choices=choices, qmark="🦀",
+    selected_suite_names = questionary.checkbox(
+        "Benchmarks:", choices=suite_choices, qmark="🦀",
         style=questionary.Style([('highlighted', 'fg:cyan bold')])
     ).ask()
 
-    if not selected_recipes:
+    if not selected_suite_names:
         console.print("\n[yellow]No benchmarks selected. Exiting.[/yellow]")
+        return
+
+    # Step 2: Version selection for multi-version suites
+    selected_recipes = []
+    for suite_name in selected_suite_names:
+        suite_recipes = groups[suite_name]
+        if len(suite_recipes) == 1:
+            selected_recipes.extend(suite_recipes)
+        else:
+            console.print(f"\n[bold]{suite_name}[/bold] has multiple versions. Select which to install:\n")
+            version_choices = []
+            for recipe in suite_recipes:
+                receipt = memory.get_receipt(recipe.benchmark_id)
+                suffix = f"(Configured: {receipt.get('type')})" if receipt else "(Not configured)"
+                version_choices.append(Choice(title=f"{recipe.name} {suffix}", value=recipe, checked=True))
+
+            chosen = questionary.checkbox(
+                f"{suite_name} versions:", choices=version_choices, qmark="🦀",
+                style=questionary.Style([('highlighted', 'fg:cyan bold')])
+            ).ask()
+            if chosen:
+                selected_recipes.extend(chosen)
+
+    if not selected_recipes:
+        console.print("\n[yellow]No versions selected. Exiting.[/yellow]")
         return
 
     total_selected = len(selected_recipes)
 
+    # Step 3: Per-recipe install flow (unchanged)
     for i, recipe in enumerate(selected_recipes):
         print_header(title=f"Configuring {recipe.name} ({i + 1}/{total_selected})")
-        
+
         receipt = memory.get_receipt(recipe.benchmark_id)
         if receipt:
             console.print(f"✅ [bold green]{recipe.name}[/bold green] is already configured.")
@@ -124,9 +158,9 @@ def run():
         console.print("  [2] Provide explicit manual path layout")
         console.print("  [3] Map via cluster Environment Module system")
         console.print(f"  [4] Download and compile from source layout")
-        
+
         choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4"], default="1")
-        
+
         final_path = None
         receipt_type = "binary"
         pre_run_hooks = recipe.pre_run_hooks.copy()
@@ -158,14 +192,13 @@ def run():
             receipt_type = "source"
             manifest = recipe.build_manifest
             target_env = os.environ.copy()
-            
+
             if manifest.requires_modules:
                 mod_cmd = Prompt.ask("Enter necessary pre-build cluster module loads", default="module load gcc openmpi")
                 target_env = capture_module_environment(mod_cmd)
                 if mod_cmd:
                     pre_run_hooks.append(mod_cmd)
 
-            # Evaluate Declarative Parameters Dynamic Discovery
             user_params = {}
             for param in manifest.parameters:
                 if param.choices:
@@ -182,10 +215,10 @@ def run():
 
             handle_cleanup(recipe.benchmark_id)
             target_dir = os.path.join(BENCHMARKS_DIR, recipe.benchmark_id)
-            
+
             current_step = "Initializing workspace environments..."
             recent_logs = deque(maxlen=6)
-            
+
             def render_build_ui() -> Panel:
                 step_text = Text(f"🟢 {current_step}", style="bold yellow")
                 log_text = Text.from_markup("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))
@@ -197,7 +230,7 @@ def run():
                     if msg_type == "step": current_step = msg
                     elif msg_type == "log": recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
                     live.update(render_build_ui())
-                    
+
                 success, build_result, err_msg = recipe.download_and_build(target_dir, user_params, target_env, log_callback=live_callback)
 
             if success and build_result:
