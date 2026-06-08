@@ -466,7 +466,7 @@ class ExperimentRunner:
             # Atomic append routine using advisory locking
             with open(registry_path, "a+", newline="") as f:
                 # Acquire exclusive lock. Blocks execution until other CRAB instances release it.
-                fcntl.flock(f.fileno(), f.fcntl.LOCK_EX)
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
 
                 # Move pointer to check if file is completely new/empty
                 f.seek(0, os.SEEK_END)
@@ -482,11 +482,8 @@ class ExperimentRunner:
                 os.fsync(f.fileno())
 
                 # Release lock explicitly
-                fcntl.flock(f.fileno(), f.fcntl.LOCK_UN)
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
         except Exception as e:
             # Fallback guardrail to prevent a registry I/O bottleneck from crashing a study
-            if hasattr(self, "logger") and self.logger:
-                self.logger.error(f"CRAB Registry execution hook failed: {e}")
-            else:
-                print(f"CRAB Registry execution hook failed: {e}")
+            self.log.error(f"CRAB Registry execution hook failed: {e}")
