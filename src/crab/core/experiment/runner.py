@@ -1,5 +1,8 @@
 import os  
 import pathlib  
+import csv
+import re
+import fcntl
 import importlib.util  
 import shutil
 import time  
@@ -11,7 +14,7 @@ from ..data import DataContainer, check_CI
 from ..allocation import NodeAllocator  
 from ..process import run_job, end_job  
   
-class ExperimentRunner:  
+class ExperimentRunner:
     """  
     Manages the lifecycle of a single experiment within the job.  
     Isolates setup, execution, and teardown.  
@@ -161,6 +164,9 @@ class ExperimentRunner:
     def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""
         self.log.info("Execution started")
+
+        # Tracking states initialized before the loop iterations begin
+        experiment_status = "COMPLETED"
         
         # Params
         min_runs = int(self.exp_opts.get('minruns', 10))
@@ -275,6 +281,9 @@ class ExperimentRunner:
                                     app_log.error(f"FAILED  exit={exit_code}")
                                     run_successful = False
 
+                                    if experiment_status != "TIMEOUT":
+                                        experiment_status = "FAILED"
+
                                     # Extract both streams
                                     stdout_text = out.decode('utf-8', errors='replace') if isinstance(out, bytes) else out
                                     stderr_text = err.decode('utf-8', errors='replace') if isinstance(err, bytes) else err
@@ -336,6 +345,7 @@ class ExperimentRunner:
                     # Check if the global elapsed time has exceeded the timeout
                     if (time.time() - global_start) >= timeout:
                         run_log.error(f"HARD TIMEOUT: Experiment exceeded {timeout}s mid-run.")
+                        experiment_status = "TIMEOUT"
                         for active_aid in list(running):
                             try:
                                 self.apps[active_aid].process.kill()
@@ -388,6 +398,8 @@ class ExperimentRunner:
         finally:
             self.teardown()
 
+        self._write_to_registry(status=experiment_status)
+
     def teardown(self):
         """Ensures all processes are killed before next experiment."""
         for app in self.apps:
@@ -403,3 +415,78 @@ class ExperimentRunner:
             prefix = os.path.join(self.exp_dir, 'data')
             log_data(out_fmt, prefix, self.data_containers)
             self.log.info(f"Data saved to {self.exp_dir}")
+
+
+    def _write_to_registry(self, status):
+        """
+        Appends a data row for this experiment to the system-level registry.csv.
+        Uses exclusive POSIX file locking to guarantee process safety on shared HPC filesystems.
+        """
+        try:
+            # Traversal: self.exp_dir is system/job_name_timestamp/experiment_name
+            job_dir = os.path.dirname(self.exp_dir)
+            system_dir = os.path.dirname(job_dir)
+            registry_path = os.path.join(system_dir, "registry.csv")
+
+            job_basename = os.path.basename(job_dir)
+            exp_basename = os.path.basename(self.exp_dir)
+
+            # Extract standard ISO-like timestamp from the job folder suffix
+            timestamp = "unknown"
+            ts_match = re.search(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}", job_basename)
+            if ts_match:
+                timestamp = ts_match.group(0)
+
+            # Safely gather metadata parameters
+            job_name = self.global_opts.get("name", "unknown")
+            numnodes = self.global_opts.get("numnodes", 1)
+            
+            # Target ppn across common layout dictionary keys
+            ppn = self.exp_opts.get("ppn", self.local_options.get("ppn", "unknown"))
+
+            # Space-separated, alphabetically sorted unique application identifiers
+            unique_apps = sorted(list(set([
+                str(getattr(app, "benchmark_id", getattr(app, "name", "unknown")))
+                for app in self.apps
+            ])))
+            apps_list = " ".join(unique_apps)
+
+            tags = self.global_opts.get("tags", "none")
+            relative_path = f"./{job_basename}/{exp_basename}"
+
+            headers = [
+                "job_name", "experiment_name", "timestamp", "numnodes", 
+                "ppn", "apps_list", "status", "tags", "relative_path"
+            ]
+            row = [
+                job_name, exp_basename, timestamp, numnodes, 
+                ppn, apps_list, status, tags, relative_path
+            ]
+
+            # Atomic append routine using advisory locking
+            with open(registry_path, "a+", newline="") as f:
+                # Acquire exclusive lock. Blocks execution until other CRAB instances release it.
+                fcntl.flock(f.fileno(), f.fcntl.LOCK_EX)
+
+                # Move pointer to check if file is completely new/empty
+                f.seek(0, os.SEEK_END)
+                if f.tell() == 0:
+                    writer = csv.writer(f)
+                    writer.writerow(headers)
+
+                writer = csv.writer(f)
+                writer.writerow(row)
+
+                # Force filesystem sync before clearing the block lock
+                f.flush()
+                os.fsync(f.fileno())
+
+                # Release lock explicitly
+                fcntl.flock(f.fileno(), f.fcntl.LOCK_UN)
+
+        except Exception as e:
+            # Fallback guardrail to prevent a registry I/O bottleneck from crashing a study
+            if hasattr(self, "logger") and self.logger:
+                self.logger.error(f"CRAB Registry execution hook failed: {e}")
+            else:
+                print(f"CRAB Registry execution hook failed: {e}")
