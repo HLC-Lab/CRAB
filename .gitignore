@@ -13,3 +13,6 @@ hosts
 /config/paths.json
 /config/paths.json.bak
 
+# Documentation build output
+/site/
+
