@@ -474,6 +474,7 @@ BenchmarkOptions Select {
     width: 1fr;
     margin: 0;
     max-height: 12;
+    overflow-x: hidden;
 }
 
 /* Stile per il container dei pulsanti in fondo */

@@ -56,8 +56,12 @@ class BenchmarkOptions(VerticalScroll):
         except Exception:
             pass
 
+    def on_show(self) -> None:
+        """Fires when the tab becomes visible — size is now valid."""
+        self.call_after_refresh(self._fit_node_col)
+
     def on_resize(self) -> None:
-        self._fit_node_col()
+        self.call_after_refresh(self._fit_node_col)
 
 
     def compose(self):
@@ -271,10 +275,10 @@ class BenchmarkOptions(VerticalScroll):
                     MAX_ROWS = 100
                     overflow = len(tokens) - MAX_ROWS
                     for token in tokens[:MAX_ROWS]:
-                        display = token if len(token) <= 40 else token[:37] + "..."
-                        data_table.add_row(display)
+                        data_table.add_row(token)
                     if overflow > 0:
                         data_table.add_row(f"(+ {overflow} more node groups)")
                 else:
                     data_table.add_row("sinfo unavailable or no nodes found.")
+                self.call_after_refresh(self._fit_node_col)
 
