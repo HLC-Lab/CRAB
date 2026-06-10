@@ -7,7 +7,7 @@ name = "crab"
 version = "0.1.0"
 description = "Co-Running Applications Benchmarking framework"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "argcomplete>=3.3.0",
     "linkify-it-py>=2.0.3",
