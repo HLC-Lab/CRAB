@@ -69,9 +69,15 @@ crab run <config.json> -p <preset>
 crab tui
 ```
 
-Results are written under `data/<system>/<name>_<timestamp>/`. See the
-[documentation](docs/using/installation.md) for configuring presets, writing experiment configs,
-and adding your own benchmarks.
+Results are written under `data/<system>/<name>_<timestamp>/`. Share them as a self-contained
+HTML dashboard:
+
+```bash
+crab export data/<system>/<name>_<timestamp>/ -o results.html
+```
+
+See the [documentation](docs/using/installation.md) for configuring presets, writing experiment
+configs, and adding your own benchmarks.
 
 ## 📜 License
 

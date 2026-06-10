@@ -41,6 +41,32 @@ crab tui
 
 No arguments. See [Running an experiment → TUI](../using/running.md#tui).
 
+## `crab export`
+
+Generates a **self-contained HTML dashboard** from a results directory — the CSV data is embedded
+into the file, so the result can be emailed, committed to a repo, or opened directly anywhere
+without any server or import step.
+
+```bash
+crab export <data_dir> [-o OUTPUT]
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `data_dir` | ✅ | Path to a results directory containing experiment CSVs. CRAB scans both flat (`<dir>/*.csv`) and nested (`<dir>/<exp>/data_app_*.csv`) layouts. |
+| `-o`, `--output` | — | Output HTML path. Default: `crab_export.html` in the current directory. |
+
+Example:
+
+```bash
+crab export data/leonardo/interference_2026-06-09_14-30-05-123456/ -o results.html
+```
+
+The exported file is a snapshot of the live dashboard (`crab_dashboard.html`) with the data
+pre-loaded and the "drop folder" UI hidden. For browsing **fresh** results from the cluster
+without exporting, use the live dashboard directly — see
+[Reading results → The dashboard](../using/results.md#the-dashboard).
+
 ## `crab worker` (internal)
 
 Hidden subcommand executed *by the generated Slurm job* on the compute nodes — the second phase of
