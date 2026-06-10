@@ -28,6 +28,21 @@ def _split_nodelist(s: str) -> list[str]:
     return result
 
 
+def _expand_nodelist_token(token: str) -> list[str]:
+    """Expand 'prefix[r1,r2,r3]' into ['prefix[r1]', 'prefix[r2]', 'prefix[r3]'].
+    Each comma-separated range inside brackets becomes its own row.
+    e.g. 'lrdn[0001-0026,0028-0038]' → ['lrdn[0001-0026]', 'lrdn[0028-0038]']
+    Plain tokens without brackets are returned as-is.
+    """
+    bracket_start = token.find("[")
+    bracket_end = token.rfind("]")
+    if bracket_start == -1 or bracket_end == -1 or bracket_end < bracket_start:
+        return [token]
+    prefix = token[:bracket_start]
+    inner = token[bracket_start + 1:bracket_end]
+    return [f"{prefix}[{r}]" for r in inner.split(",") if r]
+
+
 class BenchmarkOptions(VerticalScroll):
     """Un widget per configurare ed eseguire un benchmark."""
 
@@ -269,15 +284,16 @@ class BenchmarkOptions(VerticalScroll):
                     nodes = []
 
                 if nodes:
-                    tokens = []
+                    rows = []
                     for line in nodes:
-                        tokens.extend(_split_nodelist(line))
-                    MAX_ROWS = 100
-                    overflow = len(tokens) - MAX_ROWS
-                    for token in tokens[:MAX_ROWS]:
-                        data_table.add_row(token)
+                        for top in _split_nodelist(line):
+                            rows.extend(_expand_nodelist_token(top))
+                    MAX_ROWS = 200
+                    overflow = len(rows) - MAX_ROWS
+                    for row in rows[:MAX_ROWS]:
+                        data_table.add_row(row)
                     if overflow > 0:
-                        data_table.add_row(f"(+ {overflow} more node groups)")
+                        data_table.add_row(f"(+ {overflow} more ranges)")
                 else:
                     data_table.add_row("sinfo unavailable or no nodes found.")
                 self.call_after_refresh(self._fit_node_col)
