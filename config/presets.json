@@ -62,7 +62,6 @@
         "sbatch": [
             "--account=IscrC_FOCAL",
             "--partition=boost_usr_prod",
-            "--exclusive",
             "--gres=tmpfs:0"
         ],
         "header": [

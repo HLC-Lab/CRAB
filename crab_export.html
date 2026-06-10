@@ -731,8 +731,8 @@ const ChartRenderer = (() => {
         const yVal = c.scales.y.getValueForPixel(my);
         const labels = c.data.labels || [];
         let bi = 0, bd = Infinity;
-        labels.forEach((_, i) => {
-          const d = Math.abs(c.scales.x.getPixelForIndex(i) - mx);
+        labels.forEach((lbl, i) => {
+          const d = Math.abs(c.scales.x.getPixelForValue(lbl) - mx);
           if (d < bd) { bd = d; bi = i; }
         });
         const span = (c.scales.y.max - c.scales.y.min) * 0.04;
@@ -1404,7 +1404,7 @@ const _violinCountAxis = {
       (ds.data || []).map(arr => Array.isArray(arr) ? arr.length : 0)
     ));
     const colW = labels.length > 1
-      ? Math.abs(x.getPixelForIndex(1) - x.getPixelForIndex(0))
+      ? Math.abs(x.getPixelForValue(labels[1]) - x.getPixelForValue(labels[0]))
       : (right - left);
     const hW = colW * 0.33;
 
@@ -1417,8 +1417,8 @@ const _violinCountAxis = {
     ctx.textAlign = 'center';
 
     const footerY = chart.canvas.height - 4;
-    labels.forEach((_, i) => {
-      const cx = x.getPixelForIndex(i);
+    labels.forEach((lbl, i) => {
+      const cx = x.getPixelForValue(lbl);
 
       ctx.strokeStyle = bdr; ctx.lineWidth = 0.5;
       ctx.beginPath();
