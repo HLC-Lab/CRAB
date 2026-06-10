@@ -4,17 +4,18 @@ import sys
 from pathlib import Path
 
 
-_CSV_NAMES = ["data_app_0.csv", "data_app_1.csv", "data.csv", "results.csv", "output.csv"]
+_SYSTEM_CSVS = frozenset({'metadata.csv', 'description.csv'})
 _DASHBOARD_TEMPLATE = Path(__file__).resolve().parents[3] / "crab_dashboard.html"
 
 
-def _find_csv(directory: Path) -> Path | None:
-    for name in _CSV_NAMES:
-        p = directory / name
-        if p.is_file():
-            return p
-    csvs = sorted(directory.glob("*.csv"))
-    return csvs[0] if csvs else None
+def _clean_csv_name(stem: str) -> str:
+    """Convert a CRAB CSV stem to a human-readable experiment label.
+
+    'data_app_0' → 'App 0', 'data_app_1' → 'App 1', others → title-cased.
+    """
+    if stem.startswith('data_app_') and stem[9:].isdigit():
+        return f'App {stem[9:]}'
+    return stem.replace('_', ' ').replace('-', ' ').title()
 
 
 def _parse_csv(path: Path) -> list[dict]:
@@ -42,43 +43,60 @@ def _parse_csv(path: Path) -> list[dict]:
     return rows
 
 
+def _load_dir_csvs(directory: Path, lab_name: str, labs: dict) -> None:
+    """Load every non-system CSV in directory as a separate experiment under lab_name."""
+    data_csvs = sorted(
+        f for f in directory.iterdir()
+        if f.is_file() and f.suffix == '.csv' and f.name not in _SYSTEM_CSVS
+    )
+    for csv_path in data_csvs:
+        rows = _parse_csv(csv_path)
+        if rows:
+            labs.setdefault(lab_name, {})[_clean_csv_name(csv_path.stem)] = rows
+
+
 def _collect_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
     """Walk data_dir and return {lab: {experiment: [rows]}}.
 
-    Mirrors the directory-traversal logic in the dashboard's ServerLoader.fetch():
+    Directory → lab/experiment mapping:
       root/file.csv          → Root Lab / file
-      root/exp_dir/          → Root Lab / exp_dir  (contains CSVs or has no subdirs)
-      root/lab_dir/exp_dir/  → lab_dir / exp_dir   (subdirs that themselves contain CSVs)
+      root/exp_dir/          → exp_dir / App N   (dir contains data CSVs directly)
+      root/lab_dir/exp_dir/  → exp_dir / App N   (nested: lab_dir's subdirs have CSVs)
     """
     labs: dict[str, dict[str, list[dict]]] = {}
 
-    def add(lab: str, exp: str, rows: list[dict]) -> None:
-        if rows:
-            labs.setdefault(lab, {})[exp] = rows
-
     entries = sorted(data_dir.iterdir())
-    csvs_at_root = [e for e in entries if e.is_file() and e.suffix == ".csv"]
+    csvs_at_root = [
+        e for e in entries
+        if e.is_file() and e.suffix == '.csv' and e.name not in _SYSTEM_CSVS
+    ]
     dirs_at_root = [e for e in entries if e.is_dir()]
 
     for csv_path in csvs_at_root:
-        add("Root Lab", csv_path.stem, _parse_csv(csv_path))
+        rows = _parse_csv(csv_path)
+        if rows:
+            labs.setdefault('Root Lab', {})[_clean_csv_name(csv_path.stem)] = rows
 
     for d in dirs_at_root:
         sub_entries = sorted(d.iterdir())
-        sub_csvs = [e for e in sub_entries if e.is_file() and e.suffix == ".csv"]
+        sub_csvs = [
+            e for e in sub_entries
+            if e.is_file() and e.suffix == '.csv' and e.name not in _SYSTEM_CSVS
+        ]
         sub_dirs = [e for e in sub_entries if e.is_dir()]
 
         if sub_csvs or not sub_dirs:
-            # d is an experiment directory (flat structure)
-            csv_path = _find_csv(d)
-            if csv_path:
-                add("Root Lab", d.name, _parse_csv(csv_path))
+            # d is an experiment directory (has data CSVs directly)
+            _load_dir_csvs(d, d.name, labs)
         else:
-            # d is a lab directory, its subdirs are experiments
+            # d is a job/lab directory; its subdirs are experiment directories
             for exp_dir in sub_dirs:
-                csv_path = _find_csv(exp_dir)
-                if csv_path:
-                    add(d.name, exp_dir.name, _parse_csv(csv_path))
+                exp_csvs = [
+                    e for e in sorted(exp_dir.iterdir())
+                    if e.is_file() and e.suffix == '.csv' and e.name not in _SYSTEM_CSVS
+                ]
+                if exp_csvs:
+                    _load_dir_csvs(exp_dir, exp_dir.name, labs)
 
     return labs
 
@@ -97,6 +115,9 @@ def export_dashboard(data_dir: Path, output: Path) -> None:
         sys.exit(1)
 
     print(f"[*] Found {total_exps} experiment(s) across {len(labs)} lab(s)")
+    for lab, exps in labs.items():
+        for exp in exps:
+            print(f"    {lab} / {exp}")
 
     html = _DASHBOARD_TEMPLATE.read_text(encoding="utf-8")
     data_json = json.dumps({"labs": labs}, separators=(",", ":"))

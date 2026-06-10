@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRAB — HPC Benchmark Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-box-and-violin-plot@4.4.2/build/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-box-and-violin-plot@4.0.0/build/index.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ── TOKENS ─────────────────────────────────────────────────────── */
@@ -620,14 +620,24 @@ const ChartRenderer = (() => {
     if (_chart) { _chart.destroy(); _chart = null; }
 
     const ds = makeDatasets(exp, xCol, yCol, yUnit);
-    const canvas = document.getElementById('main-chart');
+    const chartArea = document.querySelector('.chart-area');
+    let canvas = document.getElementById('main-chart');
     const isFlat = ds?.labels; // bar/box/violin return { labels, datasets }
 
-    _chart = new Chart(canvas, {
-      type: chartJsType(),
-      data: isFlat ? ds : { datasets: ds },
-      options: buildOptions(xCol, yCol, xUnit, yUnit, false),
-    });
+    try {
+      _chart = new Chart(canvas, {
+        type: chartJsType(),
+        data: isFlat ? ds : { datasets: ds },
+        options: buildOptions(xCol, yCol, xUnit, yUnit, false),
+      });
+    } catch (e) {
+      console.error('Chart.js render failed:', e);
+      const fresh = document.createElement('canvas');
+      fresh.id = 'main-chart';
+      chartArea.replaceChild(fresh, canvas);
+      _chart = null;
+      return;
+    }
 
     document.getElementById('chart-info').textContent =
       `${validRows.length} pts · Y:${yUnit.label || 'raw'} · X:${xUnit.label || 'raw'}`;
@@ -680,14 +690,21 @@ const ChartRenderer = (() => {
       chartData = { datasets: exps.map(e => makeDatasets(e, xCol, yCol, yUnit)[0]) };
     }
 
-    const chart = new Chart(canvas, {
-      type: chartJsType(),
-      data: chartData,
-      options: buildOptions(xCol, yCol, xUnit, yUnit, true),
-    });
-
-    _type = savedType; _scale = savedScale;
-    setter(chart);
+    try {
+      const chart = new Chart(canvas, {
+        type: chartJsType(),
+        data: chartData,
+        options: buildOptions(xCol, yCol, xUnit, yUnit, true),
+      });
+      setter(chart);
+    } catch (e) {
+      console.error('Chart.js compare render failed:', e);
+      const fresh = document.createElement('canvas');
+      fresh.id = canvasId;
+      canvas.parentNode.replaceChild(fresh, canvas);
+    } finally {
+      _type = savedType; _scale = savedScale;
+    }
   }
 
   return { render, setType, setScale, getType, buildForCompare };
@@ -1004,6 +1021,11 @@ const UI = (() => {
     const lbl = document.getElementById('exp-label');
     lbl.textContent = `${DataStore.getLabNames().length} Lab(s) · ${n} Experiment(s)`;
     lbl.style.color = '';
+
+    // Activate the current tab panel (panels are display:none until a tab is clicked;
+    // without this, embedded data loads see a blank canvas on the chart tab).
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + _currentTab).classList.add('active');
 
     renderLabDropdown();
     renderSidebar();

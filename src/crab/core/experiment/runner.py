@@ -364,6 +364,14 @@ class ExperimentRunner:
                             end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
+                # Remove run directories whose only visible content is the hidden
+                # .wrappers/ build artefact — they appear empty in directory listings.
+                if self.apps:
+                    _run_dir = getattr(self.apps[0], 'run_dir', None)
+                    if _run_dir and os.path.exists(_run_dir):
+                        if not any(f for f in os.listdir(_run_dir) if not f.startswith('.')):
+                            shutil.rmtree(_run_dir, ignore_errors=True)
+
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
                 # Collect Data
