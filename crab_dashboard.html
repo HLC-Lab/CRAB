@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CRAB — HPC Benchmark Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-box-and-violin-plot@4.0.0/build/index.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.5/build/index.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ── TOKENS ─────────────────────────────────────────────────────── */
@@ -720,19 +720,24 @@ const TableRenderer = (() => {
   let _sortDir     = 1;
 
   function rebuildDropdown() {
-    const exps = DataStore.getActiveExps();
-    const rows = exps.flatMap(e=>e.rows);
-    if (!rows.length) return;
-    const cols = Object.keys(rows[0]);
-    _allCols = cols;
+    const exp = DataStore.getActiveExp();
+    if (!exp || !exp.rows.length) return;
+    const newCols = Object.keys(exp.rows[0]);
+
+    // Reset visible selection when the column set changes (switching to a different app type)
+    if (newCols.join(',') !== _allCols.join(',')) {
+      _allCols = newCols;
+      _visibleCols.clear();
+    }
+
     if (!_visibleCols.size) {
       ['run_id','msg_size'].forEach(c => _visibleCols.add(c));
-      cols.filter(c=>/avg/i.test(c)).slice(0,2).forEach(c=>_visibleCols.add(c));
-      if (_visibleCols.size < 3) cols.forEach(c=>_visibleCols.add(c));
+      newCols.filter(c=>/avg/i.test(c)).slice(0,2).forEach(c=>_visibleCols.add(c));
+      if (_visibleCols.size < 3) newCols.forEach(c=>_visibleCols.add(c));
     }
     const dd = document.getElementById('col-dd');
     dd.innerHTML = '';
-    cols.forEach(col => {
+    newCols.forEach(col => {
       const label = document.createElement('label');
       label.className = 'col-opt';
       label.innerHTML = `<input type="checkbox" ${_visibleCols.has(col)?'checked':''}> ${col}`;
@@ -1070,7 +1075,8 @@ const UI = (() => {
 
     exps.forEach(exp=>{
       const isActive = exp.name===DataStore.getActiveExpName();
-      const isSel    = CompareRenderer.isSelected(exp.name);
+      // Show multi-select state only in compare tab; other tabs use single-select semantics
+      const isSel    = _currentTab==='compare' && CompareRenderer.isSelected(exp.name);
       const div = document.createElement('div');
       div.className='eitem'+(isActive?' active':'')+(isSel?' sel':'');
       div.title=exp.name;
@@ -1098,7 +1104,7 @@ const UI = (() => {
 
       div.addEventListener('click', ()=>{
         if (_currentTab==='compare') { CompareRenderer.toggle(exp.name); }
-        else { DataStore.setActiveExp(exp.name); renderSidebar(); rebuildAxisSelects(); renderCurrentTab(); }
+        else { DataStore.setActiveExp(exp.name); renderSidebar(); rebuildAxisSelects(); TableRenderer.rebuildDropdown(); renderCurrentTab(); }
       });
       list.appendChild(div);
     });
