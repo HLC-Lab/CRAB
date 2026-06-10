@@ -85,14 +85,27 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
   runs undisturbed; the other half sits idle. That's deliberate — the victim runs on the *same*
   4 nodes in both experiments.
 - **App `1` — the [aggressor](glossary.md#aggressor).** `collect: false` (not measured) and
-  `end: "f"` (force-killed as soon as the victim finishes). Its two arguments are the noise timing
-  (roughly: quiet interval, then burst length) — smaller quiet / longer burst = heavier
-  interference.
+  `end: "f"` (force-killed as soon as the victim finishes). Its `args` (`0.001 0.01`) are the
+  arguments passed to the benchmark — here, noise-timing values controlling how bursty the
+  interference is (smaller quiet interval / longer burst = heavier interference).
 - **`minruns`/`maxruns`** — repeat each experiment 5–10 times, stopping early once the victim's
   metrics [converge](glossary.md#convergence).
 
+!!! note "`path` points to the wrapper, not the binary"
+    `blink/a2a_comm_only.py` is the [wrapper](glossary.md#wrapper) **file**, given *relative* to
+    `CRAB_PATH_WRAPPERS` — it is **not** an absolute path and not the benchmark executable. That's
+    what keeps the config [system-independent](concepts/system-dependent-vs-independent.md): the
+    wrapper looks up the actual binary location from the [receipt](glossary.md#receipt) at run time,
+    so the *same* config file runs on any cluster where you've done `crab setup`.
+
 For more shapes (sequential sweeps, timed aggressors, multiple victims) see
 [Writing experiment configs](using/writing-configs.md).
+
+!!! tip "Don't want to hand-write JSON?"
+    You can build a config interactively instead of editing JSON. Launch `crab tui`, add your
+    applications and set the global options across the tabs, then press **`s`** to save it to a
+    `.json` file — or **`space`** to run it right away. See
+    [Running an experiment → TUI](using/running.md#tui).
 
 ## Step 3 — Run it
 

@@ -62,9 +62,5 @@ Key bindings:
 The TUI requires the optional `textual` dependencies; if they're missing, `crab tui` offers to
 install them on first launch (see [Installation](installation.md#manual-install)).
 
-!!! note "The TUI uses the legacy config layout"
-    When you save from the TUI, the config is written in the **legacy `applications` form** (a
-    single, unnamed experiment) rather than the multi-experiment `experiments` form. Both are
-    valid and run identically — CRAB converts the legacy form internally — but if you want several
-    named experiments in one file, write or edit the config by hand using the `experiments`
-    structure. See [Configuration schema](../reference/configuration.md#top-level-shape).
+Configurations you build in the TUI are saved as ordinary config files — interchangeable with
+hand-written ones and runnable with `crab run`.
