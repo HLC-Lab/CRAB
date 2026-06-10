@@ -125,6 +125,7 @@ header{position:sticky;top:0;z-index:100;background:var(--header-bg);backdrop-fi
 .echk{width:14px;height:14px;border-radius:3px;border:1px solid var(--border2);flex-shrink:0;
   display:flex;align-items:center;justify-content:center;font-size:9px;transition:all .12s}
 .eitem.sel .echk{background:var(--accent2);border-color:var(--accent2);color:#fff}
+.lab-ghdr{font-size:10px;font-weight:700;color:var(--text3);padding:8px 8px 3px;letter-spacing:.06em;text-transform:uppercase}
 
 /* ── MAIN ───────────────────────────────────────────────────────── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -941,18 +942,28 @@ const CompareRenderer = (() => {
   let _smallCharts = [];
   let _type  = 'scatter';
   let _mode  = 'overlay';
-  const _sel = new Set(); // exp names in active lab
+  const _sel = new Map(); // key: labName+'\x00'+expName → {labName, expName}
 
-  function toggle(name) {
-    _sel.has(name) ? _sel.delete(name) : _sel.add(name);
+  function _key(lab, name) { return lab + '\x00' + name; }
+
+  function toggle(labName, expName) {
+    const k = _key(labName, expName);
+    if (_sel.has(k)) _sel.delete(k); else _sel.set(k, {labName, expName});
     document.getElementById('csel-count').textContent = _sel.size+' selected';
-    UI.renderSidebar();
+    // Update only the clicked item in-place; avoid full sidebar rebuild which can drop
+    // selections mid-click when the DOM is torn down and recreated.
+    const isSel = _sel.has(k);
+    const item = document.querySelector('#exp-list .eitem[data-ckey="'+CSS.escape(k)+'"]');
+    if (item) {
+      item.classList.toggle('sel', isSel);
+      item.querySelector('.echk').textContent = isSel ? '✓' : '';
+    }
     render();
   }
 
   function clear() { _sel.clear(); document.getElementById('csel-count').textContent='0 selected'; UI.renderSidebar(); render(); }
 
-  function isSelected(name) { return _sel.has(name); }
+  function isSelected(labName, expName) { return _sel.has(_key(labName, expName)); }
 
   function setType(t) { _type = t; render(); }
   function setMode(m) { _mode = m; render(); }
@@ -962,7 +973,9 @@ const CompareRenderer = (() => {
     if (!_sel.size) { ov.style.display='none'; sm.style.display='none'; wl.style.display='flex'; return; }
     wl.style.display='none';
 
-    const exps = DataStore.getActiveExps().filter(e=>_sel.has(e.name));
+    const exps = Array.from(_sel.values())
+      .map(({labName, expName}) => DataStore.getLab(labName)?.experiments[expName])
+      .filter(Boolean);
     if (!exps.length) return;
 
     const xCol = document.getElementById('cx-sel').value;
@@ -1001,7 +1014,7 @@ const CompareRenderer = (() => {
     }
   }
 
-  return { toggle, clear, isSelected, setType, setMode, render };
+  return { toggle, clear, isSelected, keyFor: _key, setType, setMode, render };
 })();
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1192,7 +1205,6 @@ const UI = (() => {
 
   function onLabChange(name) {
     DataStore.setActiveLab(name);
-    CompareRenderer.clear();
     TableRenderer.reset();
     renderSidebar();
     rebuildAxisSelects();
@@ -1203,45 +1215,86 @@ const UI = (() => {
   // ── sidebar ──────────────────────────────────────────────────────
   function renderSidebar() {
     const list = document.getElementById('exp-list');
-    list.innerHTML='';
-    const exps = DataStore.getActiveExps();
-    document.getElementById('exp-count').textContent = exps.length;
+    list.innerHTML = '';
 
-    exps.forEach(exp=>{
-      const isActive = exp.name===DataStore.getActiveExpName();
-      // Show multi-select state only in compare tab; other tabs use single-select semantics
-      const isSel    = _currentTab==='compare' && CompareRenderer.isSelected(exp.name);
-      const div = document.createElement('div');
-      div.className='eitem'+(isActive?' active':'')+(isSel?' sel':'');
-      div.title=exp.name;
-      div.innerHTML=`
-        <div class="eswatch" style="background:${exp.color}" title="Change color">
-          <input type="color" value="${exp.color}" onclick="event.stopPropagation()">
-        </div>
-        <div class="einfo">
-          <div class="ename">${exp.name}</div>
-          <div class="emeta">${exp.rows.length} rows</div>
-        </div>
-        <div class="echk">${isSel?'✓':''}</div>`;
-
-      // color change via sidebar swatch
-      div.querySelector('input[type=color]').addEventListener('change', e=>{
-        e.stopPropagation();
-        DataStore.setExpColor(DataStore.getActiveLabName(), exp.name, e.target.value);
-        div.querySelector('.eswatch').style.background = e.target.value;
-        if (isActive) {
-          document.getElementById('toolbar-swatch').style.background = e.target.value;
-          document.getElementById('toolbar-color').value = e.target.value;
+    if (_currentTab === 'compare') {
+      // Compare mode: show every lab's experiments so cross-lab comparison is possible
+      const labNames = DataStore.getLabNames();
+      const multiLab = labNames.length > 1;
+      let total = 0;
+      labNames.forEach(labName => {
+        const exps = DataStore.getLabExps(labName);
+        total += exps.length;
+        if (multiLab) {
+          const hdr = document.createElement('div');
+          hdr.className = 'lab-ghdr';
+          hdr.textContent = labName;
+          list.appendChild(hdr);
         }
-        renderCurrentTab();
+        exps.forEach(exp => {
+          const isSel = CompareRenderer.isSelected(labName, exp.name);
+          const div = document.createElement('div');
+          div.className = 'eitem' + (isSel ? ' sel' : '');
+          div.title = exp.name;
+          div.dataset.ckey = CompareRenderer.keyFor(labName, exp.name);
+          div.innerHTML = `
+            <div class="eswatch" style="background:${exp.color}" title="Change color">
+              <input type="color" value="${exp.color}" onclick="event.stopPropagation()">
+            </div>
+            <div class="einfo">
+              <div class="ename">${exp.name}</div>
+              <div class="emeta">${exp.rows.length} rows</div>
+            </div>
+            <div class="echk">${isSel ? '✓' : ''}</div>`;
+          div.querySelector('input[type=color]').addEventListener('change', e => {
+            e.stopPropagation();
+            DataStore.setExpColor(labName, exp.name, e.target.value);
+            div.querySelector('.eswatch').style.background = e.target.value;
+            renderCurrentTab();
+          });
+          div.addEventListener('click', () => CompareRenderer.toggle(labName, exp.name));
+          list.appendChild(div);
+        });
       });
-
-      div.addEventListener('click', ()=>{
-        if (_currentTab==='compare') { CompareRenderer.toggle(exp.name); }
-        else { DataStore.setActiveExp(exp.name); renderSidebar(); rebuildAxisSelects(); TableRenderer.rebuildDropdown(); renderCurrentTab(); }
+      document.getElementById('exp-count').textContent = total;
+    } else {
+      // Chart / Table mode: single-select within the active lab
+      const exps = DataStore.getActiveExps();
+      document.getElementById('exp-count').textContent = exps.length;
+      exps.forEach(exp => {
+        const isActive = exp.name === DataStore.getActiveExpName();
+        const div = document.createElement('div');
+        div.className = 'eitem' + (isActive ? ' active' : '');
+        div.title = exp.name;
+        div.innerHTML = `
+          <div class="eswatch" style="background:${exp.color}" title="Change color">
+            <input type="color" value="${exp.color}" onclick="event.stopPropagation()">
+          </div>
+          <div class="einfo">
+            <div class="ename">${exp.name}</div>
+            <div class="emeta">${exp.rows.length} rows</div>
+          </div>
+          <div class="echk"></div>`;
+        div.querySelector('input[type=color]').addEventListener('change', e => {
+          e.stopPropagation();
+          DataStore.setExpColor(DataStore.getActiveLabName(), exp.name, e.target.value);
+          div.querySelector('.eswatch').style.background = e.target.value;
+          if (isActive) {
+            document.getElementById('toolbar-swatch').style.background = e.target.value;
+            document.getElementById('toolbar-color').value = e.target.value;
+          }
+          renderCurrentTab();
+        });
+        div.addEventListener('click', () => {
+          DataStore.setActiveExp(exp.name);
+          renderSidebar();
+          rebuildAxisSelects();
+          TableRenderer.rebuildDropdown();
+          renderCurrentTab();
+        });
+        list.appendChild(div);
       });
-      list.appendChild(div);
-    });
+    }
   }
 
   // ── axis selects ─────────────────────────────────────────────────
