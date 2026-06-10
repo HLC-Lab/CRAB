@@ -36,13 +36,28 @@ class BenchmarkOptions(VerticalScroll):
         self.app_ref = app_ref
 
     def on_mount(self) -> None:
-        """Imposta il titolo del bordo quando il widget viene montato."""
         self.border_title = "Benchmark Configuration"
-
         data_table = self.query_one("#node_table", DataTable)
-        data_table.add_column("Available Nodes")
-
+        self._node_col_key = data_table.add_column("Available Nodes")
         self._set_partition_fields_visible(False)
+        self.call_after_refresh(self._fit_node_col)
+
+    def _fit_node_col(self) -> None:
+        """Resize the node table column to fill the table's actual rendered width."""
+        try:
+            table = self.query_one("#node_table", DataTable)
+            col = table.columns.get(self._node_col_key)
+            if col is None or table.size.width == 0:
+                return
+            # cell_padding applied on both sides of the column, plus 2 for row-label column
+            col.width = max(10, table.size.width - 2 * table.cell_padding - 2)
+            col.auto_width = False
+            table.refresh()
+        except Exception:
+            pass
+
+    def on_resize(self) -> None:
+        self._fit_node_col()
 
 
     def compose(self):
