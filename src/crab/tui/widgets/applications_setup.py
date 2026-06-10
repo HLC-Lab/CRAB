@@ -1,6 +1,6 @@
 from textual import work
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, VerticalScroll
 from textual.widgets import Button
 
 from .benchmark_tab_selector import BenchmarkTabSelector
@@ -27,8 +27,9 @@ class ApplicationSetup(Container):
 
     def compose(self) -> ComposeResult:
         yield self.tab_selector
-        yield self.forms_container
-        yield self.local_options_form
+        with VerticalScroll(id="experiment-scroll"):
+            yield self.forms_container
+            yield self.local_options_form
 
     def on_mount(self):
         self.current_benchmark = -1

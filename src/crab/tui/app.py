@@ -150,14 +150,33 @@ class BenchmarkApp(App):
             with open(file_path_str, "r") as f:
                 data_loaded = json.load(f)
 
-            # Checks if the loaded data contains the expected sections
-            if "global_options" not in data_loaded or "applications" not in data_loaded:
+            # Accept both TUI format ("applications") and native CLI format ("experiments")
+            has_apps = "applications" in data_loaded or "experiments" in data_loaded
+            if "global_options" not in data_loaded or not has_apps:
                 self.notify("Invalid configuration file: missing required sections.", severity="error")
                 return
 
-            # Load data into the respective containers
             self.benchmark_container.set_state(data_loaded["global_options"])
-            await self.applications_container.set_state(data_loaded["applications"])
+
+            if "applications" in data_loaded:
+                await self.applications_container.set_state(data_loaded["applications"])
+            else:
+                # Native CLI format: "experiments" key
+                experiments = data_loaded["experiments"]
+                exp_count = len(experiments)
+                if exp_count > 1:
+                    self.notify(
+                        f"Multi-experiment config ({exp_count} experiments): only global options loaded. "
+                        "The TUI supports single-experiment configs.",
+                        severity="warning",
+                    )
+                else:
+                    exp_data = next(iter(experiments.values()))
+                    # Normalize to TUI applications format
+                    apps_state = {"apps": exp_data.get("apps", {})}
+                    if "local_options" in exp_data:
+                        apps_state["local_options"] = exp_data["local_options"]
+                    await self.applications_container.set_state(apps_state)
 
             self.notify(f"Configuration loaded from {os.path.basename(file_path_str)}", severity="information")
 

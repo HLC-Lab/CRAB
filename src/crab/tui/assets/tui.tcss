@@ -98,10 +98,14 @@ BenchmarkTabSelector {
 }
 
 
-#benchmark-forms-container {
-    padding: 1;
+#experiment-scroll {
     height: 1fr;
     overflow-y: auto;
+}
+
+#benchmark-forms-container {
+    padding: 1;
+    height: auto;
 }
 
 
@@ -313,18 +317,41 @@ BenchmarkOptions {
 
 /* Stile per tutti i campi di input (Input, Select, Switch) */
 .option-input {
-    width: auto;
+    width: 1fr;
     margin: 1 0;
 }
 
-/* Un aggiustamento specifico per lo Switch */
 Switch.option-input {
     width: auto;
     height: 1;
 }
 
 Select.option-input {
-    width: 30;
+    width: 1fr;
+    max-width: 35;
+}
+
+TextArea.option-input {
+    width: 1fr;
+    min-height: 5;
+    max-height: 10;
+}
+
+/* Two-column row for paired fields */
+.options-row {
+    layout: horizontal;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.options-row > .option-group {
+    width: 1fr;
+    margin-right: 1;
+    margin-bottom: 0;
+}
+
+.options-row > .option-group:last-child {
+    margin-right: 0;
 }
 
 /* Label */
@@ -341,6 +368,7 @@ Select.option-input {
 .datatable {
     width: auto;
     margin: 1 0;
+    max-height: 10;
 }
 
 /* Stile per il container dei pulsanti in fondo */
