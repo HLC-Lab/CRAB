@@ -5,7 +5,7 @@
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "50:50",
-        "allocationsplit": "50:50",
+        "allocationsplit": "e",
         "partitionlayout": "l",
         "minruns": "5",
         "maxruns": "10",
@@ -13,13 +13,13 @@
         "outformat": "csv",
         "extrainfo": "blink_interference_sweep",
         "sbatch_directives": {
-            "time": "01:00:00",
+            "time": "00:30:00",
             "job-name": "crab_blink_noise"
         },
         "system_sbatch": [
+            "--qos=boost_qos_dbg",
             "--account=IscrC_FOCAL",
             "--partition=boost_usr_prod",
-            "--exclusive",
             "--gres=tmpfs:0"
         ],
         "system_header": [
@@ -98,9 +98,6 @@
 
         "05_a2a_light_bursty_noise": {
             "description": "A2A 64B victim + light bursty A2A aggressor (long quiet period, short burst). Shows minimal interference.",
-            "local_options": {
-                "allocationsplit": "50:50"
-            },
             "apps": {
                 "0": {
                     "path": "blink/a2a_comm_only.py",
@@ -191,7 +188,7 @@
             "description": "Two A2A victims (8B + 64B) under shared A2A noise, linear node placement. Tests allocation asymmetry.",
             "local_options": {
                 "allocationmode": "p",
-                "allocationsplit": "33:33:34",
+                "partitionsplit": "e",
                 "partitionlayout": "l"
             },
             "apps": {
@@ -226,7 +223,6 @@
             "description": "Same as 09 but with interleaved node allocation. Compare distributions to measure layout impact.",
             "local_options": {
                 "allocationmode": "i",
-                "allocationsplit": "33:33:34",
                 "partitionlayout": "i"
             },
             "apps": {
