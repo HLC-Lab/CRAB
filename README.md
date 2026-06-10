@@ -1,243 +1,78 @@
-# 🦀 C.R.A.B (Co-Running Applications Benchmarking framework)
+# 🦀 CRAB — Co-Running Applications Benchmarking framework
+
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/actions)
 
-**CRAB** is a flexible and powerful framework for executing, collecting, and analyzing high-performance benchmarks (HPC), optimized for clusters managed by **Slurm**. It allows you to orchestrate combinations of applications, manage system-specific environments, and automate the entire benchmarking process.
+**CRAB** runs **multiple HPC applications simultaneously** on Slurm-managed clusters to measure
+their performance and quantify how they **interfere** with one another (network congestion,
+shared-resource contention). Applications are described by small Python **wrappers** that teach
+CRAB how to launch them and parse their output, so results are collected uniformly regardless of
+the application — designate *victims* (measured) and *aggressors* (interference generators), and
+CRAB orchestrates the rest.
 
 ![asciicast](https://user-images.githubusercontent.com/11363902/203875389-918931a5-e110-4107-8854-c8c3656ab3e2.gif)
 
-## ✨ Key Features
+## ✨ Key features
 
-*   **Dual Interface**: Use it either through a **Textual User Interface (TUI)** for interactive usage or a **Command Line Interface (CLI)**
-*   **Advanced Environment Management**: Easily define and switch between system environments (e.g., `lumi`, `leonardo`, ecc.) via a centralized preset system.
-*   **Complex Application Mixes**: Run multiple applications simultaneously, defining "victims" (to be measured) and "aggressors" (to create interference).
-*   **Automated Data Collection**: Automatically gathers performance data, analyzes it, and can stop execution once statistical convergence is reached.
-*   **Standard Output Formats**: Saves collected data in the standard format CSV, ready for analysis with tools like Pandas or R.
-*   **Extensible Architecture**: Add support for new benchmarks simply by creating a Python "wrapper," without modifying the framework core.
+* **Dual interface** — a **Command Line Interface** for automation and a **Textual UI** for interactive use.
+* **System-portable experiments** — the same experiment config runs on any cluster; per-system details live in a centralized **preset** system (`leonardo`, `lumi`, …).
+* **Complex application mixes** — run many applications at once, designating *victims* and *aggressors*.
+* **Automated, converged data collection** — gathers performance data and stops once statistical convergence is reached.
+* **Standard output** — results saved as CSV, ready for pandas or R.
+* **Extensible** — support a new benchmark by adding a Python wrapper; no core changes needed.
 
-## 📚 Table of Contents
+## 📖 Documentation
 
-*   [🚀 Installation and Setup](#-installation-and-setup)
-*   [🕹️ Using the Framework](#-using-the-framework)
-    *   [TUI Mode (Interactive)](#tui-mode-interactive)
-    *   [CLI Mode (Command Line)](#cli-mode-command-line)
-*   [🏗️ Framework Architecture](#️-framework-architecture)
-*   [🧩 Adding a New Benchmark](#-adding-a-new-benchmark)
-    *   [Wrapper Structure](#wrapper-structure)
-    *   [Mandatory Methods](#mandatory-methods)
-*   [📄 Configuration File Format](#-configuration-file-format)
-    *   [The `presets.json` File](#the-presetsjson-file)
-    *   [The Benchmark Config File](#the-benchmark-config-file)
-*   [📜 License](#-license)
+Full documentation lives in [`docs/`](docs/) and is built with [MkDocs](https://www.mkdocs.org/)
+(Material theme). It covers installation, configuring a cluster, writing experiments, extending
+CRAB with new benchmarks, and the complete reference.
 
-## 🚀 Installation and Setup
-
-### Prerequisites
-
-*   Python 3.10+
-*   Git
-*   Access to a cluster with **Slurm** (for `auto` node mode) or an environment with **MPI**.
-
-### Installation Steps
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/SharkGamerZ/CRAB
-    cd crab
-    ```
-
-2.  **Create a virtual environment (recommended):**
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate
-    ```
-
-3.  **Install dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4.  **Configure Cluster Environments:**
-    Open the file `presets.json`. This file is the core of environment management. 
-    Add or edit a section for each system you want to run benchmarks on.
-
-    #TODO: specify which ENV are necessary to run.
-
-    ```json
-    {
-        "_common": {
-            "CRAB_ROOT": "/absolute/path/to/crab"
-        },
-        "my_cluster": {
-            "CRAB_WL_MANAGER": "slurm",
-            "CRAB_CC": "mpicc",
-            "CRAB_PINNING_FLAGS": "--cpu-bind=core"
-        },
-        "local_pc": {
-            "CRAB_WL_MANAGER": "mpi",
-            "CRAB_MPIRUN": "mpirun"
-        }
-    }
-    ```
-
-## 🕹️ Using the Framework
-
-You can interact with CRAB in two ways: through the TUI or the CLI.
-
-### TUI Mode (Interactive)
-
-The TUI is ideal for configuring and launching experiments visually and interactively.
-
-**How to start it:**
-```bash
-python tui.py
-````
-
-The interface will guide you through:
-
-1. **Preset Selection**: Choose the target system, or create your custom preset.
-2. **Application Setup**: Add benchmarks to run, specifying the wrapper path, arguments, and start/end rules.
-3. **Global Options**: Configure node count, allocation mode, timeout, etc.
-4. **Execution**: Start the benchmark and monitor logs in real time.
-
-### CLI Mode (Command Line)
-
-The CLI is perfect for automation, scripting, and running batch tests.
-
-**Command syntax:**
+Build and browse it locally:
 
 ```bash
-python cli.py --preset <preset_name> <path_to_config.json>
+pip install -r docs/requirements.txt
+mkdocs serve        # → http://127.0.0.1:8000
 ```
 
-* `--preset <preset_name>`: Specifies which environment to use, defined in `presets.json` (e.g., `my_cluster`), default is 'local'.
-* `<path_to_config.json>`: The JSON file describing the experiment.
+Quick links: [Concepts](docs/concepts/system-dependent-vs-independent.md) ·
+[Installation & setup](docs/using/installation.md) ·
+[Configuring your cluster](docs/using/presets.md) ·
+[Writing experiment configs](docs/using/writing-configs.md) ·
+[Extending CRAB](docs/extending/overview.md) ·
+[Reference](docs/reference/configuration.md)
 
-**Example:**
+> 📡 *A hosted version on Read the Docs is coming soon.*
+
+## 🚀 Quick start
+
+**Prerequisites:** Python 3.10+, Git, and access to a **Slurm** cluster — CRAB submits every run
+with `sbatch`, so Slurm must be available (even the `local` preset, which only changes the
+per-application launcher to `mpirun`).
 
 ```bash
-python cli.py --preset my_cluster examples/stress_test.json
+git clone https://github.com/HLC-Lab/CRAB
+cd CRAB
+make                        # creates .venv, installs CRAB (editable), runs the setup wizard
+source .venv/bin/activate   # activate before using `crab`
 ```
 
-Logs will be printed to the terminal, and data will be stored in the `data/` directory (or wherever `datapath` is set).
+Build or locate the benchmarks you want to run:
 
-## 🏗️ Framework Architecture
-
-The framework is designed with a clear separation of responsibilities:
-
-1. **Entrypoints (`cli.py` / `tui.py`)**: The user interfaces (CLI or TUI). Their only job is to collect configuration, prepare the environment (`os.environ`), and start the engine.
-2. **Engine (`engine.py`)**: The core of the framework. Receives a prepared environment and configuration. It handles:
-
-   * Node allocation (via Slurm, if used).
-   * Application scheduling.
-   * Benchmark process launching through the workload manager.
-   * Completion monitoring, data collection, and convergence checking.
-3. **Workload Manager (`src/crab/core/wl_manager/*.py`)**: Specialized modules that translate a request ("run this command on these nodes") into system-specific commands (e.g., `srun, mpirun ...`).
-4. **Application Wrappers (`wrappers/*.py`)**: Small Python modules that "wrap" a specific benchmark, teaching the framework how to run it and interpret its output.
-
-## 🧩 Adding a New Benchmark
-
-Integrating a new executable into the framework is simple and does not require modifying core code. You just need to create a "wrapper."
-
-### Wrapper Structure
-
-1. **Create a new Python file** in `wrappers/`, e.g. `my_benchmark.py`.
-2. Inside it, define a class named `app` inheriting from one the base class (`base`).
-
-   ```python
-   # in wrappers/my_benchmark.py
-   from wrappers.base import base
-
-   class app(base):
-       # ... implementation here ...
-   ```
-
-### Mandatory Methods
-
-Your `app` class must implement a few key methods:
-
-1. **`__init__(self, app_id, collect_flag, args)`**: The constructor. If data collection is required, define metadata here.
-
-   ```python
-   def __init__(self, app_id, collect_flag, args):
-       super().__init__(app_id, collect_flag, args)  # Call base constructor
-
-       # Define the metrics produced by this benchmark
-       self.metadata = [
-           {"name": "performance", "unit": "GTEPS", "conv": True},
-           {"name": "time", "unit": "s", "conv": False},
-       ]
-       # Mandatory if collecting data
-       self.num_metrics = len(self.metadata)
-   ```
-
-2. **`get_binary_path(self)`**: Must return a string with the absolute path to the benchmark executable.
-
-   ```python
-   def get_binary_path(self):
-       # You can use environment variables from presets for flexibility
-       return os.environ["CRAB_ROOT"] + "/path/to/my/executable"
-   ```
-
-3. **`read_data(self)`**: The most important method. It must parse the benchmark output (`self.stdout`) and return the collected data.
-
-   * **Input**: `self.stdout` (a string containing the program output).
-   * **Output**: A list of lists. Each sublist corresponds to one metric defined in `self.metadata` and contains all collected samples.
-
-   ```python
-   def read_data(self):
-       # Example: parsing CSV-like output
-       performance_samples = []
-       time_samples = []
-
-       for line in self.stdout.splitlines():
-           if line.startswith("RESULT:"):
-               parts = line.split(",")
-               performance_samples.append(float(parts[1]))
-               time_samples.append(float(parts[2]))
-
-       # Return data in the same order as in self.metadata
-       return [performance_samples, time_samples]
-   ```
-
-Once the wrapper is created, you can immediately use it in your JSON configuration files!
-
-## 📄 Configuration File Format
-
-### The `presets.json` File
-
-Defines system environments.
-
-* `_common`: A special object with environment variables shared by all presets.
-* `"preset_name"`: An object defining variables for a specific system. These override `_common` values.
-
-### The `.env` File
-The name of the used preset can be specified in a optional `.env` file.
-The content of the file should only be a valid name of a prest present in `preset.json`.
-Example:
-```
-leonardo
+```bash
+crab setup
 ```
 
-### The Benchmark Config File
+Run an experiment, or launch the interactive UI:
 
-A JSON file describing a single experiment.
+```bash
+crab run <config.json> -p <preset>
+crab tui
+```
 
-* **`global_options`**: Settings applied to the entire test (e.g., `numnodes`, `ppn`, `timeout`).
-* **`applications`**: A dictionary where each key is a numeric ID and the value describes an application to run.
-
-  * `path`: Path to the Python wrapper file.
-  * `args`: String of arguments for the executable.
-  * `collect`: `true` if data should be collected, `false` otherwise.
-  * `start`: Delay (in seconds) before starting the app.
-  * `end`: When to terminate the app.
-
-    * `""` (empty string): The app is a "victim." The framework waits for it to finish naturally.
-    * `"f"`: The app is an "aggressor." It will be force-terminated once all victims finish.
-    * `<number>`: The app will be terminated after a fixed number of seconds.
+Results are written under `data/<system>/<name>_<timestamp>/`. See the
+[documentation](docs/using/installation.md) for configuring presets, writing experiment configs,
+and adding your own benchmarks.
 
 ## 📜 License
 
-This project is released under the MIT License. See the `LICENSE` file for details.
-
+Released under the MIT License. See the [`LICENSE`](LICENSE) file for details.

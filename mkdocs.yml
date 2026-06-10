@@ -1,0 +1,80 @@
+site_name: CRAB
+site_description: Co-Running Applications Benchmarking framework
+repo_url: https://github.com/HLC-Lab/CRAB
+repo_name: HLC-Lab/CRAB
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - content.action.edit
+    - toc.follow
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+# Pages are added to the nav as they are written.
+nav:
+  - Home: index.md
+  - Concepts:
+      - System-dependent vs system-independent: concepts/system-dependent-vs-independent.md
+      - Architecture: concepts/architecture.md
+  - Using CRAB:
+      - Installation & benchmark setup: using/installation.md
+      - Configuring your cluster: using/presets.md
+      - Running an experiment: using/running.md
+      - Writing experiment configs: using/writing-configs.md
+      - Reading results: using/results.md
+  - Extending CRAB:
+      - Overview: extending/overview.md
+      - Writing a wrapper: extending/wrappers.md
+      - Adding a build recipe: extending/recipes.md
+      - From recipe to receipt: extending/receipts.md
+  - Reference:
+      - CLI commands: reference/cli.md
+      - Configuration schema: reference/configuration.md
+      - presets.json format: reference/presets.md
+      - Supported benchmarks: reference/supported-benchmarks.md
+      - Wrapper & Recipe API: reference/api.md
+  - Contributing: contributing.md
+  - Glossary: glossary.md
