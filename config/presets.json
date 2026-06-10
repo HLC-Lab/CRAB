@@ -1,0 +1,150 @@
+{
+    "_common": {
+        "description": "Common settings shared across all presets",
+        "env": {
+            "CRAB_ROOT": "__CWD__",
+            "CRAB_PATH_WRAPPERS": "__CWD__/wrappers"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "alps": {
+        "description": "ALPS Cluster Environment",
+        "env": {
+            "CRAB_MPIRUN": "srun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
+            "CRAB_PINNING_FLAGS": "--cpu-bind=map_cpu=1,73,145,217",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "slurm"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "cluster_di": {
+        "description": "Cluster Dipartimento Informatica",
+        "env": {
+            "CRAB_MPIRUN": "srun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "--map-by node",
+            "CRAB_MPIRUN_HOSTNAMES_FLAG": "-H",
+            "CRAB_PINNING_FLAGS": "",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "slurm"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "haicgu": {
+        "description": "HAICGU Cluster",
+        "env": {
+            "CRAB_MPIRUN": "srun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
+            "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "leonardo": {
+        "description": "Leonardo Cluster @ CINECA",
+        "env": {
+            "UCX_IB_SL": "1",
+            "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/leonardo/smcx_home/bench/software/lib/ucx/nvhpc-22.2_pgi_cuda/lib/",
+            "CRAB_MPIRUN": "srun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
+            "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
+            "NCCL_IB_SL": "${UCX_IB_SL}"
+        },
+        "sbatch": [
+            "--account=IscrC_FOCAL",
+            "--partition=boost_usr_prod",
+            "--gres=tmpfs:0"
+        ],
+        "header": [
+          "module purge"
+        ]
+    },
+    "cresco8": {
+        "description": "Cresco8 @ ENEA",
+        "env": {
+            "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/usr/mpi/intel/openmpi-4.1.7rc1/lib",
+            "CRAB_MPIRUN": "srun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
+            "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3"
+        },
+        "sbatch": [
+            "--account=enea",
+            "--partition=cresco8_cpu",
+            "--auks=yes",
+            "--exclusive"
+        ],
+        "header": []
+    },
+    "local": {
+        "description": "Local Development Environment (OpenMPI)",
+        "env": {
+            "CRAB_MPIRUN": "mpirun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "--map-by node",
+            "CRAB_MPIRUN_HOSTNAMES_FLAG": "-H",
+            "CRAB_PINNING_FLAGS": "",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "mpi"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "lumi": {
+        "description": "LUMI Supercomputer",
+        "env": {
+            "CRAB_MPIRUN": "srun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
+            "CRAB_PINNING_FLAGS": "${CRAB_PINNING_FLAGS}",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "slurm"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "nanjing": {
+        "description": "Nanjin Cluster",
+        "env": {
+            "CRAB_MPIRUN": "srun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
+            "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+            "CRAB_WL_MANAGER": "slurm",
+            "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "slimfly": {
+        "description": "Slimfly Topology Cluster (MPI)",
+        "env": {
+            "CRAB_MPIRUN": "/scratch/2/t2hx/dep/openmpi/bin/mpirun",
+            "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "--map-by node",
+            "CRAB_MPIRUN_HOSTNAMES_FLAG": "-H",
+            "CRAB_PINNING_FLAGS": "--cpu-bind=map_cpu:2,2",
+            "CRAB_MPIRUN_ADDITIONAL_FLAGS": "-mca plm_rsh_no_tree_spawn 1 --map-by node -mca btl openib,self,sm -mca btl_openib_if_include mlx4_0 -mca orte_base_help_aggregate 0",
+            "CRAB_WL_MANAGER": "mpi"
+        },
+        "sbatch": [],
+        "header": []
+    },
+    "example_preset": {
+        "description": "Example Template",
+        "env": {
+            "CRAB_ROOT": "__CWD__",
+            "ENV_EXAMPLE": "ENV_VALUE"
+        },
+        "sbatch": [],
+        "header": []
+    }
+}

@@ -3,6 +3,7 @@ from textual.containers import VerticalScroll, Horizontal, Container
 from textual.widgets import Button, Input, Select, Static, TabbedContent, TabPane, TextArea
 from textual.message import Message
 from .variable_row import VariableRow
+from ..constants import PRESETS_FILE
 import json
 import os
 
@@ -30,11 +31,11 @@ class EnvironmentSettings(Container):
 
     def _load_presets(self) -> dict:
         try:
-            with open("presets.json", "r") as f: return json.load(f)
+            with open(PRESETS_FILE, "r") as f: return json.load(f)
         except: return {"local": {"env": {}, "sbatch": [], "header": []}}
 
     def _save_presets(self):
-        with open("presets.json", "w") as f:
+        with open(PRESETS_FILE, "w") as f:
             json.dump(self.presets, f, indent=4)
 
     def compose(self) -> ComposeResult:
@@ -121,15 +122,6 @@ class EnvironmentSettings(Container):
             "header": header_list
         }
 
-    # Metodo pubblico chiamato da App.py per ottenere la config completa
-    @property
-    def current_env_dict(self) -> dict:
-        # Nota: App.py si aspetta un dizionario piatto per os.environ nell'uso legacy,
-        # MA noi abbiamo aggiornato orchestrator.py per gestire la struttura.
-        # Tuttavia, App.py potrebbe usare questo per la visualizzazione immediata.
-        # Ritorniamo la struttura completa. App.py dovrà essere aggiornato se si aspetta solo env.
-        return self._gather_current_state()["env"] 
-
     # Metodo per salvare il preset custom
     def save_custom_preset(self):
         name_input = self.query_one("#custom_preset_name", Input)
@@ -143,9 +135,35 @@ class EnvironmentSettings(Container):
         self.app.notify(f"Preset '{new_name}' saved.")
 
     def _notify_change(self):
-         # Manda solo la parte ENV perché EnvironmentSettings.EnvChanged è usato per 
-         # aggiornare variabili globali che forse servono ad altro.
-         # Se serve tutto, bisognerebbe aggiornare il messaggio EnvChanged.
-         self.post_message(self.EnvChanged(self.current_env_dict))
+        self.post_message(self.EnvChanged(self._gather_current_state()))
 
-    # Event Handlers (Button presses, Select changes) rimangono simili ma chiamano load_preset/save_custom
+    # ── Event Handlers ────────────────────────────────────────────────────────
+
+    def on_select_changed(self, event: Select.Changed) -> None:
+        if event.select.id != "preset_select":
+            return
+        event.stop()
+        selected = str(event.value)
+        custom_area = self.query_one("#custom_save_area")
+        if selected == "Custom":
+            custom_area.remove_class("hidden")
+        else:
+            custom_area.add_class("hidden")
+            self.current_preset_name = selected
+            self.load_preset(selected)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add_variable_btn":
+            event.stop()
+            self.query_one("#variable_list").mount(VariableRow("", ""))
+            self._notify_change()
+        elif event.button.id == "save_preset_btn":
+            event.stop()
+            self.save_custom_preset()
+
+    def on_variable_row_deleted(self, message: VariableRow.Deleted) -> None:
+        message.row_widget.remove()
+        self._notify_change()
+
+    def on_variable_row_changed(self, message: VariableRow.Changed) -> None:
+        self._notify_change()

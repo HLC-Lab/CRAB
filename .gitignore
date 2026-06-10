@@ -4,4 +4,19 @@ __pycache__/
 .env
 configs/
 hosts
-data/
+/data/
+.todo.md
+*.egg-info/
+
+# CRAB Setup & Benchmarks
+/benchmarks/
+/config/paths.json
+/config/paths.json.bak
+
+# Generated dashboard exports (contain embedded data, should not be committed)
+crab_export.html
+*_export.html
+
+# Documentation build output
+/site/
+

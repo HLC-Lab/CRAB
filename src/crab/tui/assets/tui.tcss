@@ -51,12 +51,11 @@ Header, Footer {
 }
 
 
-#main-container {
+#main-content-area {
     height: 1fr;
-    overflow-y: auto;
 }
 
-BenchmarkSetup {
+ApplicationSetup {
     height: 1fr;
 }
 
@@ -98,15 +97,39 @@ BenchmarkTabSelector {
 }
 
 
-#benchmark-forms-container {
-    padding: 1;
+#experiment-scroll {
     height: 1fr;
     overflow-y: auto;
+}
+
+#benchmark-forms-container {
+    padding: 1;
+    height: auto;
+}
+
+LocalOptionsForm {
+    height: auto;
 }
 
 
 ApplicationForm {
     height: auto;
+}
+
+.form-row {
+    layout: horizontal;
+    height: auto;
+    margin-bottom: 0;
+}
+
+.form-col {
+    width: 1fr;
+    height: auto;
+    margin-right: 1;
+}
+
+.form-col:last-child {
+    margin-right: 0;
 }
 
 
@@ -313,18 +336,96 @@ BenchmarkOptions {
 
 /* Stile per tutti i campi di input (Input, Select, Switch) */
 .option-input {
-    width: auto;
+    width: 1fr;
     margin: 1 0;
 }
 
-/* Un aggiustamento specifico per lo Switch */
 Switch.option-input {
     width: auto;
     height: 1;
 }
 
+.bench-check {
+    width: auto;
+    height: auto;
+    margin: 0 0 1 0;
+}
+
 Select.option-input {
-    width: 30;
+    width: 1fr;
+}
+
+TextArea.option-input {
+    width: 1fr;
+    min-height: 5;
+    max-height: 10;
+}
+
+/* Two-column row for paired fields */
+.options-row {
+    layout: horizontal;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.options-row > .option-group {
+    layout: vertical;
+    width: 1fr;
+    height: auto;
+    margin-right: 2;
+    margin-bottom: 0;
+}
+
+.options-row > .option-group:last-child {
+    margin-right: 0;
+}
+
+.options-row > .option-group > .option-label {
+    width: 100%;
+    text-align: left;
+    padding: 0;
+    margin: 0 0 0 0;
+}
+
+.options-row > .option-group > .option-input {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 1 0;
+}
+
+/* Collapsible benchmark sections */
+.bench-section {
+    margin-bottom: 1;
+}
+
+.bench-section > CollapsibleTitle {
+    background: $accent;
+    color: $text;
+    text-style: bold;
+    padding: 0 1;
+}
+
+.bench-section > CollapsibleTitle:hover {
+    background: $secondary;
+}
+
+.bench-section > .collapsible--content {
+    border: round $surface;
+    padding: 1;
+    background: $surface;
+}
+
+BenchmarkOptions Input, BenchmarkOptions TextArea {
+    background: $background;
+    border: tall $surface;
+}
+
+BenchmarkOptions Input:focus {
+    border: tall $primary;
+}
+
+BenchmarkOptions Select {
+    background: $background;
 }
 
 /* Label */
@@ -337,10 +438,43 @@ Select.option-input {
     margin-bottom: 0;
 }
 
+/* Node selector layout */
+.node-row {
+    layout: horizontal;
+    height: auto;
+    margin-bottom: 1;
+}
+
+.node-controls {
+    width: 30;
+    height: auto;
+}
+
+.node-controls > .option-label {
+    margin: 0 0 0 0;
+    padding: 0;
+}
+
+.node-controls > .node-select {
+    width: 28;
+    margin: 0 0 1 0;
+}
+
+.node-table-area {
+    width: 1fr;
+    height: auto;
+    max-height: 12;
+    padding-left: 2;
+    padding-right: 3;
+    overflow-y: auto;
+}
+
 /* Data Label */
 .datatable {
-    width: auto;
-    margin: 1 0;
+    width: 1fr;
+    margin: 0;
+    max-height: 12;
+    overflow-x: hidden;
 }
 
 /* Stile per il container dei pulsanti in fondo */
