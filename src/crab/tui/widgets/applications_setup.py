@@ -5,6 +5,7 @@ from textual.widgets import Button
 
 from .benchmark_tab_selector import BenchmarkTabSelector
 from .application_form import ApplicationForm
+from .local_options_form import LocalOptionsForm
 
 class ApplicationSetup(Container):
     def __init__(self, app_ref, id: str | None = None) -> None:
@@ -12,7 +13,7 @@ class ApplicationSetup(Container):
         self.app_ref = app_ref
 
         self.benchmark_states: dict[int, dict] = {
-            0: {"path": "", "args": "", "collect": False, "start": "", "end": ""}
+            0: {"path": "", "args": "", "collect": False, "start": "", "end": "", "partition": ""}
         }
         self.current_benchmark = 0
         self.forms_list = [ApplicationForm(app_ref=self.app_ref, benchmark_id=0)]
@@ -22,10 +23,12 @@ class ApplicationSetup(Container):
             *self.forms_list,
             id="benchmark-forms-container"
         )
+        self.local_options_form = LocalOptionsForm()
 
     def compose(self) -> ComposeResult:
         yield self.tab_selector
         yield self.forms_container
+        yield self.local_options_form
 
     def on_mount(self):
         self.current_benchmark = -1
@@ -62,7 +65,7 @@ class ApplicationSetup(Container):
         
         new_index = len(self.benchmark_states)
         self.benchmark_states[new_index] = {
-            "path": "", "args": "", "collect": False, "start": "", "end": ""
+            "path": "", "args": "", "collect": False, "start": "", "end": "", "partition": ""
         }
         
         # NUOVO: Crea la nuova istanza del form
@@ -85,41 +88,55 @@ class ApplicationSetup(Container):
 
     def get_state(self) -> dict:
         self.save_current_form_state()
-        return self.benchmark_states.copy()
+        result = {"apps": {k: v for k, v in self.benchmark_states.items()}}
+        local_opts = self.local_options_form.get_state()
+        if local_opts:
+            result["local_options"] = local_opts
+        return result
 
     async def set_state(self, state: dict):
-        # 1. Pulisce lo stato e l'interfaccia esistenti
+        # Support both new format {"apps": {...}, "local_options": {...}}
+        # and legacy format {0: {...}, 1: {...}}
+        if "apps" in state:
+            apps_state = state["apps"]
+            local_opts = state.get("local_options", {})
+        else:
+            apps_state = state
+            local_opts = {}
+
+        # 1. Reset existing state and UI
         self.benchmark_states.clear()
         self.forms_list.clear()
         await self.forms_container.remove_children()
         await self.tab_selector.clear_benchmark_forms()
+        self.local_options_form.clear()
 
-        # Se lo stato è vuoto, non fare nulla
-        if not state:
+        if not apps_state:
             self.current_benchmark = -1
-            # Potresti voler aggiungere un placeholder qui se necessario
             return
 
-        # 2. Carica il nuovo stato e ricostruisce la lista di form
+        # 2. Rebuild forms from apps_state
         temp_forms_to_mount = []
-        for key, value in state.items():
+        for key, value in apps_state.items():
             benchmark_id = int(key)
             self.benchmark_states[benchmark_id] = value
 
-            # Crea un nuovo form, imposta i suoi dati e lo aggiunge alla lista
             new_form = ApplicationForm(app_ref=self.app_ref, benchmark_id=benchmark_id)
             new_form.set_form_data(value)
             self.forms_list.append(new_form)
             temp_forms_to_mount.append(new_form)
 
-        # 3. Ricostruisce le tab e monta tutti i form nel container
+        # 3. Rebuild tabs and mount forms
         for _ in self.benchmark_states:
             self.tab_selector.add_benchmark()
-        
+
         if temp_forms_to_mount:
             await self.forms_container.mount_all(temp_forms_to_mount)
 
-        # 4. Mostra il primo form (o un form di default)
-        self.current_benchmark = -1 # Resetta l'indice per forzare l'aggiornamento
+        # 4. Restore local options
+        if local_opts:
+            self.local_options_form.set_state(local_opts)
+
+        self.current_benchmark = -1
         self.show_benchmark(0)
 

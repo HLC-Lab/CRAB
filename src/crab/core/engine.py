@@ -114,7 +114,13 @@ class Engine:
         
         if "experiments" not in config:
             if "applications" in config:
-                config["experiments"] = {"default_ex": {"apps": config.pop("applications")}}
+                apps_data = config.pop("applications")
+                if isinstance(apps_data, dict) and "apps" in apps_data:
+                    # TUI format: {"apps": {...}, "local_options": {...}}
+                    config["experiments"] = {"default_ex": apps_data}
+                else:
+                    # Legacy flat format: {0: {...}, 1: {...}}
+                    config["experiments"] = {"default_ex": {"apps": apps_data}}
             else:
                 raise ValueError("Config must contain 'experiments' or 'applications'.")
 

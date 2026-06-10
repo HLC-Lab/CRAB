@@ -1,5 +1,5 @@
 from textual.containers import Container, VerticalScroll, Horizontal
-from textual.widgets import Button, DataTable, Input, Label, Select, Switch
+from textual.widgets import Button, DataTable, Input, Label, Select, Switch, TextArea
 from textual import on
 
 import subprocess
@@ -17,6 +17,8 @@ class BenchmarkOptions(VerticalScroll):
 
         data_table = self.query_one("#node_table", DataTable)
         data_table.add_column("Available Nodes")
+
+        self._set_partition_fields_visible(False)
 
 
     def compose(self):
@@ -40,18 +42,35 @@ class BenchmarkOptions(VerticalScroll):
             yield Input(placeholder="e.g., 4", id="numnodes", type="integer", classes="option-input")
 
         with Container(classes="option-group"):
+            yield Label("Job Name:", classes="option-label")
+            yield Input(placeholder="Optional custom name for the output folder", id="name", classes="option-input")
+
+        with Container(classes="option-group"):
+            yield Label("Walltime:", classes="option-label")
+            yield Input(value="00:10:00", id="walltime", classes="option-input")
+
+        with Container(classes="option-group"):
             yield Label("Allocation Mode:", classes="option-label")
             yield Select([
                 ("Linear", "l"),
-                ("Cyclic", "c"),
-                ("Random", "r"),
                 ("Interleaved", "i"),
-                ("+Random", "+r")
+                ("Partitioned", "p"),
             ], value="l", id="allocationmode", classes="option-input")
 
         with Container(classes="option-group"):
             yield Label("Allocation Split:", classes="option-label")
             yield Input(placeholder="e.g., 50:50 or 'e' for even", value="e", id="allocationsplit", classes="option-input")
+
+        with Container(classes="option-group", id="partitionsplit-group"):
+            yield Label("Partition Split:", classes="option-label")
+            yield Input(placeholder="e.g., 60:40 or 'e' for equal", value="e", id="partitionsplit", classes="option-input")
+
+        with Container(classes="option-group", id="partitionlayout-group"):
+            yield Label("Partition Layout:", classes="option-label")
+            yield Select([
+                ("Linear", "l"),
+                ("Interleaved", "i"),
+            ], value="l", id="partitionlayout", classes="option-input")
 
         with Container(classes="option-group"):
             yield Label("Minimum Runs:", classes="option-label")
@@ -88,6 +107,10 @@ class BenchmarkOptions(VerticalScroll):
             ], value="csv", id="outformat", classes="option-input")
 
         with Container(classes="option-group"):
+            yield Label("Retain Run Files:", classes="option-label")
+            yield Switch(value=True, id="retain_files", classes="option-input")
+
+        with Container(classes="option-group"):
             yield Label("Runtime Output:", classes="option-label")
             yield Select([
                 ("Standard Output", "stdout"),
@@ -109,44 +132,59 @@ class BenchmarkOptions(VerticalScroll):
             yield Input(placeholder="Details of this specific execution", id="extrainfo", classes="option-input")
 
         with Container(classes="option-group"):
+            yield Label("Tags:", classes="option-label")
+            yield Input(placeholder="Space-separated tags for metadata.csv", id="tags", classes="option-input")
+
+        with Container(classes="option-group"):
+            yield Label("SBATCH Directives:", classes="option-label")
+            yield TextArea(id="sbatch_directives", classes="option-input")
+
+        with Container(classes="option-group"):
             yield Label("Replace Mix Args:", classes="option-label")
             yield Input(placeholder="e.g., server:1.2.3.4,client:5.6.7.8", id="replace_mix_args", classes="option-input")
 
 
-    def get_state(self) -> dict:
-        """
-        Raccoglie lo stato corrente di tutte le opzioni di benchmark.
+    def _set_partition_fields_visible(self, visible: bool) -> None:
+        self.query_one("#partitionsplit-group").display = visible
+        self.query_one("#partitionlayout-group").display = visible
 
-        Returns:
-            Un dizionario con l'ID di ogni widget come chiave e il suo valore.
-        """
+    def get_state(self) -> dict:
         state = {}
         for widget in self.query(".option-input"):
-            # Usiamo l'ID del widget come chiave per lo stato
-            if widget.id:
+            if not widget.id:
+                continue
+            if isinstance(widget, TextArea):
+                state[widget.id] = [l.strip() for l in widget.text.splitlines() if l.strip()]
+            else:
                 state[widget.id] = widget.value
+
+        if not state.get("numnodes"):
+            state["numnodes"] = "1"
+
         return state
 
     def set_state(self, state: dict) -> None:
-        """
-        Imposta lo stato del form in base a un dizionario di dati.
-
-        Args:
-            state: Un dizionario dove le chiavi corrispondono agli ID dei widget.
-        """
         if not state:
             return
         for widget_id, value in state.items():
             try:
-                widget = self.query_one(f"#{widget_id}", (Input, Select, Switch))
-                widget.value = value
+                widget = self.query_one(f"#{widget_id}", (Input, Select, Switch, TextArea))
+                if isinstance(widget, TextArea):
+                    widget.text = "\n".join(value) if isinstance(value, list) else str(value)
+                else:
+                    widget.value = value
             except Exception as e:
                 self.app.log(f"Could not set state for widget '{widget_id}': {e}")
 
+        self._set_partition_fields_visible(state.get("allocationmode") == "p")
 
-    @on (Select.Changed) 
+
+    @on(Select.Changed)
     def on_select_changed(self, event: Select.Changed) -> None:
         """Gestisce i cambiamenti nelle selezioni."""
+        if event.select.id == "allocationmode":
+            self._set_partition_fields_visible(event.value == "p")
+
         if event.select.id == "nodes":
             node_file_input = self.query_one("#node_file", Input)
 

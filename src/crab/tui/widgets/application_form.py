@@ -27,7 +27,8 @@ class ApplicationForm(Vertical):
             "args": "",
             "collect": False,
             "start": "",
-            "end": ""
+            "end": "",
+            "partition": "",
         }
 
     def compose(self) -> ComposeResult:
@@ -46,6 +47,9 @@ class ApplicationForm(Vertical):
 
         yield Label("End Time (s), 'f' or empty:")
         yield Input(placeholder="f", id="end", value=self.form_data["end"])
+
+        yield Label("Partition ID (optional):")
+        yield Input(placeholder="Leave empty for auto (0=victim, 1=aggressor)", id="partition", value=self.form_data["partition"])
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id in self.form_data:

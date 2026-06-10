@@ -23,8 +23,8 @@ class BenchmarkApp(App):
 
     def __init__(self):
         super().__init__()
-        self.current_environment_settings = self._load_default_env()
-        
+        self.current_environment_settings = {}
+
         # Inizializza il controller, passando la callback per loggare
         self.controller = TUIController(log_callback=self.log_to_tui)
 
@@ -40,17 +40,6 @@ class BenchmarkApp(App):
         # Metodo di callback che il controller userà
         log = self.query_one("#runner-log", RichLog)
         self.call_from_thread(log.write, message)
-    
-    def _load_default_env(self):
-        try:
-            with open("presets.json", "r") as f:
-                presets = json.load(f)
-                common_vars = presets.get("_common", {})
-                local_vars = presets.get("local", {})
-                common_vars.update(local_vars)
-                return common_vars
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
     
     def compose(self) -> ComposeResult:
         yield Header()
