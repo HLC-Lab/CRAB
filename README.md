@@ -2,6 +2,8 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Documentation Status](https://readthedocs.org/projects/hlc-crab/badge/?version=latest)](https://hlc-crab.readthedocs.io/en/latest/?badge=latest)
+[![CI](https://github.com/HLC-Lab/CRAB/actions/workflows/ci.yml/badge.svg)](https://github.com/HLC-Lab/CRAB/actions/workflows/ci.yml)
 
 **CRAB** runs **multiple HPC applications simultaneously** on Slurm-managed clusters to measure
 their performance and quantify how they **interfere** with one another (network congestion,
@@ -24,25 +26,24 @@ CRAB orchestrates the rest.
 
 ## 📖 Documentation
 
-Full documentation lives in [`docs/`](docs/) and is built with [MkDocs](https://www.mkdocs.org/)
-(Material theme). It covers installation, configuring a cluster, writing experiments, extending
-CRAB with new benchmarks, and the complete reference.
+**Full documentation: [hlc-crab.readthedocs.io](https://hlc-crab.readthedocs.io/)** — installation,
+configuring a cluster, writing experiments, extending CRAB with new benchmarks, and the complete
+reference.
 
-Build and browse it locally:
+Quick links:
+[Concepts](https://hlc-crab.readthedocs.io/en/latest/concepts/system-dependent-vs-independent/) ·
+[Installation & setup](https://hlc-crab.readthedocs.io/en/latest/using/installation/) ·
+[Configuring your cluster](https://hlc-crab.readthedocs.io/en/latest/using/presets/) ·
+[Writing experiment configs](https://hlc-crab.readthedocs.io/en/latest/using/writing-configs/) ·
+[Extending CRAB](https://hlc-crab.readthedocs.io/en/latest/extending/overview/) ·
+[Reference](https://hlc-crab.readthedocs.io/en/latest/reference/configuration/)
+
+To build the docs locally:
 
 ```bash
 pip install -r docs/requirements.txt
 mkdocs serve        # → http://127.0.0.1:8000
 ```
-
-Quick links: [Concepts](docs/concepts/system-dependent-vs-independent.md) ·
-[Installation & setup](docs/using/installation.md) ·
-[Configuring your cluster](docs/using/presets.md) ·
-[Writing experiment configs](docs/using/writing-configs.md) ·
-[Extending CRAB](docs/extending/overview.md) ·
-[Reference](docs/reference/configuration.md)
-
-> 📡 *A hosted version on Read the Docs is coming soon.*
 
 ## 🚀 Quick start
 

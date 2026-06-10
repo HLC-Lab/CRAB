@@ -1,8 +1,9 @@
 site_name: CRAB
 site_description: Co-Running Applications Benchmarking framework
+site_url: https://hlc-crab.readthedocs.io/
 repo_url: https://github.com/HLC-Lab/CRAB
 repo_name: HLC-Lab/CRAB
-edit_uri: edit/main/docs/
+edit_uri: edit/master/docs/
 
 theme:
   name: material
