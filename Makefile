@@ -8,9 +8,9 @@ CRAB_BIN = $(VENV_DIR)/bin/crab
 
 # 0. The Guardrail (Fails instantly if Python is too old)
 _check_python:
-	@python3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 8) else sys.exit(0)' || \
+	@python3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 10) else sys.exit(0)' || \
 	(echo "============================================================"; \
-	 echo "[!] ERROR: CRAB requires Python 3.8 or higher."; \
+	 echo "[!] ERROR: CRAB requires Python 3.10 or higher."; \
 	 echo "    You are currently using: $$(python3 --version 2>&1)"; \
 	 echo ""; \
 	 echo "    Suggestion: Run \`module load python\` or activate a modern"; \

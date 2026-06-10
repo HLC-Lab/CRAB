@@ -13,7 +13,7 @@ source .venv/bin/activate
 pip install -e .[tui]        # editable install, including the TUI extra
 ```
 
-Requires **Python 3.8+**. The package is installed in editable mode, so changes to `src/crab/` take
+Requires **Python 3.10+**. The package is installed in editable mode, so changes to `src/crab/` take
 effect without reinstalling.
 
 ## Project layout

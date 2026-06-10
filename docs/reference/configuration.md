@@ -7,6 +7,32 @@ file runs on any cluster by selecting a different preset.
 For the conceptual walkthrough of writing one, see
 [Writing experiment configs](../using/writing-configs.md). This page is the exhaustive field list.
 
+## The experiment hierarchy
+
+A run config describes a small nesting of levels. From outermost to innermost:
+
+```text
+Job — one `crab run`: one config file → one Slurm job → one output directory
+│     (named by global_options.name)
+├─ Experiment "baseline"          an entry in `experiments`; experiments run sequentially
+│    ├─ Run 1, Run 2, …           repetitions (minruns…maxruns), for statistical convergence
+│    └─ apps 0, 1, 2, …           entries in `apps`; all run concurrently within each run
+└─ Experiment "with_aggressor"
+     └─ …
+```
+
+| Level | Where it lives | Notes |
+|-------|----------------|-------|
+| **[Job](../glossary.md#job)** | the whole config file | One `crab run` = one Slurm job = one `data/<system>/<name>_<timestamp>/` directory. Named by `global_options.name`. |
+| **[Experiment](../glossary.md#experiment)** | a key under `experiments` | Run one after another, in sorted key order. Has its own `apps`; may override options via `local_options`. |
+| **[Run](../glossary.md#run)** | runtime only (not in the JSON) | One repetition of an experiment. Repeated from `minruns` to `maxruns`, stopping early on convergence. |
+| **[Application](../glossary.md#application)** | a key under an experiment's `apps` | The processes launched **concurrently** within each run. |
+
+!!! note "Runs and apps are orthogonal"
+    Each *run* executes all of the experiment's *apps* once, together; runs are repetitions for
+    statistics, apps are the concurrent workload measured in every run. A 3-app experiment with
+    10 runs launches those 3 apps together, ten times.
+
 ## Top-level shape
 
 A config has two top-level keys: `global_options` and `experiments`.
