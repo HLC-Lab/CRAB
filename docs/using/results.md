@@ -55,14 +55,9 @@ df.groupby("run_id")["0_performance_GTEPS"].mean()
 
 ## The dashboard
 
-CRAB ships with a single-file HTML viewer (`crab_dashboard.html` at the repo root) — no build
-step, just open it in a browser. Once loaded, it groups results by system and experiment, lets
-you toggle which columns and series are shown, choose axes (including violin plots), recolor
-series for comparison, and switch between dark and light themes — handy for eyeballing
-victim-vs-aggressor differences before deeper analysis in pandas or R.
+CRAB ships with a single-file HTML viewer bundled inside the package (`src/crab/crab_dashboard.html`) — no build step, just open it in a browser. Once loaded, it groups results by system and experiment, lets you toggle which columns and series are shown, choose axes (including violin plots), recolor series for comparison, and switch between dark and light themes. The **Compare** tab lets you select any combination of experiments — including across different labs/directories — and overlay or side-by-side them on a single chart, useful for eyeballing victim-vs-aggressor differences before deeper analysis in pandas or R.
 
-You can get data into the dashboard three ways. **For sharing results, use `crab export`** — it
-bakes the data into the HTML itself.
+You can get data into the dashboard three ways. **For sharing results, use `crab export`** — it bakes the data into the HTML itself.
 
 ### `crab export` — self-contained snapshot (recommended for sharing)
 
@@ -74,8 +69,7 @@ web server — anyone with a browser can open it.
 crab export data/leonardo/interference_2026-06-09_14-30-05-123456/ -o results.html
 ```
 
-Default output is `crab_export.html` if you omit `-o`. See [CLI reference → `crab export`](../reference/cli.md#crab-export)
-for full options.
+Default output is `crab_export.html` if you omit `-o`. The generated file should **not** be committed to version control — add it to your `.gitignore`. See [CLI reference → `crab export`](../reference/cli.md#crab-export) for full options.
 
 ### Browse live results on the cluster
 
@@ -92,9 +86,7 @@ python3 -m http.server 8000
 ssh -L 8000:localhost:8000 user@cluster
 ```
 
-Then open `crab_dashboard.html`, enter the forwarded URL (e.g. `http://localhost:8000/`), and
-click **Go**. The dashboard crawls the directory listing for `data_app_*.csv` files across
-systems and experiments.
+Then open `src/crab/crab_dashboard.html` from the cloned repo, enter the forwarded URL (e.g. `http://localhost:8000/`), and click **Go**. The dashboard crawls the directory listing for `data_app_*.csv` files across systems and experiments.
 
 ### Drop a local folder
 

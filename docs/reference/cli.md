@@ -62,10 +62,7 @@ Example:
 crab export data/leonardo/interference_2026-06-09_14-30-05-123456/ -o results.html
 ```
 
-The exported file is a snapshot of the live dashboard (`crab_dashboard.html`) with the data
-pre-loaded and the "drop folder" UI hidden. For browsing **fresh** results from the cluster
-without exporting, use the live dashboard directly — see
-[Reading results → The dashboard](../using/results.md#the-dashboard).
+The exported file is a self-contained snapshot built from the dashboard template bundled in the package (`src/crab/crab_dashboard.html`) with the data pre-loaded and the "drop folder" UI hidden. The output file should not be committed to version control. For browsing **fresh** results from the cluster without exporting, open the template directly — see [Reading results → The dashboard](../using/results.md#the-dashboard).
 
 ## `crab worker` (internal)
 

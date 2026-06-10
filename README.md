@@ -19,6 +19,7 @@ CRAB orchestrates the rest.
 * **Complex application mixes** — run many applications at once, designating *victims* and *aggressors*.
 * **Automated, converged data collection** — gathers performance data and stops once statistical convergence is reached.
 * **Standard output** — results saved as CSV, ready for pandas or R.
+* **Built-in dashboard** — `crab export` produces a self-contained HTML file with scatter, line, bar, and violin charts, a **Compare** tab for cross-experiment overlays, and dark/light themes. No server needed to share results.
 * **Extensible** — support a new benchmark by adding a Python wrapper; no core changes needed.
 
 ## 📖 Documentation
