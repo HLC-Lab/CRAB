@@ -45,7 +45,7 @@ the victim finishes.
       "apps": {
         "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "start": "0", "end": "", "partition": 0 },
-        "1": { "path": "others/g500.py", "args": "",
+        "1": { "path": "graph500/g500_wrapper.py", "args": "",
                "collect": false, "start": "0", "end": "f", "partition": 1 }
       }
     }
@@ -78,7 +78,7 @@ Give `end` a number to stop an application after a fixed number of seconds — u
 long-running aggressor you want bounded regardless of the victim:
 
 ```json
-"1": { "path": "others/g500.py", "args": "", "collect": false, "start": "5", "end": "60" }
+"1": { "path": "graph500/g500_wrapper.py", "args": "", "collect": false, "start": "5", "end": "60" }
 ```
 
 This app starts 5 seconds in and is terminated after 60 seconds.
@@ -97,7 +97,7 @@ experiment.
     "local_options": { "allocationmode": "p", "partitionsplit": "50:50" },
     "apps": {
       "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": 0 },
-      "1": { "path": "others/g500.py",   "args": "",                          "collect": false, "start": "0", "end": "f", "partition": 1 }
+      "1": { "path": "graph500/g500_wrapper.py",   "args": "",                          "collect": false, "start": "0", "end": "f", "partition": 1 }
     }
   }
 }
