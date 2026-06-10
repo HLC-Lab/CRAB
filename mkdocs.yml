@@ -60,6 +60,7 @@ nav:
   - Concepts:
       - System-dependent vs system-independent: concepts/system-dependent-vs-independent.md
       - Architecture: concepts/architecture.md
+  - Tutorial: tutorial.md
   - Using CRAB:
       - Installation & benchmark setup: using/installation.md
       - Configuring your cluster: using/presets.md

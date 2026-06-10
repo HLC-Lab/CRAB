@@ -31,6 +31,7 @@ configuring a cluster, writing experiments, extending CRAB with new benchmarks, 
 reference.
 
 Quick links:
+[Tutorial](https://hlc-crab.readthedocs.io/en/latest/tutorial/) ·
 [Concepts](https://hlc-crab.readthedocs.io/en/latest/concepts/system-dependent-vs-independent/) ·
 [Installation & setup](https://hlc-crab.readthedocs.io/en/latest/using/installation/) ·
 [Configuring your cluster](https://hlc-crab.readthedocs.io/en/latest/using/presets/) ·
@@ -50,6 +51,9 @@ mkdocs serve        # → http://127.0.0.1:8000
 **Prerequisites:** Python 3.10+, Git, and access to a **Slurm** cluster — CRAB submits every run
 with `sbatch`, so Slurm must be available (even the `local` preset, which only changes the
 per-application launcher to `mpirun`).
+
+> 💡 Prefer a guided walkthrough? The **[end-to-end tutorial](https://hlc-crab.readthedocs.io/en/latest/tutorial/)**
+> runs a complete victim-vs-aggressor experiment step by step. The essentials:
 
 ```bash
 git clone https://github.com/HLC-Lab/CRAB
