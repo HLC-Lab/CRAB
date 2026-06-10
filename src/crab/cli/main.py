@@ -73,10 +73,14 @@ def handle_worker(args):
     from crab.cli.orchestrator import execute_worker
     execute_worker(args.workdir, args.log_level)
 
+def handle_export(args):
+    from crab.cli.export import handle_export as _handle_export
+    _handle_export(args)
+
 def cli_router():
     parser = argparse.ArgumentParser(prog="crab", description="CRAB Benchmarking Framework")
     # 'metavar' is used to hide the "worker" entry
-    subparsers = parser.add_subparsers(title="commands", dest="command", metavar="{setup,run,tui}")
+    subparsers = parser.add_subparsers(title="commands", dest="command", metavar="{setup,run,tui,export}")
     subparsers.required = True
 
     # 1. Setup Command
@@ -94,7 +98,13 @@ def cli_router():
     parser_tui = subparsers.add_parser("tui", help="Launch the Terminal User Interface")
     parser_tui.set_defaults(func=handle_tui)
 
-    # 4. Worker Command (Hidden)
+    # 4. Export Command
+    parser_export = subparsers.add_parser("export", help="Export results as a self-contained HTML dashboard")
+    parser_export.add_argument("data_dir", help="Path to the directory containing experiment results.").completer = FilesCompleter()
+    parser_export.add_argument("-o", "--output", default=None, help="Output HTML file (default: crab_export.html)")
+    parser_export.set_defaults(func=handle_export)
+
+    # 5. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)

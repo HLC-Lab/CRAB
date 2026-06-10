@@ -965,7 +965,18 @@ const ServerLoader = (() => {
     });
   }
 
-  return { fetch: fetch_, handleFiles };
+  function loadEmbedded(data) {
+    DataStore.reset();
+    TableRenderer.reset();
+    for (const [labName, exps] of Object.entries(data.labs || {})) {
+      for (const [expName, rows] of Object.entries(exps)) {
+        DataStore.addExperiment(labName, expName, rows);
+      }
+    }
+    if (DataStore.totalExps() > 0) UI.rebuildAll();
+  }
+
+  return { fetch: fetch_, handleFiles, loadEmbedded };
 })();
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1171,6 +1182,11 @@ const UI = (() => {
            renderCurrentTab, setChartType, setScale, getScale, onAxisChange,
            onToolbarColorChange, setCMode, setCmpType, clearSel, toggleColDD, onLabChange };
 })();
+
+// Auto-load embedded data if injected by `crab export`
+if (typeof CRAB_EMBEDDED_DATA !== 'undefined') {
+  ServerLoader.loadEmbedded(CRAB_EMBEDDED_DATA);
+}
 
 // Chart.js global defaults
 Chart.defaults.color = '#9ca3af';
