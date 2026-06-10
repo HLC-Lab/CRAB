@@ -16,9 +16,11 @@ class NodeAllocator:
         
         # Sort by largest remainder descending
         remainders.sort(key=lambda x: x[1], reverse=True)
-        
-        # Distribute the missing nodes to those closest to a whole node
-        for i in range(missing):
+
+        # Distribute the missing nodes to those closest to a whole node.
+        # Clamp to len(remainders): if percentages don't sum to 100, missing can
+        # exceed the number of buckets — don't try to assign unaccounted nodes.
+        for i in range(min(missing, len(remainders))):
             base_alloc[remainders[i][0]] += 1
             
         return base_alloc
@@ -117,11 +119,12 @@ class NodeAllocator:
             p_apps = [a for a in apps if getattr(a, 'partition_id', 0) == p_id]  
             if not p_apps: continue  
   
-            # Shared Mode ('100' or single app 'e')  
-            if p_rule == '100' or (p_rule == 'e' and len(p_apps) <= 1):  
-                for app in p_apps:  
-                    app.set_nodes(p_nodes)  
-            else:  
-                # Space Sharing within partition  
-                sub_split = NodeAllocator.get_abs_split(p_rule, len(p_apps), len(p_nodes))  
+            # Shared Mode: single app always gets the full partition regardless of
+            # the sub-split rule (applying a 2-way split to 1 app is meaningless).
+            if len(p_apps) == 1 or p_rule == '100' or (p_rule == 'e' and len(p_apps) <= 1):
+                for app in p_apps:
+                    app.set_nodes(p_nodes)
+            else:
+                # Space Sharing within partition
+                sub_split = NodeAllocator.get_abs_split(p_rule, len(p_apps), len(p_nodes))
                 NodeAllocator.allocate_linear(p_apps, p_nodes, sub_split)
