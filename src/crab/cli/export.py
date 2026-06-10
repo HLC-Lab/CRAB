@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 _SYSTEM_CSVS = frozenset({'metadata.csv', 'description.csv'})
-_DASHBOARD_TEMPLATE = Path(__file__).resolve().parents[3] / "crab_dashboard.html"
+_DASHBOARD_TEMPLATE = Path(__file__).resolve().parents[1] / "crab_dashboard.html"
 
 
 def _clean_csv_name(stem: str) -> str:

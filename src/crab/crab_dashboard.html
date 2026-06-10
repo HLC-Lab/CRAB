@@ -944,7 +944,7 @@ const CompareRenderer = (() => {
   let _mode  = 'overlay';
   const _sel = new Map(); // key: labName+'\x00'+expName → {labName, expName}
 
-  function _key(lab, name) { return lab + '\x00' + name; }
+  function _key(lab, name) { return lab + '\x1f' + name; }
 
   function toggle(labName, expName) {
     const k = _key(labName, expName);
@@ -953,7 +953,7 @@ const CompareRenderer = (() => {
     // Update only the clicked item in-place; avoid full sidebar rebuild which can drop
     // selections mid-click when the DOM is torn down and recreated.
     const isSel = _sel.has(k);
-    const item = document.querySelector('#exp-list .eitem[data-ckey="'+CSS.escape(k)+'"]');
+    const item = [...document.querySelectorAll('#exp-list .eitem[data-ckey]')].find(el => el.dataset.ckey === k);
     if (item) {
       item.classList.toggle('sel', isSel);
       item.querySelector('.echk').textContent = isSel ? '✓' : '';
@@ -1200,7 +1200,7 @@ const UI = (() => {
       if(l===DataStore.getActiveLabName()) o.selected=true;
       sel.appendChild(o);
     });
-    wrap.style.display = labs.length>1 ? 'block' : 'none';
+    wrap.style.display = (labs.length > 1 && _currentTab !== 'compare') ? 'block' : 'none';
   }
 
   function onLabChange(name) {
@@ -1331,6 +1331,7 @@ const UI = (() => {
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     document.getElementById('panel-'+tab).classList.add('active');
     _currentTab=tab;
+    renderLabDropdown();
     renderSidebar();
     // rAF ensures panel is visible before Chart.js measures canvas
     requestAnimationFrame(()=>renderCurrentTab());
