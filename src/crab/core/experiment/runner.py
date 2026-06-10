@@ -1,12 +1,13 @@
-import os  
-import pathlib  
+import os
+import pathlib
 import csv
 import re
 import fcntl
-import importlib.util  
+import importlib.util
 import shutil
-import time  
-from typing import List, Dict, Any  
+import signal
+import time
+from typing import List, Dict, Any
   
 from crab.log import CrabLogger  
 from crab.core.data.utils import log_data
@@ -348,8 +349,8 @@ class ExperimentRunner:
                         experiment_status = "TIMEOUT"
                         for active_aid in list(running):
                             try:
-                                self.apps[active_aid].process.kill()
-                            except:
+                                os.killpg(os.getpgid(self.apps[active_aid].process.pid), signal.SIGKILL)
+                            except OSError:
                                 pass
                         break # Break the inner loop, forcing a teardown
                     
@@ -405,8 +406,10 @@ class ExperimentRunner:
         for app in self.apps:
             if hasattr(app, 'process') and app.process:
                 if app.process.poll() is None:
-                    try: app.process.kill() 
-                    except: pass
+                    try:
+                        os.killpg(os.getpgid(app.process.pid), signal.SIGKILL)
+                    except OSError:
+                        pass
 
     def save_results(self):
         """Persists data to disk."""

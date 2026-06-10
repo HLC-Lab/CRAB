@@ -1,8 +1,9 @@
 import os
-import subprocess  
-import threading  
-from typing import List  
-from crab.log import CrabLogger  
+import signal
+import subprocess
+import threading
+from typing import List
+from crab.log import CrabLogger
   
 def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str] = None, live_stream: bool = False, data_path: str = None, launcher: str = None):  
     """  
@@ -39,13 +40,16 @@ def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str
         f.write("\n# Execute workload\n")
         f.write(f"{cmd_string}\n")
 
-    # 3. Execute the physical script as a clean subprocess
+    # 3. Execute the physical script as a clean subprocess.
+    # start_new_session=True puts bash in its own process group so that
+    # os.killpg() in end_job can reach srun/mpirun children as well.
     process = subprocess.Popen(
-        ["bash", script_path], 
-        stdout=subprocess.PIPE,  
-        stderr=subprocess.PIPE, 
-        shell=False
-    )  
+        ["bash", script_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+        shell=False,
+    )
     job.set_process(process)  
       
     # Initialize the silent buffer  
@@ -64,21 +68,38 @@ def run_job(job, wlmanager, ppn: int, logger: CrabLogger, pre_commands: List[str
   
     logger.info(f"Launched App {job.id_num}  PID={process.pid}  nodes={job.node_list}")  
 
-def end_job(job, logger: CrabLogger):  
-    """Forcefully terminates a job and retrieves output."""  
-    if hasattr(job, 'process') and job.process:  
-        job.process.kill()  
-          
-        if hasattr(job, '_stream_thread') and job._stream_thread:  
-            job._stream_thread.join(timeout=2.0)  
-              
-        _, err = job.process.communicate()  
-          
-        # Reconstruct stdout from the silent buffer  
-        out = b"".join(getattr(job, 'raw_stdout_buffer', []))  
-          
-        job.set_output(out, err)  
-        logger.debug(f"Killed App {job.id_num}")  
+def end_job(job, logger: CrabLogger) -> None:
+    """Forcefully terminates a job and retrieves output."""
+    if not (hasattr(job, 'process') and job.process):
+        return
+
+    # Kill the entire process group (bash wrapper + srun/mpirun children).
+    # process.kill() only delivers SIGKILL to bash; srun is a grandchild that
+    # inherits the stdout pipe and keeps it open, causing communicate() to block
+    # indefinitely. os.killpg() reaches every process in the group at once.
+    try:
+        os.killpg(os.getpgid(job.process.pid), signal.SIGKILL)
+    except OSError:
+        pass  # already dead
+
+    # Let the stdout reader thread drain the last bytes and exit cleanly.
+    if hasattr(job, '_stream_thread') and job._stream_thread:
+        job._stream_thread.join(timeout=2.0)
+
+    # Reconstruct stdout from the buffer; read any remaining stderr directly
+    # (no concurrent reader on stderr, so this is safe and returns immediately
+    # once the write-end is closed by the killed process group).
+    out = b"".join(getattr(job, 'raw_stdout_buffer', []))
+    try:
+        err = job.process.stderr.read()
+    except OSError:
+        err = b""
+
+    # Reap the zombie so the OS can release the PID.
+    job.process.wait()
+
+    job.set_output(out, err)
+    logger.debug(f"Killed App {job.id_num}")
   
 def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:  
     """Waits for a job with a timeout. Returns True if timed out."""  
