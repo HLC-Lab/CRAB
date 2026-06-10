@@ -10,23 +10,31 @@
 <style>
 /* ── TOKENS ─────────────────────────────────────────────────────── */
 :root {
-  --bg:#0a0b0e; --bg1:#111216; --bg2:#181a20; --bg3:#1f222a;
-  --border:#2a2d36; --border2:#3a3f4c;
-  --text:#d1d5db; --text2:#9ca3af; --text3:#6b7280;
-  --accent:#b32636; --accent-glow:rgba(179,38,54,.35);
-  --accent2:#4b5563; --danger:#ef4444;
+  /* Sapienza dark — backgrounds step from deepest to elevated */
+  --bg:#0c0d12; --bg1:#131521; --bg2:#1b1e2c; --bg3:#242840;
+  /* borders — clearly visible but not loud */
+  --border:#2f3450; --border2:#404870;
+  /* text — near-white primary for AAA contrast */
+  --text:#eceef6; --text2:#a0a8c8; --text3:#5c6480;
+  /* Sapienza red — brighter in dark mode so it reads on deep backgrounds */
+  --accent:#c03050; --accent-glow:rgba(192,48,80,.4);
+  --sel-bg:rgba(61,68,104,.22);
+  --accent2:#3d4468; --danger:#f56565;
   --mono:'JetBrains Mono',monospace; --sans:'Syne',sans-serif;
   --r:6px; --r2:12px;
-  --header-bg:rgba(10,11,14,.93);
+  --header-bg:rgba(12,13,18,.97);
 }
 html.light {
-  --bg:#f5f6f8; --bg1:#eef0f4; --bg2:#e4e7ed; --bg3:#d8dce5;
-  --border:#c4c8d4; --border2:#adb3c0;
-  --text:#1a1d24; --text2:#4a5060; --text3:#6b7280;
-  --accent-glow:rgba(179,38,54,.12);
-  --header-bg:rgba(245,246,248,.93);
+  /* Sapienza light — crisp white canvas, official red */
+  --bg:#ffffff; --bg1:#f4f5fb; --bg2:#eaecf5; --bg3:#e0e3ef;
+  --border:#c4c8dc; --border2:#a4aac4;
+  --text:#0c0e1a; --text2:#3a3f5c; --text3:#686e8c;
+  --accent:#822433; --accent-glow:rgba(130,36,51,.15);
+  --sel-bg:rgba(130,36,51,.1);
+  --accent2:#6a7090;
+  --header-bg:rgba(255,255,255,.97);
 }
-html.light body::before { opacity:.03 }
+html.light body::before { opacity:.02 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.6;min-height:100vh;overflow-x:hidden}
 body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
@@ -105,7 +113,7 @@ header{position:sticky;top:0;z-index:100;background:var(--header-bg);backdrop-fi
   border:1px solid transparent;margin-bottom:2px;transition:all .12s}
 .eitem:hover{background:var(--bg3)}
 .eitem.active{background:var(--bg3);border-color:var(--border2)}
-.eitem.sel{border-color:var(--accent2);background:rgba(75,85,99,.15)}
+.eitem.sel{border-color:var(--accent2);background:var(--sel-bg)}
 /* color swatch — clickable */
 .eswatch{width:14px;height:14px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,.15);
   cursor:pointer;position:relative;transition:transform .1s}
@@ -490,6 +498,22 @@ const ChartRenderer = (() => {
   let _chart = null;
   let _type  = 'scatter';
   let _scale = 'log2';
+  let _violinCleanup = null;
+  let _vtip = null;
+
+  function _getViolinTip() {
+    if (!_vtip) {
+      _vtip = document.createElement('div');
+      _vtip.style.cssText = [
+        'position:fixed','display:none','pointer-events:none','z-index:9999',
+        'background:var(--bg2)','border:1px solid var(--border)','border-radius:var(--r)',
+        'padding:6px 10px','font-family:var(--mono)','font-size:11px','color:var(--text)',
+        'line-height:1.7','box-shadow:0 4px 16px rgba(0,0,0,.4)',
+      ].join(';');
+      document.body.appendChild(_vtip);
+    }
+    return _vtip;
+  }
 
   // Bin rows by X value for box/violin
   function binByX(rows, xCol, yCol) {
@@ -542,9 +566,9 @@ const ChartRenderer = (() => {
       const bins = binByX(rows, xCol, yCol);
       const labels = Object.keys(bins).sort((a,b)=>+a-+b);
       const fmtLbl = l => {
-        if (Formatters.isSizeCol(xCol)) return Formatters.formatBytes(+l);
         const n = bins[l].length;
-        return n < 10 ? `${l} (n=${n})` : String(l);
+        const base = Formatters.isSizeCol(xCol) ? Formatters.formatBytes(+l) : String(l);
+        return `${base} (n=${n})`;
       };
       return {
         labels: labels.map(fmtLbl),
@@ -594,6 +618,7 @@ const ChartRenderer = (() => {
 
     return {
       responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+      layout: { padding: { bottom: _type === 'violin' ? 22 : 0 } },
       plugins: {
         legend: {
           display: multiDataset,
@@ -609,6 +634,19 @@ const ChartRenderer = (() => {
               ? `${xCol}: ${items[0].label}`
               : `${xCol}: ${xFmt(items[0].parsed.x ?? items[0].parsed._custom?.median)}`,
             label: item => {
+              if (_type === 'violin') {
+                const c = item.parsed._custom;
+                const raw = item.dataset.data[item.dataIndex];
+                const n = Array.isArray(raw) ? raw.length : '?';
+                if (!c) return ` ${item.dataset.label}  (n=${n})`;
+                const fmt = x => x != null ? x.toFixed(4)+' '+yUnit.label : '—';
+                return [
+                  ` ${item.dataset.label}  (n=${n})`,
+                  ` Median   ${fmt(c.median)}`,
+                  ` Q1–Q3    ${fmt(c.q1)} – ${fmt(c.q3)}`,
+                  ` Min–Max  ${fmt(c.min)} – ${fmt(c.max)}`,
+                ];
+              }
               const v = item.parsed.y ?? item.parsed._custom?.median;
               return ` ${item.dataset.label}: ${v != null ? v.toFixed(5)+' '+yUnit.label : '—'}`;
             }
@@ -632,6 +670,9 @@ const ChartRenderer = (() => {
   }
 
   function render() {
+    if (_violinCleanup) { _violinCleanup(); _violinCleanup = null; }
+    if (_vtip) _vtip.style.display = 'none';
+
     const exp = DataStore.getActiveExp();
     if (!exp) return;
     const xCol = document.getElementById('x-sel').value;
@@ -671,6 +712,49 @@ const ChartRenderer = (() => {
     const sw = document.getElementById('toolbar-swatch');
     sw.style.background = exp.color;
     document.getElementById('toolbar-color').value = exp.color;
+
+    // Violin: granular mousemove tooltip showing count near cursor Y
+    if (_type === 'violin' && _chart) {
+      const tip = _getViolinTip();
+      const cvs = canvas;
+      const onMove = e => {
+        const c = _chart;
+        if (!c?.scales?.y || !c?.scales?.x) { tip.style.display='none'; return; }
+        const rect = cvs.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const ca = c.chartArea;
+        if (mx < ca.left || mx > ca.right || my < ca.top || my > ca.bottom) {
+          tip.style.display='none'; return;
+        }
+        const yVal = c.scales.y.getValueForPixel(my);
+        const labels = c.data.labels || [];
+        let bi = 0, bd = Infinity;
+        labels.forEach((_, i) => {
+          const d = Math.abs(c.scales.x.getPixelForIndex(i) - mx);
+          if (d < bd) { bd = d; bi = i; }
+        });
+        const span = (c.scales.y.max - c.scales.y.min) * 0.04;
+        const parts = c.data.datasets.map(ds => {
+          const raw = Array.isArray(ds.data?.[bi]) ? ds.data[bi] : [];
+          const near = raw.filter(v => Math.abs(v - yVal) <= span).length;
+          const vf = yVal != null ? yVal.toFixed(4) : '?';
+          const ul = yUnit.label || '';
+          return `<span style="color:${ds.borderColor};font-weight:600">${ds.label}</span>: `+
+                 `${near} runs near ~${vf}${ul ? ' '+ul : ''}`;
+        });
+        tip.innerHTML = (labels[bi] !== undefined ? `<b>${labels[bi]}</b><br>` : '') + parts.join('<br>');
+        tip.style.display = 'block';
+        tip.style.left = (e.clientX + 14) + 'px';
+        tip.style.top  = (e.clientY - 10) + 'px';
+      };
+      const onLeave = () => { tip.style.display='none'; };
+      cvs.addEventListener('mousemove', onMove);
+      cvs.addEventListener('mouseleave', onLeave);
+      _violinCleanup = () => {
+        cvs.removeEventListener('mousemove', onMove);
+        cvs.removeEventListener('mouseleave', onLeave);
+      };
+    }
   }
 
   function setType(t)  { _type = t; }
@@ -1291,15 +1375,71 @@ const _crabMinorGrid = {
     ctx.globalAlpha = 0.7;
     ctx.beginPath();
     for (let i = 0; i < ticks.length - 1; i++) {
-      const midY = (scale.getPixelForValue(ticks[i].value) + scale.getPixelForValue(ticks[i + 1].value)) / 2;
-      ctx.moveTo(left, midY);
-      ctx.lineTo(right, midY);
+      const y1 = scale.getPixelForValue(ticks[i].value);
+      const y2 = scale.getPixelForValue(ticks[i + 1].value);
+      for (let j = 1; j <= 4; j++) {
+        const y = y1 + (y2 - y1) * j / 5;
+        ctx.moveTo(left, y);
+        ctx.lineTo(right, y);
+      }
     }
     ctx.stroke();
     ctx.restore();
   }
 };
 Chart.register(_crabMinorGrid);
+
+// ── Violin count-axis plugin (draws ← count → scale below each violin) ──
+const _violinCountAxis = {
+  id: 'violinCountAxis',
+  afterDraw(chart) {
+    if (chart.config.type !== 'violin') return;
+    const { ctx, chartArea: { left, right, bottom }, scales: { x } } = chart;
+    if (!x || !chart.data.labels?.length) return;
+
+    const labels = chart.data.labels;
+    const maxCount = Math.max(1, ...chart.data.datasets.flatMap(ds =>
+      (ds.data || []).map(arr => Array.isArray(arr) ? arr.length : 0)
+    ));
+    const colW = labels.length > 1
+      ? Math.abs(x.getPixelForIndex(1) - x.getPixelForIndex(0))
+      : (right - left);
+    const hW = colW * 0.33;
+
+    const cs = getComputedStyle(document.documentElement);
+    const bdr = cs.getPropertyValue('--border').trim();
+    const t3  = cs.getPropertyValue('--text3').trim();
+
+    ctx.save();
+    ctx.font = "8px 'JetBrains Mono', monospace";
+    ctx.textAlign = 'center';
+
+    const footerY = chart.canvas.height - 4;
+    labels.forEach((_, i) => {
+      const cx = x.getPixelForIndex(i);
+
+      ctx.strokeStyle = bdr; ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - hW, footerY - 4); ctx.lineTo(cx + hW, footerY - 4);
+      ctx.stroke();
+
+      [cx - hW, cx, cx + hW].forEach(px => {
+        ctx.beginPath(); ctx.moveTo(px, footerY - 6); ctx.lineTo(px, footerY - 2); ctx.stroke();
+      });
+
+      ctx.fillStyle = t3;
+      ctx.fillText(maxCount, cx - hW, footerY + 1);
+      ctx.fillText('0',      cx,       footerY + 1);
+      ctx.fillText(maxCount, cx + hW,  footerY + 1);
+    });
+
+    // Single centered label
+    ctx.fillStyle = t3;
+    ctx.fillText('← count →', (left + right) / 2, footerY + 10);
+    ctx.restore();
+  }
+};
+Chart.register(_violinCountAxis);
 
 // Apply persisted theme before data loads so the initial render uses the right colors
 (function(){

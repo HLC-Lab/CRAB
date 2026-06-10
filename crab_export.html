@@ -17,7 +17,16 @@
   --accent2:#4b5563; --danger:#ef4444;
   --mono:'JetBrains Mono',monospace; --sans:'Syne',sans-serif;
   --r:6px; --r2:12px;
+  --header-bg:rgba(10,11,14,.93);
 }
+html.light {
+  --bg:#f5f6f8; --bg1:#eef0f4; --bg2:#e4e7ed; --bg3:#d8dce5;
+  --border:#c4c8d4; --border2:#adb3c0;
+  --text:#1a1d24; --text2:#4a5060; --text3:#6b7280;
+  --accent-glow:rgba(179,38,54,.12);
+  --header-bg:rgba(245,246,248,.93);
+}
+html.light body::before { opacity:.03 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.6;min-height:100vh;overflow-x:hidden}
 body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
@@ -25,7 +34,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
   background-size:40px 40px;opacity:.1}
 
 /* ── HEADER ─────────────────────────────────────────────────────── */
-header{position:sticky;top:0;z-index:100;background:rgba(10,11,14,.93);backdrop-filter:blur(12px);
+header{position:sticky;top:0;z-index:100;background:var(--header-bg);backdrop-filter:blur(12px);
   border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:20px;height:52px}
 .logo{font-family:var(--sans);font-size:18px;font-weight:800;letter-spacing:.06em;color:var(--accent);
   text-shadow:0 0 20px var(--accent-glow);white-space:nowrap}
@@ -41,6 +50,10 @@ header{position:sticky;top:0;z-index:100;background:rgba(10,11,14,.93);backdrop-
   font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text2);letter-spacing:.08em;text-transform:uppercase;transition:all .15s}
 .tbtn.active{background:var(--bg1);color:var(--accent)}
 .tbtn:hover:not(.active){color:var(--text)}
+.theme-btn{background:transparent;border:1px solid var(--border2);border-radius:var(--r);
+  cursor:pointer;padding:4px 8px;font-size:14px;color:var(--text2);flex-shrink:0;
+  transition:all .15s;line-height:1}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
 
 /* ── LAYOUT ─────────────────────────────────────────────────────── */
 .layout{display:flex;height:calc(100vh - 52px);position:relative;z-index:1}
@@ -203,6 +216,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="tbtn" data-tab="table">Table</button>
     <button class="tbtn" data-tab="compare">Compare</button>
   </div>
+  <button class="theme-btn" id="theme-btn" onclick="UI.toggleTheme()" title="Toggle light/dark mode">☀</button>
 </header>
 
 <div class="layout">
@@ -259,7 +273,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <button class="tog active" data-ctype="scatter" onclick="UI.setChartType(this)">Scatter</button>
           <button class="tog" data-ctype="line"    onclick="UI.setChartType(this)">Line</button>
           <button class="tog" data-ctype="bar"     onclick="UI.setChartType(this)">Bar</button>
-          <button class="tog" data-ctype="boxplot" onclick="UI.setChartType(this)">Box</button>
           <button class="tog" data-ctype="violin"  onclick="UI.setChartType(this)">Violin</button>
         </div>
       </div>
@@ -318,7 +331,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <button class="tog active" data-cmptype="scatter" onclick="UI.setCmpType(this)">Scatter</button>
           <button class="tog" data-cmptype="line"    onclick="UI.setCmpType(this)">Line</button>
           <button class="tog" data-cmptype="bar"     onclick="UI.setCmpType(this)">Bar</button>
-          <button class="tog" data-cmptype="boxplot" onclick="UI.setCmpType(this)">Box</button>
           <button class="tog" data-cmptype="violin"  onclick="UI.setCmpType(this)">Violin</button>
         </div>
       </div>
@@ -528,19 +540,26 @@ const ChartRenderer = (() => {
       };
     }
 
-    if (_type === 'boxplot' || _type === 'violin') {
+    if (_type === 'violin') {
       const bins = binByX(rows, xCol, yCol);
       const labels = Object.keys(bins).sort((a,b)=>+a-+b);
+      const fmtLbl = l => {
+        if (Formatters.isSizeCol(xCol)) return Formatters.formatBytes(+l);
+        const n = bins[l].length;
+        return n < 10 ? `${l} (n=${n})` : String(l);
+      };
       return {
-        labels: labels.map(l => Formatters.isSizeCol(xCol) ? Formatters.formatBytes(+l) : l),
+        labels: labels.map(fmtLbl),
         datasets: [{
           label: exp.name,
           data: labels.map(l => bins[l].map(v => v / yUnit.div)),
-          backgroundColor: exp.color + '55',
+          backgroundColor: exp.color + '66',
           borderColor: exp.color,
-          borderWidth: 2,
+          borderWidth: 1,
           outlierColor: exp.color,
-          medianColor: '#fff',
+          medianColor: exp.color,
+          padding: 0.15,
+          itemRadius: 0,
         }]
       };
     }
@@ -550,35 +569,41 @@ const ChartRenderer = (() => {
     if (_type === 'scatter') return 'scatter';
     if (_type === 'line')    return 'line';
     if (_type === 'bar')     return 'bar';
-    if (_type === 'boxplot') return 'boxplot';
     if (_type === 'violin')  return 'violin';
     return 'scatter';
   }
 
   function xScaleType(xCol) {
-    if (_type === 'bar' || _type === 'boxplot' || _type === 'violin') return 'category';
+    if (_type === 'bar' || _type === 'violin') return 'category';
     if (_scale === 'linear') return 'linear';
     return 'logarithmic';
   }
 
+  function cssVar(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
   function buildOptions(xCol, yCol, xUnit, yUnit, multiDataset) {
-    const isCategory = ['bar','boxplot','violin'].includes(_type);
+    const isCategory = ['bar','violin'].includes(_type);
     const xFmt = isCategory
       ? v => v
       : (Formatters.isSizeCol(xCol) ? v => Formatters.formatBytes(v) : v => {
           const u = xUnit; return (v/u.div).toPrecision(3) + (u.label ? ' '+u.label : '');
         });
+    const t2 = cssVar('--text2');
+    const bg2 = cssVar('--bg2');
+    const bg3 = cssVar('--bg3');
+    const bdr = cssVar('--border');
+    const txt = cssVar('--text');
 
     return {
       responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
       plugins: {
         legend: {
           display: multiDataset,
-          labels: { color:'#9ca3af', font:{ family:"'JetBrains Mono'",size:11 }, boxWidth:10, padding:14 }
+          labels: { color: t2, font:{ family:"'JetBrains Mono'",size:11 }, boxWidth:10, padding:14 }
         },
         tooltip: {
-          backgroundColor:'#181a20', borderColor:'#2a2d36', borderWidth:1,
-          titleColor:'#e03145', bodyColor:'#d1d5db',
+          backgroundColor: bg2, borderColor: bdr, borderWidth:1,
+          titleColor:'#e03145', bodyColor: txt,
           titleFont:{ family:"'JetBrains Mono'",size:11,weight:'600' },
           bodyFont:{ family:"'JetBrains Mono'",size:11 },
           callbacks: {
@@ -595,14 +620,14 @@ const ChartRenderer = (() => {
       scales: {
         x: {
           type: xScaleType(xCol),
-          title:{ display:true, text: xCol + (xUnit.label?' ('+xUnit.label+')':''), color:'#9ca3af', font:{family:"'JetBrains Mono'",size:11} },
-          ticks:{ color:'#9ca3af', font:{family:"'JetBrains Mono'",size:10}, callback: isCategory ? v=>v : xFmt, maxTicksLimit:12 },
-          grid:{ color:'#1f222a' },
+          title:{ display:true, text: xCol + (xUnit.label?' ('+xUnit.label+')':''), color: t2, font:{family:"'JetBrains Mono'",size:11} },
+          ticks:{ color: t2, font:{family:"'JetBrains Mono'",size:10}, callback: isCategory ? v=>v : xFmt, maxTicksLimit:12 },
+          grid:{ color: bg3 },
         },
         y: {
-          title:{ display:true, text:`${yCol} (${yUnit.label})`, color:'#9ca3af', font:{family:"'JetBrains Mono'",size:11} },
-          ticks:{ color:'#9ca3af', font:{family:"'JetBrains Mono'",size:10} },
-          grid:{ color:'#1f222a' },
+          title:{ display:true, text:`${yCol} (${yUnit.label})`, color: t2, font:{family:"'JetBrains Mono'",size:11} },
+          ticks:{ color: t2, font:{family:"'JetBrains Mono'",size:10} },
+          grid:{ color: bg3 },
         }
       }
     };
@@ -654,27 +679,48 @@ const ChartRenderer = (() => {
   function setScale(s) { _scale = s; }
   function getType()   { return _type; }
 
+  // Strip the numeric prefix (e.g. "1_Avg-Duration_s" → "Avg-Duration_s") and find
+  // the matching column in rows that might have a different prefix.
+  function resolveCol(rows, col) {
+    if (!rows?.length || col in rows[0]) return col;
+    const suffix = col.replace(/^\d+_/, '');
+    if (suffix === col) return col;
+    return Object.keys(rows[0]).find(c => c.replace(/^\d+_/, '') === suffix) || col;
+  }
+
   // expose buildOptions + chartJsType for CompareRenderer reuse
   function buildForCompare(canvasId, exps, xCol, yCol, type, scale, existingChart, setter) {
     const savedType = _type; const savedScale = _scale;
     _type = type; _scale = scale;
 
-    const validRows = exps.flatMap(e=>e.rows).filter(r=>r[xCol]!=null&&r[yCol]!=null);
-    const yUnit = Formatters.unitForCol(yCol, validRows.map(r=>r[yCol]));
-    const xUnit = Formatters.unitForCol(xCol, validRows.map(r=>r[xCol]));
-    const isFlat = ['bar','boxplot','violin'].includes(type);
+    // Resolve column names per-experiment (prefixes differ across app CSVs)
+    const expCols = exps.map(e => ({
+      exp: e,
+      xC: resolveCol(e.rows, xCol),
+      yC: resolveCol(e.rows, yCol),
+    }));
+
+    const allYVals = expCols.flatMap(({exp,yC}) => exp.rows.map(r=>r[yC]).filter(v=>v!=null));
+    const allXVals = expCols.flatMap(({exp,xC}) => exp.rows.map(r=>r[xC]).filter(v=>v!=null));
+    const yUnitR = Formatters.unitForCol(yCol, allYVals);
+    const xUnitR = Formatters.unitForCol(xCol, allXVals);
+    const isFlat = ['bar','violin'].includes(type);
 
     if (existingChart) existingChart.destroy();
     const canvas = document.getElementById(canvasId);
 
     let chartData;
-    if (isFlat && exps.length === 1) {
-      chartData = makeDatasets(exps[0], xCol, yCol, yUnit);
+    if (isFlat && expCols.length === 1) {
+      const {exp, xC, yC} = expCols[0];
+      chartData = makeDatasets(
+        { ...exp, rows: exp.rows.map(r => ({...r, [xCol]: r[xC], [yCol]: r[yC]})) },
+        xCol, yCol, yUnitR
+      );
     } else if (isFlat) {
-      // multi-exp bar/box: merge labels, one dataset per exp
-      const allBins = exps.map(e => {
-        const rows = e.rows.filter(r=>r[xCol]!=null&&r[yCol]!=null);
-        return { exp:e, bins: binByX(rows, xCol, yCol) };
+      // multi-exp bar/violin: merge labels, one dataset per exp
+      const allBins = expCols.map(({exp,xC,yC}) => {
+        const rows = exp.rows.filter(r=>r[xC]!=null&&r[yC]!=null);
+        return { exp, bins: binByX(rows, xC, yC) };
       });
       const allLabels = [...new Set(allBins.flatMap(b=>Object.keys(b.bins)))].sort((a,b)=>+a-+b);
       chartData = {
@@ -682,21 +728,25 @@ const ChartRenderer = (() => {
         datasets: allBins.map(({exp,bins}) => ({
           label: exp.name,
           data: type === 'bar'
-            ? allLabels.map(l => bins[l] ? (bins[l].reduce((a,v)=>a+v,0)/bins[l].length)/yUnit.div : null)
-            : allLabels.map(l => bins[l] ? bins[l].map(v=>v/yUnit.div) : []),
-          backgroundColor: exp.color+'55', borderColor: exp.color, borderWidth:2,
-          ...(type==='bar' ? {backgroundColor:exp.color+'cc'} : {outlierColor:exp.color,medianColor:'#fff'})
+            ? allLabels.map(l => bins[l] ? (bins[l].reduce((a,v)=>a+v,0)/bins[l].length)/yUnitR.div : null)
+            : allLabels.map(l => bins[l] ? bins[l].map(v=>v/yUnitR.div) : []),
+          backgroundColor: exp.color+(type==='bar'?'cc':'66'),
+          borderColor: exp.color, borderWidth:1,
+          ...(type!=='bar' ? {outlierColor:exp.color,medianColor:exp.color,padding:0.15,itemRadius:0} : {})
         }))
       };
     } else {
-      chartData = { datasets: exps.map(e => makeDatasets(e, xCol, yCol, yUnit)[0]) };
+      chartData = { datasets: expCols.map(({exp,xC,yC}) => {
+        const mapped = { ...exp, rows: exp.rows.map(r => ({...r, [xCol]: r[xC], [yCol]: r[yC]})) };
+        return makeDatasets(mapped, xCol, yCol, yUnitR)[0];
+      }).filter(Boolean) };
     }
 
     try {
       const chart = new Chart(canvas, {
         type: chartJsType(),
         data: chartData,
-        options: buildOptions(xCol, yCol, xUnit, yUnit, true),
+        options: buildOptions(xCol, yCol, xUnitR, yUnitR, true),
       });
       setter(chart);
     } catch (e) {
@@ -1133,7 +1183,7 @@ const UI = (() => {
 
   function updateScaleVis() {
     const xCol = document.getElementById('x-sel')?.value;
-    const show  = xCol && !['bar','boxplot','violin'].includes(ChartRenderer.getType());
+    const show  = xCol && !['bar','violin'].includes(ChartRenderer.getType());
     const wrap = document.getElementById('scale-wrap');
     if (wrap) wrap.style.display = show ? '' : 'none';
   }
@@ -1146,6 +1196,7 @@ const UI = (() => {
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     document.getElementById('panel-'+tab).classList.add('active');
     _currentTab=tab;
+    renderSidebar();
     // rAF ensures panel is visible before Chart.js measures canvas
     requestAnimationFrame(()=>renderCurrentTab());
   });
@@ -1201,6 +1252,16 @@ const UI = (() => {
 
   function clearSel() { CompareRenderer.clear(); }
 
+  function toggleTheme() {
+    const isLight = document.documentElement.classList.toggle('light');
+    localStorage.setItem('crab-theme', isLight ? 'light' : 'dark');
+    document.getElementById('theme-btn').textContent = isLight ? '🌙' : '☀';
+    const cs = getComputedStyle(document.documentElement);
+    Chart.defaults.color = cs.getPropertyValue('--text2').trim();
+    Chart.defaults.borderColor = cs.getPropertyValue('--bg3').trim();
+    if (DataStore.getActiveLab()) renderCurrentTab();
+  }
+
   // ── column dropdown ───────────────────────────────────────────────
   function toggleColDD() { document.getElementById('col-dd').classList.toggle('open'); }
   document.addEventListener('click', e=>{ if(!e.target.closest('.col-wrap')) document.getElementById('col-dd').classList.remove('open'); });
@@ -1210,18 +1271,60 @@ const UI = (() => {
 
   return { setStatus, rebuildAll, renderLabDropdown, renderSidebar, rebuildAxisSelects,
            renderCurrentTab, setChartType, setScale, getScale, onAxisChange,
-           onToolbarColorChange, setCMode, setCmpType, clearSel, toggleColDD, onLabChange };
+           onToolbarColorChange, setCMode, setCmpType, clearSel, toggleColDD, onLabChange,
+           toggleTheme };
+})();
+
+// ── Minor gridline plugin (dotted lines at midpoints between major y-ticks) ──
+const _crabMinorGrid = {
+  id: 'crabMinorGrid',
+  afterDraw(chart) {
+    const scale = chart.scales.y;
+    if (!scale || scale.type !== 'linear') return;
+    const { ticks } = scale;
+    if (!ticks || ticks.length < 2) return;
+    const ctx = chart.ctx;
+    const { left, right } = chart.chartArea;
+    const color = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
+    ctx.save();
+    ctx.setLineDash([2, 4]);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 0.5;
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    for (let i = 0; i < ticks.length - 1; i++) {
+      const midY = (scale.getPixelForValue(ticks[i].value) + scale.getPixelForValue(ticks[i + 1].value)) / 2;
+      ctx.moveTo(left, midY);
+      ctx.lineTo(right, midY);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+Chart.register(_crabMinorGrid);
+
+// Apply persisted theme before data loads so the initial render uses the right colors
+(function(){
+  const saved = localStorage.getItem('crab-theme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light');
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = '🌙';
+  }
+})();
+
+// Chart.js global defaults (read CSS vars so they respect the current theme)
+(function(){
+  const cs = getComputedStyle(document.documentElement);
+  Chart.defaults.color = cs.getPropertyValue('--text2').trim();
+  Chart.defaults.borderColor = cs.getPropertyValue('--bg3').trim();
+  Chart.defaults.font.family = "'JetBrains Mono'";
 })();
 
 // Auto-load embedded data if injected by `crab export`
 if (typeof CRAB_EMBEDDED_DATA !== 'undefined') {
   ServerLoader.loadEmbedded(CRAB_EMBEDDED_DATA);
 }
-
-// Chart.js global defaults
-Chart.defaults.color = '#9ca3af';
-Chart.defaults.borderColor = '#1f222a';
-Chart.defaults.font.family = "'JetBrains Mono'";
 </script>
 </body>
 </html>
