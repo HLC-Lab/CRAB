@@ -1,5 +1,5 @@
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import Vertical, Horizontal, Container
 from textual.widgets import (
     Button, Input, Label, Checkbox, RichLog
 )
@@ -32,7 +32,7 @@ class ApplicationForm(Vertical):
         }
 
     def compose(self) -> ComposeResult:
-        yield Label("Application Path:")
+        yield Label("Wrapper Path:")
         yield Label("Select a file", id="path")
         yield Button("Browse", id="browse-path", variant="primary", classes="browse-btn")
 
@@ -42,11 +42,13 @@ class ApplicationForm(Vertical):
         yield Label("Collect Timings:")
         yield Checkbox("Yes", id="collect", value=self.form_data["collect"])
 
-        yield Label("Start Time (s):")
-        yield Input(placeholder="0", id="start", value=self.form_data["start"])
-
-        yield Label("End Time (s), 'f' or empty:")
-        yield Input(placeholder="f", id="end", value=self.form_data["end"])
+        with Horizontal(classes="form-row"):
+            with Container(classes="form-col"):
+                yield Label("Start Time (s):")
+                yield Input(placeholder="0", id="start", value=self.form_data["start"])
+            with Container(classes="form-col"):
+                yield Label("End Time (s), 'f' or empty:")
+                yield Input(placeholder="f", id="end", value=self.form_data["end"])
 
         yield Label("Partition ID (optional):")
         yield Input(placeholder="Leave empty for auto (0=victim, 1=aggressor)", id="partition", value=self.form_data["partition"])
@@ -87,5 +89,5 @@ class ApplicationForm(Vertical):
             self.notify("File selection cancelled")
             return
 
-        self.query_one("#path", Label).update(str(file_path))
+        self.query_one("#path", Label).update(os.path.relpath(str(file_path)))
 

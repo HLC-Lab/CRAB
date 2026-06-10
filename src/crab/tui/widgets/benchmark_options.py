@@ -1,5 +1,5 @@
 from textual.containers import Container, VerticalScroll, Horizontal
-from textual.widgets import Button, DataTable, Input, Label, Select, Switch, TextArea
+from textual.widgets import Button, Collapsible, DataTable, Input, Label, Select, Switch, TextArea
 from textual import on
 
 import subprocess
@@ -24,145 +24,138 @@ class BenchmarkOptions(VerticalScroll):
     def compose(self):
         """Crea i widget figli per il form delle opzioni."""
 
-        # Full-width: node selector
-        with Container(classes="option-group"):
-            yield Label("Nodes:", classes="option-label")
-            yield Select([
-                ("All Nodes", "auto"),
-                ("Mixed Nodes", "mixed"),
-                ("Idle Nodes", "idle"),
-                ("From File", "file")
-            ], value="auto", id="nodes", classes="option-input")
-            yield Input(placeholder="Path to node list file", id="node_file", classes="option-input")
-            yield DataTable(id="node_table", classes="datatable")
-
-        # Row: numnodes | ppn
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Number of Nodes:", classes="option-label")
-                yield Input(placeholder="e.g., 4", id="numnodes", type="integer", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Processes Per Node:", classes="option-label")
-                yield Input(value="1", id="ppn", type="integer", classes="option-input")
-
-        # Row: name | walltime
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Job Name:", classes="option-label")
-                yield Input(placeholder="Optional name for the output folder", id="name", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Walltime:", classes="option-label")
-                yield Input(value="00:10:00", id="walltime", classes="option-input")
-
-        # Row: allocationmode | allocationsplit
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Allocation Mode:", classes="option-label")
+        # ── Node Selection (always visible) ───────────────────────────────────
+        with Horizontal(classes="node-row"):
+            with Container(classes="node-controls"):
+                yield Label("Nodes:", classes="option-label")
                 yield Select([
-                    ("Linear", "l"),
-                    ("Interleaved", "i"),
-                    ("Partitioned", "p"),
-                ], value="l", id="allocationmode", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Allocation Split:", classes="option-label")
-                yield Input(placeholder="e.g., 50:50 or 'e'", value="e", id="allocationsplit", classes="option-input")
+                    ("All Nodes", "auto"),
+                    ("Mixed Nodes", "mixed"),
+                    ("Idle Nodes", "idle"),
+                    ("From File", "file")
+                ], value="auto", id="nodes", classes="node-select")
+                yield Input(placeholder="Path to node list file", id="node_file", classes="node-select")
+            with Container(classes="node-table-area"):
+                yield DataTable(id="node_table", classes="datatable")
 
-        # Row: partitionsplit | partitionlayout (hidden unless mode=p)
-        with Horizontal(classes="options-row", id="partition-row"):
-            with Container(classes="option-group"):
-                yield Label("Partition Split:", classes="option-label")
-                yield Input(placeholder="e.g., 60:40 or 'e'", value="e", id="partitionsplit", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Partition Layout:", classes="option-label")
-                yield Select([
-                    ("Linear", "l"),
-                    ("Interleaved", "i"),
-                ], value="l", id="partitionlayout", classes="option-input")
+        # ── Job ───────────────────────────────────────────────────────────────
+        with Collapsible(title="Job", collapsed=False, classes="bench-section"):
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Number of Nodes:", classes="option-label")
+                    yield Input(placeholder="e.g., 4", id="numnodes", type="integer", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Processes Per Node:", classes="option-label")
+                    yield Input(value="1", id="ppn", type="integer", classes="option-input")
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Job Name:", classes="option-label")
+                    yield Input(placeholder="Optional name for the output folder", id="name", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Walltime:", classes="option-label")
+                    yield Input(value="00:10:00", id="walltime", classes="option-input")
 
-        # Row: minruns | maxruns
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Minimum Runs:", classes="option-label")
-                yield Input(value="10", id="minruns", type="integer", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Maximum Runs:", classes="option-label")
-                yield Input(value="1000", id="maxruns", type="integer", classes="option-input")
+        # ── Allocation ────────────────────────────────────────────────────────
+        with Collapsible(title="Allocation", collapsed=False, classes="bench-section"):
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Allocation Mode:", classes="option-label")
+                    yield Select([
+                        ("Linear", "l"),
+                        ("Interleaved", "i"),
+                        ("Partitioned", "p"),
+                    ], value="l", id="allocationmode", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Allocation Split:", classes="option-label")
+                    yield Input(placeholder="e.g., 50:50 or 'e'", value="e", id="allocationsplit", classes="option-input")
+            with Horizontal(classes="options-row", id="partition-row"):
+                with Container(classes="option-group"):
+                    yield Label("Partition Split:", classes="option-label")
+                    yield Input(placeholder="e.g., 60:40 or 'e'", value="e", id="partitionsplit", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Partition Layout:", classes="option-label")
+                    yield Select([
+                        ("Linear", "l"),
+                        ("Interleaved", "i"),
+                    ], value="l", id="partitionlayout", classes="option-input")
 
-        # Row: timeout | convergeall
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Timeout (seconds):", classes="option-label")
-                yield Input(value="100.0", id="timeout", type="number", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Converge All Metrics:", classes="option-label")
-                yield Switch(value=True, id="convergeall", classes="option-input")
+        # ── Convergence ───────────────────────────────────────────────────────
+        with Collapsible(title="Convergence", collapsed=False, classes="bench-section"):
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Minimum Runs:", classes="option-label")
+                    yield Input(value="10", id="minruns", type="integer", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Maximum Runs:", classes="option-label")
+                    yield Input(value="1000", id="maxruns", type="integer", classes="option-input")
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Timeout (seconds):", classes="option-label")
+                    yield Input(value="100.0", id="timeout", type="number", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Converge All Metrics:", classes="option-label")
+                    yield Switch(value=True, id="convergeall", classes="option-input")
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Alpha (Confidence):", classes="option-label")
+                    yield Input(value="0.05", id="alpha", type="number", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Beta (Convergence):", classes="option-label")
+                    yield Input(value="0.05", id="beta", type="number", classes="option-input")
 
-        # Row: alpha | beta
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Alpha (Confidence):", classes="option-label")
-                yield Input(value="0.05", id="alpha", type="number", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Beta (Convergence):", classes="option-label")
-                yield Input(value="0.05", id="beta", type="number", classes="option-input")
-
-        # Row: outformat | runtimeout
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Output Format:", classes="option-label")
-                yield Select([
-                    ("CSV", "csv"),
-                    ("HDF5", "hdf")
-                ], value="csv", id="outformat", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Runtime Output:", classes="option-label")
-                yield Select([
-                    ("Standard Output", "stdout"),
-                    ("None", "none"),
-                    ("File", "file"),
-                    ("Append to File", "+file")
-                ], value="stdout", id="runtimeout", classes="option-input")
-
-        # Row: retain_files | seed
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Retain Run Files:", classes="option-label")
-                yield Switch(value=True, id="retain_files", classes="option-input")
-            with Container(classes="option-group"):
-                yield Label("Random Seed:", classes="option-label")
-                yield Input(value="1", id="seed", type="integer", classes="option-input")
-
-        # Row: extrainfo | tags
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Extra Info:", classes="option-label")
-                yield Input(placeholder="Details of this execution", id="extrainfo", classes="option-input")
+        # ── Output & Files ────────────────────────────────────────────────────
+        with Collapsible(title="Output & Files", collapsed=True, classes="bench-section"):
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Output Format:", classes="option-label")
+                    yield Select([
+                        ("CSV", "csv"),
+                        ("HDF5", "hdf")
+                    ], value="csv", id="outformat", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Runtime Output:", classes="option-label")
+                    yield Select([
+                        ("Standard Output", "stdout"),
+                        ("None", "none"),
+                        ("File", "file"),
+                        ("Append to File", "+file")
+                    ], value="stdout", id="runtimeout", classes="option-input")
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Retain Run Files:", classes="option-label")
+                    yield Switch(value=True, id="retain_files", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Random Seed:", classes="option-label")
+                    yield Input(value="1", id="seed", type="integer", classes="option-input")
+            with Horizontal(classes="options-row"):
+                with Container(classes="option-group"):
+                    yield Label("Data Path:", classes="option-label")
+                    yield Input(value="./data", id="datapath", classes="option-input")
+                with Container(classes="option-group"):
+                    yield Label("Extra Info:", classes="option-label")
+                    yield Input(placeholder="Details of this execution", id="extrainfo", classes="option-input")
             with Container(classes="option-group"):
                 yield Label("Tags:", classes="option-label")
                 yield Input(placeholder="Space-separated tags", id="tags", classes="option-input")
 
-        # Row: datapath | replace_mix_args
-        with Horizontal(classes="options-row"):
-            with Container(classes="option-group"):
-                yield Label("Data Path:", classes="option-label")
-                yield Input(value="./data", id="datapath", classes="option-input")
+        # ── Advanced ──────────────────────────────────────────────────────────
+        with Collapsible(title="Advanced", collapsed=True, classes="bench-section"):
             with Container(classes="option-group"):
                 yield Label("Replace Mix Args:", classes="option-label")
                 yield Input(placeholder="e.g., server:1.2.3.4,client:5.6.7.8", id="replace_mix_args", classes="option-input")
-
-        # Full-width: SBATCH directives TextArea
-        with Container(classes="option-group"):
-            yield Label("SBATCH Directives:", classes="option-label")
-            yield TextArea(id="sbatch_directives", classes="option-input")
+            with Container(classes="option-group"):
+                yield Label("SBATCH Directives:", classes="option-label")
+                yield TextArea(id="sbatch_directives", classes="option-input")
 
 
     def _set_partition_fields_visible(self, visible: bool) -> None:
         self.query_one("#partition-row").display = visible
 
     def get_state(self) -> dict:
+        _UI_ONLY = {"nodes", "node_file"}
         state = {}
         for widget in self.query(".option-input"):
-            if not widget.id:
+            if not widget.id or widget.id in _UI_ONLY:
                 continue
             if isinstance(widget, TextArea):
                 state[widget.id] = [l.strip() for l in widget.text.splitlines() if l.strip()]
@@ -233,8 +226,18 @@ class BenchmarkOptions(VerticalScroll):
                     nodes = []
 
                 if nodes:
-                    for node in nodes:
-                        data_table.add_row(node)
+                    # sinfo may return compact ranges like "node[001-256],gpu[01-08]"
+                    # Split each line further by comma, truncate long tokens
+                    tokens = []
+                    for line in nodes:
+                        tokens.extend(t for t in line.split(",") if t)
+                    MAX_ROWS = 100
+                    overflow = len(tokens) - MAX_ROWS
+                    for token in tokens[:MAX_ROWS]:
+                        display = token if len(token) <= 35 else token[:32] + "..."
+                        data_table.add_row(display)
+                    if overflow > 0:
+                        data_table.add_row(f"(+ {overflow} more node groups)")
                 else:
                     data_table.add_row("sinfo unavailable or no nodes found.")
 
