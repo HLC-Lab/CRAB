@@ -67,18 +67,14 @@ class QERecipeV7(BenchmarkRecipe):
         target_arch = params.get("arch", "cpu")
 
         if target_arch == "gpu":
-            # CMAKE_*_COMPILER=nvhpc satisfies QE's mandatory NVHPC check.
-            # MPI_*_COMPILER=mpi* lets cmake extract MPI flags from the wrappers
-            # without requiring the wrapper itself to be the build compiler.
+            # hpcx-mpi mpif90 wraps nvfortran; cmake detects NVHPC compiler ID
+            # through the MPI wrapper, satisfying QE's mandatory NVHPC check.
             cmake_flags = [
                 "cmake", "..",
                 "-DCMAKE_INSTALL_PREFIX=..",
-                "-DCMAKE_Fortran_COMPILER=nvfortran",
-                "-DCMAKE_C_COMPILER=nvc",
-                "-DCMAKE_CXX_COMPILER=nvc++",
-                "-DMPI_Fortran_COMPILER=mpif90",
-                "-DMPI_C_COMPILER=mpicc",
-                "-DMPI_CXX_COMPILER=mpicxx",
+                "-DCMAKE_Fortran_COMPILER=mpif90",
+                "-DCMAKE_C_COMPILER=mpicc",
+                "-DCMAKE_CXX_COMPILER=mpicxx",
                 "-DQE_ENABLE_MPI=ON",
                 "-DQE_ENABLE_OPENMP=ON",
                 "-DQE_FFTW_VENDOR=Internal",
