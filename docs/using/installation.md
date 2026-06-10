@@ -5,7 +5,7 @@ benchmarks you want available on this machine.
 
 ## Prerequisites
 
-- **Python 3.8+** (the installer hard-fails below this; on a cluster you may need `module load python` first).
+- **Python 3.10+** (the installer hard-fails below this; on a cluster you may need `module load python` first).
 - **Git**.
 - **A Slurm cluster.** `crab run` submits the job with `sbatch`, so Slurm must be available — see
   the note below.

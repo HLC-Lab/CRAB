@@ -1,6 +1,15 @@
 import os
 
 from typing import List, Optional # Aggiunto typing per chiarezza
+
+# ---------------------------------------------------------------------------
+# UNPORTED / LEGACY workload manager.
+# This module has NOT been ported to the current run_job() interface used by
+# core/process/manager.py, which passes a `launcher` argument (see slurm.py for
+# the ported reference implementation). Until it is ported it raises
+# NotImplementedError if invoked. See fix_plan.md.
+# ---------------------------------------------------------------------------
+
 class wl_manager:
     # Generates a script that can be used to run all the benchmarks specified in the schedule.
     def write_script(self, runner_args, schedules, nams, name, splits, node_file, ppn):
@@ -16,8 +25,12 @@ class wl_manager:
     # Returns a string that can be used to run command 'cmd'
     # on the nodes in 'node_list' with 'ppn' processes per node,
     # executing "pre_commands" before cmd
-    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None, data_path: str = None) -> str:
-        
+    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None, data_path: str = None, launcher: Optional[str] = None) -> str:
+        raise NotImplementedError(
+            "The 'workerpool' workload manager has not been ported to the current "
+            "run_job(launcher=...) interface (see fix_plan.md)."
+        )
+
         # print("[INFO] Workload manager is launching with WorkerPool", flush=True)
 
         num_nodes = len(node_list)

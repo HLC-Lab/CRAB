@@ -47,10 +47,17 @@ Both derive from the selected [preset](#preset).
 
 ### Experiment
 
-A named unit of work within a run: a set of [applications](#application) launched together under
-one node allocation and schedule, repeated until [convergence](#convergence). A single config can
-define multiple experiments (the `experiments` block), executed one after another by the
-[worker](#worker). Distinct from a [run](#run).
+A named unit of work within a [job](#job): a set of [applications](#application) launched together
+under one node allocation and schedule, repeated across [runs](#run) until
+[convergence](#convergence). A single config can define multiple experiments (the `experiments`
+block), executed one after another by the [worker](#worker).
+
+### Job
+
+The top-level container: a single `crab run` invocation — one config file, submitted as one Slurm
+job, producing one output directory under `data/<system>/<name>_<timestamp>/`. Named by
+`global_options.name` (recorded as `job_name` in the registry). A job contains one or more
+[experiments](#experiment).
 
 ### Launcher
 
