@@ -130,4 +130,6 @@ if you need narrower intervals. See [Convergence](../glossary.md#convergence).
 
 The `examples/` directory has working configs per system (`examples/leonardo/`, `examples/local/`,
 `examples/cluster_di/`, `examples/lorenzo/`) covering baselines, interleaved tests, sequential
-sweeps, and aggressor mixes — a good starting point to copy and adapt.
+sweeps, and aggressor mixes — a good starting point to copy and adapt. A representative
+end-to-end example is `examples/leonardo/blink_noise_study.json` (Blink interference sweep with
+partitioned victim/aggressor allocation).

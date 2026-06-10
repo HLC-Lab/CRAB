@@ -34,7 +34,6 @@ Here is `leonardo`, annotated — it's the recommended starting point for a Slur
     "sbatch": [                              // #SBATCH directives added to every job
         "--account=IscrC_FOCAL",
         "--partition=boost_usr_prod",
-        "--exclusive",
         "--gres=tmpfs:0"
     ],
     "header": [                              // shell lines run at the top of the job script
@@ -45,8 +44,8 @@ Here is `leonardo`, annotated — it's the recommended starting point for a Slur
 
 To adapt it to your cluster, change the values you already know for your system:
 
-- **`sbatch`** — your Slurm `--account` and `--partition` (and any site requirements like
-  `--exclusive`).
+- **`sbatch`** — your Slurm `--account` and `--partition` (plus any site requirements; some sites
+  also want `--exclusive` to guarantee whole-node allocations for interference measurements).
 - **`CRAB_PINNING_FLAGS`** — your preferred binding (`--cpu-bind=socket`, `--cpu-bind=core`, a
   `map_cpu` list, etc.).
 - **`header`** — the `module load` lines your benchmarks need at run time.
