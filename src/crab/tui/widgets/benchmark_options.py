@@ -1,8 +1,32 @@
 from textual.containers import Container, VerticalScroll, Horizontal
-from textual.widgets import Button, Collapsible, DataTable, Input, Label, Select, Switch, TextArea
+from textual.widgets import Button, Checkbox, Collapsible, DataTable, Input, Label, Select, TextArea
 from textual import on
 
 import subprocess
+
+
+def _split_nodelist(s: str) -> list[str]:
+    """Split a sinfo nodelist on top-level commas only (not inside brackets).
+    e.g. 'node[001,002],gpu[01-08]' → ['node[001,002]', 'gpu[01-08]']
+    """
+    result, depth, current = [], 0, []
+    for ch in s:
+        if ch == "[":
+            depth += 1
+            current.append(ch)
+        elif ch == "]":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            if current:
+                result.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        result.append("".join(current))
+    return result
+
 
 class BenchmarkOptions(VerticalScroll):
     """Un widget per configurare ed eseguire un benchmark."""
@@ -94,7 +118,7 @@ class BenchmarkOptions(VerticalScroll):
                     yield Input(value="100.0", id="timeout", type="number", classes="option-input")
                 with Container(classes="option-group"):
                     yield Label("Converge All Metrics:", classes="option-label")
-                    yield Switch(value=True, id="convergeall", classes="option-input")
+                    yield Checkbox("Yes", id="convergeall", value=True, classes="bench-check")
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
                     yield Label("Alpha (Confidence):", classes="option-label")
@@ -123,7 +147,7 @@ class BenchmarkOptions(VerticalScroll):
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
                     yield Label("Retain Run Files:", classes="option-label")
-                    yield Switch(value=True, id="retain_files", classes="option-input")
+                    yield Checkbox("Yes", id="retain_files", value=True, classes="bench-check")
                 with Container(classes="option-group"):
                     yield Label("Random Seed:", classes="option-label")
                     yield Input(value="1", id="seed", type="integer", classes="option-input")
@@ -154,7 +178,7 @@ class BenchmarkOptions(VerticalScroll):
     def get_state(self) -> dict:
         _UI_ONLY = {"nodes", "node_file"}
         state = {}
-        for widget in self.query(".option-input"):
+        for widget in list(self.query(".option-input")) + list(self.query(".bench-check")):
             if not widget.id or widget.id in _UI_ONLY:
                 continue
             if isinstance(widget, TextArea):
@@ -172,7 +196,7 @@ class BenchmarkOptions(VerticalScroll):
             return
         for widget_id, value in state.items():
             try:
-                widget = self.query_one(f"#{widget_id}", (Input, Select, Switch, TextArea))
+                widget = self.query_one(f"#{widget_id}", (Input, Select, Checkbox, TextArea))
                 if isinstance(widget, TextArea):
                     if isinstance(value, list):
                         text = "\n".join(value)
@@ -226,15 +250,13 @@ class BenchmarkOptions(VerticalScroll):
                     nodes = []
 
                 if nodes:
-                    # sinfo may return compact ranges like "node[001-256],gpu[01-08]"
-                    # Split each line further by comma, truncate long tokens
                     tokens = []
                     for line in nodes:
-                        tokens.extend(t for t in line.split(",") if t)
+                        tokens.extend(_split_nodelist(line))
                     MAX_ROWS = 100
                     overflow = len(tokens) - MAX_ROWS
                     for token in tokens[:MAX_ROWS]:
-                        display = token if len(token) <= 35 else token[:32] + "..."
+                        display = token if len(token) <= 40 else token[:37] + "..."
                         data_table.add_row(display)
                     if overflow > 0:
                         data_table.add_row(f"(+ {overflow} more node groups)")

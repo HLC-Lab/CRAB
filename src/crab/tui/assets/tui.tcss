@@ -107,6 +107,10 @@ BenchmarkTabSelector {
     height: auto;
 }
 
+LocalOptionsForm {
+    height: auto;
+}
+
 
 ApplicationForm {
     height: auto;
@@ -341,10 +345,10 @@ Switch.option-input {
     height: 1;
 }
 
-.options-row > .option-group > Switch.option-input {
+.bench-check {
     width: auto;
-    max-width: 100%;
-    height: 1;
+    height: auto;
+    margin: 0 0 1 0;
 }
 
 Select.option-input {
@@ -461,6 +465,7 @@ BenchmarkOptions Select {
     height: auto;
     max-height: 12;
     padding-left: 2;
+    padding-right: 3;
     overflow-y: auto;
 }
 
