@@ -41,8 +41,7 @@ crab_dashboard.html  # standalone results viewer
 
 The most important thing to understand before changing the core is the **two-phase orchestrator /
 worker execution model** and the **wrapper / recipe / receipt** separation — both covered in
-[Architecture](concepts/architecture.md). A deeper orientation for code work also lives in the
-repository's `CLAUDE.md`.
+[Architecture](concepts/architecture.md).
 
 ## Where things go
 
@@ -52,12 +51,3 @@ repository's `CLAUDE.md`.
 | A buildable benchmark | `src/crab/setup/recipes/` | Auto-discovered subclass of `BenchmarkRecipe`. |
 | A new cluster environment | `config/presets.json` | See [Configuring your cluster](using/presets.md). |
 | A new launch mechanism | `src/crab/core/wl_manager/` | A module exposing a `wl_manager` class; selected by `CRAB_WL_MANAGER`. |
-
-## Things to know
-
-- **No automated tests, CI, or linter** are currently set up in the repository. Validate changes by
-  running an example config (`examples/`) against a real allocation.
-- **Some comments and docstrings are in Italian** — this is expected throughout the codebase.
-- **The README is partially stale** (it predates the `crab` CLI / `src/` layout — e.g. it shows
-  `python cli.py` and an outdated clone URL). Treat the code and this documentation as the source of
-  truth for paths and commands.
