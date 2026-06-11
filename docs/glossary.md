@@ -10,7 +10,7 @@ An application whose purpose is to **generate interference** rather than be meas
 an aggressor is marked with `end: "f"` — CRAB force-terminates it as soon as all the
 [victims](#victim) have finished. Contrast with [victim](#victim).
 
-### Application (app)
+### Application (app) { #application }
 
 A single executable CRAB launches within an [experiment](#experiment), described by one entry in
 the config's `apps` block and adapted by a [wrapper](#wrapper). Multiple applications run

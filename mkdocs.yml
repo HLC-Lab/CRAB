@@ -7,6 +7,8 @@ edit_uri: edit/master/docs/
 
 theme:
   name: material
+  logo: assets/svg/favicon-dark.svg
+  favicon: assets/svg/favicon-cream.svg
   features:
     - navigation.instant
     - navigation.tracking

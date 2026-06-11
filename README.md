@@ -1,9 +1,18 @@
-# 🦀 CRAB — Co-Running Applications Benchmarking framework
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/svg/crab-outlined-dark.svg">
+    <img alt="CRAB" src="docs/assets/svg/crab-outlined.svg" width="480">
+  </picture>
+</p>
 
-[![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Documentation Status](https://readthedocs.org/projects/hlc-crab/badge/?version=latest)](https://hlc-crab.readthedocs.io/en/latest/?badge=latest)
-[![CI](https://github.com/HLC-Lab/CRAB/actions/workflows/ci.yml/badge.svg)](https://github.com/HLC-Lab/CRAB/actions/workflows/ci.yml)
+<p align="center"><strong>Co-Running Applications Benchmarking framework</strong></p>
+
+<p align="center">
+  <a href="https://www.python.org/"><img alt="Python Version" src="https://img.shields.io/badge/python-3.10+-blue.svg"></a>
+  <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+  <a href="https://hlc-crab.readthedocs.io/en/latest/?badge=latest"><img alt="Documentation Status" src="https://readthedocs.org/projects/hlc-crab/badge/?version=latest"></a>
+  <a href="https://github.com/HLC-Lab/CRAB/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/HLC-Lab/CRAB/actions/workflows/ci.yml/badge.svg"></a>
+</p>
 
 **CRAB** runs **multiple HPC applications simultaneously** on Slurm-managed clusters to measure
 their performance and quantify how they **interfere** with one another (network congestion,

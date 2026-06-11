@@ -1,0 +1,4 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="200" height="200" rx="44" fill="#3A140C"></rect>
+  <g transform="translate(8.76,11.07) scale(0.84)"><g opacity="0.42"><path d="M154.92,67.23 A59.32,59.32 0 1 0 154.92,156.77" fill="none" stroke="#F4A93C" stroke-width="40" stroke-linecap="round"></path><path d="M154.92,67.23 L182.06,78.66" fill="none" stroke="#F4A93C" stroke-width="29.60" stroke-linecap="round"></path><path d="M154.92,156.77 L182.06,145.34" fill="none" stroke="#F4A93C" stroke-width="29.60" stroke-linecap="round"></path></g><path d="M138.92,55.23 A59.32,59.32 0 1 0 138.92,144.77" fill="none" stroke="#F4A93C" stroke-width="40" stroke-linecap="round"></path><path d="M138.92,55.23 L166.06,66.66" fill="none" stroke="#F4A93C" stroke-width="29.60" stroke-linecap="round"></path><path d="M138.92,144.77 L166.06,133.34" fill="none" stroke="#F4A93C" stroke-width="29.60" stroke-linecap="round"></path></g>
+</svg>
