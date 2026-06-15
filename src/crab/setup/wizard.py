@@ -1,8 +1,9 @@
 import os
+import re
 import shutil
 import subprocess
 from collections import deque
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from rich.console import Console, Group
 from rich.prompt import Prompt, Confirm
@@ -21,11 +22,16 @@ _SETUP_DIR = os.path.dirname(os.path.abspath(__file__))
 CRAB_ROOT = os.path.abspath(os.path.join(_SETUP_DIR, "..", "..", ".."))
 BENCHMARKS_DIR = os.path.join(CRAB_ROOT, "benchmarks")
 
+
+# ── Shared utilities ──────────────────────────────────────────────────────────
+
+
 def print_header(total_recipes: int | None = None, title: str = "Welcome to the CRAB Setup Wizard"):
     console.clear()
     console.print(Panel.fit(f"[bold cyan]🦀 {title}[/bold cyan]", border_style="cyan"))
     if total_recipes is not None:
         console.print(f"Found [bold]{total_recipes}[/bold] supported benchmarks.\n")
+
 
 def capture_module_environment(module_cmd: str) -> Dict[str, str]:
     """Evaluates module loads in an isolated shell to return precise path mutations."""
@@ -36,7 +42,6 @@ def capture_module_environment(module_cmd: str) -> Dict[str, str]:
         init_snippet = ". /etc/profile.d/modules.sh" if os.path.exists("/etc/profile.d/modules.sh") else "true"
         full_cmd = f"{init_snippet} && {module_cmd} && env"
         result = subprocess.run(["bash", "-c", full_cmd], capture_output=True, text=True, check=True)
-
         parsed_env = {}
         for line in result.stdout.splitlines():
             if "=" in line:
@@ -47,19 +52,22 @@ def capture_module_environment(module_cmd: str) -> Dict[str, str]:
         console.print(f"[yellow]Warning: Environment module pre-evaluation limited: {e}[/yellow]")
         return base_env
 
-def run_deep_search(binary_name: str) -> str | None:
+
+def run_deep_search(binary_name: str) -> Optional[str]:
     console.print(f"[dim]Running deep search for '{binary_name}' in ~/... This might take a minute.[/dim]")
     try:
         home_dir = os.path.expanduser("~")
         result = subprocess.run(
             ["find", home_dir, "-name", binary_name, "-type", "f", "-executable"],
-            capture_output=True, text=True
+            capture_output=True, text=True,
         )
         paths = [p for p in result.stdout.strip().split("\n") if p]
-        if paths: return paths[0]
+        if paths:
+            return paths[0]
     except Exception as e:
         console.print(f"[red]Deep search failed: {e}[/red]")
     return None
+
 
 def handle_cleanup(benchmark_id: str):
     receipt = memory.get_receipt(benchmark_id)
@@ -70,50 +78,196 @@ def handle_cleanup(benchmark_id: str):
             if os.path.exists(target_cleanup):
                 if Confirm.ask(f"[yellow]Found old build path at {target_cleanup}. Clear layout directory?[/yellow]", default=True):
                     shutil.rmtree(target_cleanup)
-                    console.print(f"[green]Cleaned up historical records: {target_cleanup}[/green]")
+                    console.print(f"[green]Cleaned up: {target_cleanup}[/green]")
+
 
 def _group_recipes_by_suite(recipes) -> Dict[str, List]:
     groups: Dict[str, List] = {}
     for recipe in recipes:
-        suite = getattr(recipe, 'suite', recipe.name)
+        suite = getattr(recipe, "suite", recipe.name)
         groups.setdefault(suite, []).append(recipe)
     return groups
 
-def run():
-    os.makedirs(BENCHMARKS_DIR, exist_ok=True)
-    recipes = discover_recipes()
 
-    if not recipes:
-        print_header()
-        console.print("[red]No benchmark recipes found in registry. Exiting.[/red]")
+def _shorten_path(path: str, max_len: int = 48) -> str:
+    """Truncates a path from the left so it fits within max_len characters."""
+    if len(path) <= max_len:
+        return path
+    if max_len <= 1:
+        return "…"
+    return "…" + path[-(max_len - 1):]
+
+
+# ── Custom benchmark wizard ───────────────────────────────────────────────────
+
+
+def _derive_benchmark_id(name: str) -> str:
+    """Converts a display name into a safe benchmark ID (lowercase, underscored)."""
+    sanitized = name.lower().strip()
+    sanitized = re.sub(r"[\s\-]+", "_", sanitized)
+    sanitized = re.sub(r"[^a-z0-9_]", "", sanitized)
+    return sanitized.strip("_")
+
+
+def _collect_pre_run_hooks() -> List[str]:
+    """Interactively collects pre-run shell commands until the user submits a blank line."""
+    hooks = []
+    console.print("\n[bold]Pre-run commands[/bold]")
+    console.print(
+        "[dim]These shell commands run in the job environment before the benchmark starts.[/dim]"
+    )
+    console.print(
+        "[dim]Examples:[/dim]  [dim]module load gcc/12 openmpi/4.1[/dim]\n"
+        "          [dim]export OMP_NUM_THREADS=4[/dim]\n"
+        "          [dim]ulimit -s unlimited[/dim]"
+    )
+    console.print("[dim]\nLeave blank and press Enter when done.[/dim]\n")
+    while True:
+        cmd = Prompt.ask("  Command", default="").strip()
+        if not cmd:
+            break
+        hooks.append(cmd)
+    return hooks
+
+
+def _run_custom_benchmark_wizard(existing_receipt_ids: List[str], known_recipe_ids: List[str]) -> None:
+    """
+    Guides the user through registering an already-installed benchmark that has no recipe.
+    Produces a 'binary' receipt in config/environments/.
+    """
+    taken_receipt_ids = set(existing_receipt_ids)
+
+    print_header(title="Register Custom Benchmark")
+
+    # ── Step 1: display name → derived ID ────────────────────────────────────
+    while True:
+        name = Prompt.ask("\n[bold]Benchmark display name[/bold] (e.g. 'HPL Linpack')").strip()
+        if not name:
+            console.print("[red]Name cannot be empty.[/red]")
+            continue
+
+        bench_id = _derive_benchmark_id(name)
+        if not bench_id:
+            console.print(
+                "[red]That name produces an empty ID after sanitisation "
+                "(only letters, digits, and underscores are kept). Try a different name.[/red]"
+            )
+            continue
+
+        console.print(f"\n  Benchmark ID: [bold cyan]{bench_id}[/bold cyan]")
+
+        if bench_id in taken_receipt_ids:
+            console.print(
+                f"[yellow]  ⚠  A receipt for '[bold]{bench_id}[/bold]' already exists. "
+                f"You will be asked before it is overwritten.[/yellow]"
+            )
+
+        break
+
+    # ── Step 2: executable path ───────────────────────────────────────────────
+    while True:
+        path = Prompt.ask(
+            "\n[bold]Full path to the executable[/bold] (e.g. '/opt/hpl/bin/xhpl')"
+        ).strip()
+        if not path:
+            console.print("[red]Path cannot be empty.[/red]")
+            continue
+        if not os.path.isfile(path):
+            console.print(f"[yellow]  ⚠  '{path}' does not point to an existing file.[/yellow]")
+            if not Confirm.ask("  Register the path anyway?", default=False):
+                continue
+        break
+
+    # ── Step 3: MPI launcher override ────────────────────────────────────────
+    console.print("\n[bold]MPI Launcher[/bold]")
+    launcher_choice = questionary.select(
+        "How should this benchmark be launched?",
+        choices=[
+            Choice("mpirun  (OpenMPI / MPICH default)",     value="mpirun"),
+            Choice("srun    (SLURM native launcher)",        value="srun"),
+            Choice("none    (run directly, no MPI prefix)",  value=""),
+        ],
+        style=questionary.Style([("highlighted", "fg:cyan bold")]),
+    ).ask()
+
+    if launcher_choice is None:
+        console.print("[yellow]Registration cancelled.[/yellow]")
         return
 
-    groups = _group_recipes_by_suite(recipes)
+    # ── Step 4: pre-run commands ──────────────────────────────────────────────
+    pre_run_hooks = _collect_pre_run_hooks()
+
+    # ── Step 5: overwrite guard ───────────────────────────────────────────────
+    existing_receipt = memory.get_receipt(bench_id)
+    if existing_receipt:
+        console.print(f"\n[yellow]⚠  A receipt for '{bench_id}' already exists:[/yellow]")
+        console.print(f"   Binary: [dim]{existing_receipt.get('binary_path')}[/dim]")
+        console.print(f"   Type:   [dim]{existing_receipt.get('type')}[/dim]")
+        if not Confirm.ask("  Overwrite it?", default=False):
+            console.print("[yellow]Registration cancelled.[/yellow]")
+            console.input("\n[dim]Press [Enter] to continue...[/dim]")
+            return
+
+    # ── Step 6: save receipt ──────────────────────────────────────────────────
+    receipt = {
+        "id": bench_id,
+        "type": "binary",
+        "binary_path": path,
+        "launcher_override": launcher_choice,
+        "hooks": {
+            "pre_run": pre_run_hooks,
+            "post_run": [],
+        },
+    }
+    memory.save_receipt(bench_id, receipt)
+
+    console.print(
+        f"\n[bold green]=== '{name}' (ID: {bench_id}) receipt generated successfully ===[/bold green]\n"
+    )
+    console.input("[dim]Press [Enter] to continue...[/dim]")
+
+
+# ── Supported-recipes wizard ──────────────────────────────────────────────────
+
+
+def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[str]) -> None:
+    """Handles the install/configure flow for all known benchmark recipes."""
     print_header(len(recipes))
     console.print("[bold]Select the benchmarks you want to install or configure:[/bold]")
-    console.print("[dim](Use Space to toggle, Up/Down to navigate, Enter to confirm)[/dim]\n")
+    console.print("[dim](Space to toggle, Up/Down to navigate, Enter to confirm)[/dim]\n")
 
-    # Step 1: Suite-level checkboxes
+    # Build checkbox list with informative status labels
     suite_choices = []
     for suite_name, suite_recipes in groups.items():
-        configured = any(memory.get_receipt(r.benchmark_id) for r in suite_recipes)
-        suffix = "(Configured)" if configured else "(Not configured)"
-        suite_choices.append(Choice(
-            title=f"{suite_name} {suffix}",
-            value=suite_name,
-            checked=not configured
-        ))
+        configured_receipts = [memory.get_receipt(r.benchmark_id) for r in suite_recipes]
+        configured_receipts = [r for r in configured_receipts if r]
+        configured = bool(configured_receipts)
+
+        if configured:
+            sample_path = _shorten_path(configured_receipts[0].get("binary_path", "unknown"))
+            title = f"  {suite_name:<28}  ✓  {sample_path}"
+            checked = False
+        else:
+            title = f"  {suite_name:<28}  ○  not configured"
+            checked = True
+
+        suite_choices.append(Choice(title=title, value=suite_name, checked=checked))
 
     selected_suite_names = questionary.checkbox(
-        "Benchmarks:", choices=suite_choices, qmark="🦀",
-        style=questionary.Style([('highlighted', 'fg:cyan bold')])
+        "Benchmarks:",
+        choices=suite_choices,
+        qmark="🦀",
+        style=questionary.Style([
+            ("highlighted", "fg:cyan bold"),
+            ("selected", "fg:green"),
+        ]),
     ).ask()
 
     if not selected_suite_names:
-        console.print("\n[yellow]No benchmarks selected. Exiting.[/yellow]")
+        console.print("\n[yellow]No benchmarks selected.[/yellow]")
         return
 
-    # Step 2: Version selection for multi-version suites
+    # Version selection for multi-version suites
     selected_recipes = []
     for suite_name in selected_suite_names:
         suite_recipes = groups[suite_name]
@@ -124,23 +278,34 @@ def run():
             version_choices = []
             for recipe in suite_recipes:
                 receipt = memory.get_receipt(recipe.benchmark_id)
-                suffix = f"(Configured: {receipt.get('type')})" if receipt else "(Not configured)"
-                version_choices.append(Choice(title=f"{recipe.name} {suffix}", value=recipe, checked=True))
+                if receipt:
+                    path_hint = _shorten_path(receipt.get("binary_path", "unknown"), max_len=36)
+                    ver_title = f"  {recipe.name:<32}  ✓  {path_hint}"
+                    ver_checked = False
+                else:
+                    ver_title = f"  {recipe.name:<32}  ○  not configured"
+                    ver_checked = True
+                version_choices.append(Choice(title=ver_title, value=recipe, checked=ver_checked))
 
             chosen = questionary.checkbox(
-                f"{suite_name} versions:", choices=version_choices, qmark="🦀",
-                style=questionary.Style([('highlighted', 'fg:cyan bold')])
+                f"{suite_name} versions:",
+                choices=version_choices,
+                qmark="🦀",
+                style=questionary.Style([
+                    ("highlighted", "fg:cyan bold"),
+                    ("selected", "fg:green"),
+                ]),
             ).ask()
             if chosen:
                 selected_recipes.extend(chosen)
 
     if not selected_recipes:
-        console.print("\n[yellow]No versions selected. Exiting.[/yellow]")
+        console.print("\n[yellow]No versions selected.[/yellow]")
         return
 
     total_selected = len(selected_recipes)
 
-    # Step 3: Per-recipe install flow (unchanged)
+    # Per-recipe configuration loop
     for i, recipe in enumerate(selected_recipes):
         print_header(title=f"Configuring {recipe.name} ({i + 1}/{total_selected})")
 
@@ -157,7 +322,7 @@ def run():
         console.print("  [1] Auto-detect existing installation environment")
         console.print("  [2] Provide explicit manual path layout")
         console.print("  [3] Map via cluster Environment Module system")
-        console.print(f"  [4] Download and compile from source layout")
+        console.print("  [4] Download and compile from source layout")
 
         choice = Prompt.ask("Select an option", choices=["1", "2", "3", "4"], default="1")
 
@@ -175,7 +340,8 @@ def run():
         elif choice == "2":
             while True:
                 user_path = Prompt.ask("Enter the absolute path to executable/directory (or 'q' to exit)")
-                if user_path.lower() == 'q': break
+                if user_path.lower() == "q":
+                    break
                 if recipe.verify_existing(user_path):
                     final_path = user_path
                     break
@@ -194,7 +360,10 @@ def run():
             target_env = os.environ.copy()
 
             if manifest.requires_modules:
-                mod_cmd = Prompt.ask("Enter necessary pre-build cluster module loads", default="module load gcc openmpi")
+                mod_cmd = Prompt.ask(
+                    "Enter necessary pre-build cluster module loads",
+                    default="module load gcc openmpi",
+                )
                 target_env = capture_module_environment(mod_cmd)
                 if mod_cmd:
                     pre_run_hooks.append(mod_cmd)
@@ -221,17 +390,27 @@ def run():
 
             def render_build_ui() -> Panel:
                 step_text = Text(f"🟢 {current_step}", style="bold yellow")
-                log_text = Text.from_markup("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))
-                return Panel(Group(step_text, Text(""), log_text), title=f"[cyan]Compiling {recipe.name}[/cyan]", border_style="cyan")
+                log_text = Text.from_markup(
+                    "\n".join(f"> [dim]{log}[/dim]" for log in recent_logs)
+                )
+                return Panel(
+                    Group(step_text, Text(""), log_text),
+                    title=f"[cyan]Compiling {recipe.name}[/cyan]",
+                    border_style="cyan",
+                )
 
             with Live(render_build_ui(), console=console, refresh_per_second=15) as live:
                 def live_callback(msg_type: str, msg: str):
                     nonlocal current_step
-                    if msg_type == "step": current_step = msg
-                    elif msg_type == "log": recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
+                    if msg_type == "step":
+                        current_step = msg
+                    elif msg_type == "log":
+                        recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
                     live.update(render_build_ui())
 
-                success, build_result, err_msg = recipe.download_and_build(target_dir, user_params, target_env, log_callback=live_callback)
+                success, build_result, err_msg = recipe.download_and_build(
+                    target_dir, user_params, target_env, log_callback=live_callback
+                )
 
             if success and build_result:
                 final_path = build_result.binary_path
@@ -247,18 +426,62 @@ def run():
                 "type": receipt_type,
                 "binary_path": final_path,
                 "launcher_override": recipe.launcher_override,
-                "hooks": {"pre_run": pre_run_hooks, "post_run": []}
+                "hooks": {"pre_run": pre_run_hooks, "post_run": []},
             }
             new_receipt.update(runtime_meta)
             memory.save_receipt(recipe.benchmark_id, new_receipt)
             console.print(f"\n[bold green]=== {recipe.name} receipt generated successfully ===[/bold green]\n")
         else:
-            console.print(f"\n[yellow]⚠️ {recipe.name} action skipped or path mapping incomplete.[/yellow]\n")
+            console.print(f"\n[yellow]⚠️  {recipe.name} action skipped or path mapping incomplete.[/yellow]\n")
 
         console.input("\n[dim]Press [Enter] to continue...[/dim]")
 
-    print_header(title="Configuration Phase Terminated")
-    console.print(Panel.fit("[bold green]All targeted receipt setups have been synchronized successfully.[/bold green]", border_style="green"))
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+
+def run():
+    os.makedirs(BENCHMARKS_DIR, exist_ok=True)
+    recipes = discover_recipes()
+
+    if not recipes:
+        print_header()
+        console.print("[red]No benchmark recipes found in registry. Exiting.[/red]")
+        return
+
+    groups = _group_recipes_by_suite(recipes)
+    recipe_ids = [r.benchmark_id for r in recipes]
+
+    print_header()
+    console.print("[bold]What would you like to do?[/bold]\n")
+
+    action = questionary.select(
+        "Choose an action:",
+        choices=[
+            Choice("Install or configure a supported benchmark",      value="recipes"),
+            Choice("Register a custom already-installed benchmark",   value="custom"),
+            Choice("Exit",                                             value="exit"),
+        ],
+        style=questionary.Style([("highlighted", "fg:cyan bold")]),
+        qmark="🦀",
+    ).ask()
+
+    if action is None or action == "exit":
+        console.print("\n[yellow]Exiting setup.[/yellow]")
+        return
+
+    if action == "recipes":
+        _run_recipe_wizard(recipes, groups, recipe_ids)
+    elif action == "custom":
+        current_receipt_ids = list(memory.get_all_receipts().keys())
+        _run_custom_benchmark_wizard(current_receipt_ids, recipe_ids)
+
+    print_header(title="Setup Complete")
+    console.print(Panel.fit(
+        "[bold green]All receipt setups have been synchronised successfully.[/bold green]",
+        border_style="green",
+    ))
+
 
 if __name__ == "__main__":
     run()
