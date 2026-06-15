@@ -1,0 +1,53 @@
+{
+    "global_options": {
+        "name": "interleaved_8_nodes",
+        "numnodes": "8",
+        "ppn": "1",
+        "allocationmode": "i",
+        "allocationsplit": "50:25:25",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "extrainfo": "8_node_interleaved_stress",
+        "sbatch_directives": {
+            "time": "00:20:00",
+            "job-name": "crab_8n_interleaved"
+        },
+        "system_sbatch": [
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
+    },
+    "experiments": {
+        "01_interleaved_a2a_stress": {
+            "description": "A2A victim with two interleaved aggressors (Barrier + Ring). Aggressors start after 5s.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-iter 1000000 -maxsamples 500000",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "barrier.py",
+                    "args": "-iter 5000000",
+                    "collect": false,
+                    "start": "5.0",
+                    "end": "f"
+                },
+                "2": {
+                    "path": "ring_nb.py",
+                    "args": "-iter 2000000",
+                    "collect": false,
+                    "start": "5.0",
+                    "end": "f"
+                }
+            }
+        }
+    }
+}

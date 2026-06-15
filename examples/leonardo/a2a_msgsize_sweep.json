@@ -1,0 +1,75 @@
+{
+    "global_options": {
+        "name": "a2a_msgsize_sweep",
+        "numnodes": "4",
+        "ppn": "1",
+        "allocationmode": "l",
+        "allocationsplit": "e",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "extrainfo": "a2a_sequential_msgsize_sweep",
+        "sbatch_directives": {
+            "time": "00:20:00",
+            "job-name": "crab_a2a_sweep"
+        },
+        "system_sbatch": [
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
+    },
+    "experiments": {
+        "01_a2a_1KB": {
+            "description": "A2A message size sweep 1/4: 1KB.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1024 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "02_a2a_64KB": {
+            "description": "A2A message size sweep 2/4: 64KB.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 65536 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "03_a2a_1MB": {
+            "description": "A2A message size sweep 3/4: 1MB.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "04_a2a_16MB": {
+            "description": "A2A message size sweep 4/4: 16MB.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 16777216 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        }
+    }
+}

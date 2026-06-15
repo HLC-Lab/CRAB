@@ -1,26 +1,37 @@
 {
     "global_options": {
-        "numnodes": "4",
+        "name": "pingpong_interference",
+        "numnodes": "8",
         "ppn": "1",
-        "allocationmode": "l",
+        "allocationmode": "p",
+        "partitionsplit": "e",
         "allocationsplit": "e",
+        "partitionlayout": "l",
         "minruns": "5",
         "maxruns": "10",
         "timeout": "3600.0",
         "convergeall": true,
         "outformat": "csv",
-        "extrainfo": "ardc_multi_test",
-
+        "extrainfo": "pingpong_interference_study",
         "sbatch_directives": {
-            "time": "00:30:00"
-        }
+            "time": "00:30:00",
+            "job-name": "crab_pp_interference"
+        },
+        "system_sbatch": [
+            "--exclusive",
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
     },
     "experiments": {
-        "01_baseline_ardc_small": {
-            "description": "All-Reduce (Doubling) baseline. Messaggi piccoli (latency-bound). Usa tutti e 4 i nodi.",
+        "01_baseline_pingpong_small": {
+            "description": "PingPong baseline: small messages (1KB). All nodes.",
             "apps": {
                 "0": {
-                    "path": "/home/marcelletti.1986290/crab/wrappers/ardc_b.py",
+                    "path": "ping-pong_b.py",
                     "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "start": "0",
@@ -28,44 +39,44 @@
                 }
             }
         },
-        "02_baseline_ardc_large": {
-            "description": "All-Reduce (Doubling) baseline. Messaggi grandi (bandwidth-bound). Usa tutti e 4 i nodi.",
+        "02_baseline_pingpong_large": {
+            "description": "PingPong baseline: large messages (1MB). Bandwidth-bound reference.",
             "apps": {
                 "0": {
-                    "path": "/home/marcelletti.1986290/crab/wrappers/ardc_b.py",
-                    "args": "-msgsize 1048576 -iter 200",
+                    "path": "ping-pong_b.py",
+                    "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "start": "0",
                     "end": ""
                 }
             }
         },
-        "03_interference_split": {
-            "description": "Split 50/50: ARDC su 2 nodi (Vittima), Incast sugli altri 2 (Aggressore).",
+        "03_interference_incast": {
+            "description": "PingPong victim on half the nodes vs Incast aggressor on the other half. 50/50 split.",
             "apps": {
                 "0": {
-                    "path": "/home/marcelletti.1986290/crab/wrappers/ardc_b.py",
-                    "args": "-msgsize 1048576 -iter 200",
+                    "path": "ping-pong_b.py",
+                    "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
                 "1": {
-                    "path": "/home/marcelletti.1986290/crab/wrappers/inc_b.py",
+                    "path": "inc_b.py",
                     "args": "-msgsize 65536 -iter 1000",
                     "collect": false,
-                    "partition": "1",
+                    "partition": 1,
                     "start": "0",
                     "end": "f"
                 }
             }
         },
-        "04_topology_ring_nb": {
-            "description": "Cambio pattern: Non-Blocking Ring su tutti i nodi.",
+        "04_topology_ring": {
+            "description": "Traffic pattern change: Ring benchmark on all nodes.",
             "apps": {
                 "0": {
-                    "path": "/home/marcelletti.1986290/crab/wrappers/ring_nb.py",
+                    "path": "ring_b.py",
                     "args": "-msgsize 4096 -iter 500",
                     "collect": true,
                     "start": "0",
@@ -73,22 +84,22 @@
                 }
             }
         },
-        "05_stress_mixed": {
-            "description": "Stress Test: A2A (Vittima) vs Incast (Aggressore) su split 50/50.",
+        "05_stress_a2a_vs_incast": {
+            "description": "Stress test: A2A victim vs Incast aggressor on a 50/50 split.",
             "apps": {
                 "0": {
-                    "path": "/home/marcelletti.1986290/crab/wrappers/a2a_b.py",
+                    "path": "a2a_b.py",
                     "args": "-msgsize 2048 -iter 200",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
                 "1": {
-                    "path": "/home/marcelletti.1986290/crab/wrappers/inc_b.py",
+                    "path": "inc_b.py",
                     "args": "-msgsize 2048 -iter 1000",
                     "collect": false,
-                    "partition": "1",
+                    "partition": 1,
                     "start": "0",
                     "end": "f"
                 }

@@ -2,7 +2,6 @@
 __pycache__/
 *.pyc
 .env
-configs/
 hosts
 /data/
 .todo.md
@@ -10,8 +9,7 @@ hosts
 
 # CRAB Setup & Benchmarks
 /benchmarks/
-/config/paths.json
-/config/paths.json.bak
+/config/environments/
 
 # Generated dashboard exports (contain embedded data, should not be committed)
 crab_export.html

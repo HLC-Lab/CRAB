@@ -1,0 +1,53 @@
+{
+    "global_options": {
+        "name": "interference_16_nodes",
+        "numnodes": "16",
+        "ppn": "1",
+        "allocationmode": "l",
+        "allocationsplit": "50:25:25",
+        "minruns": "10",
+        "maxruns": "20",
+        "timeout": "1800.0",
+        "outformat": "csv",
+        "extrainfo": "16_node_interference_study",
+        "sbatch_directives": {
+            "time": "01:00:00",
+            "job-name": "crab_16n_interference"
+        },
+        "system_sbatch": [
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
+    },
+    "experiments": {
+        "01_a2a_with_dual_aggressors": {
+            "description": "A2A victim (50% of nodes) with two concurrent aggressors (Barrier + Ring) starting after 15s.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 67108864 -iter 1000",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "barrier.py",
+                    "args": "-iter 10000",
+                    "collect": false,
+                    "start": "15.0",
+                    "end": "f"
+                },
+                "2": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 67108864 -iter 5000",
+                    "collect": false,
+                    "start": "15.0",
+                    "end": "f"
+                }
+            }
+        }
+    }
+}

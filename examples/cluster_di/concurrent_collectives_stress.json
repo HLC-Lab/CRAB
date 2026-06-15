@@ -1,0 +1,60 @@
+{
+    "global_options": {
+        "name": "concurrent_collectives_stress",
+        "numnodes": "4",
+        "ppn": "1",
+        "allocationmode": "l",
+        "allocationsplit": "e",
+        "minruns": "5",
+        "maxruns": "10",
+        "timeout": "1800.0",
+        "outformat": "csv",
+        "extrainfo": "stress_4_nodes_concurrent_collectives",
+        "sbatch_directives": {
+            "time": "01:00:00",
+            "job-name": "crab_concurrent_stress"
+        },
+        "system_sbatch": [
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
+    },
+    "experiments": {
+        "01_concurrent_collectives": {
+            "description": "Four collectives running concurrently: two A2A, one Barrier, one Ring. Stress test on 4 nodes.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 67108864 -iter 1000 -grty 1",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 67108864 -iter 500 -grty 1",
+                    "collect": true,
+                    "start": "0",
+                    "end": "f"
+                },
+                "2": {
+                    "path": "barrier.py",
+                    "args": "-iter 5000",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f"
+                },
+                "3": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 33554432 -iter 1000",
+                    "collect": true,
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        }
+    }
+}

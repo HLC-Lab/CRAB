@@ -1,0 +1,108 @@
+{
+    "global_options": {
+        "name": "allreduce_interference",
+        "numnodes": "4",
+        "ppn": "1",
+        "allocationmode": "p",
+        "partitionsplit": "e",
+        "allocationsplit": "e",
+        "partitionlayout": "l",
+        "minruns": "5",
+        "maxruns": "10",
+        "timeout": "3600.0",
+        "convergeall": true,
+        "outformat": "csv",
+        "extrainfo": "allreduce_interference_study",
+        "sbatch_directives": {
+            "time": "00:30:00",
+            "job-name": "crab_ardc_interference"
+        },
+        "system_sbatch": [
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
+    },
+    "experiments": {
+        "01_baseline_ardc_small": {
+            "description": "AllReduce Doubling baseline: small messages (1KB). Latency-bound reference.",
+            "apps": {
+                "0": {
+                    "path": "ardc_b.py",
+                    "args": "-msgsize 1024 -iter 1000",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "02_baseline_ardc_large": {
+            "description": "AllReduce Doubling baseline: large messages (1MB). Bandwidth-bound reference.",
+            "apps": {
+                "0": {
+                    "path": "ardc_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "03_interference_split": {
+            "description": "50/50 split: AllReduce Doubling victim (2 nodes) vs Incast aggressor (2 nodes).",
+            "apps": {
+                "0": {
+                    "path": "ardc_b.py",
+                    "args": "-msgsize 1048576 -iter 200",
+                    "collect": true,
+                    "partition": 0,
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 65536 -iter 1000",
+                    "collect": false,
+                    "partition": 1,
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        },
+        "04_topology_ring_nb": {
+            "description": "Traffic pattern change: Non-blocking Ring on all nodes.",
+            "apps": {
+                "0": {
+                    "path": "ring_nb.py",
+                    "args": "-msgsize 4096 -iter 500",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        },
+        "05_stress_a2a_vs_incast": {
+            "description": "Stress test: A2A victim vs Incast aggressor on a 50/50 split.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 2048 -iter 200",
+                    "collect": true,
+                    "partition": 0,
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "inc_b.py",
+                    "args": "-msgsize 2048 -iter 1000",
+                    "collect": false,
+                    "partition": 1,
+                    "start": "0",
+                    "end": "f"
+                }
+            }
+        }
+    }
+}

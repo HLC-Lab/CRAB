@@ -1,0 +1,50 @@
+{
+    "global_options": {
+        "name": "sequential_barrier",
+        "numnodes": "1",
+        "ppn": "1",
+        "allocationmode": "l",
+        "allocationsplit": "e",
+        "minruns": "1",
+        "maxruns": "5",
+        "timeout": "600.0",
+        "convergeall": true,
+        "outformat": "csv",
+        "extrainfo": "sequential_barrier_chain"
+    },
+    "experiments": {
+        "01_sequential_barrier_chain": {
+            "description": "Sequential chain of 4 Barrier runs: each starts only after the previous finishes.",
+            "apps": {
+                "0": {
+                    "path": "barrier.py",
+                    "args": "-iter 1000",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                },
+                "1": {
+                    "path": "barrier.py",
+                    "args": "-iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": ""
+                },
+                "2": {
+                    "path": "barrier.py",
+                    "args": "-iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": ""
+                },
+                "3": {
+                    "path": "barrier.py",
+                    "args": "-iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": ""
+                }
+            }
+        }
+    }
+}

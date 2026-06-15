@@ -1,11 +1,12 @@
 {
     "global_options": {
-        "name": "test-64-nodes",
+        "name": "comprehensive_64_nodes",
         "numnodes": "64",
         "ppn": "1",
         "allocationmode": "p",
         "partitionsplit": "e",
         "allocationsplit": "e",
+        "partitionlayout": "l",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "1800.0",
@@ -13,138 +14,143 @@
         "outformat": "csv",
         "extrainfo": "64nodes_limit_test",
         "sbatch_directives": {
-            "account": "IscrB_SWING",
-            "partition": "boost_usr_prod",
             "time": "00:30:00",
             "job-name": "crab_64n_test"
-        }
+        },
+        "system_sbatch": [
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
     },
     "experiments": {
         "01_scale_a2a_1KB": {
-            "description": "Scalability 1/5: 1KB. Warmup rete.",
+            "description": "A2A scalability 1/5: 1KB message size. Network warmup.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 1024 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "02_scale_a2a_64KB": {
-            "description": "Scalability 2/5: 64KB.",
+            "description": "A2A scalability 2/5: 64KB message size.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 65536 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "03_scale_a2a_256KB": {
-            "description": "Scalability 3/5: 256KB.",
+            "description": "A2A scalability 3/5: 256KB message size.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 262144 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "04_scale_a2a_1MB": {
-            "description": "Scalability 4/5: 1MB.",
+            "description": "A2A scalability 4/5: 1MB message size.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "05_scale_a2a_4MB": {
-            "description": "Scalability 5/5: 4MB (Safe Limit).",
+            "description": "A2A scalability 5/5: 4MB message size. Memory safe limit.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 4194304 -iter 20",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "06_bench_ardc_small": {
-            "description": "Collective Test: All-Reduce Doubling 4KB.",
+            "description": "Collective benchmark: AllReduce Doubling 4KB.",
             "apps": {
                 "0": {
                     "path": "ardc_b.py",
                     "args": "-msgsize 4096 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "07_bench_bdc_small": {
-            "description": "Collective Test: Binomial Doubling 4KB.",
+            "description": "Collective benchmark: Binomial Doubling 4KB.",
             "apps": {
                 "0": {
                     "path": "bdc_b.py",
                     "args": "-msgsize 4096 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "08_bench_incast_small": {
-            "description": "Collective Test: Incast 4KB.",
+            "description": "Collective benchmark: Incast 4KB.",
             "apps": {
                 "0": {
                     "path": "inc_b.py",
                     "args": "-msgsize 4096 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "09_bench_ring_small": {
-            "description": "Topology Test: Ring NB 4KB.",
+            "description": "Topology benchmark: Non-blocking Ring 4KB.",
             "apps": {
                 "0": {
                     "path": "ring_nb.py",
                     "args": "-msgsize 4096 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "10_dep_chain_reaction": {
-            "description": "Dependency: A2A (P0) -> start -> Ring (P0).",
+            "description": "Sequential dependency: Ring starts only after A2A finishes.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 65536 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -152,20 +158,20 @@
                     "path": "ring_nb.py",
                     "args": "-msgsize 65536 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "s0",
                     "end": ""
                 }
             }
         },
         "11_dep_delayed_parallel": {
-            "description": "Time Start: App 0 parte a T=0, App 1 parte a T=5s.",
+            "description": "Time-offset parallel: Incast at T=0, A2A at T=5s.",
             "apps": {
                 "0": {
                     "path": "inc_b.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -173,20 +179,20 @@
                     "path": "a2a_b.py",
                     "args": "-msgsize 1024 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "5",
                     "end": ""
                 }
             }
         },
-        "12_killer_aggressor": {
-            "description": "Killer Flag 'f': Aggressor (Incast) muore quando Victim (A2A) finisce.",
+        "12_dep_killer_aggressor": {
+            "description": "Aggressor kill: Incast aggressor is killed when A2A victim finishes.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 262144 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -194,20 +200,20 @@
                     "path": "inc_b.py",
                     "args": "-msgsize 65536 -iter 1000000",
                     "collect": false,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": "f"
                 }
             }
         },
         "13_int_split_a2a_vs_incast": {
-            "description": "Interferenza 32 vs 32: A2A (Vittima) vs Incast (Aggressore).",
+            "description": "Interference 32 vs 32: A2A victim vs Incast aggressor.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 262144 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -215,20 +221,20 @@
                     "path": "inc_b.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": false,
-                    "partition": "1",
+                    "partition": 1,
                     "start": "0",
                     "end": "f"
                 }
             }
         },
         "14_int_split_ring_vs_bdc": {
-            "description": "Interferenza 32 vs 32: Ring vs Binomial Doubling.",
+            "description": "Interference 32 vs 32: Ring victim vs Binomial Doubling aggressor.",
             "apps": {
                 "0": {
                     "path": "ring_nb.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -236,20 +242,20 @@
                     "path": "bdc_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": false,
-                    "partition": "1",
+                    "partition": 1,
                     "start": "0",
                     "end": "f"
                 }
             }
         },
         "15_int_split_ardc_vs_noise": {
-            "description": "Interferenza: ARDC vs Random Noise (Incast veloce).",
+            "description": "Interference: AllReduce Doubling victim vs fast Incast noise aggressor.",
             "apps": {
                 "0": {
                     "path": "ardc_b.py",
                     "args": "-msgsize 262144 -iter 100",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -257,20 +263,20 @@
                     "path": "inc_b.py",
                     "args": "-msgsize 4096 -iter 10000",
                     "collect": false,
-                    "partition": "1",
+                    "partition": 1,
                     "start": "0",
                     "end": "f"
                 }
             }
         },
         "16_int_concurrent_a2a": {
-            "description": "Concurrent: Due A2A indipendenti su due metà del cluster.",
+            "description": "Concurrent: two independent A2A runs on separate halves of the cluster.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -278,20 +284,20 @@
                     "path": "a2a_b.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
-                    "partition": "1",
+                    "partition": 1,
                     "start": "0",
                     "end": ""
                 }
             }
         },
         "17_dep_complex_triangular": {
-            "description": "Complex: App 0 parte. App 1 parte dopo 2s. App 2 parte quando App 1 finisce.",
+            "description": "Complex timing: Barrier at T=0, Incast at T=2s, A2A starts when Incast finishes.",
             "apps": {
                 "0": {
                     "path": "barrier.py",
                     "args": "-iter 500",
                     "collect": false,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 },
@@ -299,7 +305,7 @@
                     "path": "inc_b.py",
                     "args": "-msgsize 4096 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "2",
                     "end": ""
                 },
@@ -307,27 +313,27 @@
                     "path": "a2a_b.py",
                     "args": "-msgsize 4096 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "s1",
                     "end": ""
                 }
             }
         },
-        "18_long_iter_check": {
-            "description": "Stability: Iterazioni medie (500) su 1KB per check stabilità temporale.",
+        "18_stability_long_iter": {
+            "description": "Stability check: A2A 1KB with 500 iterations for temporal stability.",
             "apps": {
                 "0": {
                     "path": "a2a_b.py",
                     "args": "-msgsize 1024 -iter 500",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
-        "19_sbatch_override_1": {
-            "description": "Override Name: JobName cambiato in 'crab_test_19'.",
+        "19_sbatch_override_name": {
+            "description": "sbatch override: custom job name for this specific experiment.",
             "sbatch_directives": {
                 "job-name": "crab_test_19"
             },
@@ -336,14 +342,14 @@
                     "path": "a2a_b.py",
                     "args": "-msgsize 1048576 -iter 20",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }
             }
         },
-        "20_sbatch_override_2": {
-            "description": "Override Time: Estende timeout specifico. A2A 2MB.",
+        "20_sbatch_override_time": {
+            "description": "sbatch override: extended time and custom job name. A2A 2MB.",
             "sbatch_directives": {
                 "time": "00:40:00",
                 "job-name": "crab_final_push"
@@ -353,7 +359,7 @@
                     "path": "a2a_b.py",
                     "args": "-msgsize 2097152 -iter 50",
                     "collect": true,
-                    "partition": "0",
+                    "partition": 0,
                     "start": "0",
                     "end": ""
                 }

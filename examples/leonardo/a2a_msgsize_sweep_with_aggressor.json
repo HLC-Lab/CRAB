@@ -1,0 +1,113 @@
+{
+    "global_options": {
+        "name": "a2a_msgsize_sweep_with_aggressor",
+        "numnodes": "8",
+        "ppn": "1",
+        "allocationmode": "p",
+        "partitionsplit": "50:50",
+        "allocationsplit": "e",
+        "partitionlayout": "l",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "1200.0",
+        "outformat": "csv",
+        "extrainfo": "a2a_sweep_with_persistent_aggressor",
+        "sbatch_directives": {
+            "time": "00:30:00",
+            "job-name": "crab_a2a_sweep_noise"
+        },
+        "system_sbatch": [
+            "--account=IscrB_SWING",
+            "--partition=boost_usr_prod"
+        ],
+        "system_header": [
+            "module purge"
+        ]
+    },
+    "experiments": {
+        "01_a2a_1KB_with_aggressor": {
+            "description": "A2A 1KB victim on 4 nodes with persistent A2A aggressor on the other 4.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1024 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": "",
+                    "partition": 0
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 268435456 -iter 1000000",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": 1
+                }
+            }
+        },
+        "02_a2a_64KB_with_aggressor": {
+            "description": "A2A 64KB victim on 4 nodes with persistent A2A aggressor on the other 4.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 65536 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": "",
+                    "partition": 0
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 268435456 -iter 1000000",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": 1
+                }
+            }
+        },
+        "03_a2a_1MB_with_aggressor": {
+            "description": "A2A 1MB victim on 4 nodes with persistent A2A aggressor on the other 4.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 1048576 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": "",
+                    "partition": 0
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 268435456 -iter 1000000",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": 1
+                }
+            }
+        },
+        "04_a2a_16MB_with_aggressor": {
+            "description": "A2A 16MB victim on 4 nodes with persistent A2A aggressor on the other 4.",
+            "apps": {
+                "0": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 16777216 -iter 10",
+                    "collect": true,
+                    "start": "0",
+                    "end": "",
+                    "partition": 0
+                },
+                "1": {
+                    "path": "a2a_b.py",
+                    "args": "-msgsize 268435456 -iter 1000000",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": 1
+                }
+            }
+        }
+    }
+}
