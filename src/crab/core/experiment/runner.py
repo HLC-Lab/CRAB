@@ -123,28 +123,33 @@ class ExperimentRunner:
               
             # Timing & Partition Metadata  
             start_val = str(details.get("start", "0"))  
-            manual_partition = details.get("partition")  
-            app_instance.partition_id = int(manual_partition) if manual_partition is not None else (0 if collect else 1)  
+            manual_partition = details.get("partition")
+            app_instance.partition_id = manual_partition  # string name or None
             app_instance.start_string = start_val  
             app_instance.config_end = details.get("end", "")  
               
             self.apps.append(app_instance)  
             idx_counter += 1  
   
-        # 2. Allocate Nodes  
-        mode = self.exp_opts.get('allocationmode', 'l')  
-          
-        # Pass the unified experiment options to the allocator
-        alloc_options = self.exp_opts.copy()
+        # 2. Allocate Nodes
+        allocation = self.exp_opts.get('allocation', {})
 
-        if mode == 'p':
-            NodeAllocator.allocate_partitioned(self.apps, self.node_list, alloc_options)
-        elif mode == 'i':
-            split = NodeAllocator.get_abs_split(alloc_options.get('allocationsplit', 'e'), len(self.apps), len(self.node_list))
-            NodeAllocator.allocate_interleaved(self.apps, self.node_list, split)
-        else: # linear
-            split = NodeAllocator.get_abs_split(alloc_options.get('allocationsplit', 'e'), len(self.apps), len(self.node_list))
-            NodeAllocator.allocate_linear(self.apps, self.node_list, split)
+        if 'partitions' in allocation:
+            NodeAllocator.allocate_partitioned(self.apps, self.node_list, allocation)
+        else:
+            mode = allocation.get('mode', 'linear')
+            split_val = allocation.get('split', 'even')
+            split = NodeAllocator.get_abs_split(split_val, len(self.apps), len(self.node_list))
+            if mode == 'interleaved':
+                NodeAllocator.allocate_interleaved(
+                    self.apps, self.node_list, split, stride=allocation.get('stride', 1)
+                )
+            elif mode == 'random':
+                NodeAllocator.allocate_random(
+                    self.apps, self.node_list, split, seed=allocation.get('seed')
+                )
+            else:  # linear (default)
+                NodeAllocator.allocate_linear(self.apps, self.node_list, split)
 
         # 3. Initialize Data Containers
         for app in self.apps:
