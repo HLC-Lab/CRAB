@@ -75,9 +75,9 @@ benchmarks itself — it hands off to the [worker](#worker). See [Architecture](
 
 ⚠️ **Two unrelated meanings — do not confuse them:**
 
-1. **CRAB allocation partition** — a group of nodes within an experiment under the partitioned
-   allocation mode (`allocationmode: p`), typically one for victims and one for aggressors. Set per
-   app via `partition` (→ `partition_id`).
+1. **CRAB allocation partition** — a named group of nodes defined in `allocation.partitions`, typically
+   `"victim"` and `"aggressor"`. Each app references its partition by name via the `partition` field
+   (→ `partition_id`).
 2. **Slurm partition** — a queue/resource pool on the cluster, requested via an `sbatch` directive
    like `--partition=boost_usr_prod`.
 

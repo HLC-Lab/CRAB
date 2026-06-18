@@ -45,9 +45,13 @@ the comparison is apples-to-apples.
     "name": "tutorial_a2a",
     "numnodes": "8",
     "ppn": "1",
-    "allocationmode": "p",
-    "partitionsplit": "50:50",
-    "partitionlayout": "l",
+    "allocation": {
+      "mode": "linear",
+      "partitions": {
+        "victim":    { "share": 50 },
+        "aggressor": { "share": 50 }
+      }
+    },
     "minruns": "5",
     "maxruns": "10",
     "timeout": "1200.0",
@@ -59,16 +63,16 @@ the comparison is apples-to-apples.
       "description": "All-to-all victim alone on half the nodes — the reference.",
       "apps": {
         "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
-               "collect": true, "start": "0", "end": "", "partition": 0 }
+               "collect": true, "start": "0", "end": "", "partition": "victim" }
       }
     },
     "with_noise": {
       "description": "Same victim, now with a bursty all-to-all aggressor on the other half.",
       "apps": {
         "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
-               "collect": true, "start": "0", "end": "", "partition": 0 },
+               "collect": true, "start": "0", "end": "", "partition": "victim" },
         "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
-               "collect": false, "start": "0", "end": "f", "partition": 1 }
+               "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
       }
     }
   }
@@ -77,9 +81,9 @@ the comparison is apples-to-apples.
 
 What the key fields mean (full list in the [Configuration schema](reference/configuration.md)):
 
-- **`numnodes: 8`, `allocationmode: "p"`, `partitionsplit: "50:50"`** — allocate 8 nodes, split into
-  two equal [partitions](glossary.md#partition). The victim lives in `partition 0`, the aggressor in
-  `partition 1`, so each gets 4 dedicated nodes.
+- **`numnodes: 8`** plus the `allocation` block — allocate 8 nodes, split into two equal
+  [partitions](glossary.md#partition) named `"victim"` and `"aggressor"`, each getting 4 dedicated
+  nodes. `mode: "linear"` gives each partition a contiguous block.
 - **App `0` — the [victim](glossary.md#victim).** `collect: true` (its metrics are recorded) and
   `end: ""` (CRAB waits for it to finish naturally). In `baseline` it's the only app, so its half
   runs undisturbed; the other half sits idle. That's deliberate — the victim runs on the *same*
@@ -176,7 +180,8 @@ interference. From here:
 - **Scale the study up** — the bundled `examples/leonardo/blink_noise_study.json` runs this idea
   across 16 experiments (message-size sweeps, different collectives, light/heavy noise, delayed
   starts, linear vs interleaved layouts). It's the natural next read.
-- **Vary placement** — try `allocationmode: "i"` (interleaved) to make victim and aggressor share
-  the fabric more aggressively. See [Writing experiment configs](using/writing-configs.md#choosing-an-allocation-mode).
+- **Vary placement** — try `mode: "interleaved"` in the `allocation` block to make victim and
+  aggressor share the fabric more aggressively. See
+  [Writing experiment configs](using/writing-configs.md#choosing-an-allocation-mode).
 - **Benchmark your own application** — teach CRAB to run something new in
   [Extending CRAB](extending/overview.md).

@@ -66,10 +66,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `ppn` | int | `1` | Processes per node. Drives the launcher's total task count. |
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
 | `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
-| `allocationmode` | `l` \| `i` \| `p` | `l` | Node-to-app mapping: **l**inear, **i**nterleaved, **p**artitioned. See [Allocation](#allocation-fields). |
-| `allocationsplit` | string | `e` | How nodes are divided among apps. See [Allocation](#allocation-fields). |
-| `partitionsplit` | string | `100` | (mode `p`) Size split between partitions, e.g. `50:50`. |
-| `partitionlayout` | `l` \| `i` | `l` | (mode `p`) Whether partitions take contiguous (`l`) or interleaved (`i`) nodes. |
+| `allocation` | object | `{"mode":"linear"}` | Node-to-app mapping strategy. See [Allocation](#allocation-fields). |
 | `minruns` | int | `10` | Minimum runs before convergence is checked. |
 | `maxruns` | int | `20` | Hard cap on runs. |
 | `timeout` | float | `1200.0` | Wall-clock budget for the experiment, in seconds. |
@@ -89,23 +86,48 @@ Settings applied to the whole run. An experiment can override most of these in i
 
 ### Allocation fields
 
-`allocationmode` selects the strategy that maps the job's nodes onto the applications:
+All allocation config lives under a single `allocation` key. The minimal form is:
 
-- **`l` — linear:** each application gets a contiguous block of nodes.
-- **`i` — interleaved:** nodes are dealt round-robin across applications.
-- **`p` — partitioned:** nodes are first split into *partitions* (typically victims vs
-  aggressors, by each app's [`partition`](#the-apps-block)), then apps within each partition are
-  placed by a per-partition sub-rule.
+```json
+"allocation": { "mode": "linear" }
+```
 
-`allocationsplit` controls the division among apps (modes `l`/`i`) or within partitions (mode `p`):
+**`mode`** — how nodes are distributed:
 
-- `e` — equal split across applications.
-- `50:50`, `70:30`, … — explicit percentages per application (must not exceed 100).
-- For mode `p`, the value uses `-` to separate per-partition rules, e.g. `100-100` (each partition
-  shares all its nodes among its apps) — see the partitioned example below.
+| Value | Behaviour |
+|-------|-----------|
+| `"linear"` (default) | Each app (or partition) gets a contiguous block of nodes. |
+| `"interleaved"` | Nodes are dealt round-robin; supports an optional `stride` (default `1`). |
+| `"random"` | Node list is shuffled (optionally with `seed`), then split linearly. |
 
-`partitionsplit` (mode `p` only) sizes the partitions themselves: `50:50`, or `e` to auto-size by
-the number of distinct partition IDs in use.
+**`split`** — percentage share per app (omit for an equal split):
+
+```json
+"allocation": { "mode": "linear", "split": [60, 40] }
+```
+
+**Partitioned allocation** — add a `partitions` key to split nodes into named groups. Each app then declares which group it belongs to via its `partition` field:
+
+```json
+"allocation": {
+  "mode": "interleaved",
+  "partitions": {
+    "victim":    { "share": 50 },
+    "aggressor": { "share": 50 }
+  }
+}
+```
+
+- `share` is a percentage. Either all partitions specify `share` (values should sum to 100) or none do (equal split).
+- The top-level `mode` controls how the partition node-blocks are laid out relative to each other.
+- If a partition contains multiple apps, an inner `mode` and `split` can be added inside the partition entry for intra-partition placement.
+
+**Mode extras:**
+
+| Extra key | Used with | Meaning |
+|-----------|-----------|---------|
+| `stride` | `"interleaved"` | Nodes assigned per turn (default `1`). |
+| `seed` | `"random"` | Integer seed for the shuffle; omit for non-deterministic. |
 
 ## `experiments`
 
@@ -122,7 +144,7 @@ sorted key order.
 
 Any `global_options` key may be repeated in an experiment's `local_options`; the experiment's
 value wins for that experiment (the framework merges `{**global, **local}`). Use this to vary,
-say, `allocationmode` or `timeout` between experiments in the same run.
+say, `allocation` or `timeout` between experiments in the same run.
 
 ### The `apps` block
 
@@ -136,7 +158,7 @@ application:
 | `collect` | bool | `false` | Whether to parse and store this app's metrics. |
 | `start` | string | `"0"` | When to start the app. See [Scheduling](#scheduling-start-and-end). |
 | `end` | string | `""` | When to stop the app. See [Scheduling](#scheduling-start-and-end). |
-| `partition` | int | auto | (mode `p`) Which allocation partition this app belongs to. Defaults to `0` if `collect` is true, else `1`. |
+| `partition` | string | — | (partitioned allocation) The named partition this app belongs to, e.g. `"victim"` or `"aggressor"`. Must match a key in `allocation.partitions`. |
 
 !!! tip "Extra keys become wrapper attributes"
     Any key in an app entry that is **not** one of the reserved keys above
@@ -193,10 +215,13 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
     "name": "congestion_study",
     "numnodes": "8",
     "ppn": "1",
-    "allocationmode": "p",
-    "partitionsplit": "50:50",
-    "allocationsplit": "100-100",
-    "partitionlayout": "i",
+    "allocation": {
+      "mode": "interleaved",
+      "partitions": {
+        "victim":    { "share": 50 },
+        "aggressor": { "share": 50 }
+      }
+    },
     "minruns": "10",
     "maxruns": "30",
     "timeout": "1200.0",
@@ -213,7 +238,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
           "collect": true,
           "start": "0",
           "end": "",
-          "partition": 0
+          "partition": "victim"
         },
         "1": {
           "path": "others/g500.py",
@@ -221,7 +246,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
           "collect": false,
           "start": "0",
           "end": "f",
-          "partition": 1
+          "partition": "aggressor"
         }
       }
     }
@@ -230,8 +255,8 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
 ```
 
 This allocates 8 nodes, splits them 50/50 into two interleaved partitions, runs an all-to-all
-*victim* (collected) in partition 0 against a Graph500 *aggressor* (force-killed when the victim
-finishes) in partition 1, and repeats between 10 and 30 runs until the victim's convergence-target
-metric stabilizes.
+*victim* (collected) on the `"victim"` partition against a Graph500 *aggressor* (force-killed when
+the victim finishes) on the `"aggressor"` partition, and repeats between 10 and 30 runs until the
+victim's convergence-target metric stabilizes.
 
 For where the resulting files land, see [Architecture → Output layout](../concepts/architecture.md#output-layout).

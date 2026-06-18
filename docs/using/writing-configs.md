@@ -38,22 +38,28 @@ the victim finishes.
   "global_options": {
     "name": "interference",
     "numnodes": "8", "ppn": "1",
-    "allocationmode": "p", "partitionsplit": "50:50", "partitionlayout": "i"
+    "allocation": {
+      "mode": "interleaved",
+      "partitions": {
+        "victim":    { "share": 50 },
+        "aggressor": { "share": 50 }
+      }
+    }
   },
   "experiments": {
     "a2a_vs_g500": {
       "apps": {
         "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
-               "collect": true, "start": "0", "end": "", "partition": 0 },
+               "collect": true, "start": "0", "end": "", "partition": "victim" },
         "1": { "path": "graph500/g500_wrapper.py", "args": "",
-               "collect": false, "start": "0", "end": "f", "partition": 1 }
+               "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
       }
     }
   }
 }
 ```
 
-`partitionlayout: "i"` interleaves the two partitions' nodes so the victim and aggressor share the
+`mode: "interleaved"` interleaves the two partitions' nodes so the victim and aggressor share the
 network fabric — exactly the contention you usually want to measure.
 
 ## Pattern 3 — sequential / dependent runs
@@ -94,10 +100,15 @@ experiment.
   "baseline":     { "description": "victim alone",        "apps": { "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true, "start": "0", "end": "" } } },
   "with_aggressor": {
     "description": "victim + aggressor",
-    "local_options": { "allocationmode": "p", "partitionsplit": "50:50" },
+    "local_options": {
+      "allocation": {
+        "mode": "linear",
+        "partitions": { "victim": { "share": 50 }, "aggressor": { "share": 50 } }
+      }
+    },
     "apps": {
-      "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": 0 },
-      "1": { "path": "graph500/g500_wrapper.py",   "args": "",                          "collect": false, "start": "0", "end": "f", "partition": 1 }
+      "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+      "1": { "path": "graph500/g500_wrapper.py",   "args": "",               "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
     }
   }
 }
@@ -105,14 +116,15 @@ experiment.
 
 ## Choosing an allocation mode
 
-| Mode | Value | Use when |
-|------|-------|----------|
-| Linear | `l` (default) | Each app should get a contiguous block of nodes. |
-| Interleaved | `i` | Apps should be spread round-robin across nodes (more fabric sharing). |
-| Partitioned | `p` | You want explicit victim/aggressor partitions, sized with `partitionsplit`. |
+| Mode | `allocation.mode` | Use when |
+|------|--------------------|----------|
+| Linear | `"linear"` (default) | Each app should get a contiguous block of nodes. |
+| Interleaved | `"interleaved"` | Apps should be spread round-robin across nodes (more fabric sharing). Add `"stride"` to assign multiple nodes per turn. |
+| Random | `"random"` | Shuffle the node list before splitting (add `"seed"` for reproducibility). |
+| Partitioned | any mode + `"partitions"` | You want named victim/aggressor groups, each with their own `share`. |
 
-For partitioned mode, an app's `partition` field (or, by default, `0` if collected else `1`)
-decides which partition it lands in. See [Allocation fields](../reference/configuration.md#allocation-fields).
+For partitioned allocation, each app's `partition` field must match a key in `allocation.partitions`.
+See [Allocation fields](../reference/configuration.md#allocation-fields).
 
 ## Tuning convergence
 
