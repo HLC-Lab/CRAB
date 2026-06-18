@@ -1,5 +1,6 @@
-import math  
-from typing import List, Dict, Any  
+import math
+import random
+from typing import List, Dict, Any
   
 class NodeAllocator:  
     """Encapsulates all strategies for mapping nodes to applications."""  
@@ -78,7 +79,6 @@ class NodeAllocator:
     @staticmethod
     def allocate_random(apps: List[Any], node_list: List[str], split_counts: List[int], seed: int = None):
         """Shuffles nodes (optionally seeded) then applies linear allocation."""
-        import random
         shuffled = list(node_list)
         random.Random(seed).shuffle(shuffled)
         NodeAllocator.allocate_linear(apps, shuffled, split_counts)
