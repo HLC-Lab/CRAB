@@ -29,6 +29,8 @@ class NodeAllocator:
     @staticmethod
     def get_abs_split(split_val, num_apps: int, num_nodes: int) -> List[int]:
         """Calculates absolute node counts from 'even' (or 'e') or a list of percentages."""
+        if num_apps == 0:
+            return []
         if split_val in ('even', 'e') or split_val is None:
             split_list = [100.0 / num_apps] * num_apps
         elif isinstance(split_val, str):

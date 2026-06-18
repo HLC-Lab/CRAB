@@ -223,7 +223,10 @@ class BenchmarkOptions(VerticalScroll):
         alloc["mode"] = mode
         split_str = self.query_one("#alloc_split", Input).value.strip()
         if split_str and split_str != "even":
-            alloc["split"] = json.loads(split_str)
+            try:
+                alloc["split"] = json.loads(split_str)
+            except json.JSONDecodeError:
+                pass
         if mode == "interleaved":
             stride_str = self.query_one("#alloc_stride", Input).value.strip()
             if stride_str and stride_str != "1":
@@ -234,7 +237,10 @@ class BenchmarkOptions(VerticalScroll):
                 alloc["seed"] = int(seed_str)
         partitions_text = self.query_one("#alloc_partitions", TextArea).text.strip()
         if partitions_text:
-            alloc["partitions"] = json.loads(partitions_text)
+            try:
+                alloc["partitions"] = json.loads(partitions_text)
+            except json.JSONDecodeError:
+                pass
         return alloc
 
     def _set_allocation_state(self, alloc: dict) -> None:

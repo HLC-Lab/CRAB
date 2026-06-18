@@ -32,7 +32,8 @@ class ExperimentRunner:
         self.exp_dir = os.path.join(output_dir, self.name)  
         os.makedirs(self.exp_dir, exist_ok=True)  
 
-        # Configuration Merge
+        # Configuration Merge — shallow: a local 'allocation' key replaces the global one entirely.
+        # A partial local override (e.g. just {mode: "random"}) will drop global partitions.
         local_opts = self.config.get("local_options", {})
         self.exp_opts = {**self.global_opts, **local_opts}
 
@@ -118,7 +119,7 @@ class ExperimentRunner:
                 # This is a basic check; adjust based on your Leonardo partition needs
                 partition = self.global_opts.get("sbatch_directives", {}).get("partition", "")
                 if "cpu" in partition:
-                     raise RuntimeError(f"Architecture Mismatch: {recipe.name} is built for GPU but partition is {partition}")
+                     raise RuntimeError(f"Architecture Mismatch: {receipt.get('name', 'app')} is built for GPU but partition is {partition}")
             # ------------------------------
               
             # Timing & Partition Metadata  
