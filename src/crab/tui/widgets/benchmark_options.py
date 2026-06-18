@@ -218,6 +218,8 @@ class BenchmarkOptions(VerticalScroll):
         import json
         alloc = {}
         mode = self.query_one("#alloc_mode", Select).value
+        if mode is Select.BLANK:
+            mode = "linear"
         alloc["mode"] = mode
         split_str = self.query_one("#alloc_split", Input).value.strip()
         if split_str and split_str != "even":
