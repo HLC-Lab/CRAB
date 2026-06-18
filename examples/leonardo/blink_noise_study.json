@@ -12,15 +12,6 @@
             "time": "00:30:00",
             "job-name": "crab_blink_noise"
         },
-        "system_sbatch": [
-            "--qos=boost_qos_dbg",
-            "--account=IscrC_FOCAL",
-            "--partition=boost_usr_prod",
-            "--gres=tmpfs:0"
-        ],
-        "system_header": [
-            "module purge"
-        ],
         "allocation": {
             "mode": "linear",
             "partitions": {

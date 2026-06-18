@@ -12,13 +12,6 @@
             "time": "01:00:00",
             "job-name": "crab_16n_interference"
         },
-        "system_sbatch": [
-            "--account=IscrB_SWING",
-            "--partition=boost_usr_prod"
-        ],
-        "system_header": [
-            "module purge"
-        ],
         "allocation": {
             "mode": "linear",
             "split": [

@@ -11,16 +11,9 @@
         "extrainfo": "256nodes_comprehensive_test",
         "sbatch_directives": {
             "time": "02:00:00",
-            "job-name": "crab_256n_scale"
+            "job-name": "crab_256n_scale",
+            "exclusive": true
         },
-        "system_sbatch": [
-            "--exclusive",
-            "--account=IscrB_SWING",
-            "--partition=boost_usr_prod"
-        ],
-        "system_header": [
-            "module purge"
-        ],
         "allocation": {
             "mode": "linear",
             "partitions": {

@@ -13,13 +13,6 @@
             "time": "00:10:00",
             "job-name": "crab_ping_pong"
         },
-        "system_sbatch": [
-            "--account=IscrB_SWING",
-            "--partition=boost_usr_prod"
-        ],
-        "system_header": [
-            "module purge"
-        ],
         "allocation": {
             "mode": "linear"
         }

@@ -11,16 +11,9 @@
         "extrainfo": "pingpong_interference_study",
         "sbatch_directives": {
             "time": "00:30:00",
-            "job-name": "crab_pp_interference"
+            "job-name": "crab_pp_interference",
+            "exclusive": true
         },
-        "system_sbatch": [
-            "--exclusive",
-            "--account=IscrB_SWING",
-            "--partition=boost_usr_prod"
-        ],
-        "system_header": [
-            "module purge"
-        ],
         "allocation": {
             "mode": "linear",
             "partitions": {

@@ -12,13 +12,6 @@
             "time": "00:20:00",
             "job-name": "crab_ardc_vs_a2a"
         },
-        "system_sbatch": [
-            "--account=IscrB_SWING",
-            "--partition=boost_usr_prod"
-        ],
-        "system_header": [
-            "module purge"
-        ],
         "allocation": {
             "mode": "interleaved",
             "split": [

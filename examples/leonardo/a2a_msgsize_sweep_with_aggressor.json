@@ -12,13 +12,6 @@
             "time": "00:30:00",
             "job-name": "crab_a2a_sweep_noise"
         },
-        "system_sbatch": [
-            "--account=IscrB_SWING",
-            "--partition=boost_usr_prod"
-        ],
-        "system_header": [
-            "module purge"
-        ],
         "allocation": {
             "mode": "linear",
             "partitions": {
