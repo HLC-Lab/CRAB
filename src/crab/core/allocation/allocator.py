@@ -51,25 +51,27 @@ class NodeAllocator:
             app.set_nodes(node_list[idx : idx + count])  
             idx += count  
   
-    @staticmethod  
-    def allocate_interleaved(apps: List[Any], node_list: List[str], split_counts: List[int]):  
-        """Allocates nodes in a round-robin fashion."""  
-        num_apps = len(apps)  
-        alloc_lists = [[] for _ in range(num_apps)]  
-        counts_copy = list(split_counts)  
-          
-        app_idx = 0  
-        node_idx = 0  
-          
-        # While there are nodes to assign and demand exists  
-        while any(counts_copy) and node_idx < len(node_list):  
-            if counts_copy[app_idx] > 0:  
-                alloc_lists[app_idx].append(node_list[node_idx])  
-                counts_copy[app_idx] -= 1  
-                node_idx += 1  
-            app_idx = (app_idx + 1) % num_apps  
-  
-        for app, a_list in zip(apps, alloc_lists):  
+    @staticmethod
+    def allocate_interleaved(apps: List[Any], node_list: List[str], split_counts: List[int], stride: int = 1):
+        """Allocates nodes in a round-robin fashion, assigning `stride` nodes per turn."""
+        num_apps = len(apps)
+        alloc_lists = [[] for _ in range(num_apps)]
+        counts_copy = list(split_counts)
+
+        app_idx = 0
+        node_idx = 0
+
+        while any(counts_copy) and node_idx < len(node_list):
+            if counts_copy[app_idx] > 0:
+                nodes_to_assign = min(stride, counts_copy[app_idx])
+                for _ in range(nodes_to_assign):
+                    if node_idx < len(node_list):
+                        alloc_lists[app_idx].append(node_list[node_idx])
+                        node_idx += 1
+                counts_copy[app_idx] -= nodes_to_assign
+            app_idx = (app_idx + 1) % num_apps
+
+        for app, a_list in zip(apps, alloc_lists):
             app.set_nodes(a_list)  
   
     @staticmethod  
