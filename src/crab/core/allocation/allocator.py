@@ -73,9 +73,17 @@ class NodeAllocator:
             app_idx = (app_idx + 1) % num_apps
 
         for app, a_list in zip(apps, alloc_lists):
-            app.set_nodes(a_list)  
-  
-    @staticmethod  
+            app.set_nodes(a_list)
+
+    @staticmethod
+    def allocate_random(apps: List[Any], node_list: List[str], split_counts: List[int], seed: int = None):
+        """Shuffles nodes (optionally seeded) then applies linear allocation."""
+        import random
+        shuffled = list(node_list)
+        random.Random(seed).shuffle(shuffled)
+        NodeAllocator.allocate_linear(apps, shuffled, split_counts)
+
+    @staticmethod
     def allocate_partitioned(apps: List[Any], node_list: List[str], options: Dict[str, Any]):  
         """  
         Advanced allocation: divides nodes into partitions (Victim/Aggressor)   
