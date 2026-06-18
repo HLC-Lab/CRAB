@@ -91,7 +91,8 @@ class NodeAllocator:
         Top-level 'mode' controls how partition node-blocks are laid out (linear/interleaved/random).
         Apps are matched to partitions via app.partition_id (string name).
         """
-        num_nodes = len(node_list)
+        if 'partitions' not in allocation:
+            raise ValueError("allocation dict must contain a 'partitions' key.")
         partitions_cfg = allocation['partitions']
         layout_mode = allocation.get('mode', 'linear')
         partition_names = list(partitions_cfg.keys())
@@ -108,7 +109,7 @@ class NodeAllocator:
         else:
             percs = [float(s) for s in shares]
 
-        pt_counts = NodeAllocator._apply_largest_remainder(num_nodes, percs)
+        pt_counts = NodeAllocator._apply_largest_remainder(len(node_list), percs)
 
         # 2. Assign nodes to partitions using layout_mode
         partitions_nodes: List[List[str]] = [[] for _ in range(len(pt_counts))]
@@ -116,12 +117,12 @@ class NodeAllocator:
         if layout_mode == 'interleaved':
             stride = allocation.get('stride', 1)
             node_idx = 0
-            while node_idx < num_nodes:
+            while node_idx < len(node_list):
                 advanced = False
                 for p_idx in range(len(pt_counts)):
                     capacity = pt_counts[p_idx] - len(partitions_nodes[p_idx])
                     for _ in range(min(stride, capacity)):
-                        if node_idx < num_nodes:
+                        if node_idx < len(node_list):
                             partitions_nodes[p_idx].append(node_list[node_idx])
                             node_idx += 1
                             advanced = True
