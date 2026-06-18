@@ -54,6 +54,8 @@ class NodeAllocator:
     @staticmethod
     def allocate_interleaved(apps: List[Any], node_list: List[str], split_counts: List[int], stride: int = 1):
         """Allocates nodes in a round-robin fashion, assigning `stride` nodes per turn."""
+        if stride < 1:
+            raise ValueError(f"stride must be >= 1, got {stride!r}")
         num_apps = len(apps)
         alloc_lists = [[] for _ in range(num_apps)]
         counts_copy = list(split_counts)
@@ -65,9 +67,8 @@ class NodeAllocator:
             if counts_copy[app_idx] > 0:
                 nodes_to_assign = min(stride, counts_copy[app_idx])
                 for _ in range(nodes_to_assign):
-                    if node_idx < len(node_list):
-                        alloc_lists[app_idx].append(node_list[node_idx])
-                        node_idx += 1
+                    alloc_lists[app_idx].append(node_list[node_idx])
+                    node_idx += 1
                 counts_copy[app_idx] -= nodes_to_assign
             app_idx = (app_idx + 1) % num_apps
 
