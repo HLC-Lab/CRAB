@@ -1,0 +1,95 @@
+{
+    "global_options": {
+        "name": "co_scheduling",
+        "numnodes": "8",
+        "ppn": "1",
+        "allocation": {
+            "mode": "interleaved",
+            "split": [50, 50]
+        },
+        "minruns": "10",
+        "maxruns": "30",
+        "timeout": "300.0",
+        "outformat": "csv",
+        "sbatch_directives": { "time": "02:00:00", "job-name": "crab_co_scheduling" }
+    },
+    "experiments": {
+        "01_a2a_solo_8nodes": {
+            "description": "Single A2A on all 8 nodes. Reference for ideal throughput.",
+            "local_options": {
+                "allocation": { "mode": "linear" }
+            },
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "02_a2a_solo_4nodes": {
+            "description": "Single A2A on 4 nodes only. Reference for half-allocation throughput.",
+            "local_options": {
+                "allocation": { "mode": "linear", "split": [50] }
+            },
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "03_a2a_vs_a2a_64B": {
+            "description": "Two symmetric A2A 64B, both collected. Interleaved layout, each gets 4 nodes.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" },
+                "1": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "04_a2a_vs_a2a_1MB": {
+            "description": "Two symmetric A2A 1MB, both collected. Tests large-message co-scheduling.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 1048576 -iter 50",
+                       "collect": true, "start": "0", "end": "" },
+                "1": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 1048576 -iter 50",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "05_a2a_vs_a2a_asymmetric": {
+            "description": "A2A 64B vs A2A 1MB. Both collected to compare how size asymmetry affects each job.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" },
+                "1": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 1048576 -iter 50",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "06_a2a_vs_incast": {
+            "description": "A2A 64B vs Incast 64B co-scheduled. Tests cross-collective interference.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" },
+                "1": { "path": "blink/inc_b.py",         "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "07_a2a_vs_agtr": {
+            "description": "A2A 64B vs AllGather 64B co-scheduled. Both collected.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" },
+                "1": { "path": "blink/agtr_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "08_a2a_vs_a2a_random": {
+            "description": "Same as exp 03 but with random node assignment. Tests if placement affects co-scheduling fairness.",
+            "local_options": {
+                "allocation": { "mode": "random", "seed": 7, "split": [50, 50] }
+            },
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" },
+                "1": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        }
+    }
+}

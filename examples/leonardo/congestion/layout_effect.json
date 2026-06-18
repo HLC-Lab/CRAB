@@ -1,0 +1,97 @@
+{
+    "global_options": {
+        "name": "layout_effect",
+        "numnodes": "8",
+        "ppn": "1",
+        "allocation": {
+            "mode": "linear",
+            "partitions": {
+                "victim":    { "share": 50 },
+                "aggressor": { "share": 50 }
+            }
+        },
+        "minruns": "10",
+        "maxruns": "30",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "sbatch_directives": { "time": "02:00:00", "job-name": "crab_layout_effect" }
+    },
+    "experiments": {
+        "01_victim_alone": {
+            "description": "A2A 64B on all 8 nodes, no noise. Reference for degradation measurement.",
+            "local_options": {
+                "allocation": { "mode": "linear" }
+            },
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "" }
+            }
+        },
+        "02_linear_layout": {
+            "description": "Victim on nodes 0-3, aggressor on nodes 4-7 (contiguous blocks).",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "03_interleaved_layout": {
+            "description": "Victim and aggressor interleaved across nodes with stride 1. Same workload, different placement.",
+            "local_options": {
+                "allocation": {
+                    "mode": "interleaved",
+                    "stride": 1,
+                    "partitions": {
+                        "victim":    { "share": 50 },
+                        "aggressor": { "share": 50 }
+                    }
+                }
+            },
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "04_interleaved_stride2": {
+            "description": "Interleaved with stride 2: victim gets every other pair of nodes.",
+            "local_options": {
+                "allocation": {
+                    "mode": "interleaved",
+                    "stride": 2,
+                    "partitions": {
+                        "victim":    { "share": 50 },
+                        "aggressor": { "share": 50 }
+                    }
+                }
+            },
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "05_random_layout": {
+            "description": "Nodes randomly assigned to victim/aggressor. Seed fixed for reproducibility.",
+            "local_options": {
+                "allocation": {
+                    "mode": "random",
+                    "seed": 42,
+                    "partitions": {
+                        "victim":    { "share": 50 },
+                        "aggressor": { "share": 50 }
+                    }
+                }
+            },
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        }
+    }
+}

@@ -1,0 +1,108 @@
+{
+    "global_options": {
+        "name": "victim_collective_sweep",
+        "numnodes": "8",
+        "ppn": "1",
+        "allocation": {
+            "mode": "linear",
+            "partitions": {
+                "victim":    { "share": 50 },
+                "aggressor": { "share": 50 }
+            }
+        },
+        "minruns": "10",
+        "maxruns": "30",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "sbatch_directives": { "time": "03:00:00", "job-name": "crab_victim_sweep" }
+    },
+    "experiments": {
+        "01_a2a_baseline": {
+            "description": "A2A 64B victim alone — reference.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "", "partition": "victim" }
+            }
+        },
+        "02_a2a_vs_a2a_noise": {
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "03_a2a_vs_incast_noise": {
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",       "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_incast.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "04_a2a_vs_noise_delayed": {
+            "description": "Aggressor joins 15s after victim. Isolates warm-up phase from steady-state interference.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0",  "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "15", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "05_a2a_vs_noise_timed": {
+            "description": "Aggressor runs for 60s then stops. Measures transient vs sustained interference.",
+            "apps": {
+                "0": { "path": "blink/a2a_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",   "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "60", "partition": "aggressor" }
+            }
+        },
+        "06_incast_baseline": {
+            "description": "Incast 64B victim alone — reference.",
+            "apps": {
+                "0": { "path": "blink/inc_b.py", "args": "-msgsize 64 -iter 2000",
+                       "collect": true, "start": "0", "end": "", "partition": "victim" }
+            }
+        },
+        "07_incast_vs_a2a_noise": {
+            "apps": {
+                "0": { "path": "blink/inc_b.py",            "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "08_incast_vs_incast_noise": {
+            "apps": {
+                "0": { "path": "blink/inc_b.py",               "args": "-msgsize 64 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_incast.py", "args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "09_agtr_baseline": {
+            "description": "AllGather 512B victim alone — reference.",
+            "apps": {
+                "0": { "path": "blink/agtr_comm_only.py", "args": "-msgsize 512 -iter 2000",
+                       "collect": true, "start": "0", "end": "", "partition": "victim" }
+            }
+        },
+        "10_agtr_vs_a2a_noise": {
+            "apps": {
+                "0": { "path": "blink/agtr_comm_only.py",  "args": "-msgsize 512 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_a2a.py","args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        },
+        "11_agtr_vs_incast_noise": {
+            "apps": {
+                "0": { "path": "blink/agtr_comm_only.py",     "args": "-msgsize 512 -iter 2000",
+                       "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+                "1": { "path": "blink/bursty_noise_incast.py","args": "0.001 0.01",
+                       "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
+            }
+        }
+    }
+}

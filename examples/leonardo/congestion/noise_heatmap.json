@@ -1,0 +1,40 @@
+{
+    "global_options": {
+        "name": "a2a_noise_heatmap",
+        "numnodes": "8",
+        "ppn": "1",
+        "allocation": {
+            "mode": "linear",
+            "partitions": {
+                "victim":    { "share": 50 },
+                "aggressor": { "share": 50 }
+            }
+        },
+        "minruns": "5",
+        "maxruns": "20",
+        "timeout": "600.0",
+        "outformat": "csv",
+        "sbatch_directives": { "time": "04:00:00", "job-name": "crab_noise_heatmap" }
+    },
+    "experiments": {
+        "01_8B_baseline":   { "local_options": { "minruns": "10" }, "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8 -iter 5000",     "collect": true,  "start": "0", "end": "",  "partition": "victim" } } },
+        "02_8B_light":  { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 8 -iter 5000",     "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.05 0.001",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "03_8B_medium": { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 8 -iter 5000",     "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "04_8B_heavy":  { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 8 -iter 5000",     "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.0001 0.05",  "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+
+        "05_64B_baseline":  { "local_options": { "minruns": "10" }, "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",    "collect": true,  "start": "0", "end": "",  "partition": "victim" } } },
+        "06_64B_light": { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 64 -iter 2000",    "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.05 0.001",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "07_64B_medium": { "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",    "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "08_64B_heavy": { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 64 -iter 2000",    "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.0001 0.05",  "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+
+        "09_4KB_baseline":  { "local_options": { "minruns": "10" }, "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 4096 -iter 1000",  "collect": true,  "start": "0", "end": "",  "partition": "victim" } } },
+        "10_4KB_light": { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 4096 -iter 1000",  "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.05 0.001",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "11_4KB_medium": { "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 4096 -iter 1000",  "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "12_4KB_heavy": { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 4096 -iter 1000",  "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.0001 0.05",  "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+
+        "13_1MB_baseline":  { "local_options": { "minruns": "10" }, "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 1048576 -iter 50",  "collect": true,  "start": "0", "end": "",  "partition": "victim" } } },
+        "14_1MB_light": { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 1048576 -iter 50",  "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.05 0.001",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "15_1MB_medium": { "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 1048576 -iter 50",  "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",   "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } },
+        "16_1MB_heavy": { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 1048576 -iter 50",  "collect": true,  "start": "0", "end": "",  "partition": "victim" },    "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.0001 0.05",  "collect": false, "start": "0", "end": "f", "partition": "aggressor" } } }
+    }
+}
