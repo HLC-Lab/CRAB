@@ -26,20 +26,18 @@ class NodeAllocator:
         return base_alloc
 
     @staticmethod
-    def get_abs_split(split_str: str, num_apps: int, num_nodes: int) -> List[int]:
-        """Calculates absolute node counts based on percentage or equal split."""
-        if split_str == 'e':
+    def get_abs_split(split_val, num_apps: int, num_nodes: int) -> List[int]:
+        """Calculates absolute node counts from 'even' or a list of percentages."""
+        if split_val == 'even' or split_val is None:
             split_list = [100.0 / num_apps] * num_apps
         else:
-            split_list = [float(x) for x in split_str.split(':')]
+            split_list = [float(x) for x in split_val]
 
-        if sum(split_list) > 100.1: # float tolerance
-            raise Exception("Splits percentages exceed 100.")
-        
-        # Pad with zeros if fewer splits are provided than apps
+        if sum(split_list) > 100.1:
+            raise ValueError("Split percentages exceed 100.")
+
         while len(split_list) < num_apps:
             split_list.append(0.0)
-            
         split_list = split_list[:num_apps]
         return NodeAllocator._apply_largest_remainder(num_nodes, split_list)
   
