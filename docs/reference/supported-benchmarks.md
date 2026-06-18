@@ -39,8 +39,11 @@ The QE DFT application (`pw.x`), available as two versions sharing one suite:
 
 The `wrappers/` tree contains additional wrappers (under `wrappers/others/` — AMG, miniFE,
 Ember, GPU-communication benchmarks, DNN proxies, and others). These do **not** currently have
-recipes and are **not** part of the supported set: `crab setup` will not build them, and they are
-not guaranteed to work as-is. Treat them as work-in-progress.
+recipes, so `crab setup` cannot build them from source. However, if you already have the binary
+installed on your cluster, you can still use them: run `crab setup`, choose **"Register a custom
+already-installed benchmark"**, and supply the path. The wrapper will then resolve the binary from
+the generated receipt like any other benchmark. The wrappers themselves are not guaranteed to work
+as-is — treat them as work-in-progress.
 
 ## Adding your own
 

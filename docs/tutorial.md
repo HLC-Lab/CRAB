@@ -177,9 +177,10 @@ you just measured.
 You built a benchmark, expressed a victim-vs-aggressor study, ran it through Slurm, and quantified
 interference. From here:
 
-- **Scale the study up** — the bundled `examples/leonardo/blink_noise_study.json` runs this idea
-  across 16 experiments (message-size sweeps, different collectives, light/heavy noise, delayed
-  starts, linear vs interleaved layouts). It's the natural next read.
+- **Scale the study up** — `examples/leonardo/congestion/victim_sweep.json` runs this idea across
+  11 experiments (different victim collectives, light vs heavy noise, delayed and timed aggressors).
+  `examples/leonardo/congestion/layout_effect.json` isolates the effect of node placement.
+  Both are natural next reads.
 - **Vary placement** — try `mode: "interleaved"` in the `allocation` block to make victim and
   aggressor share the fabric more aggressively. See
   [Writing experiment configs](using/writing-configs.md#choosing-an-allocation-mode).

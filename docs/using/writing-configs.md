@@ -19,7 +19,7 @@ before introducing interference.
   "experiments": {
     "a2a_alone": {
       "apps": {
-        "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "start": "0", "end": "" }
       }
     }
@@ -49,7 +49,7 @@ the victim finishes.
   "experiments": {
     "a2a_vs_g500": {
       "apps": {
-        "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "start": "0", "end": "", "partition": "victim" },
         "1": { "path": "graph500/g500_wrapper.py", "args": "",
                "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
@@ -69,9 +69,9 @@ applications in sequence within one experiment.
 
 ```json
 "apps": {
-  "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8 -iter 1000",    "collect": true, "start": "0",  "end": "" },
-  "1": { "path": "a2a_comm_only.py", "args": "-msgsize 1024 -iter 1000", "collect": true, "start": "s0", "end": "" },
-  "2": { "path": "a2a_comm_only.py", "args": "-msgsize 65536 -iter 1000","collect": true, "start": "s1", "end": "" }
+  "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8 -iter 1000",    "collect": true, "start": "0",  "end": "" },
+  "1": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 1024 -iter 1000", "collect": true, "start": "s0", "end": "" },
+  "2": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 65536 -iter 1000","collect": true, "start": "s1", "end": "" }
 }
 ```
 
@@ -97,7 +97,7 @@ experiment.
 
 ```json
 "experiments": {
-  "baseline":     { "description": "victim alone",        "apps": { "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true, "start": "0", "end": "" } } },
+  "baseline":     { "description": "victim alone",        "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true, "start": "0", "end": "" } } },
   "with_aggressor": {
     "description": "victim + aggressor",
     "local_options": {
@@ -107,7 +107,7 @@ experiment.
       }
     },
     "apps": {
-      "0": { "path": "a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+      "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": "victim" },
       "1": { "path": "graph500/g500_wrapper.py",   "args": "",               "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
     }
   }
@@ -142,6 +142,10 @@ if you need narrower intervals. See [Convergence](../glossary.md#convergence).
 
 The `examples/` directory has working configs per system (`examples/leonardo/`, `examples/local/`,
 `examples/cluster_di/`, `examples/lorenzo/`) covering baselines, interleaved tests, sequential
-sweeps, and aggressor mixes — a good starting point to copy and adapt. A representative
-end-to-end example is `examples/leonardo/blink_noise_study.json` (Blink interference sweep with
-partitioned victim/aggressor allocation).
+sweeps, and aggressor mixes — a good starting point to copy and adapt. Representative examples:
+
+- `examples/leonardo/congestion/noise_heatmap.json` — victim-vs-aggressor sweep across collective
+  types and message sizes (partitioned allocation).
+- `examples/leonardo/congestion/layout_effect.json` — same workload with four different placement
+  strategies (`local_options.allocation` replaced per experiment).
+- `examples/leonardo/congestion/co_scheduling.json` — flat interleaved co-runs without partitions.

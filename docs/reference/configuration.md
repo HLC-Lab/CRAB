@@ -146,6 +146,10 @@ Any `global_options` key may be repeated in an experiment's `local_options`; the
 value wins for that experiment (the framework merges `{**global, **local}`). Use this to vary,
 say, `allocation` or `timeout` between experiments in the same run.
 
+!!! warning "`ppn` and `numnodes` are Slurm-job-level globals"
+    These two fields control the Slurm `--nodes` / `--ntasks-per-node` directives, which are
+    written once when the job is submitted. Putting them in `local_options` has no effect.
+
 ### The `apps` block
 
 A dictionary keyed by **numeric string IDs** (`"0"`, `"1"`, …). Each value describes one
@@ -233,7 +237,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
       "description": "All-to-all victim against a Graph500 aggressor, interleaved nodes.",
       "apps": {
         "0": {
-          "path": "a2a_comm_only.py",
+          "path": "blink/a2a_comm_only.py",
           "args": "-msgsize 8192 -iter 1000",
           "collect": true,
           "start": "0",

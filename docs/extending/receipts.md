@@ -58,9 +58,22 @@ In addition, at run time the [orchestrator](../glossary.md#orchestrator) exports
 binary path as an environment variable **`CRAB_PATH_<ID>`** (uppercased id). Older wrappers read
 that variable directly instead of calling `get_receipt()`; both work.
 
+## Registering a custom binary with `crab setup`
+
+For any binary that CRAB doesn't have a recipe for — something you built yourself, or an
+application already installed on the cluster — run:
+
+```bash
+crab setup
+```
+
+and choose **"Register a custom already-installed benchmark"**. The wizard prompts you for the
+`benchmark_id`, the path to the binary, any pre-run module loads, and an optional launcher
+override, then writes the receipt for you. This is the recommended path: no JSON editing required.
+
 ## Writing a receipt by hand
 
-You don't strictly need a recipe. If you already have a binary, create the receipt yourself —
+If you prefer (or are scripting a setup), create the receipt directly —
 write `config/environments/<benchmark_id>.json` pointing `binary_path` at your build:
 
 ```json
@@ -74,8 +87,7 @@ write `config/environments/<benchmark_id>.json` pointing `binary_path` at your b
 ```
 
 As long as a [wrapper](wrappers.md) declares the same `benchmark_id` (`"mybench"`), it will resolve
-the binary from this file — no recipe and no `crab setup` required. This is the quickest path to
-running an application CRAB doesn't have a recipe for.
+the binary from this file.
 
 !!! note "Receipts are system-dependent"
     A receipt describes one machine — its paths and module commands won't transfer. It is

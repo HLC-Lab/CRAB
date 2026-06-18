@@ -28,9 +28,9 @@ flowchart LR
 **I already have the binary** (built it myself, or it's installed on the cluster):
 
 1. Write a [wrapper](wrappers.md).
-2. Point it at the binary — either via a hand-written [receipt](receipts.md#writing-a-receipt-by-hand)
-   or by running `crab setup` and choosing the *manual path* / *environment module* strategy (which
-   works even without a recipe, if a recipe exists for that id).
+2. Point it at the binary by running `crab setup` and selecting **"Register a custom
+   already-installed benchmark"** — this generates a receipt for any binary without needing a
+   recipe. Alternatively, [write the receipt by hand](receipts.md#writing-a-receipt-by-hand).
 
 **I want CRAB to build it for me:**
 

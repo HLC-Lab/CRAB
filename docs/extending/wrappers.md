@@ -15,8 +15,9 @@ class app(base):
 ```
 
 !!! warning "Import path"
-    Import the base class as `from crab.wrappers.base import base`. (The README shows
-    `from wrappers.base import base` — that is outdated and does not match the installed package.)
+    Import the base class as `from crab.wrappers.base import base`. Older wrappers in the repo
+    may use `from wrappers.base import base` — that is outdated and does not match the installed
+    package.
 
 CRAB loads the module *by file path* at run time and instantiates `app(id_num, collect_flag, args)`,
 so your class is found automatically — no registration needed. You reference it from a config by its

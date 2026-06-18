@@ -22,7 +22,7 @@ crab run <config.json> -p <preset>
 Example:
 
 ```bash
-crab run examples/leonardo/mega_test.json -p leonardo --log-level DEBUG
+crab run examples/leonardo/congestion/noise_heatmap.json -p leonardo --log-level DEBUG
 ```
 
 **What happens:** the [orchestrator](../glossary.md#orchestrator) prepares a timestamped output

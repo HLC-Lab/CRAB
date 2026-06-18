@@ -123,12 +123,16 @@ then executes the workload-manager-built launch command, draining stdout on a ba
 
 ### Node allocation strategies
 
-The allocator maps the job's node list onto the applications according to `allocationmode`:
+The allocator maps the job's node list onto the applications according to the `allocation.mode`
+field in `global_options` (or per-experiment `local_options`):
 
-- **Linear (`l`)** — contiguous blocks of nodes per application.
-- **Interleaved (`i`)** — nodes assigned round-robin across applications.
-- **Partitioned (`p`)** — nodes split into victim/aggressor *partitions* (by each app's
-  `partition_id`), with independent placement rules inside each partition.
+- **`"linear"`** (default) — contiguous blocks of nodes per application or partition.
+- **`"interleaved"`** — nodes dealt round-robin; an optional `stride` controls how many
+  consecutive nodes are assigned per turn.
+- **`"random"`** — node list shuffled (with optional `seed`) before splitting linearly.
+- **Partitioned** — add a `partitions` dict to split nodes into named groups (e.g. `"victim"` /
+  `"aggressor"`), each with a `share` percentage; each app declares which group it belongs to via
+  its `partition` field. Independent mode and split can be applied within each partition.
 
 ## Output layout
 
