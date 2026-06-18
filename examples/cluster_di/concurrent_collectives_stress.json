@@ -3,8 +3,6 @@
         "name": "concurrent_collectives_stress",
         "numnodes": "4",
         "ppn": "1",
-        "allocationmode": "l",
-        "allocationsplit": "e",
         "minruns": "5",
         "maxruns": "10",
         "timeout": "1800.0",
@@ -20,7 +18,10 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "linear"
+        }
     },
     "experiments": {
         "01_concurrent_collectives": {

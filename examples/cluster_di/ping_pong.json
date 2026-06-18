@@ -3,8 +3,6 @@
         "name": "ping_pong",
         "numnodes": "1",
         "ppn": "2",
-        "allocationmode": "l",
-        "allocationsplit": "e",
         "minruns": "1",
         "maxruns": "5",
         "timeout": "600.0",
@@ -21,7 +19,10 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "linear"
+        }
     },
     "experiments": {
         "01_ping_pong": {

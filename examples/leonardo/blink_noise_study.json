@@ -3,10 +3,6 @@
         "name": "blink_noise_study",
         "numnodes": "8",
         "ppn": "1",
-        "allocationmode": "p",
-        "partitionsplit": "50:50",
-        "allocationsplit": "e",
-        "partitionlayout": "l",
         "minruns": "5",
         "maxruns": "10",
         "timeout": "1200.0",
@@ -24,10 +20,20 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "linear",
+            "partitions": {
+                "victim": {
+                    "share": 50
+                },
+                "aggressor": {
+                    "share": 50
+                }
+            }
+        }
     },
     "experiments": {
-
         "01_a2a_baseline_8B": {
             "description": "Baseline A2A 8B: victim runs alone on half the nodes, no noise. Reference for comparison.",
             "local_options": {
@@ -40,11 +46,10 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 }
             }
         },
-
         "02_a2a_baseline_64B": {
             "description": "Baseline A2A 64B: isolated victim, no noise. Reference for noise experiments 05-07.",
             "local_options": {
@@ -57,11 +62,10 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 }
             }
         },
-
         "03_a2a_baseline_512B": {
             "description": "Baseline A2A 512B: isolated victim, no noise.",
             "local_options": {
@@ -74,11 +78,10 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 }
             }
         },
-
         "04_a2a_baseline_4KB": {
             "description": "Baseline A2A 4KB: isolated victim, no noise. Larger message size stresses bandwidth.",
             "local_options": {
@@ -91,11 +94,10 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 }
             }
         },
-
         "05_a2a_light_bursty_noise": {
             "description": "A2A 64B victim + light bursty A2A aggressor (long quiet period, short burst). Shows minimal interference.",
             "apps": {
@@ -105,7 +107,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_a2a.py",
@@ -113,11 +115,10 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
-
         "06_a2a_medium_bursty_noise": {
             "description": "A2A 64B victim + medium bursty A2A aggressor (original blink parameters). Typical co-located noise scenario.",
             "apps": {
@@ -127,7 +128,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_a2a.py",
@@ -135,11 +136,10 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
-
         "07_a2a_heavy_bursty_noise": {
             "description": "A2A 64B victim + heavy bursty A2A aggressor (frequent short bursts). Worst-case interference.",
             "apps": {
@@ -149,7 +149,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_a2a.py",
@@ -157,11 +157,10 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
-
         "08_a2a_vs_incast_noise": {
             "description": "A2A 64B victim + bursty Incast aggressor. Tests cross-collective interference pattern.",
             "apps": {
@@ -171,7 +170,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_incast.py",
@@ -179,17 +178,21 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
-
         "09_two_victims_linear": {
             "description": "Two A2A victims (8B + 64B) under shared A2A noise, linear node placement. Tests allocation asymmetry.",
             "local_options": {
-                "allocationmode": "p",
-                "partitionsplit": "e",
-                "partitionlayout": "l"
+                "allocation": {
+                    "mode": "linear",
+                    "partitions": {
+                        "victim1": {},
+                        "victim2": {},
+                        "noise": {}
+                    }
+                }
             },
             "apps": {
                 "0": {
@@ -198,7 +201,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim1"
                 },
                 "1": {
                     "path": "blink/a2a_comm_only.py",
@@ -206,7 +209,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 1
+                    "partition": "victim2"
                 },
                 "2": {
                     "path": "blink/bursty_noise_a2a.py",
@@ -214,16 +217,16 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 2
+                    "partition": "noise"
                 }
             }
         },
-
         "10_two_victims_interleaved": {
             "description": "Same as 09 but with interleaved node allocation. Compare distributions to measure layout impact.",
             "local_options": {
-                "allocationmode": "i",
-                "partitionlayout": "i"
+                "allocation": {
+                    "mode": "interleaved"
+                }
             },
             "apps": {
                 "0": {
@@ -231,28 +234,24 @@
                     "args": "-msgsize 8 -iter 2000",
                     "collect": true,
                     "start": "0",
-                    "end": "",
-                    "partition": 0
+                    "end": ""
                 },
                 "1": {
                     "path": "blink/a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 2000",
                     "collect": true,
                     "start": "0",
-                    "end": "",
-                    "partition": 1
+                    "end": ""
                 },
                 "2": {
                     "path": "blink/bursty_noise_a2a.py",
                     "args": "0.001 0.01",
                     "collect": false,
                     "start": "0",
-                    "end": "f",
-                    "partition": 2
+                    "end": "f"
                 }
             }
         },
-
         "11_incast_baseline_64B": {
             "description": "Baseline Incast 64B: isolated victim, no noise. Reference for experiments 12-13.",
             "local_options": {
@@ -265,11 +264,10 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 }
             }
         },
-
         "12_incast_under_a2a_noise": {
             "description": "Incast 64B victim + bursty A2A aggressor. Cross-collective interference: A2A noise on Incast victim.",
             "apps": {
@@ -279,7 +277,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_a2a.py",
@@ -287,11 +285,10 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
-
         "13_incast_under_incast_noise": {
             "description": "Incast 64B victim + bursty Incast aggressor. Same-collective interference: Incast vs Incast.",
             "apps": {
@@ -301,7 +298,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_incast.py",
@@ -309,11 +306,10 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
-
         "14_allgather_baseline": {
             "description": "Baseline AllGather 512B: isolated, no noise. Reference for experiment 15.",
             "local_options": {
@@ -326,11 +322,10 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 }
             }
         },
-
         "15_allgather_under_noise": {
             "description": "AllGather 512B victim + bursty A2A aggressor. Tests AllGather sensitivity to A2A interference.",
             "apps": {
@@ -340,7 +335,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_a2a.py",
@@ -348,11 +343,10 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
-
         "16_delayed_start_noise": {
             "description": "A2A 64B victim starts first; aggressor joins 10s later. Measures cold-start vs steady-state noise impact.",
             "apps": {
@@ -362,7 +356,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "blink/bursty_noise_a2a.py",
@@ -370,7 +364,7 @@
                     "collect": false,
                     "start": "10",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         }

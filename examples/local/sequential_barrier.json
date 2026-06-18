@@ -3,14 +3,15 @@
         "name": "sequential_barrier",
         "numnodes": "1",
         "ppn": "1",
-        "allocationmode": "l",
-        "allocationsplit": "e",
         "minruns": "1",
         "maxruns": "5",
         "timeout": "600.0",
         "convergeall": true,
         "outformat": "csv",
-        "extrainfo": "sequential_barrier_chain"
+        "extrainfo": "sequential_barrier_chain",
+        "allocation": {
+            "mode": "linear"
+        }
     },
     "experiments": {
         "01_sequential_barrier_chain": {

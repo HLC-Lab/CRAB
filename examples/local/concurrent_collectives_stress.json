@@ -3,13 +3,14 @@
         "name": "concurrent_collectives_stress",
         "numnodes": "1",
         "ppn": "1",
-        "allocationmode": "l",
-        "allocationsplit": "e",
         "minruns": "5",
         "maxruns": "10",
         "timeout": "1800.0",
         "outformat": "csv",
-        "extrainfo": "concurrent_collectives_stress_local"
+        "extrainfo": "concurrent_collectives_stress_local",
+        "allocation": {
+            "mode": "linear"
+        }
     },
     "experiments": {
         "01_concurrent_collectives_stress": {

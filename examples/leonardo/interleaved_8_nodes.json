@@ -3,8 +3,6 @@
         "name": "interleaved_8_nodes",
         "numnodes": "8",
         "ppn": "1",
-        "allocationmode": "i",
-        "allocationsplit": "50:25:25",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "600.0",
@@ -20,7 +18,15 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "interleaved",
+            "split": [
+                50,
+                25,
+                25
+            ]
+        }
     },
     "experiments": {
         "01_interleaved_a2a_stress": {

@@ -3,10 +3,6 @@
         "name": "a2a_msgsize_sweep_with_aggressor",
         "numnodes": "8",
         "ppn": "1",
-        "allocationmode": "p",
-        "partitionsplit": "50:50",
-        "allocationsplit": "e",
-        "partitionlayout": "l",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "1200.0",
@@ -22,7 +18,18 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "linear",
+            "partitions": {
+                "victim": {
+                    "share": 50
+                },
+                "aggressor": {
+                    "share": 50
+                }
+            }
+        }
     },
     "experiments": {
         "01_a2a_1KB_with_aggressor": {
@@ -34,7 +41,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_b.py",
@@ -42,7 +49,7 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
@@ -55,7 +62,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_b.py",
@@ -63,7 +70,7 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
@@ -76,7 +83,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_b.py",
@@ -84,7 +91,7 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         },
@@ -97,7 +104,7 @@
                     "collect": true,
                     "start": "0",
                     "end": "",
-                    "partition": 0
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_b.py",
@@ -105,7 +112,7 @@
                     "collect": false,
                     "start": "0",
                     "end": "f",
-                    "partition": 1
+                    "partition": "aggressor"
                 }
             }
         }

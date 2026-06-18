@@ -3,10 +3,6 @@
         "name": "cong",
         "numnodes": "8",
         "ppn": "1",
-        "allocationmode": "p",
-        "partitionsplit": "50:50",
-        "allocationsplit": "100-100",
-        "partitionlayout": "i",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "1200.0",
@@ -16,618 +12,710 @@
             "time": "00:20:00",
             "job-name": "crab_new_feat",
             "exclusive": true
+        },
+        "allocation": {
+            "mode": "interleaved",
+            "partitions": {
+                "victim": {
+                    "share": 50
+                },
+                "aggressor": {
+                    "share": 50
+                }
+            }
         }
     },
     "experiments": {
         "cong_inc_0.000001_0.001": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.000001 0.001",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.000001_0.01": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.000001 0.01",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.000001_0.1": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.000001 0.1",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.0001_0.001": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.0001 0.001",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.0001_0.01": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.0001 0.01",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.0001_0.1": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.0001 0.1",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.01_0.001": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.01 0.001",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.01_0.01": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.01 0.01",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         },
         "cong_inc_0.01_0.1": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (metà nodi). Nessun aggressore.",
+            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
             "apps": {
                 "0": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 64 -iter 1000",
                     "collect": true,
                     "start": "s0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "2": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 512 -iter 1000",
                     "collect": true,
                     "start": "s1",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "3": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "start": "s2",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "4": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 32768 -iter 1000",
                     "collect": true,
                     "start": "s3",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "5": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 262144 -iter 1000",
                     "collect": true,
                     "start": "s4",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "6": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 2097152 -iter 1000",
                     "collect": true,
                     "start": "s5",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "7": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "s6",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "8": {
                     "path": "bursty_noise_incast.py",
                     "args": "0.01 0.1",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         }

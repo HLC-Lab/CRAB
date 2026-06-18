@@ -3,8 +3,6 @@
         "name": "allreduce_vs_a2a",
         "numnodes": "8",
         "ppn": "1",
-        "allocationmode": "i",
-        "allocationsplit": "50:50",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "600.0",
@@ -20,7 +18,14 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "interleaved",
+            "split": [
+                50,
+                50
+            ]
+        }
     },
     "experiments": {
         "01_allreduce_vs_a2a": {

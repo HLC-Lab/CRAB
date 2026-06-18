@@ -3,10 +3,6 @@
         "name": "allreduce_interference",
         "numnodes": "4",
         "ppn": "1",
-        "allocationmode": "p",
-        "partitionsplit": "e",
-        "allocationsplit": "e",
-        "partitionlayout": "l",
         "minruns": "5",
         "maxruns": "10",
         "timeout": "3600.0",
@@ -23,7 +19,14 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "linear",
+            "partitions": {
+                "victim": {},
+                "aggressor": {}
+            }
+        }
     },
     "experiments": {
         "01_baseline_ardc_small": {
@@ -57,7 +60,7 @@
                     "path": "ardc_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
-                    "partition": 0,
+                    "partition": "victim",
                     "start": "0",
                     "end": ""
                 },
@@ -65,7 +68,7 @@
                     "path": "inc_b.py",
                     "args": "-msgsize 65536 -iter 1000",
                     "collect": false,
-                    "partition": 1,
+                    "partition": "aggressor",
                     "start": "0",
                     "end": "f"
                 }
@@ -90,7 +93,7 @@
                     "path": "a2a_b.py",
                     "args": "-msgsize 2048 -iter 200",
                     "collect": true,
-                    "partition": 0,
+                    "partition": "victim",
                     "start": "0",
                     "end": ""
                 },
@@ -98,7 +101,7 @@
                     "path": "inc_b.py",
                     "args": "-msgsize 2048 -iter 1000",
                     "collect": false,
-                    "partition": 1,
+                    "partition": "aggressor",
                     "start": "0",
                     "end": "f"
                 }

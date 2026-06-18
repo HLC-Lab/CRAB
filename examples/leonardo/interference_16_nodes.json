@@ -3,8 +3,6 @@
         "name": "interference_16_nodes",
         "numnodes": "16",
         "ppn": "1",
-        "allocationmode": "l",
-        "allocationsplit": "50:25:25",
         "minruns": "10",
         "maxruns": "20",
         "timeout": "1800.0",
@@ -20,7 +18,15 @@
         ],
         "system_header": [
             "module purge"
-        ]
+        ],
+        "allocation": {
+            "mode": "linear",
+            "split": [
+                50,
+                25,
+                25
+            ]
+        }
     },
     "experiments": {
         "01_a2a_with_dual_aggressors": {

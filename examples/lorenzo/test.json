@@ -2,10 +2,6 @@
     "global_options": {
         "numnodes": "16",
         "ppn": "4",
-        "allocationmode": "p",
-        "partitionsplit": "35:65",
-        "allocationsplit": "100-100",
-        "partitionlayout": "i",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "1200.0",
@@ -15,6 +11,17 @@
             "time": "00:20:00",
             "job-name": "AI-training-analysis",
             "exclusive": true
+        },
+        "allocation": {
+            "mode": "interleaved",
+            "partitions": {
+                "victim": {
+                    "share": 35
+                },
+                "aggressor": {
+                    "share": 65
+                }
+            }
         }
     },
     "experiments": {
@@ -26,14 +33,16 @@
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 },
                 "1": {
                     "path": "a2a_comm_only.py",
                     "args": "-msgsize 16777216 -iter 10000",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
+                    "end": "f",
+                    "partition": "aggressor"
                 }
             }
         }
