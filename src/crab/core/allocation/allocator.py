@@ -1,20 +1,20 @@
 import math
 import random
 from typing import List, Dict, Any
-  
-class NodeAllocator:  
-    """Encapsulates all strategies for mapping nodes to applications."""  
+
+class NodeAllocator:
+    """Encapsulates all strategies for mapping nodes to applications."""
 
     @staticmethod
     def _apply_largest_remainder(total_items: int, percentages: List[float]) -> List[int]:
         """Distributes integer items based on percentages using the Largest Remainder Method."""
         exact_shares = [total_items * (p / 100.0) for p in percentages]
         base_alloc = [int(math.floor(share)) for share in exact_shares]
-        
+
         # Calculate the deficit (remainder) for each index
         remainders = [(i, exact_shares[i] - base_alloc[i]) for i in range(len(exact_shares))]
         missing = total_items - sum(base_alloc)
-        
+
         # Sort by largest remainder descending
         remainders.sort(key=lambda x: x[1], reverse=True)
 
@@ -23,7 +23,7 @@ class NodeAllocator:
         # exceed the number of buckets — don't try to assign unaccounted nodes.
         for i in range(min(missing, len(remainders))):
             base_alloc[remainders[i][0]] += 1
-            
+
         return base_alloc
 
     @staticmethod
@@ -43,15 +43,15 @@ class NodeAllocator:
             split_list.append(0.0)
         split_list = split_list[:num_apps]
         return NodeAllocator._apply_largest_remainder(num_nodes, split_list)
-  
-    @staticmethod  
-    def allocate_linear(apps: List[Any], node_list: List[str], split_counts: List[int]):  
-        """Allocates contiguous blocks of nodes to applications."""  
-        idx = 0  
-        for app, count in zip(apps, split_counts):  
-            app.set_nodes(node_list[idx : idx + count])  
-            idx += count  
-  
+
+    @staticmethod
+    def allocate_linear(apps: List[Any], node_list: List[str], split_counts: List[int]):
+        """Allocates contiguous blocks of nodes to applications."""
+        idx = 0
+        for app, count in zip(apps, split_counts):
+            app.set_nodes(node_list[idx : idx + count])
+            idx += count
+
     @staticmethod
     def allocate_interleaved(apps: List[Any], node_list: List[str], split_counts: List[int], stride: int = 1):
         """Allocates nodes in a round-robin fashion, assigning `stride` nodes per turn."""
@@ -84,58 +84,78 @@ class NodeAllocator:
         NodeAllocator.allocate_linear(apps, shuffled, split_counts)
 
     @staticmethod
-    def allocate_partitioned(apps: List[Any], node_list: List[str], options: Dict[str, Any]):  
-        """  
-        Advanced allocation: divides nodes into partitions (Victim/Aggressor)   
-        and applies sub-rules (Shared vs Dedicated) within partitions.  
-        """  
-        num_nodes = len(node_list)  
-        partition_split = options.get('partitionsplit', '100')  
-        layout = options.get('partitionlayout', 'l')  
-        local_rules = [x.strip() for x in options.get('allocationsplit', 'e').split('-')]  
-  
-        # 1. Determine Partition Sizes  
-        if partition_split == 'e':  
-            # Auto-detect based on app partition_ids  
-            used_ids = set(getattr(a, 'partition_id', 0) for a in apps)  
-            max_p = max(used_ids) + 1 if used_ids else 1  
-            percs = [100.0 / max_p] * max_p
-        else:  
-            percs = [float(x) for x in partition_split.split(':')]  
-            
+    def allocate_partitioned(apps: List[Any], node_list: List[str], allocation: Dict[str, Any]):
+        """
+        Divides nodes into named partitions then allocates apps within each.
+        `allocation` must contain a 'partitions' dict: {name: {share?, mode?, split?, stride?, seed?}}.
+        Top-level 'mode' controls how partition node-blocks are laid out (linear/interleaved/random).
+        Apps are matched to partitions via app.partition_id (string name).
+        """
+        num_nodes = len(node_list)
+        partitions_cfg = allocation['partitions']
+        layout_mode = allocation.get('mode', 'linear')
+        partition_names = list(partitions_cfg.keys())
+
+        # 1. Determine partition sizes
+        shares = [partitions_cfg[name].get('share') for name in partition_names]
+        if all(s is None for s in shares):
+            percs = [100.0 / len(partition_names)] * len(partition_names)
+        elif any(s is None for s in shares):
+            raise ValueError(
+                "Either all partitions must specify 'share' or none must. "
+                f"Got mixed: {dict(zip(partition_names, shares))}"
+            )
+        else:
+            percs = [float(s) for s in shares]
+
         pt_counts = NodeAllocator._apply_largest_remainder(num_nodes, percs)
 
-        # 2. Assign nodes to Partitions (Linear vs Interleaved)  
-        partitions_nodes = [[] for _ in range(len(pt_counts))]  
-          
-        if layout == 'i':  
-            node_idx = 0  
-            while node_idx < num_nodes:  
-                for p_idx in range(len(pt_counts)):  
-                    if len(partitions_nodes[p_idx]) < pt_counts[p_idx]:  
-                        partitions_nodes[p_idx].append(node_list[node_idx])  
-                        node_idx += 1  
-                        if node_idx >= num_nodes: break  
-        else:  
-            idx = 0  
-            for p_idx, count in enumerate(pt_counts):  
-                partitions_nodes[p_idx] = node_list[idx : idx + count]  
-                idx += count  
-  
-        # 3. Apply Local Rules to Apps in each Partition  
-        if len(local_rules) == 1 and len(partitions_nodes) > 1:  
-            local_rules = local_rules * len(partitions_nodes)  
-  
-        for p_id, (p_nodes, p_rule) in enumerate(zip(partitions_nodes, local_rules)):  
-            p_apps = [a for a in apps if getattr(a, 'partition_id', 0) == p_id]  
-            if not p_apps: continue  
-  
-            # Shared Mode: single app always gets the full partition regardless of
-            # the sub-split rule (applying a 2-way split to 1 app is meaningless).
-            if len(p_apps) == 1 or p_rule == '100' or (p_rule == 'e' and len(p_apps) <= 1):
-                for app in p_apps:
-                    app.set_nodes(p_nodes)
+        # 2. Assign nodes to partitions using layout_mode
+        partitions_nodes: List[List[str]] = [[] for _ in range(len(pt_counts))]
+
+        if layout_mode == 'interleaved':
+            stride = allocation.get('stride', 1)
+            node_idx = 0
+            while node_idx < num_nodes:
+                advanced = False
+                for p_idx in range(len(pt_counts)):
+                    capacity = pt_counts[p_idx] - len(partitions_nodes[p_idx])
+                    for _ in range(min(stride, capacity)):
+                        if node_idx < num_nodes:
+                            partitions_nodes[p_idx].append(node_list[node_idx])
+                            node_idx += 1
+                            advanced = True
+                if not advanced:
+                    break
+        elif layout_mode == 'random':
+            shuffled = list(node_list)
+            random.Random(allocation.get('seed')).shuffle(shuffled)
+            idx = 0
+            for p_idx, count in enumerate(pt_counts):
+                partitions_nodes[p_idx] = shuffled[idx: idx + count]
+                idx += count
+        else:  # linear
+            idx = 0
+            for p_idx, count in enumerate(pt_counts):
+                partitions_nodes[p_idx] = node_list[idx: idx + count]
+                idx += count
+
+        # 3. Allocate apps within each partition
+        for p_name, p_nodes in zip(partition_names, partitions_nodes):
+            p_cfg = partitions_cfg[p_name]
+            p_apps = [a for a in apps if getattr(a, 'partition_id', None) == p_name]
+            if not p_apps:
+                continue
+            if len(p_apps) == 1:
+                p_apps[0].set_nodes(p_nodes)
+                continue
+            p_mode = p_cfg.get('mode', 'linear')
+            p_split = NodeAllocator.get_abs_split(
+                p_cfg.get('split', 'even'), len(p_apps), len(p_nodes)
+            )
+            if p_mode == 'interleaved':
+                NodeAllocator.allocate_interleaved(p_apps, p_nodes, p_split, stride=p_cfg.get('stride', 1))
+            elif p_mode == 'random':
+                NodeAllocator.allocate_random(p_apps, p_nodes, p_split, seed=p_cfg.get('seed'))
             else:
-                # Space Sharing within partition
-                sub_split = NodeAllocator.get_abs_split(p_rule, len(p_apps), len(p_nodes))
-                NodeAllocator.allocate_linear(p_apps, p_nodes, sub_split)
+                NodeAllocator.allocate_linear(p_apps, p_nodes, p_split)
