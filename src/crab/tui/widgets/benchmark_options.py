@@ -54,7 +54,7 @@ class BenchmarkOptions(VerticalScroll):
         self.border_title = "Benchmark Configuration"
         data_table = self.query_one("#node_table", DataTable)
         self._node_col_key = data_table.add_column("Available Nodes")
-        self._set_partition_fields_visible(False)
+        self._update_alloc_visibility("linear")
         self.call_after_refresh(self._fit_node_col)
 
     def _fit_node_col(self) -> None:
@@ -117,25 +117,29 @@ class BenchmarkOptions(VerticalScroll):
         with Collapsible(title="Allocation", collapsed=False, classes="bench-section"):
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
-                    yield Label("Allocation Mode:", classes="option-label")
+                    yield Label("Mode:", classes="option-label")
                     yield Select([
-                        ("Linear", "l"),
-                        ("Interleaved", "i"),
-                        ("Partitioned", "p"),
-                    ], value="l", id="allocationmode", classes="option-input")
+                        ("Linear", "linear"),
+                        ("Interleaved", "interleaved"),
+                        ("Random", "random"),
+                    ], value="linear", id="alloc_mode", classes="alloc-input")
                 with Container(classes="option-group"):
-                    yield Label("Allocation Split:", classes="option-label")
-                    yield Input(placeholder="e.g., 50:50 or 'e'", value="e", id="allocationsplit", classes="option-input")
-            with Horizontal(classes="options-row", id="partition-row"):
+                    yield Label("Split:", classes="option-label")
+                    yield Input(
+                        placeholder='even or [50, 50]', value="even",
+                        id="alloc_split", classes="alloc-input"
+                    )
+            with Horizontal(classes="options-row", id="alloc_stride_row"):
                 with Container(classes="option-group"):
-                    yield Label("Partition Split:", classes="option-label")
-                    yield Input(placeholder="e.g., 60:40 or 'e'", value="e", id="partitionsplit", classes="option-input")
+                    yield Label("Stride:", classes="option-label")
+                    yield Input(value="1", id="alloc_stride", type="integer", classes="alloc-input")
+            with Horizontal(classes="options-row", id="alloc_seed_row"):
                 with Container(classes="option-group"):
-                    yield Label("Partition Layout:", classes="option-label")
-                    yield Select([
-                        ("Linear", "l"),
-                        ("Interleaved", "i"),
-                    ], value="l", id="partitionlayout", classes="option-input")
+                    yield Label("Random Seed:", classes="option-label")
+                    yield Input(placeholder="Optional integer seed", id="alloc_seed", classes="alloc-input")
+            with Container(classes="option-group"):
+                yield Label("Partitions (JSON, optional):", classes="option-label")
+                yield TextArea(id="alloc_partitions", classes="alloc-input")
 
         # ── Convergence ───────────────────────────────────────────────────────
         with Collapsible(title="Convergence", collapsed=False, classes="bench-section"):
@@ -206,8 +210,46 @@ class BenchmarkOptions(VerticalScroll):
                 yield TextArea(id="sbatch_directives", classes="option-input")
 
 
-    def _set_partition_fields_visible(self, visible: bool) -> None:
-        self.query_one("#partition-row").display = visible
+    def _update_alloc_visibility(self, mode: str) -> None:
+        self.query_one("#alloc_stride_row").display = (mode == "interleaved")
+        self.query_one("#alloc_seed_row").display = (mode == "random")
+
+    def _get_allocation_state(self) -> dict:
+        import json
+        alloc = {}
+        mode = self.query_one("#alloc_mode", Select).value
+        alloc["mode"] = mode
+        split_str = self.query_one("#alloc_split", Input).value.strip()
+        if split_str and split_str != "even":
+            alloc["split"] = json.loads(split_str)
+        if mode == "interleaved":
+            stride_str = self.query_one("#alloc_stride", Input).value.strip()
+            if stride_str and stride_str != "1":
+                alloc["stride"] = int(stride_str)
+        if mode == "random":
+            seed_str = self.query_one("#alloc_seed", Input).value.strip()
+            if seed_str:
+                alloc["seed"] = int(seed_str)
+        partitions_text = self.query_one("#alloc_partitions", TextArea).text.strip()
+        if partitions_text:
+            alloc["partitions"] = json.loads(partitions_text)
+        return alloc
+
+    def _set_allocation_state(self, alloc: dict) -> None:
+        import json
+        self.query_one("#alloc_mode", Select).value = alloc.get("mode", "linear")
+        split = alloc.get("split", "even")
+        self.query_one("#alloc_split", Input).value = (
+            json.dumps(split) if isinstance(split, list) else "even"
+        )
+        self.query_one("#alloc_stride", Input).value = str(alloc.get("stride", 1))
+        seed = alloc.get("seed")
+        self.query_one("#alloc_seed", Input).value = str(seed) if seed is not None else ""
+        partitions = alloc.get("partitions")
+        self.query_one("#alloc_partitions", TextArea).text = (
+            json.dumps(partitions, indent=2) if partitions else ""
+        )
+        self._update_alloc_visibility(alloc.get("mode", "linear"))
 
     def get_state(self) -> dict:
         _UI_ONLY = {"nodes", "node_file"}
@@ -223,12 +265,16 @@ class BenchmarkOptions(VerticalScroll):
         if not state.get("numnodes"):
             state["numnodes"] = "1"
 
+        state["allocation"] = self._get_allocation_state()
+
         return state
 
     def set_state(self, state: dict) -> None:
         if not state:
             return
         for widget_id, value in state.items():
+            if widget_id == "allocation":
+                continue
             try:
                 widget = self.query_one(f"#{widget_id}", (Input, Select, Checkbox, TextArea))
                 if isinstance(widget, TextArea):
@@ -251,14 +297,14 @@ class BenchmarkOptions(VerticalScroll):
             except Exception as e:
                 self.app.log(f"Could not set state for widget '{widget_id}': {e}")
 
-        self._set_partition_fields_visible(state.get("allocationmode") == "p")
+        self._set_allocation_state(state.get("allocation", {}))
 
 
     @on(Select.Changed)
     def on_select_changed(self, event: Select.Changed) -> None:
         """Gestisce i cambiamenti nelle selezioni."""
-        if event.select.id == "allocationmode":
-            self._set_partition_fields_visible(event.value == "p")
+        if event.select.id == "alloc_mode":
+            self._update_alloc_visibility(event.value)
 
         if event.select.id == "nodes":
             node_file_input = self.query_one("#node_file", Input)
