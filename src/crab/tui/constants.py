@@ -8,8 +8,8 @@ CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 
 PRESETS_FILE = os.path.join(CRAB_ROOT, "config", "presets.json")
 
 SECTIONS = [
-    "Applications",
-    "Benchmark Options",
-    "Enviroment Settings",
-    "Runner Log"
+    "Experiments",
+    "Global Options",
+    "Environment",
+    "Log",
 ]
