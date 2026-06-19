@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
-import { emptyApp, timelineLayout, validateDraft } from "@/lib/config";
+import { emptyApp, flowLayout, validateDraft } from "@/lib/config";
 
 const store = useAuthorStore();
 const d = store.draft;
@@ -10,9 +10,24 @@ const selectedIndex = ref<number | null>(null);
 const sel = computed(() =>
   selectedIndex.value !== null ? d.experiments[selectedIndex.value] ?? null : null,
 );
-const timeline = computed(() => (sel.value ? timelineLayout(sel.value.apps) : []));
+const flow = computed(() => (sel.value ? flowLayout(sel.value.apps) : []));
 const issues = computed(() => validateDraft(d));
 const showIssues = ref(false);
+
+// Open overlay (searchable library picker)
+const showOpen = ref(false);
+const openQuery = ref("");
+const filteredLibrary = computed(() => {
+  const q = openQuery.value.trim().toLowerCase();
+  const lib = store.library;
+  return q ? lib.filter((e) => e.name.toLowerCase().includes(q)) : lib;
+});
+async function openEntry(id: string) {
+  await store.open(id);
+  selectFirstOrNone();
+  showOpen.value = false;
+  openQuery.value = "";
+}
 
 function addApp() {
   sel.value?.apps.push(emptyApp());
@@ -58,14 +73,6 @@ function removeExperiment() {
     : null;
 }
 
-async function onOpen(event: Event) {
-  const id = (event.target as HTMLSelectElement).value;
-  if (id) {
-    await store.open(id);
-    selectFirstOrNone();
-  }
-}
-
 function doImport() {
   if (store.importJson(importText.value)) {
     showImport.value = false;
@@ -90,10 +97,7 @@ async function copyJson() {
     <header class="bar">
       <div class="grp">
         <button class="btn" @click="newConfig">+ New</button>
-        <select class="btn open" :value="store.entryId ?? ''" @change="onOpen">
-          <option value="">Open…</option>
-          <option v-for="e in store.library" :key="e.id" :value="e.id">{{ e.name }}</option>
-        </select>
+        <button class="btn" @click="showOpen = true">Open…</button>
         <button class="btn primary" :disabled="store.busy" @click="store.save()">
           {{ store.busy ? "Saving…" : "Save" }}
         </button>
@@ -129,8 +133,8 @@ async function copyJson() {
       <!-- Left rail: the important globals + the experiments list -->
       <aside class="rail">
         <div class="globals">
-          <h2>Run</h2>
-          <label>Name <input v-model="d.name" placeholder="my_run" /></label>
+          <h2>Use case</h2>
+          <label>Use case name <input v-model="d.name" placeholder="congestion_study" /></label>
           <label>Nodes <input v-model="d.numnodes" placeholder="8" /></label>
           <label>Procs / node <input v-model="d.ppn" /></label>
           <!-- allocation · convergence · output · advanced land in later increments -->
@@ -164,22 +168,22 @@ async function copyJson() {
             <label>Description <input v-model="sel.description" placeholder="optional note" /></label>
           </div>
 
-          <!-- Schematic timeline of the apps -->
-          <div v-if="sel.apps.length" class="timeline">
-            <div v-for="(bar, i) in timeline" :key="i" class="lane">
-              <span class="lane-name">{{ bar.name }}</span>
-              <div class="track">
-                <div
-                  class="tbar"
-                  :class="[bar.kind, { open: bar.openEnded }]"
-                  :style="{ left: bar.leftPct + '%', width: bar.widthPct + '%' }"
-                  :title="`${bar.startNote} ${bar.endNote}`.trim()"
-                >
-                  <span class="tnote">{{ [bar.startNote, bar.endNote].filter(Boolean).join(" · ") }}</span>
+          <!-- Abstract app flow: columns = sequential stages, colour = role -->
+          <div v-if="sel.apps.length" class="flow">
+            <template v-for="(col, ci) in flow" :key="ci">
+              <div v-if="ci > 0" class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-col">
+                <div v-for="node in col" :key="node.index" class="node" :class="node.role">
+                  <span class="node-name">{{ node.name }}</span>
+                  <span class="node-tags">
+                    <span class="role-tag">{{ node.role }}</span>
+                    <span v-if="node.note" class="tag">{{ node.note }}</span>
+                    <span v-if="node.endKind === 'force'" class="tag">stops w/ others</span>
+                    <span v-else-if="node.endKind === 'timed'" class="tag">timed</span>
+                  </span>
                 </div>
               </div>
-            </div>
-            <div class="axis"><span>start</span><span>time →</span></div>
+            </template>
           </div>
 
           <!-- Apps -->
@@ -188,7 +192,14 @@ async function copyJson() {
               <div class="app-row">
                 <span class="idx">#{{ i }}</span>
                 <input v-model="app.path" class="grow" placeholder="wrapper path, e.g. blink/a2a_comm_only.py" />
-                <label class="chk"><input type="checkbox" v-model="app.collect" /> Measure</label>
+                <select
+                  class="role"
+                  :value="app.collect ? 'victim' : 'aggressor'"
+                  @change="app.collect = ($event.target as HTMLSelectElement).value === 'victim'"
+                >
+                  <option value="victim">victim (measured)</option>
+                  <option value="aggressor">aggressor</option>
+                </select>
                 <button class="icon-btn danger" title="Remove app" @click="removeApp(i)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
@@ -212,9 +223,9 @@ async function copyJson() {
                 </label>
                 <label>Ends
                   <select v-model="app.endKind">
-                    <option value="complete">runs to completion (victim)</option>
-                    <option value="force">stop when victims finish (aggressor)</option>
-                    <option value="timed">stop after N seconds</option>
+                    <option value="complete">runs to completion</option>
+                    <option value="force">stops when the others finish</option>
+                    <option value="timed">stops after N seconds</option>
                   </select>
                 </label>
                 <label v-if="app.endKind === 'timed'">Seconds <input v-model="app.endTimed" /></label>
@@ -233,6 +244,33 @@ async function copyJson() {
         <header>config.json</header>
         <pre>{{ store.configJson }}</pre>
       </aside>
+    </div>
+
+    <!-- Open overlay: searchable library picker -->
+    <div v-if="showOpen" class="modal-bg" @click.self="showOpen = false">
+      <div class="modal card open-modal">
+        <input
+          v-model="openQuery"
+          class="search"
+          placeholder="Search saved use cases…"
+          autofocus
+        />
+        <ul class="open-list">
+          <li
+            v-for="e in filteredLibrary"
+            :key="e.id"
+            :class="{ current: e.id === store.entryId }"
+            @click="openEntry(e.id)"
+          >
+            <span class="open-name">{{ e.name }}</span>
+            <span class="open-meta">
+              {{ Object.keys(e.config.experiments || {}).length }} exp ·
+              {{ e.updated_at.slice(0, 10) }}
+            </span>
+          </li>
+          <li v-if="!filteredLibrary.length" class="empty">No matching use cases.</li>
+        </ul>
+      </div>
     </div>
 
     <!-- Import modal -->
@@ -303,25 +341,22 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .pane { padding: 1.25rem; min-height: 16rem; display: flex; flex-direction: column; gap: 1rem; }
 .exp-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .exp-edit label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: 0.78rem; }
-/* Timeline diagram */
-.timeline { border: 1px solid var(--border); border-radius: var(--r); padding: 0.6rem 0.75rem;
-  background: var(--bg2); display: flex; flex-direction: column; gap: 0.35rem; }
-.lane { display: grid; grid-template-columns: 7rem 1fr; align-items: center; gap: 0.5rem; }
-.lane-name { font-size: 0.75rem; color: var(--text2); overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; }
-.track { position: relative; height: 1.4rem; background: var(--bg); border-radius: var(--r); }
-.tbar { position: absolute; top: 2px; bottom: 2px; border-radius: 4px; min-width: 1.5rem;
-  display: flex; align-items: center; padding: 0 0.4rem; overflow: hidden; }
-.tbar.complete { background: var(--accent); }
-.tbar.force { background: var(--danger); }
-.tbar.timed { background: var(--warn); }
-.tbar.open { border-top-right-radius: 0; border-bottom-right-radius: 0;
-  -webkit-mask-image: linear-gradient(to right, #000 80%, transparent);
-          mask-image: linear-gradient(to right, #000 80%, transparent); }
-.tnote { font-size: 0.66rem; color: #fff; white-space: nowrap; opacity: 0.95; }
-.tbar.timed .tnote { color: #1a1a1a; }
-.axis { display: flex; justify-content: space-between; color: var(--text3); font-size: 0.66rem;
-  padding-left: 7.5rem; }
+/* Abstract flow diagram */
+.flow { display: flex; align-items: stretch; gap: 0.5rem; overflow-x: auto;
+  border: 1px solid var(--border); border-radius: var(--r); padding: 0.75rem; background: var(--bg2); }
+.flow-col { display: flex; flex-direction: column; gap: 0.5rem; justify-content: center; }
+.flow-arrow { display: flex; align-items: center; color: var(--text3); font-size: 1rem; }
+.node { min-width: 9rem; border-radius: var(--r); padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border2); display: flex; flex-direction: column; gap: 0.25rem; }
+.node.victim { border-left: 3px solid var(--accent); background: var(--accent-glow); }
+.node.aggressor { border-left: 3px solid var(--warn); }
+.node-name { font-size: 0.82rem; color: var(--text); }
+.node-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.role-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--text2); }
+.tag { font-size: 0.62rem; color: var(--text3); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0 0.4rem; }
+.role { font-size: 0.78rem; }
 
 /* Apps */
 .apps { display: flex; flex-direction: column; gap: 0.6rem; }
@@ -363,4 +398,16 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .modal textarea { width: 100%; resize: vertical; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
 .card { background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2); }
+
+/* Open overlay */
+.open-modal { width: min(34rem, 92vw); padding: 0.75rem; }
+.search { width: 100%; margin-bottom: 0.6rem; font-size: 0.9rem; padding: 0.5rem 0.6rem; }
+.open-list { list-style: none; max-height: 24rem; overflow-y: auto; display: flex;
+  flex-direction: column; gap: 0.2rem; }
+.open-list li { display: flex; justify-content: space-between; align-items: center;
+  padding: 0.45rem 0.55rem; border: 1px solid transparent; border-radius: var(--r); cursor: pointer; }
+.open-list li:hover { background: var(--bg2); }
+.open-list li.current { border-color: var(--accent); }
+.open-name { color: var(--text); }
+.open-meta { color: var(--text3); font-size: 0.72rem; }
 </style>

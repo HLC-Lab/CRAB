@@ -174,28 +174,18 @@ export function validateDraft(d: Draft): string[] {
   return issues;
 }
 
-// -- Timeline diagram --------------------------------------------------------
-// A schematic (not-to-scale) layout of an experiment's apps on a shared time
-// axis, so the editor can show parallel vs staggered vs sequential launches and
-// victim/aggressor/timed ends at a glance.
+// -- Flow diagram ------------------------------------------------------------
+// An abstract (not-to-scale) view of an experiment's apps: columns are
+// sequential stages (an "after app N" app sits one stage right of N), apps in
+// the same column run in parallel, and colour shows victim (measured) vs
+// aggressor (the `collect` flag, #1). Duration is intentionally not depicted.
 
-export interface TimelineBar {
+export interface FlowNode {
+  index: number;
   name: string;
-  leftPct: number;
-  widthPct: number;
-  kind: EndKind;
-  openEnded: boolean; // a victim that runs to completion (unknown duration)
-  startNote: string;
-  endNote: string;
-}
-
-function _num(s: string): number {
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function _clamp(n: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, n));
+  role: "victim" | "aggressor";
+  endKind: EndKind;
+  note: string; // small qualifier, e.g. "+5s"
 }
 
 function _base(path: string): string {
@@ -203,47 +193,29 @@ function _base(path: string): string {
   return p ? p.split("/").pop()!.replace(/\.py$/, "") : "";
 }
 
-export function timelineLayout(apps: AppDraft[]): TimelineBar[] {
-  const BASE = 8;
-  const GAP = 1;
-  const SCALE = 0.5; // schematic units per second
-  const starts: number[] = [];
-  const ends: number[] = [];
-
+/** Apps grouped into sequential stages (each stage = one column of parallel apps). */
+export function flowLayout(apps: AppDraft[]): FlowNode[][] {
+  const level: number[] = [];
   apps.forEach((a, i) => {
-    let start = 0;
-    if (a.startKind === "delay") start = _clamp(_num(a.startDelay) * SCALE, 0, 30);
-    else if (a.startKind === "after") {
+    if (a.startKind === "after") {
       const ref = parseInt(a.startAfter, 10);
-      const refEnd = Number.isInteger(ref) && ref >= 0 && ref < i ? ends[ref] : 0;
-      start = (refEnd ?? 0) + GAP;
+      const refLevel = Number.isInteger(ref) && ref >= 0 && ref < i ? (level[ref] ?? 0) : 0;
+      level[i] = refLevel + 1;
+    } else {
+      level[i] = 0;
     }
-    const dur = a.endKind === "timed" ? _clamp(_num(a.endTimed) * SCALE, 2, 40) : BASE;
-    starts[i] = start;
-    ends[i] = start + dur;
   });
 
-  // Aggressors (force) visually end with the latest victim.
-  const victimEnds = apps.map((a, i) => (a.endKind === "complete" ? ends[i] : 0));
-  const maxVictim = Math.max(0, ...victimEnds);
+  const columns: FlowNode[][] = [];
   apps.forEach((a, i) => {
-    if (a.endKind === "force" && maxVictim > starts[i]) ends[i] = maxVictim;
+    const node: FlowNode = {
+      index: i,
+      name: _base(a.path) || `app ${i}`,
+      role: a.collect ? "victim" : "aggressor",
+      endKind: a.endKind,
+      note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
+    };
+    (columns[level[i]] ??= []).push(node);
   });
-
-  const maxEnd = Math.max(10, ...ends);
-  return apps.map((a, i) => ({
-    name: _base(a.path) || `app ${i}`,
-    leftPct: (starts[i] / maxEnd) * 100,
-    widthPct: Math.max(4, ((ends[i] - starts[i]) / maxEnd) * 100),
-    kind: a.endKind,
-    openEnded: a.endKind === "complete",
-    startNote:
-      a.startKind === "delay"
-        ? `+${a.startDelay || 0}s`
-        : a.startKind === "after"
-          ? `after #${a.startAfter}`
-          : "",
-    endNote:
-      a.endKind === "force" ? "killed" : a.endKind === "timed" ? `${a.endTimed || 0}s` : "runs to end",
-  }));
+  return columns.filter(Boolean);
 }

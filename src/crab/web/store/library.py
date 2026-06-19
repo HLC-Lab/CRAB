@@ -10,6 +10,7 @@ layer, not here). The library is laptop-local and non-secret.
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -110,7 +111,12 @@ class LibraryStore:
 
     def duplicate(self, entry_id: str) -> LibraryEntry:
         src = self.get(entry_id)
-        return self.create(f"{src.name} copy", src.config)
+        copied = deepcopy(src.config)
+        # Keep the in-config use-case name in sync with the library copy.
+        go = copied.get("global_options")
+        if isinstance(go, dict) and isinstance(go.get("name"), str) and go["name"]:
+            go["name"] = f"{go['name']} copy"
+        return self.create(f"{src.name} copy", copied)
 
     def delete(self, entry_id: str) -> None:
         path = self._path(entry_id)
