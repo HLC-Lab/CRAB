@@ -13,15 +13,12 @@ class app(base):
         return os.environ["CRAB_ROOT"] + "/wrappers/ib_send_lat.sh"
 
     def read_data(self):  # return list (size num_metrics) of variable size lists
-        ib_devices = os.environ["CRAB_IB_DEVICES"].count("#") + 1
-        files = []
-        for i in range(ib_devices):
-            file = "ib_send_lat" + str(i)
-            files += [file]
-        if len(files) == 0:
-            # cannot find the json file created by ib_send_lat
-            print('No output files found.')
-            return [[] for _ in range(len(self.metadata))]
+        ib_devices_env = os.environ.get("CRAB_IB_DEVICES")
+        if not ib_devices_env:
+            raise RuntimeError("CRAB_IB_DEVICES must be set to run ib_send_lat")
+        ib_devices = ib_devices_env.count("#") + 1
+        files = [f"ib_send_lat{i}" for i in range(ib_devices)]
+
         samples = []
         for path in files:
             start = False
@@ -36,22 +33,16 @@ class app(base):
                         start = True
                         continue
                     if start and not line_clean.startswith("---"):
-                        if i >= warmup: # Discard first warmup samples
+                        if i >= warmup:
                             time = line_clean.split(",")[1].strip()
                             samples_rank += [float(time)]
                         i += 1
                     else:
                         start = False
             samples += [samples_rank]
-        
-        samples_max = []
-        for i in range(len(samples[0])):
-            max_time = 0
-            for j in range(len(samples)):
-                max_time = max(max_time, samples[j][i])
-            samples_max += [max_time]
-        #for f in files:
-        #    os.remove(f)
+
+        # Use zip(*samples) to avoid IndexError when devices have unequal sample counts
+        samples_max = [max(row) for row in zip(*samples)]
         return [samples_max]
 
     def get_bench_name(self):

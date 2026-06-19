@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 from abc import abstractmethod
 from crab.wrappers.base import base
@@ -57,12 +58,17 @@ class ph_base(base):
         modified_in = os.path.join(run_dir, "modified_input.in")
         with open(input_file, 'r') as f_in, open(modified_in, 'w') as f_out:
             for line in f_in:
-                if "outdir" in line.lower():
+                if re.match(r'^\s*outdir\s*=', line, re.IGNORECASE):
                     f_out.write(f"    outdir = '{sandbox_dir}/'\n")
-                elif "pseudo_dir" in line.lower():
+                elif re.match(r'^\s*pseudo_dir\s*=', line, re.IGNORECASE):
                     f_out.write(f"    pseudo_dir = '{target_pseudo_dir}/'\n")
                 else:
                     f_out.write(line)
 
         binary = self.get_binary_path()
+        if binary is None:
+            raise RuntimeError(
+                f"No receipt found for benchmark_id='{self.benchmark_id}'. "
+                "Run 'crab setup' first."
+            )
         return f"{binary} < {modified_in}"
