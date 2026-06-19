@@ -7,13 +7,44 @@
 
 import type { AppConfig, CrabConfig } from "@/api/types";
 
+// start: when the app launches. end: when it stops (the victim/aggressor axis).
+export type StartKind = "at_start" | "delay" | "after";
+export type EndKind = "complete" | "force" | "timed";
+
 export interface AppDraft {
   path: string;
   args: string;
   collect: boolean;
-  start: string;
-  end: string;
   partition: string;
+  startKind: StartKind;
+  startDelay: string; // seconds, when startKind === "delay"
+  startAfter: string; // app index N, when startKind === "after" → "sN"
+  endKind: EndKind;
+  endTimed: string; // seconds, when endKind === "timed"
+}
+
+function startStr(a: AppDraft): string {
+  if (a.startKind === "delay") return a.startDelay.trim() || "0";
+  if (a.startKind === "after") return "s" + (a.startAfter.trim() || "0");
+  return "0";
+}
+
+function endStr(a: AppDraft): string {
+  if (a.endKind === "force") return "f";
+  if (a.endKind === "timed") return a.endTimed.trim() || "0";
+  return "";
+}
+
+function parseStart(s: string): Pick<AppDraft, "startKind" | "startDelay" | "startAfter"> {
+  if (s.startsWith("s")) return { startKind: "after", startDelay: "5", startAfter: s.slice(1) || "0" };
+  if (s === "" || s === "0") return { startKind: "at_start", startDelay: "5", startAfter: "0" };
+  return { startKind: "delay", startDelay: s, startAfter: "0" };
+}
+
+function parseEnd(s: string): Pick<AppDraft, "endKind" | "endTimed"> {
+  if (s === "f") return { endKind: "force", endTimed: "60" };
+  if (s === "") return { endKind: "complete", endTimed: "60" };
+  return { endKind: "timed", endTimed: s };
 }
 
 export interface ExperimentDraft {
@@ -30,7 +61,11 @@ export interface Draft {
 }
 
 export function emptyApp(): AppDraft {
-  return { path: "", args: "", collect: true, start: "0", end: "", partition: "" };
+  return {
+    path: "", args: "", collect: true, partition: "",
+    startKind: "at_start", startDelay: "5", startAfter: "0",
+    endKind: "complete", endTimed: "60",
+  };
 }
 
 export function emptyDraft(): Draft {
@@ -53,8 +88,8 @@ export function toConfig(draft: Draft): CrabConfig {
         path: a.path.trim(),
         args: a.args,
         collect: a.collect,
-        start: a.start,
-        end: a.end,
+        start: startStr(a),
+        end: endStr(a),
       };
       if (a.partition.trim()) entry.partition = a.partition.trim();
       apps[String(i)] = entry;
@@ -91,11 +126,85 @@ export function fromConfig(config: CrabConfig): Draft {
         path: str(app.path),
         args: str(app.args),
         collect: app.collect !== false,
-        start: str(app.start, "0"),
-        end: str(app.end),
         partition: str(app.partition),
+        ...parseStart(str(app.start, "0")),
+        ...parseEnd(str(app.end)),
       };
     }),
   }));
   return draft;
+}
+
+// -- Timeline diagram --------------------------------------------------------
+// A schematic (not-to-scale) layout of an experiment's apps on a shared time
+// axis, so the editor can show parallel vs staggered vs sequential launches and
+// victim/aggressor/timed ends at a glance.
+
+export interface TimelineBar {
+  name: string;
+  leftPct: number;
+  widthPct: number;
+  kind: EndKind;
+  openEnded: boolean; // a victim that runs to completion (unknown duration)
+  startNote: string;
+  endNote: string;
+}
+
+function _num(s: string): number {
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function _clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
+function _base(path: string): string {
+  const p = path.trim().replace(/\/+$/, "");
+  return p ? p.split("/").pop()!.replace(/\.py$/, "") : "";
+}
+
+export function timelineLayout(apps: AppDraft[]): TimelineBar[] {
+  const BASE = 8;
+  const GAP = 1;
+  const SCALE = 0.5; // schematic units per second
+  const starts: number[] = [];
+  const ends: number[] = [];
+
+  apps.forEach((a, i) => {
+    let start = 0;
+    if (a.startKind === "delay") start = _clamp(_num(a.startDelay) * SCALE, 0, 30);
+    else if (a.startKind === "after") {
+      const ref = parseInt(a.startAfter, 10);
+      const refEnd = Number.isInteger(ref) && ref >= 0 && ref < i ? ends[ref] : 0;
+      start = (refEnd ?? 0) + GAP;
+    }
+    const dur = a.endKind === "timed" ? _clamp(_num(a.endTimed) * SCALE, 2, 40) : BASE;
+    starts[i] = start;
+    ends[i] = start + dur;
+  });
+
+  // Aggressors (force) visually end with the latest victim.
+  const victimEnds = apps.map((a, i) => (a.endKind === "complete" ? ends[i] : 0));
+  const maxVictim = Math.max(0, ...victimEnds);
+  apps.forEach((a, i) => {
+    if (a.endKind === "force" && maxVictim > starts[i]) ends[i] = maxVictim;
+  });
+
+  const maxEnd = Math.max(10, ...ends);
+  return apps.map((a, i) => ({
+    name: _base(a.path) || `app ${i}`,
+    leftPct: (starts[i] / maxEnd) * 100,
+    widthPct: Math.max(4, ((ends[i] - starts[i]) / maxEnd) * 100),
+    kind: a.endKind,
+    openEnded: a.endKind === "complete",
+    startNote:
+      a.startKind === "delay"
+        ? `+${a.startDelay || 0}s`
+        : a.startKind === "after"
+          ? `after #${a.startAfter}`
+          : "",
+    endNote:
+      a.endKind === "force" ? "killed" : a.endKind === "timed" ? `${a.endTimed || 0}s` : "runs to end",
+  }));
 }

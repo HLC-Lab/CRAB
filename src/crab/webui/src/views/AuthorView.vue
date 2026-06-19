@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
+import { emptyApp, timelineLayout } from "@/lib/config";
 
 const store = useAuthorStore();
 const d = store.draft;
@@ -9,6 +10,18 @@ const selectedIndex = ref<number | null>(null);
 const sel = computed(() =>
   selectedIndex.value !== null ? d.experiments[selectedIndex.value] ?? null : null,
 );
+const timeline = computed(() => (sel.value ? timelineLayout(sel.value.apps) : []));
+
+function addApp() {
+  sel.value?.apps.push(emptyApp());
+}
+function removeApp(i: number) {
+  sel.value?.apps.splice(i, 1);
+}
+// App indices an app can depend on (everything but itself).
+function otherIndices(self: number): number[] {
+  return (sel.value?.apps ?? []).map((_, j) => j).filter((j) => j !== self);
+}
 
 const showJson = ref(false);
 const showImport = ref(false);
@@ -136,8 +149,67 @@ async function copyJson() {
             <label>Experiment name <input v-model="sel.name" /></label>
             <label>Description <input v-model="sel.description" placeholder="optional note" /></label>
           </div>
-          <div class="apps-stub">Apps editor — next increment.</div>
-          <button class="btn danger" @click="removeExperiment">Remove experiment</button>
+
+          <!-- Schematic timeline of the apps -->
+          <div v-if="sel.apps.length" class="timeline">
+            <div v-for="(bar, i) in timeline" :key="i" class="lane">
+              <span class="lane-name">{{ bar.name }}</span>
+              <div class="track">
+                <div
+                  class="tbar"
+                  :class="[bar.kind, { open: bar.openEnded }]"
+                  :style="{ left: bar.leftPct + '%', width: bar.widthPct + '%' }"
+                  :title="`${bar.startNote} ${bar.endNote}`.trim()"
+                >
+                  <span class="tnote">{{ [bar.startNote, bar.endNote].filter(Boolean).join(" · ") }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="axis"><span>start</span><span>time →</span></div>
+          </div>
+
+          <!-- Apps -->
+          <div class="apps">
+            <div v-for="(app, i) in sel.apps" :key="i" class="app">
+              <div class="app-row">
+                <span class="idx">#{{ i }}</span>
+                <input v-model="app.path" class="grow" placeholder="wrapper path, e.g. blink/a2a_comm_only.py" />
+                <label class="chk"><input type="checkbox" v-model="app.collect" /> Measure</label>
+                <button class="icon-btn danger" title="Remove app" @click="removeApp(i)">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                  </svg>
+                </button>
+              </div>
+              <input v-model="app.args" class="full" placeholder="args, e.g. -msgsize 8192 -iter 1000" />
+              <div class="timing">
+                <label>Starts
+                  <select v-model="app.startKind">
+                    <option value="at_start">at start</option>
+                    <option value="delay">after a delay</option>
+                    <option value="after">after another app</option>
+                  </select>
+                </label>
+                <label v-if="app.startKind === 'delay'">Delay (s) <input v-model="app.startDelay" /></label>
+                <label v-if="app.startKind === 'after'">After
+                  <select v-model="app.startAfter">
+                    <option v-for="j in otherIndices(i)" :key="j" :value="String(j)">#{{ j }}</option>
+                  </select>
+                </label>
+                <label>Ends
+                  <select v-model="app.endKind">
+                    <option value="complete">runs to completion (victim)</option>
+                    <option value="force">stop when victims finish (aggressor)</option>
+                    <option value="timed">stop after N seconds</option>
+                  </select>
+                </label>
+                <label v-if="app.endKind === 'timed'">Seconds <input v-model="app.endTimed" /></label>
+              </div>
+            </div>
+            <button class="btn" @click="addApp">+ Add app</button>
+          </div>
+
+          <button class="btn danger remove-exp" @click="removeExperiment">Remove experiment</button>
         </template>
         <p v-else class="empty pad">Select or add an experiment to edit its apps.</p>
       </main>
@@ -217,8 +289,40 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .pane { padding: 1.25rem; min-height: 16rem; display: flex; flex-direction: column; gap: 1rem; }
 .exp-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .exp-edit label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: 0.78rem; }
-.apps-stub { color: var(--text3); border: 1px dashed var(--border); border-radius: var(--r);
-  padding: 1.5rem; text-align: center; }
+/* Timeline diagram */
+.timeline { border: 1px solid var(--border); border-radius: var(--r); padding: 0.6rem 0.75rem;
+  background: var(--bg2); display: flex; flex-direction: column; gap: 0.35rem; }
+.lane { display: grid; grid-template-columns: 7rem 1fr; align-items: center; gap: 0.5rem; }
+.lane-name { font-size: 0.75rem; color: var(--text2); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.track { position: relative; height: 1.4rem; background: var(--bg); border-radius: var(--r); }
+.tbar { position: absolute; top: 2px; bottom: 2px; border-radius: 4px; min-width: 1.5rem;
+  display: flex; align-items: center; padding: 0 0.4rem; overflow: hidden; }
+.tbar.complete { background: var(--accent); }
+.tbar.force { background: var(--danger); }
+.tbar.timed { background: var(--warn); }
+.tbar.open { border-top-right-radius: 0; border-bottom-right-radius: 0;
+  -webkit-mask-image: linear-gradient(to right, #000 80%, transparent);
+          mask-image: linear-gradient(to right, #000 80%, transparent); }
+.tnote { font-size: 0.66rem; color: #fff; white-space: nowrap; opacity: 0.95; }
+.tbar.timed .tnote { color: #1a1a1a; }
+.axis { display: flex; justify-content: space-between; color: var(--text3); font-size: 0.66rem;
+  padding-left: 7.5rem; }
+
+/* Apps */
+.apps { display: flex; flex-direction: column; gap: 0.6rem; }
+.app { border: 1px solid var(--border); border-radius: var(--r); padding: 0.6rem;
+  display: flex; flex-direction: column; gap: 0.5rem; background: var(--bg2); }
+.app-row { display: flex; align-items: center; gap: 0.5rem; }
+.idx { color: var(--text3); font-size: 0.75rem; }
+.grow { flex: 1; }
+.full { width: 100%; }
+.chk { display: flex; align-items: center; gap: 0.3rem; color: var(--text2); font-size: 0.78rem;
+  white-space: nowrap; flex-direction: row; }
+.chk input { accent-color: var(--accent); }
+.timing { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: end; }
+.timing label { flex-direction: column; }
+.remove-exp { align-self: flex-start; }
 
 .jsonpane { width: 26rem; max-height: 36rem; overflow: auto; }
 .jsonpane header { position: sticky; top: 0; background: var(--bg2); color: var(--text2);
