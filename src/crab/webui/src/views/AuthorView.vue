@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
-import { emptyApp, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
+import { emptyApp, emptyExperiment, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 
@@ -13,12 +13,6 @@ const showTuning = ref(false);
 const allocActive = computed(() => hasAllocation(d.allocation));
 // Whether any tunable option has been set (drives the collapsed-section dot).
 const tuningActive = computed(() => Object.values(d.options).some((v) => v !== ""));
-// Node-group names defined by the global allocation, for the per-app partition picker.
-const groupNames = computed(() =>
-  d.allocation.by === "groups"
-    ? d.allocation.partitions.map((p) => p.name.trim()).filter(Boolean)
-    : [],
-);
 
 const selectedIndex = ref<number | null>(null);
 const sel = computed(() =>
@@ -27,6 +21,25 @@ const sel = computed(() =>
 const flow = computed(() => (sel.value ? flowLayout(sel.value.apps) : []));
 const issues = computed(() => validateDraft(d));
 const showIssues = ref(false);
+const showOverrides = ref(false);
+
+// Node groups an app may target = the EFFECTIVE allocation for the selected
+// experiment (its local override when set, otherwise the global allocation).
+const effectiveAlloc = computed(() => {
+  const e = sel.value;
+  return e && e.overrideAlloc && hasAllocation(e.allocation) ? e.allocation : d.allocation;
+});
+const groupNames = computed(() =>
+  effectiveAlloc.value.by === "groups"
+    ? effectiveAlloc.value.partitions.map((p) => p.name.trim()).filter(Boolean)
+    : [],
+);
+// Whether the selected experiment has any local_options set (drives its dot).
+const overridesActive = computed(() => {
+  const e = sel.value;
+  if (!e) return false;
+  return (e.overrideAlloc && hasAllocation(e.allocation)) || Object.values(e.options).some((v) => v !== "");
+});
 
 // Open overlay (searchable library picker)
 const showOpen = ref(false);
@@ -71,11 +84,7 @@ function newConfig() {
 }
 
 function addExperiment() {
-  d.experiments.push({
-    name: `experiment_${d.experiments.length + 1}`,
-    description: "",
-    apps: [],
-  });
+  d.experiments.push(emptyExperiment(`experiment_${d.experiments.length + 1}`));
   selectedIndex.value = d.experiments.length - 1;
 }
 
@@ -275,6 +284,26 @@ async function copyJson() {
             <button class="btn" @click="addApp">+ Add app</button>
           </div>
 
+          <!-- Per-experiment overrides (local_options) -->
+          <div class="section overrides">
+            <button class="sec-head" @click="showOverrides = !showOverrides">
+              <span>Overrides for this experiment</span>
+              <span class="sec-state">
+                <span v-if="overridesActive" class="dot" />
+                <span class="caret">{{ showOverrides ? "▾" : "▸" }}</span>
+              </span>
+            </button>
+            <div v-show="showOverrides" class="ov-body">
+              <p class="hint">Unset fields inherit the use-case globals. Set one only to vary it for this experiment.</p>
+              <label class="ov-toggle">
+                <input type="checkbox" v-model="sel.overrideAlloc" />
+                Override node allocation for this experiment
+              </label>
+              <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" />
+              <OptionsFields :options="sel.options" unset-label="inherit" />
+            </div>
+          </div>
+
           <button class="btn danger remove-exp" @click="removeExperiment">Remove experiment</button>
         </template>
         <p v-else class="empty pad">Select or add an experiment to edit its apps.</p>
@@ -423,6 +452,13 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .timing { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: end; }
 .timing label { flex-direction: column; }
 .remove-exp { align-self: flex-start; }
+
+/* Per-experiment overrides */
+.overrides { margin-top: 0; }
+.ov-body { display: flex; flex-direction: column; gap: 0.8rem; }
+.ov-body .hint { color: var(--text3); font-size: 0.75rem; }
+.ov-toggle { display: flex; align-items: center; gap: 0.4rem; color: var(--text2); font-size: 0.8rem; cursor: pointer; }
+.ov-toggle input { accent-color: var(--accent); }
 
 .jsonpane { width: 26rem; max-height: 36rem; overflow: auto; }
 .jsonpane header { position: sticky; top: 0; background: var(--bg2); color: var(--text2);

@@ -96,9 +96,13 @@ export function emptyPartition(name = ""): PartitionDraft {
 
 const RESERVED_PARTITION_KEYS = new Set(["share"]);
 
-/** Build the `allocation` object, or undefined when disabled. */
-export function toAllocation(a: AllocationDraft): Record<string, unknown> | undefined {
-  if (!hasAllocation(a)) return undefined;
+/**
+ * Build the `allocation` object, or undefined when there is no content. Pass
+ * `force` for a per-experiment override, where even a bare `{mode:"linear"}` is
+ * meaningful (it replaces — rather than inherits — the global allocation).
+ */
+export function toAllocation(a: AllocationDraft, force = false): Record<string, unknown> | undefined {
+  if (!force && !hasAllocation(a)) return undefined;
   const out: Record<string, unknown> = { mode: a.mode };
   if (a.mode === "interleaved" && a.stride.trim()) out.stride = Number(a.stride.trim());
   if (a.mode === "random" && a.seed.trim()) out.seed = Number(a.seed.trim());
@@ -152,7 +156,17 @@ export function fromAllocation(alloc: unknown): AllocationDraft {
 export interface ExperimentDraft {
   name: string;
   description: string;
+  // Per-experiment overrides (local_options). `overrideAlloc` gates the allocation:
+  // when off, the experiment inherits the global allocation; when on, the editor's
+  // allocation is force-emitted (even a bare {mode:"linear"}) so it replaces the global.
+  overrideAlloc: boolean;
+  allocation: AllocationDraft;
+  options: OptionsDraft;
   apps: AppDraft[];
+}
+
+export function emptyExperiment(name = ""): ExperimentDraft {
+  return { name, description: "", overrideAlloc: false, allocation: emptyAllocation(), options: emptyOptions(), apps: [] };
 }
 
 // -- Tunable options (convergence / output / advanced) -----------------------
@@ -273,9 +287,19 @@ export function toConfig(draft: Draft): CrabConfig {
       if (a.partition.trim()) entry.partition = a.partition.trim();
       apps[String(i)] = entry;
     });
-    experiments[key] = exp.description.trim()
-      ? { description: exp.description.trim(), apps }
-      : { apps };
+
+    // local_options overrides: allocation (force-emitted when overriding) + scalars.
+    const local: Record<string, unknown> = {};
+    if (exp.overrideAlloc) {
+      const a = toAllocation(exp.allocation, true);
+      if (a) local.allocation = a;
+    }
+    applyOptions(local, exp.options);
+
+    const out: CrabConfig["experiments"][string] = { apps };
+    if (exp.description.trim()) out.description = exp.description.trim();
+    if (Object.keys(local).length) out.local_options = local;
+    experiments[key] = out;
   }
   return { global_options: global, experiments };
 }
@@ -298,21 +322,28 @@ export function fromConfig(config: CrabConfig): Draft {
   draft.ppn = str(g.ppn, "1");
   draft.allocation = fromAllocation(g.allocation);
   draft.options = readOptions(g);
-  draft.experiments = Object.entries(experiments ?? {}).map(([name, exp]) => ({
-    name,
-    description: str((exp as { description?: unknown }).description),
-    apps: Object.values((exp as { apps?: Record<string, never> }).apps ?? {}).map((a) => {
-      const app = a as Record<string, unknown>;
-      return {
-        path: str(app.path),
-        args: str(app.args),
-        collect: app.collect !== false,
-        partition: str(app.partition),
-        ...parseStart(str(app.start, "0")),
-        ...parseEnd(str(app.end)),
-      };
-    }),
-  }));
+  draft.experiments = Object.entries(experiments ?? {}).map(([name, exp]) => {
+    const e = exp as { description?: unknown; local_options?: unknown; apps?: Record<string, never> };
+    const lo = (e.local_options ?? {}) as Record<string, unknown>;
+    return {
+      name,
+      description: str(e.description),
+      overrideAlloc: lo.allocation != null,
+      allocation: fromAllocation(lo.allocation),
+      options: readOptions(lo),
+      apps: Object.values(e.apps ?? {}).map((a) => {
+        const app = a as Record<string, unknown>;
+        return {
+          path: str(app.path),
+          args: str(app.args),
+          collect: app.collect !== false,
+          partition: str(app.partition),
+          ...parseStart(str(app.start, "0")),
+          ...parseEnd(str(app.end)),
+        };
+      }),
+    };
+  });
   return draft;
 }
 
@@ -338,47 +369,52 @@ export function validateOptions(o: OptionsDraft, where = ""): string[] {
   return issues;
 }
 
+/** Validate an allocation and return its defined node-group names (for per-app checks). */
+export function validateAllocation(a: AllocationDraft, where = ""): { issues: string[]; groups: Set<string> } {
+  const issues: string[] = [];
+  const groups = new Set<string>();
+  const at = where ? `${where}: ` : "";
+  if (!hasAllocation(a)) return { issues, groups };
+  if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride))
+    issues.push(`${at}allocation stride must be a positive integer.`);
+  if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()))
+    issues.push(`${at}allocation seed must be an integer.`);
+  if (a.by === "app" && a.split.trim()) {
+    const parts = a.split.split(",").map((s) => s.trim());
+    if (!parts.every((s) => _numeric(s)))
+      issues.push(`${at}allocation split must be a comma-separated list of numbers.`);
+  }
+  if (a.by === "groups") {
+    const named = a.partitions.filter((p) => p.name.trim());
+    if (!named.length) issues.push(`${at}add at least one node group, or allocate by app instead.`);
+    named.forEach((p) => {
+      if (groups.has(p.name.trim())) issues.push(`${at}duplicate node group "${p.name.trim()}".`);
+      else groups.add(p.name.trim());
+      if (p.share.trim() && !_numeric(p.share)) issues.push(`${at}node group "${p.name.trim()}": share must be a number.`);
+    });
+    const shared = named.filter((p) => p.share.trim());
+    if (shared.length && shared.length !== named.length)
+      issues.push(`${at}set a share on every node group, or on none (for an equal split).`);
+    else if (shared.length && shared.every((p) => _numeric(p.share))) {
+      const sum = shared.reduce((t, p) => t + Number(p.share), 0);
+      if (Math.abs(sum - 100) > 0.01) issues.push(`${at}node-group shares should sum to 100 (currently ${sum}).`);
+    }
+  }
+  return { issues, groups };
+}
+
 export function validateDraft(d: Draft): string[] {
   const issues: string[] = [];
-  const posInt = _posInt;
   const numeric = _numeric;
 
   if (!d.numnodes.trim()) issues.push("Number of nodes is required.");
-  else if (!posInt(d.numnodes)) issues.push("Number of nodes must be a positive integer.");
-  if (d.ppn.trim() && !posInt(d.ppn)) issues.push("Procs per node must be a positive integer.");
+  else if (!_posInt(d.numnodes)) issues.push("Number of nodes must be a positive integer.");
+  if (d.ppn.trim() && !_posInt(d.ppn)) issues.push("Procs per node must be a positive integer.");
   if (!d.experiments.length) issues.push("Add at least one experiment.");
   issues.push(...validateOptions(d.options));
 
-  // Allocation (global). Returns the defined node-group names for the per-app check.
-  const groups = new Set<string>();
-  const alloc = d.allocation;
-  if (hasAllocation(alloc)) {
-    if (alloc.mode === "interleaved" && alloc.stride.trim() && !posInt(alloc.stride))
-      issues.push("Allocation stride must be a positive integer.");
-    if (alloc.mode === "random" && alloc.seed.trim() && !/^[0-9]+$/.test(alloc.seed.trim()))
-      issues.push("Allocation seed must be an integer.");
-    if (alloc.by === "app" && alloc.split.trim()) {
-      const parts = alloc.split.split(",").map((s) => s.trim());
-      if (!parts.every((s) => numeric(s)))
-        issues.push("Allocation split must be a comma-separated list of numbers.");
-    }
-    if (alloc.by === "groups") {
-      const named = alloc.partitions.filter((p) => p.name.trim());
-      if (!named.length) issues.push("Add at least one node group, or allocate by app instead.");
-      named.forEach((p) => {
-        if (groups.has(p.name.trim())) issues.push(`Duplicate node group "${p.name.trim()}".`);
-        else groups.add(p.name.trim());
-        if (p.share.trim() && !numeric(p.share)) issues.push(`Node group "${p.name.trim()}": share must be a number.`);
-      });
-      const shared = named.filter((p) => p.share.trim());
-      if (shared.length && shared.length !== named.length)
-        issues.push("Set a share on every node group, or on none (for an equal split).");
-      else if (shared.length && shared.every((p) => numeric(p.share))) {
-        const sum = shared.reduce((t, p) => t + Number(p.share), 0);
-        if (Math.abs(sum - 100) > 0.01) issues.push(`Node-group shares should sum to 100 (currently ${sum}).`);
-      }
-    }
-  }
+  const global = validateAllocation(d.allocation);
+  issues.push(...global.issues);
 
   const names = new Set<string>();
   d.experiments.forEach((e, ei) => {
@@ -387,6 +423,16 @@ export function validateDraft(d: Draft): string[] {
     if (!nm) issues.push(`Experiment ${label} needs a name.`);
     else if (names.has(nm)) issues.push(`Duplicate experiment name "${nm}".`);
     else names.add(nm);
+
+    // Per-experiment overrides. The merged allocation REPLACES the global one, so
+    // the node groups an app may reference are the local ones when overridden.
+    issues.push(...validateOptions(e.options, `Experiment "${label}"`));
+    let groups = global.groups;
+    if (e.overrideAlloc && hasAllocation(e.allocation)) {
+      const local = validateAllocation(e.allocation, `Experiment "${label}"`);
+      issues.push(...local.issues);
+      groups = local.groups;
+    }
 
     if (!e.apps.length) issues.push(`Experiment "${label}" has no apps.`);
     e.apps.forEach((a, ai) => {
