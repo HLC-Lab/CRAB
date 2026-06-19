@@ -1,0 +1,70 @@
+/* Design tokens — Sapienza palette, lifted from the legacy crab_dashboard.html
+   so the rethought dashboard and the rest of the UI share one identity.
+   Fonts use a system stack for now (no CDN); Syne/JetBrains can be vendored later. */
+
+:root {
+  --bg: #0c0d12;
+  --bg1: #131521;
+  --bg2: #1b1e2c;
+  --bg3: #242840;
+  --border: #2f3450;
+  --border2: #404870;
+  --text: #eceef6;
+  --text2: #a0a8c8;
+  --text3: #5c6480;
+  --accent: #c03050;
+  --accent-glow: rgba(192, 48, 80, 0.4);
+  --sel-bg: rgba(61, 68, 104, 0.22);
+  --accent2: #3d4468;
+  --danger: #f56565;
+  --ok: #48bb78;
+  --warn: #ecc94b;
+  --header-bg: rgba(12, 13, 18, 0.97);
+
+  --mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --sans: "Syne", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 6px;
+  --r2: 12px;
+}
+
+html.light {
+  --bg: #ffffff;
+  --bg1: #f4f5fb;
+  --bg2: #eaecf5;
+  --bg3: #e0e3ef;
+  --border: #c4c8dc;
+  --border2: #a4aac4;
+  --text: #0c0e1a;
+  --text2: #3a3f5c;
+  --text3: #686e8c;
+  --accent: #822433;
+  --accent-glow: rgba(130, 36, 51, 0.15);
+  --sel-bg: rgba(130, 36, 51, 0.1);
+  --accent2: #6a7090;
+  --header-bg: rgba(255, 255, 255, 0.97);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}

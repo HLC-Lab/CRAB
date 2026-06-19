@@ -18,3 +18,10 @@ crab_export.html
 # Documentation build output
 /site/
 
+# Web dashboard frontend: ignore deps + dev build output.
+# NOTE: the production build at src/crab/web/static/ IS committed (shipped in the wheel).
+/src/crab/webui/node_modules/
+/src/crab/webui/dist/
+/src/crab/webui/.vite/
+
+/src/crab/webui/*.tsbuildinfo

@@ -69,6 +69,38 @@ def handle_tui(args):
     app = BenchmarkApp()
     app.run()
 
+def handle_web(args):
+    """
+    Launch the web dashboard with lazy loading and auto-installation
+    of optional dependencies (mirrors the TUI launcher).
+    """
+    try:
+        # Delayed import to avoid the 'import tax' on every CLI invocation.
+        from crab.web.run import run_server
+    except ImportError:
+        print("[!] Web dashboard dependencies (fastapi, uvicorn, asyncssh) are not installed.")
+        try:
+            confirm = input("Would you like to install the 'web' optional dependencies now? (y/N): ").lower()
+        except EOFError:
+            return
+
+        if confirm == 'y':
+            print(f"[*] Installing web dependencies into {sys.prefix}...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "crab[web]"])
+                print("[+] Installation successful. Launching dashboard...")
+                from crab.web.run import run_server
+            except Exception as e:
+                print(f"[ERROR] Auto-installation failed: {e}")
+                print("Please run 'pip install -e .[web]' manually to fix this.")
+                return
+        else:
+            print("Aborting. The web dashboard requires optional dependencies to run.")
+            return
+
+    run_server(host=args.host, port=args.port, open_browser=not args.no_browser)
+
+
 def handle_worker(args):
     from crab.cli.orchestrator import execute_worker
     execute_worker(args.workdir, args.log_level)
@@ -80,7 +112,7 @@ def handle_export(args):
 def cli_router():
     parser = argparse.ArgumentParser(prog="crab", description="CRAB Benchmarking Framework")
     # 'metavar' is used to hide the "worker" entry
-    subparsers = parser.add_subparsers(title="commands", dest="command", metavar="{setup,run,tui,export}")
+    subparsers = parser.add_subparsers(title="commands", dest="command", metavar="{setup,run,tui,web,export}")
     subparsers.required = True
 
     # 1. Setup Command
@@ -98,13 +130,20 @@ def cli_router():
     parser_tui = subparsers.add_parser("tui", help="Launch the Terminal User Interface")
     parser_tui.set_defaults(func=handle_tui)
 
-    # 4. Export Command
+    # 4. Web Command
+    parser_web = subparsers.add_parser("web", help="Launch the local web dashboard")
+    parser_web.add_argument("--host", default=None, help="Bind host (default: 127.0.0.1).")
+    parser_web.add_argument("--port", type=int, default=None, help="Bind port (default: 8765).")
+    parser_web.add_argument("--no-browser", action="store_true", help="Do not open a browser on start.")
+    parser_web.set_defaults(func=handle_web)
+
+    # 5. Export Command
     parser_export = subparsers.add_parser("export", help="Export results as a self-contained HTML dashboard")
     parser_export.add_argument("data_dir", help="Path to the directory containing experiment results.").completer = FilesCompleter()
     parser_export.add_argument("-o", "--output", default=None, help="Output HTML file (default: crab_export.html)")
     parser_export.set_defaults(func=handle_export)
 
-    # 5. Worker Command (Hidden)
+    # 6. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)
