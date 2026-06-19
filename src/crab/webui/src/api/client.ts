@@ -2,11 +2,14 @@
 // and the envelope contract live in one place (instructions §4).
 
 import type {
+  BootstrapPlan,
   ConnectResult,
+  DetectResult,
   ErrorEnvelope,
   Health,
   Profile,
   RemoteListItem,
+  StepResult,
 } from "./types";
 
 /** Error thrown for any non-2xx response, carrying the backend envelope. */
@@ -74,5 +77,23 @@ export const api = {
       request<void>(`/api/remotes/${encodeURIComponent(name)}/disconnect`, {
         method: "POST",
       }),
+
+    bootstrap: {
+      plan: (name: string) =>
+        request<BootstrapPlan>(
+          `/api/remotes/${encodeURIComponent(name)}/bootstrap/plan`,
+          { method: "POST" },
+        ),
+      run: (name: string, stepId: string, preCommands: string[]) =>
+        request<StepResult>(
+          `/api/remotes/${encodeURIComponent(name)}/bootstrap/run`,
+          { method: "POST", body: JSON.stringify({ step_id: stepId, pre_commands: preCommands }) },
+        ),
+      verify: (name: string) =>
+        request<DetectResult>(
+          `/api/remotes/${encodeURIComponent(name)}/bootstrap/verify`,
+          { method: "POST" },
+        ),
+    },
   },
 };

@@ -47,3 +47,34 @@ export interface ConnectResult {
   connected: boolean;
   info: CrabInfo;
 }
+
+/** One guided-install step (mirrors web/remoteops/bootstrap.py). */
+export interface BootstrapStep {
+  id: string;
+  label: string;
+  command: string;
+}
+
+/** POST /api/remotes/{name}/bootstrap/plan */
+export interface BootstrapPlan {
+  installed: boolean;
+  info: CrabInfo | null;
+  reason: string | null;
+  pre_commands: string[];
+  steps: BootstrapStep[];
+}
+
+/** POST /api/remotes/{name}/bootstrap/run */
+export interface StepResult {
+  rc: number;
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+}
+
+/** POST /api/remotes/{name}/bootstrap/verify */
+export interface DetectResult {
+  installed: boolean;
+  info: CrabInfo | null;
+  reason: string | null;
+}

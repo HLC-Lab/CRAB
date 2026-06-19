@@ -77,8 +77,10 @@ def create_app(settings: Settings | None = None, manager=None):
     app.include_router(api)
 
     from crab.web.api.remotes import router as remotes_router
+    from crab.web.api.bootstrap import router as bootstrap_router
 
     app.include_router(remotes_router)
+    app.include_router(bootstrap_router)
 
     _mount_frontend(app, settings)
     return app

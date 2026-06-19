@@ -1,11 +1,30 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useRemotesStore } from "@/stores/remotes";
-import type { Profile } from "@/api/types";
+import type { Profile, StepResult } from "@/api/types";
 
 const store = useRemotesStore();
 const showAdd = ref(false);
 const passwords = reactive<Record<string, string>>({});
+// Editable pre-commands per remote (one per line), for guided bootstrap.
+const preCommands = reactive<Record<string, string>>({});
+
+async function openBootstrap(name: string) {
+  await store.loadPlan(name);
+  const p = store.plan[name];
+  if (p) preCommands[name] = p.pre_commands.join("\n");
+}
+
+function preArr(name: string): string[] {
+  return (preCommands[name] ?? "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function stepText(res: StepResult): string {
+  return [`exit ${res.rc}`, res.stdout, res.stderr].filter(Boolean).join("\n");
+}
 
 const blank = (): Partial<Profile> => ({
   name: "",
@@ -132,6 +151,52 @@ async function submit() {
             presets: {{ store.info[r.name].presets.map((p) => p.name).join(", ") || "none" }}
           </span>
         </div>
+
+        <!-- CRAB unusable on a live connection → offer guided setup. -->
+        <div
+          v-if="r.connected && store.connectCode[r.name] === 'contract_error' && !store.plan[r.name]"
+          class="setup-cta"
+        >
+          <button class="btn" :disabled="store.bootstrapBusy[r.name]" @click="openBootstrap(r.name)">
+            Set up CRAB
+          </button>
+        </div>
+
+        <div v-if="store.plan[r.name] && !store.plan[r.name].installed" class="bootstrap">
+          <p class="hint">
+            CRAB isn't installed here. Run the steps below to install it. Add any cluster-specific
+            pre-commands (e.g. <code>module load python</code>), one per line — they run before each step.
+          </p>
+          <label class="pre">Pre-commands (optional)
+            <textarea v-model="preCommands[r.name]" rows="2" placeholder="module load python" />
+          </label>
+          <ol class="steps">
+            <li v-for="s in store.plan[r.name].steps" :key="s.id">
+              <div class="step-head">
+                <span class="step-label">{{ s.label }}</span>
+                <button
+                  class="btn"
+                  :disabled="store.bootstrapBusy[r.name]"
+                  @click="store.runStep(r.name, s.id, preArr(r.name))"
+                >
+                  Run
+                </button>
+              </div>
+              <code class="cmd">{{ s.command }}</code>
+              <pre
+                v-if="store.stepResults[r.name] && store.stepResults[r.name][s.id]"
+                class="output"
+                :class="{ bad: !store.stepResults[r.name][s.id].ok }"
+              >{{ stepText(store.stepResults[r.name][s.id]) }}</pre>
+            </li>
+          </ol>
+          <button class="btn primary" :disabled="store.bootstrapBusy[r.name]" @click="store.verify(r.name)">
+            {{ store.bootstrapBusy[r.name] ? "Working…" : "Verify install" }}
+          </button>
+          <p v-if="store.bootstrapError[r.name]" class="banner err small">
+            {{ store.bootstrapError[r.name] }}
+          </p>
+        </div>
       </li>
     </ul>
   </section>
@@ -179,4 +244,32 @@ input, select {
 .banner.err { background: rgba(245, 101, 101, 0.12); color: var(--danger); border: 1px solid var(--danger); }
 .banner.small { margin-top: 0.5rem; font-size: 0.8rem; }
 .empty { color: var(--text3); padding: 2rem 0; }
+
+/* Guided bootstrap */
+.setup-cta { margin-top: 0.6rem; }
+.bootstrap {
+  margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
+}
+.bootstrap .hint { color: var(--text2); font-size: 0.82rem; margin-bottom: 0.6rem; }
+.bootstrap .hint code { font-family: var(--mono); color: var(--text); }
+.pre { margin-bottom: 0.75rem; }
+textarea {
+  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono);
+  resize: vertical;
+}
+.steps { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem; }
+.step-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.step-label { font-size: 0.85rem; }
+.cmd {
+  display: block; margin-top: 0.3rem; padding: 0.3rem 0.5rem;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: 0.78rem; color: var(--text2); overflow-x: auto;
+}
+.output {
+  margin-top: 0.3rem; padding: 0.4rem 0.5rem; max-height: 16rem; overflow: auto;
+  background: var(--bg0, var(--bg2)); border: 1px solid var(--border); border-radius: var(--r);
+  font-family: var(--mono); font-size: 0.75rem; color: var(--text2); white-space: pre-wrap;
+}
+.output.bad { border-color: var(--danger); color: var(--danger); }
 </style>
