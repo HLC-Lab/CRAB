@@ -180,9 +180,18 @@ function confirmRemove(name: string) {
               :disabled="r.connected || store.busy[r.name]"
               @click="startEdit(r)"
             >
-              ✎
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 20h4L18 10l-4-4L4 16v4Z" />
+                <path d="M14 6l4 4" />
+              </svg>
             </button>
-            <button class="icon-btn danger" title="Remove" @click="confirmRemove(r.name)">🗑</button>
+            <button class="icon-btn danger" title="Remove" @click="confirmRemove(r.name)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7h14" />
+                <path d="M9 7V5h6v2" />
+                <path d="M7 7l1 13h8l1-13" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -262,9 +271,14 @@ h1 { font-family: var(--sans); font-size: 1.6rem; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.danger:hover { border-color: var(--danger); color: var(--danger); }
 .icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent; color: var(--text2);
-  border-radius: var(--r); padding: 0.3rem 0.5rem; cursor: pointer; font-size: 0.9rem;
-  line-height: 1;
+  border-radius: var(--r); padding: 0.3rem; cursor: pointer;
+}
+.icon-btn svg {
+  width: 18px; height: 18px; display: block;
+  fill: none; stroke: currentColor; stroke-width: 1.75;
+  stroke-linecap: round; stroke-linejoin: round;
 }
 .icon-btn:hover:not(:disabled) { border-color: var(--border); color: var(--text); }
 .icon-btn:disabled { opacity: 0.35; cursor: default; }
