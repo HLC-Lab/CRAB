@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -28,11 +29,12 @@ class Engine:
         """
         # 1. Definizione dei Parametri Protetti (Il framework vince sempre)
         # Mappa: Chiave -> Valore calcolato dal framework
+        _numnodes = global_opts.get('numnodes')
         protected_defaults = {
-            'nodes': f"--nodes={global_opts.get('numnodes')}",
+            'nodes': f"--nodes={_numnodes}" if _numnodes is not None else None,
             'ntasks-per-node': f"--ntasks-per-node={global_opts.get('ppn', 1)}",
             # Alias comuni da bloccare
-            'N': None, 
+            'N': None,
             'n': None, # Blocchiamo -n per sicurezza se l'utente prova a passarlo
         }
 
@@ -58,10 +60,14 @@ class Engine:
 
         # Parsiamo prima i system defaults (bassa priorità rispetto all'utente, alta rispetto ai base)
         for raw in system_defaults:
-             key = raw.lstrip('-').split('=')[0]
-             # Non sovrascriviamo i protected
-             if key not in protected_defaults: 
-                 directives_map[key] = raw
+            directive = str(raw).strip()
+            if '\n' in directive or '\r' in directive:
+                self.log.warning(f"Skipping system_sbatch directive containing newlines: {directive!r}")
+                continue
+            key = directive.lstrip('-').split('=')[0]
+            # Non sovrascriviamo i protected
+            if key not in protected_defaults:
+                directives_map[key] = directive
 
 
         # 3. Parsing Direttive Utente (dal JSON, Override Finale)
@@ -126,7 +132,8 @@ class Engine:
 
         g_opts = config.get('global_options', {})
         data_path = g_opts.get('datapath', os.path.join(CRAB_ROOT, 'data'))
-        num_nodes = int(g_opts.get('numnodes'))
+        if g_opts.get('numnodes') is None:
+            raise ValueError("global_options.numnodes is required in the config file")
         
         os.makedirs(data_path, exist_ok=True)
 
@@ -162,15 +169,18 @@ class Engine:
         sbatch_headers = self._generate_sbatch_header(g_opts, data_directory)
 
         script_path = os.path.join(data_directory, 'crab_job.sh')
-        cmd = f"{sys.executable} {os.path.abspath(sys.argv[0])} worker --workdir {data_directory}"
-        
+        cmd = (
+            f"{shlex.quote(sys.executable)} "
+            f"{shlex.quote(os.path.abspath(sys.argv[0]))} "
+            f"worker --workdir {shlex.quote(data_directory)}"
+        )
+
         with open(script_path, 'w') as f:
             f.write("#!/bin/bash\n\n")
-            
+
             # Scrittura direttive calcolate
             for line in sbatch_headers:
                 f.write(f"{line}\n")
-            
 
             venv = os.path.join(CRAB_ROOT, '.venv', 'bin', 'activate')
             if os.path.exists(venv):
@@ -181,8 +191,11 @@ class Engine:
             if system_header:
                 f.write("\n# --- System Setup (Modules & Environment) ---\n")
                 for line in system_header:
+                    if '\n' in str(line) or '\r' in str(line):
+                        self.log.warning(f"Skipping system_header line containing newlines: {line!r}")
+                        continue
                     f.write(f"{line}\n")
-            
+
             f.write(f"\n{cmd}\n")
 
         self.log.info(f"Submitting: sbatch {script_path}")
@@ -200,10 +213,13 @@ class Engine:
         for key, val in environment.items():
             os.environ[key] = os.path.expandvars(str(val))
 
+        node_file = os.path.join(output_dir, "worker_nodelist.txt")
         try:
-            node_file = "worker_nodelist.txt"
+            nodelist = os.environ.get('SLURM_NODELIST')
+            if not nodelist:
+                raise RuntimeError("SLURM_NODELIST is not set — are you running inside a Slurm allocation?")
             with open(node_file, "w") as f:
-                subprocess.call(["scontrol", "show", "hostnames", os.environ.get('SLURM_NODELIST')], stdout=f)
+                subprocess.run(["scontrol", "show", "hostnames", nodelist], stdout=f, check=True)
             nodes_df = pandas.read_csv(node_file, header=None)
             full_node_list = nodes_df.iloc[:, 0].tolist()
             self.log.info(f"Allocated {len(full_node_list)} node(s)")
@@ -242,5 +258,5 @@ class Engine:
         finally:
             os.environ.clear()
             os.environ.update(orig_env)
-            if os.path.exists("worker_nodelist.txt"):
-                os.remove("worker_nodelist.txt")
+            if os.path.exists(node_file):
+                os.remove(node_file)

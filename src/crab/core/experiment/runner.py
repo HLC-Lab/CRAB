@@ -66,15 +66,21 @@ class ExperimentRunner:
             return mod  
   
 
-        # WLM Loading  
-        wlm_name = os.environ.get("CRAB_WL_MANAGER", "slurm") # default  
-        
+        # WLM Loading
+        wlm_name = os.environ.get("CRAB_WL_MANAGER", "slurm")
+        _ALLOWED_WLM = {'slurm', 'mpi', 'workerpool'}
+        if wlm_name not in _ALLOWED_WLM:
+            raise ValueError(
+                f"Unknown CRAB_WL_MANAGER value: {wlm_name!r}. "
+                f"Allowed: {sorted(_ALLOWED_WLM)}"
+            )
+
         # Anchor the path dynamically to this script's location
         # __file__ is .../src/crab/core/experiment/runner.py
         # Walking up one level takes us to .../src/crab/core/
         core_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         wlm_path = os.path.join(core_dir, "wl_manager", f"{wlm_name}.py")
-        
+
         self.wlmanager = load_module(wlm_path).wl_manager()
   
         # App Instantiation  
@@ -383,12 +389,15 @@ class ExperimentRunner:
                 # Collect Data
                 c_idx = 0
                 for app in self.apps:
-                    if app.collect_flag and hasattr(app, 'process') and app.process.returncode == 0:
-                        raw_data = app.read_data()
-                        for series in raw_data:
-                            self.data_containers[c_idx].data.extend(series)
-                            self.data_containers[c_idx].num_samples.append(len(series))
-                            c_idx += 1
+                    if app.collect_flag:
+                        num_meta = len(app.metadata)
+                        if hasattr(app, 'process') and app.process.returncode == 0:
+                            raw_data = app.read_data()
+                            for i, series in enumerate(raw_data):
+                                if c_idx + i < len(self.data_containers):
+                                    self.data_containers[c_idx + i].data.extend(series)
+                                    self.data_containers[c_idx + i].num_samples.append(len(series))
+                        c_idx += num_meta
 
                 # Clean Dirs Policy
                 # Default to True for maximum data safety if the flag is missing

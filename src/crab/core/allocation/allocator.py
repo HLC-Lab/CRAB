@@ -111,6 +111,11 @@ class NodeAllocator:
         else:
             percs = [float(s) for s in shares]
 
+        if sum(percs) > 100.1:
+            raise ValueError(
+                f"Partition shares sum to {sum(percs):.1f}, must not exceed 100."
+            )
+
         pt_counts = NodeAllocator._apply_largest_remainder(len(node_list), percs)
 
         # 2. Assign nodes to partitions using layout_mode

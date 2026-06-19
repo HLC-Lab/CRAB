@@ -19,16 +19,19 @@ def check_CI(container_list: List[DataContainer], alpha: float, beta: float, con
                 container.conv_run = run  
                 continue  
               
-            CI_lb, CI_ub = st.t.interval(1 - alpha, n - 1, loc=mean, scale=sem)  
-            if (CI_ub - CI_lb) < beta * mean:  
-                container.converged = True  
-                container.conv_run = run  
-  
-    check = True  
-    for container in container_list:  
-        if (converge_all or container.conv_goal):  
-            check = check and container.converged  
-    return check  
+            CI_lb, CI_ub = st.t.interval(1 - alpha, n - 1, loc=mean, scale=sem)
+            ref = abs(mean) if mean != 0 else 1e-9
+            if (CI_ub - CI_lb) < beta * ref:
+                container.converged = True
+                container.conv_run = run
+
+    any_target = False
+    check = True
+    for container in container_list:
+        if (converge_all or container.conv_goal):
+            any_target = True
+            check = check and container.converged
+    return check and any_target  
   
 def log_data(out_format: str, path_prefix: str, data_containers: List[DataContainer]):  
     """Aggregates and saves data to CSV or HDF."""  
