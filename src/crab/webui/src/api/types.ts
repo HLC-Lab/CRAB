@@ -45,7 +45,9 @@ export interface CrabInfo {
 /** POST /api/remotes/{name}/connect */
 export interface ConnectResult {
   connected: boolean;
-  info: CrabInfo;
+  info: CrabInfo | null;
+  crab_installed: boolean;
+  reason: string | null;
 }
 
 /** One guided-install step (mirrors web/remoteops/bootstrap.py). */

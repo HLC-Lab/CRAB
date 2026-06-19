@@ -4,7 +4,9 @@ import { useRemotesStore } from "@/stores/remotes";
 import type { Profile, StepResult } from "@/api/types";
 
 const store = useRemotesStore();
-const showAdd = ref(false);
+const showForm = ref(false);
+// null = adding a new remote; a name = editing that existing remote.
+const editingName = ref<string | null>(null);
 const passwords = reactive<Record<string, string>>({});
 // Editable pre-commands per remote (one per line), for guided install.
 const preCommands = reactive<Record<string, string>>({});
@@ -47,13 +49,36 @@ const form = reactive<Partial<Profile>>(blank());
 
 onMounted(() => store.refresh());
 
+function startAdd() {
+  editingName.value = null;
+  Object.assign(form, blank());
+  showForm.value = true;
+}
+
+function startEdit(r: Profile) {
+  editingName.value = r.name;
+  Object.assign(form, blank(), r);
+  showForm.value = true;
+}
+
+function closeForm() {
+  showForm.value = false;
+  editingName.value = null;
+  Object.assign(form, blank());
+}
+
 async function submit() {
   const payload: Partial<Profile> = { ...form };
   if (!payload.host) delete (payload as any).host;
-  const ok = await store.add(payload);
-  if (ok) {
-    Object.assign(form, blank());
-    showAdd.value = false;
+  const ok = editingName.value
+    ? await store.update(editingName.value, payload)
+    : await store.add(payload);
+  if (ok) closeForm();
+}
+
+function confirmRemove(name: string) {
+  if (window.confirm(`Remove the remote "${name}"? This only deletes the local profile.`)) {
+    store.remove(name);
   }
 }
 </script>
@@ -64,16 +89,20 @@ async function submit() {
       <h1>Remotes</h1>
       <div class="actions">
         <button class="btn" :disabled="store.loading" @click="store.refresh()">↻ Refresh</button>
-        <button class="btn primary" @click="showAdd = !showAdd">
-          {{ showAdd ? "Cancel" : "+ Add cluster" }}
+        <button class="btn primary" @click="showForm ? closeForm() : startAdd()">
+          {{ showForm ? "Cancel" : "+ Add cluster" }}
         </button>
       </div>
     </header>
 
     <p v-if="store.error" class="banner err">{{ store.error }}</p>
 
-    <!-- Add form -->
-    <form v-if="showAdd" class="card form" @submit.prevent="submit">
+    <!-- Add / edit form -->
+    <form v-if="showForm" class="card form" @submit.prevent="submit">
+      <div class="form-head">
+        <strong>{{ editingName ? `Edit ${editingName}` : "Add cluster" }}</strong>
+        <button type="button" class="icon-btn" title="Close" @click="closeForm">✕</button>
+      </div>
       <div class="grid">
         <label>Name <input v-model="form.name" required placeholder="my-cluster" /></label>
         <label>Transport
@@ -100,11 +129,14 @@ async function submit() {
               <option value="insecure">insecure (rotating login nodes)</option>
             </select>
           </label>
-          <label>Install dir <input v-model="form.remote_crab" placeholder="~" /></label>
+          <label>Install dir
+            <input v-model="form.remote_crab" placeholder="~" />
+            <small class="field-hint">CRAB goes in {{ crabDir(form.remote_crab) }}</small>
+          </label>
         </template>
         <label>Preset <input v-model="form.preset" placeholder="cluster preset" /></label>
       </div>
-      <button class="btn primary" type="submit">Save</button>
+      <button class="btn primary" type="submit">{{ editingName ? "Save changes" : "Save" }}</button>
     </form>
 
     <!-- List -->
@@ -142,7 +174,15 @@ async function submit() {
             <button v-else class="btn" :disabled="store.busy[r.name]" @click="store.disconnect(r.name)">
               Disconnect
             </button>
-            <button class="btn danger" @click="store.remove(r.name)">Remove</button>
+            <button
+              class="icon-btn"
+              title="Edit"
+              :disabled="r.connected || store.busy[r.name]"
+              @click="startEdit(r)"
+            >
+              ✎
+            </button>
+            <button class="icon-btn danger" title="Remove" @click="confirmRemove(r.name)">🗑</button>
           </div>
         </div>
 
@@ -158,14 +198,12 @@ async function submit() {
           </span>
         </div>
 
-        <!-- Connected, but `crab info` did not run. Treat this as CRAB not being
-             installed and offer to install it (a live connection plus a recorded
-             handshake error can only mean that: auth and drop errors leave
-             nothing connected). -->
-        <div v-if="r.connected && store.connectError[r.name]" class="setup">
+        <!-- Connected, but CRAB isn't installed there. Offer a guided install. -->
+        <div v-if="r.connected && store.crabMissing[r.name]" class="setup">
           <p class="notice">
             CRAB is not installed on this cluster (looked in <code>{{ crabDir(r.remote_crab) }}</code>).
-            You can install it below.
+            It will be installed into a <code>CRAB</code> subfolder there, at
+            <code>{{ crabDir(r.remote_crab) }}</code>.
           </p>
 
           <label class="pre">
@@ -223,6 +261,18 @@ h1 { font-family: var(--sans); font-size: 1.6rem; }
 .btn:disabled { opacity: 0.5; cursor: default; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.icon-btn {
+  background: transparent; border: 1px solid transparent; color: var(--text2);
+  border-radius: var(--r); padding: 0.3rem 0.5rem; cursor: pointer; font-size: 0.9rem;
+  line-height: 1;
+}
+.icon-btn:hover:not(:disabled) { border-color: var(--border); color: var(--text); }
+.icon-btn:disabled { opacity: 0.35; cursor: default; }
+.icon-btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.form-head {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;
+}
+.field-hint { color: var(--text3); font-size: 0.72rem; }
 .card {
   background: var(--bg1); border: 1px solid var(--border);
   border-radius: var(--r2); padding: 1rem; margin-bottom: 0.75rem;

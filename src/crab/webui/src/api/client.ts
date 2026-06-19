@@ -66,6 +66,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(profile),
       }),
+    update: (name: string, profile: Partial<Profile>) =>
+      request<Profile>(`/api/remotes/${encodeURIComponent(name)}`, {
+        method: "PUT",
+        body: JSON.stringify(profile),
+      }),
     remove: (name: string) =>
       request<void>(`/api/remotes/${encodeURIComponent(name)}`, { method: "DELETE" }),
     connect: (name: string, password?: string) =>

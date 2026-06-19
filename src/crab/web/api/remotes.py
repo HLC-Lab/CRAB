@@ -1,8 +1,10 @@
 """``/api/remotes`` — manage cluster profiles and live connections.
 
-Connecting opens (or reuses) the SSH/local transport and immediately runs
-``crab info --json`` as a handshake, so the UI gets the remote's version and
-presets in one round-trip. All failures surface as the stable error envelope.
+Connecting opens (or reuses) the SSH/local transport and checks for CRAB with
+``crab info --json``, so the UI gets the remote's version and presets in one
+round-trip. A missing CRAB is reported as ``crab_installed: false`` (an expected
+state that the UI turns into a guided install), not an error — only a real
+SSH/auth/connection failure surfaces as the error envelope.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from crab.web.errors import RemoteConnectionError
-from crab.web.remoteops.crab_cli import run_crab_json
+from crab.web.remoteops.bootstrap import detect
 from crab.web.store.profiles import Profile, ProfileStore
 
 router = APIRouter(prefix="/api/remotes", tags=["remotes"])
@@ -69,8 +71,15 @@ async def connect_remote(
     transport = await _manager(request).connect(
         profile, password=(body.password if body else None)
     )
-    info = await run_crab_json(transport, profile, ["info", "--json"])
-    return {"connected": True, "info": info}
+    # `detect` returns gracefully when CRAB is absent (no exception, no warning
+    # log); a real connection drop/timeout still raises.
+    result = await detect(transport, profile)
+    return {
+        "connected": True,
+        "info": result.info,
+        "crab_installed": result.installed,
+        "reason": result.reason,
+    }
 
 
 @router.post("/{name}/disconnect", status_code=204)

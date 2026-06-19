@@ -19,7 +19,10 @@ export const useRemotesStore = defineStore("remotes", () => {
   const error = ref<string | null>(null);
   // Per-remote transient state keyed by name.
   const busy = ref<Record<string, boolean>>({});
+  // Real SSH/auth/connection failures, shown verbatim.
   const connectError = ref<Record<string, string>>({});
+  // Connected, but CRAB isn't installed there → drives the guided install.
+  const crabMissing = ref<Record<string, boolean>>({});
   const info = ref<Record<string, CrabInfo>>({});
 
   // Bootstrap (guided install) state, keyed by remote name.
@@ -52,6 +55,18 @@ export const useRemotesStore = defineStore("remotes", () => {
     }
   }
 
+  async function update(name: string, profile: Partial<Profile>) {
+    error.value = null;
+    try {
+      await api.remotes.update(name, profile);
+      await refresh();
+      return true;
+    } catch (e) {
+      error.value = msg(e);
+      return false;
+    }
+  }
+
   async function remove(name: string) {
     try {
       await api.remotes.remove(name);
@@ -64,20 +79,21 @@ export const useRemotesStore = defineStore("remotes", () => {
   async function connect(name: string, password?: string) {
     busy.value[name] = true;
     delete connectError.value[name];
+    delete crabMissing.value[name];
     try {
       const res = await api.remotes.connect(name, password);
-      info.value[name] = res.info;
+      if (res.crab_installed && res.info) {
+        info.value[name] = res.info;
+      } else {
+        // Connected, but CRAB isn't there — offer to install it.
+        crabMissing.value[name] = true;
+        await loadPlan(name);
+      }
       await refresh();
     } catch (e) {
+      // Real SSH/auth/connection failure (nothing connected).
       connectError.value[name] = msg(e);
-      // The SSH connection may be live even though the `crab info` handshake
-      // failed (a non-zero exit means CRAB or its venv is missing, unparsable
-      // output means it is too old or broken). Both leave the channel open, so
-      // refresh to reflect the real state. Auth and connection-drop errors
-      // leave nothing connected, so they simply show as disconnected.
       await refresh();
-      const live = items.value.find((i) => i.name === name)?.connected;
-      if (live) await loadPlan(name);
     } finally {
       busy.value[name] = false;
     }
@@ -88,6 +104,7 @@ export const useRemotesStore = defineStore("remotes", () => {
     try {
       await api.remotes.disconnect(name);
       delete info.value[name];
+      delete crabMissing.value[name];
       delete plan.value[name];
       delete installResult.value[name];
       await refresh();
@@ -121,7 +138,7 @@ export const useRemotesStore = defineStore("remotes", () => {
       const res = await api.remotes.bootstrap.verify(name);
       if (res.installed && res.info) {
         info.value[name] = res.info;
-        delete connectError.value[name];
+        delete crabMissing.value[name];
         delete plan.value[name];
         delete installResult.value[name];
       } else {
@@ -137,9 +154,9 @@ export const useRemotesStore = defineStore("remotes", () => {
   }
 
   return {
-    items, loading, error, busy, connectError, info,
+    items, loading, error, busy, connectError, crabMissing, info,
     plan, installResult, bootstrapBusy, bootstrapError,
-    refresh, add, remove, connect, disconnect,
+    refresh, add, update, remove, connect, disconnect,
     loadPlan, install,
   };
 });
