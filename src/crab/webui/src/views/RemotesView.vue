@@ -26,6 +26,11 @@ function stepText(res: StepResult): string {
   return [`exit ${res.rc}`, res.stdout, res.stderr].filter(Boolean).join("\n");
 }
 
+// CRAB lives in a CRAB subfolder of the profile's base dir (matches the backend).
+function crabDir(base: string | undefined): string {
+  return `${(base || "~").replace(/\/+$/, "")}/CRAB`;
+}
+
 const blank = (): Partial<Profile> => ({
   name: "",
   transport: "ssh",
@@ -35,7 +40,7 @@ const blank = (): Partial<Profile> => ({
   auth: "agent",
   key_path: null,
   hostkey_policy: "strict",
-  remote_crab: "~/CRAB",
+  remote_crab: "~",
   preset: "",
 });
 const form = reactive<Partial<Profile>>(blank());
@@ -95,7 +100,7 @@ async function submit() {
               <option value="insecure">insecure (rotating login nodes)</option>
             </select>
           </label>
-          <label>Remote CRAB <input v-model="form.remote_crab" placeholder="~/CRAB" /></label>
+          <label>Install dir <input v-model="form.remote_crab" placeholder="~" /></label>
         </template>
         <label>Preset <input v-model="form.preset" placeholder="cluster preset" /></label>
       </div>
@@ -159,7 +164,7 @@ async function submit() {
              nothing connected). -->
         <div v-if="r.connected && store.connectError[r.name]" class="setup">
           <p class="notice">
-            CRAB is not installed on this cluster (looked under <code>{{ r.remote_crab }}</code>).
+            CRAB is not installed on this cluster (looked in <code>{{ crabDir(r.remote_crab) }}</code>).
             You can install it below.
           </p>
 

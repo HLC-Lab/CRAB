@@ -31,6 +31,17 @@ def _remote_path_expr(path: str) -> str:
     return shlex.quote(path)
 
 
+def crab_dir(profile: Profile) -> str:
+    """The CRAB repo directory: a ``CRAB`` subfolder of the profile's base dir.
+
+    ``remote_crab`` is the *base* directory (default ``~``); CRAB always lives at
+    ``<base>/CRAB``, so the dashboard can create that subfolder on install and
+    find it again on every command.
+    """
+    base = profile.remote_crab.rstrip("/") or "~"
+    return f"{base}/CRAB"
+
+
 def build_crab_command(profile: Profile, args: list[str]) -> str:
     """Return the shell command that runs ``crab <args>`` for this profile."""
     crab_args = " ".join(shlex.quote(a) for a in args)
@@ -40,9 +51,9 @@ def build_crab_command(profile: Profile, args: list[str]) -> str:
         return f"{shlex.quote(sys.executable)} -m crab {crab_args}"
 
     parts: list[str] = list(profile.remote_setup)
-    crab_dir = profile.remote_crab
-    venv = profile.venv_activate or f"{crab_dir.rstrip('/')}/.venv/bin/activate"
-    parts.append(f"cd {_remote_path_expr(crab_dir)}")
+    cdir = crab_dir(profile)
+    venv = profile.venv_activate or f"{cdir}/.venv/bin/activate"
+    parts.append(f"cd {_remote_path_expr(cdir)}")
     parts.append(f". {_remote_path_expr(venv)}")
     parts.append(f"crab {crab_args}")
     inner = " && ".join(parts)

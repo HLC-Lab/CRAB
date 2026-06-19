@@ -45,12 +45,14 @@ class Profile(BaseModel):
     # different host keys per connection (e.g. login.leonardo.cineca.it).
     hostkey_policy: Literal["strict", "insecure"] = "strict"
 
-    # How to reach the CRAB CLI on the remote (non-interactive shells don't
-    # activate venvs or source rc files, so we do it explicitly).
-    remote_crab: str = "~/CRAB"
+    # Base directory on the remote where CRAB lives. CRAB is installed at and
+    # run from a `CRAB` subfolder of this dir (i.e. <remote_crab>/CRAB), so the
+    # default `~` puts it at ~/CRAB. (Non-interactive shells don't activate
+    # venvs or source rc files, so the run path does it explicitly.)
+    remote_crab: str = "~"
     venv_activate: str | None = Field(
         default=None,
-        description="Path to the venv activate script; defaults to <remote_crab>/.venv/bin/activate.",
+        description="Path to the venv activate script; defaults to <remote_crab>/CRAB/.venv/bin/activate.",
     )
     remote_setup: list[str] = Field(
         default_factory=list,

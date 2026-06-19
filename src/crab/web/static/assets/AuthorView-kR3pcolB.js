@@ -1,0 +1,1 @@
+import{P as e}from"./PagePlaceholder-B0duQVIa.js";import{b as a,c as o,m as r}from"./index-aOhcBWZp.js";const i=a({__name:"AuthorView",setup(t){return(n,p)=>(o(),r(e,{title:"Author",phase:"Phase 3",blurb:"Define experiments: pick wrappers and presets, set global options, allocation, convergence, and per-app timing — saved to your local library."}))}});export{i as default};
