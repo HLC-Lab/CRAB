@@ -1,7 +1,13 @@
 // Typed API client. All backend access goes through here so error handling
 // and the envelope contract live in one place (instructions §4).
 
-import type { ErrorEnvelope, Health } from "./types";
+import type {
+  ConnectResult,
+  ErrorEnvelope,
+  Health,
+  Profile,
+  RemoteListItem,
+} from "./types";
 
 /** Error thrown for any non-2xx response, carrying the backend envelope. */
 export class ApiError extends Error {
@@ -49,4 +55,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => request<Health>("/api/health"),
+
+  remotes: {
+    list: () => request<RemoteListItem[]>("/api/remotes"),
+    add: (profile: Partial<Profile>) =>
+      request<Profile>("/api/remotes", {
+        method: "POST",
+        body: JSON.stringify(profile),
+      }),
+    remove: (name: string) =>
+      request<void>(`/api/remotes/${encodeURIComponent(name)}`, { method: "DELETE" }),
+    connect: (name: string, password?: string) =>
+      request<ConnectResult>(`/api/remotes/${encodeURIComponent(name)}/connect`, {
+        method: "POST",
+        body: JSON.stringify({ password: password ?? null }),
+      }),
+    disconnect: (name: string) =>
+      request<void>(`/api/remotes/${encodeURIComponent(name)}/disconnect`, {
+        method: "POST",
+      }),
+  },
 };

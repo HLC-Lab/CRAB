@@ -28,23 +28,29 @@ def _crab_version() -> str:
         return "unknown"
 
 
-def create_app(settings: Settings | None = None):
+def create_app(settings: Settings | None = None, manager=None):
     """Build and return the FastAPI app.
 
     Args:
         settings: optional override (tests inject a temp-dir Settings); defaults
             to the process-wide :func:`get_settings`.
+        manager: optional pre-built ConnectionManager (tests inject one with a
+            fake connector); otherwise one is created at startup.
     """
     from fastapi import APIRouter, FastAPI
 
     settings = settings or get_settings()
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI):
+    async def lifespan(app: FastAPI):
         settings.ensure_dirs()
+        if getattr(app.state, "manager", None) is None:
+            from crab.web.connections.manager import ConnectionManager
+
+            app.state.manager = ConnectionManager()
         logger.info("CRAB web starting — data dir: %s", settings.data_dir)
         yield
-        # Phase 2+ will close live SSH connections here.
+        await app.state.manager.close_all()
         logger.info("CRAB web shutting down")
 
     app = FastAPI(
@@ -52,6 +58,9 @@ def create_app(settings: Settings | None = None):
         version=_crab_version(),
         lifespan=lifespan,
     )
+    # Shared state for routes (settings drive the per-request stores).
+    app.state.settings = settings
+    app.state.manager = manager
     register_exception_handlers(app)
 
     api = APIRouter(prefix="/api")
@@ -66,6 +75,10 @@ def create_app(settings: Settings | None = None):
         }
 
     app.include_router(api)
+
+    from crab.web.api.remotes import router as remotes_router
+
+    app.include_router(remotes_router)
 
     _mount_frontend(app, settings)
     return app

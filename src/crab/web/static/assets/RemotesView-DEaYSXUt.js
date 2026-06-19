@@ -1,1 +1,0 @@
-import{P as e}from"./PagePlaceholder-Ctz7RmY4.js";import{d as o,o as t,c as a}from"./index-BG92Qc9q.js";const m=o({__name:"RemotesView",setup(r){return(s,n)=>(t(),a(e,{title:"Remotes",phase:"Phase 2",blurb:"Add, connect to, and manage your clusters — SSH key, password, or 2FA — and run the guided CRAB bootstrap on a fresh remote."}))}});export{m as default};

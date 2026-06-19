@@ -1,1 +1,0 @@
-import{P as e}from"./PagePlaceholder-Ctz7RmY4.js";import{d as t,o as a,c as r}from"./index-BG92Qc9q.js";const p=t({__name:"ResultsView",setup(o){return(s,n)=>(a(),r(e,{title:"Results",phase:"Phase 5",blurb:"Fetch result data to your laptop and explore it in the rethought Chart.js dashboard — scatter, line, bar, violin, and cross-experiment compare."}))}});export{p as default};
