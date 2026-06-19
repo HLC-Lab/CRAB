@@ -1,20 +1,12 @@
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Container
-from textual.widgets import (
-    Button, Input, Label, Checkbox, RichLog
-)
+from textual.widgets import Button, Checkbox, Input, Label, Select
 
 from textual import on, work
-from textual.message import Message
 
 from textual_fspicker import FileOpen
 
-from .environment_settings import EnvironmentSettings
-
 import os
-import json
-import threading
-import subprocess
 
 
 class ApplicationForm(Vertical):
@@ -51,7 +43,12 @@ class ApplicationForm(Vertical):
                 yield Input(placeholder="f", id="end", value=self.form_data["end"])
 
         yield Label("Partition (optional):")
-        yield Input(placeholder='named partition, e.g. "victim" or "aggressor"', id="partition", value=self.form_data["partition"])
+        yield Select(
+            [],
+            id="partition",
+            allow_blank=True,
+            classes="app-partition-select",
+        )
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id in self.form_data:
@@ -61,9 +58,25 @@ class ApplicationForm(Vertical):
         if event.checkbox.id == "collect":
             self.form_data["collect"] = event.checkbox.value
 
+    def update_partitions(self, names: list[str]) -> None:
+        """Refresh the partition dropdown with the current partition names, preserving selection."""
+        try:
+            sel = self.query_one("#partition", Select)
+            current = "" if sel.value is Select.NULL else str(sel.value)
+            sel.set_options([(name, name) for name in names])
+            if current and current in names:
+                sel.value = current
+        except Exception:
+            pass
+
     def get_form_data(self):
         path = self.query_one("#path", Label).content
         self.form_data["path"] = path if path != "Select a file" else ""
+        try:
+            val = self.query_one("#partition", Select).value
+            self.form_data["partition"] = "" if val is Select.NULL else str(val)
+        except Exception:
+            pass
         return self.form_data.copy()
 
     def set_form_data(self, data):
@@ -75,7 +88,10 @@ class ApplicationForm(Vertical):
                         widget = self.query_one("#path", Label)
                         widget.update(value) if value else widget.update("Select a file")
                         continue
-
+                    if field_id == "partition":
+                        sel = self.query_one("#partition", Select)
+                        sel.value = value if value else Select.NULL
+                        continue
                     widget = self.query_one(f"#{field_id}", (Input, Checkbox))
                     widget.value = value
                 except Exception:

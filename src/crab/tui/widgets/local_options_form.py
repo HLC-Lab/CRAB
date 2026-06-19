@@ -15,10 +15,16 @@ _FIELDS = [
 
 
 class LocalOptionsForm(Container):
-    """Per-experiment overrides. Empty fields inherit from global_options."""
+    """Per-experiment options: description and local overrides for global settings."""
 
     def compose(self) -> ComposeResult:
-        with Collapsible(title="Local Options — override globals for this experiment", collapsed=True):
+        with Collapsible(title="Experiment Options", collapsed=True):
+            yield Label("Description (optional):")
+            yield Input(
+                placeholder="free text note stored in config.json",
+                id="lo_description",
+                classes="lo-desc-input",
+            )
             for field_id, label, input_type in _FIELDS:
                 yield Label(f"{label}:")
                 yield Input(
@@ -33,8 +39,20 @@ class LocalOptionsForm(Container):
                 classes="lo-input-area",
             )
 
+    def get_description(self) -> str:
+        try:
+            return self.query_one("#lo_description", Input).value
+        except Exception:
+            return ""
+
+    def set_description(self, value: str) -> None:
+        try:
+            self.query_one("#lo_description", Input).value = value
+        except Exception:
+            pass
+
     def get_state(self) -> dict:
-        """Return only non-empty overrides, keyed without the 'lo_' prefix."""
+        """Return only non-empty local option overrides, keyed without the 'lo_' prefix."""
         state = {}
         for widget in self.query(".lo-input"):
             if widget.id and widget.value:
@@ -65,3 +83,7 @@ class LocalOptionsForm(Container):
         for widget in self.query(".lo-input"):
             widget.value = ""
         self.query_one("#lo_allocation", TextArea).load_text("")
+        try:
+            self.query_one("#lo_description", Input).value = ""
+        except Exception:
+            pass

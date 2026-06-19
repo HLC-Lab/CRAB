@@ -1,8 +1,11 @@
 from textual.containers import Container, VerticalScroll, Horizontal
+from textual.message import Message
 from textual.widgets import Button, Checkbox, Collapsible, DataTable, Input, Label, Select, TextArea
-from textual import on
+from textual import on, work
 
 import subprocess
+
+from .partition_editor import PartitionEditor
 
 
 def _split_nodelist(s: str) -> list[str]:
@@ -45,6 +48,12 @@ def _expand_nodelist_token(token: str) -> list[str]:
 
 class BenchmarkOptions(VerticalScroll):
     """Un widget per configurare ed eseguire un benchmark."""
+
+    class PartitionsChanged(Message):
+        """Posted when the set of partition names changes."""
+        def __init__(self, names: list[str]) -> None:
+            self.names = names
+            super().__init__()
 
     def __init__(self, app_ref):
         super().__init__()
@@ -125,10 +134,9 @@ class BenchmarkOptions(VerticalScroll):
                     ], value="linear", id="alloc_mode", classes="alloc-input")
                 with Container(classes="option-group"):
                     yield Label("Split:", classes="option-label")
-                    yield Input(
-                        placeholder='even or [50, 50]', value="even",
-                        id="alloc_split", classes="alloc-input"
-                    )
+                    yield Checkbox("Even", id="alloc_split_even", value=True, classes="alloc-check")
+            with Container(id="alloc_split_rows"):
+                pass
             with Horizontal(classes="options-row", id="alloc_stride_row"):
                 with Container(classes="option-group"):
                     yield Label("Stride:", classes="option-label")
@@ -137,9 +145,9 @@ class BenchmarkOptions(VerticalScroll):
                 with Container(classes="option-group"):
                     yield Label("Random Seed:", classes="option-label")
                     yield Input(placeholder="Optional integer seed", id="alloc_seed", classes="alloc-input")
-            with Container(classes="option-group"):
-                yield Label("Partitions (JSON, optional):", classes="option-label")
-                yield TextArea(id="alloc_partitions", classes="alloc-input")
+            with Container(classes="alloc-partition-group"):
+                yield Label("Partitions:", classes="option-label")
+                yield PartitionEditor(id="alloc_partition_editor")
 
         # ── Convergence ───────────────────────────────────────────────────────
         with Collapsible(title="Convergence", collapsed=False, classes="bench-section"):
@@ -214,19 +222,56 @@ class BenchmarkOptions(VerticalScroll):
         self.query_one("#alloc_stride_row").display = (mode == "interleaved")
         self.query_one("#alloc_seed_row").display = (mode == "random")
 
+    def get_partition_names(self) -> list[str]:
+        """Return the currently defined partition names."""
+        try:
+            return self.query_one("#alloc_partition_editor", PartitionEditor).get_names()
+        except Exception:
+            return []
+
+    def _get_current_split_values(self) -> dict:
+        """Read current split input values keyed by partition name."""
+        names = self.get_partition_names()
+        values = {}
+        for i, name in enumerate(names):
+            try:
+                val = self.query_one(f"#split-val-{i}", Input).value.strip()
+                values[name] = int(val) if val else 1
+            except Exception:
+                values[name] = 1
+        return values
+
+    async def _rebuild_split_inputs(self, names: list[str], current_values: dict | None = None) -> None:
+        container = self.query_one("#alloc_split_rows")
+        await container.remove_children()
+        for i, name in enumerate(names):
+            row = Horizontal(id=f"split-row-{i}", classes="split-part-row")
+            await container.mount(row)
+            val = str(current_values.get(name, 1)) if current_values else "1"
+            await row.mount(
+                Label(f"{name}:", classes="split-part-label"),
+                Input(value=val, id=f"split-val-{i}", type="integer", classes="split-part-input"),
+            )
+
     def _get_allocation_state(self) -> dict:
-        import json
         alloc = {}
         mode = self.query_one("#alloc_mode", Select).value
-        if mode is Select.BLANK:
+        if mode is Select.NULL:
             mode = "linear"
         alloc["mode"] = mode
-        split_str = self.query_one("#alloc_split", Input).value.strip()
-        if split_str and split_str != "even":
-            try:
-                alloc["split"] = json.loads(split_str)
-            except json.JSONDecodeError:
-                pass
+
+        if not self.query_one("#alloc_split_even", Checkbox).value:
+            names = self.get_partition_names()
+            split = []
+            for i in range(len(names)):
+                try:
+                    val = self.query_one(f"#split-val-{i}", Input).value.strip()
+                    split.append(int(val) if val else 1)
+                except Exception:
+                    split.append(1)
+            if split:
+                alloc["split"] = split
+
         if mode == "interleaved":
             stride_str = self.query_one("#alloc_stride", Input).value.strip()
             if stride_str and stride_str != "1":
@@ -235,29 +280,59 @@ class BenchmarkOptions(VerticalScroll):
             seed_str = self.query_one("#alloc_seed", Input).value.strip()
             if seed_str:
                 alloc["seed"] = int(seed_str)
-        partitions_text = self.query_one("#alloc_partitions", TextArea).text.strip()
-        if partitions_text:
-            try:
-                alloc["partitions"] = json.loads(partitions_text)
-            except json.JSONDecodeError:
-                pass
+
+        partitions = self.query_one("#alloc_partition_editor", PartitionEditor).get_state()
+        if partitions:
+            alloc["partitions"] = partitions
         return alloc
 
-    def _set_allocation_state(self, alloc: dict) -> None:
-        import json
+    async def _set_allocation_state(self, alloc: dict) -> None:
         self.query_one("#alloc_mode", Select).value = alloc.get("mode", "linear")
-        split = alloc.get("split", "even")
-        self.query_one("#alloc_split", Input).value = (
-            json.dumps(split) if isinstance(split, list) else "even"
-        )
         self.query_one("#alloc_stride", Input).value = str(alloc.get("stride", 1))
         seed = alloc.get("seed")
         self.query_one("#alloc_seed", Input).value = str(seed) if seed is not None else ""
-        partitions = alloc.get("partitions")
-        self.query_one("#alloc_partitions", TextArea).text = (
-            json.dumps(partitions, indent=2) if partitions else ""
-        )
         self._update_alloc_visibility(alloc.get("mode", "linear"))
+
+        partitions = alloc.get("partitions")
+        partition_editor = self.query_one("#alloc_partition_editor", PartitionEditor)
+        if partitions:
+            await partition_editor.set_state(partitions)
+        names = partition_editor.get_names()
+
+        split = alloc.get("split", "even")
+        if isinstance(split, list) and names:
+            self.query_one("#alloc_split_even", Checkbox).value = False
+            current_values = {name: split[i] if i < len(split) else 1 for i, name in enumerate(names)}
+            await self._rebuild_split_inputs(names, current_values)
+            self.query_one("#alloc_split_rows").display = True
+        else:
+            self.query_one("#alloc_split_even", Checkbox).value = True
+            self.query_one("#alloc_split_rows").display = False
+
+        self.post_message(self.PartitionsChanged(names))
+
+    @on(PartitionEditor.Changed)
+    @work
+    async def _on_partition_names_changed(self, msg: PartitionEditor.Changed) -> None:
+        even_checked = self.query_one("#alloc_split_even", Checkbox).value
+        if not even_checked:
+            current_values = self._get_current_split_values()
+            await self._rebuild_split_inputs(msg.names, current_values)
+            self.query_one("#alloc_split_rows").display = bool(msg.names)
+        self.post_message(self.PartitionsChanged(msg.names))
+
+    @on(Checkbox.Changed, "#alloc_split_even")
+    @work
+    async def _on_split_even_changed(self, event: Checkbox.Changed) -> None:
+        container = self.query_one("#alloc_split_rows")
+        if event.value:
+            container.display = False
+        else:
+            names = self.get_partition_names()
+            if names:
+                current_values = self._get_current_split_values()
+                await self._rebuild_split_inputs(names, current_values)
+                container.display = True
 
     def get_state(self) -> dict:
         _UI_ONLY = {"nodes", "node_file"}
@@ -277,7 +352,7 @@ class BenchmarkOptions(VerticalScroll):
 
         return state
 
-    def set_state(self, state: dict) -> None:
+    async def set_state(self, state: dict) -> None:
         if not state:
             return
         for widget_id, value in state.items():
@@ -305,7 +380,7 @@ class BenchmarkOptions(VerticalScroll):
             except Exception as e:
                 self.app.log(f"Could not set state for widget '{widget_id}': {e}")
 
-        self._set_allocation_state(state.get("allocation", {}))
+        await self._set_allocation_state(state.get("allocation", {}))
 
 
     @on(Select.Changed)

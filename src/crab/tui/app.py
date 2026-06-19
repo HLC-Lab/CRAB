@@ -53,6 +53,9 @@ class BenchmarkApp(App):
     def on_environment_settings_env_changed(self, message: EnvironmentSettings.EnvChanged):
         self.current_environment_settings = message.new_env
 
+    def on_benchmark_options_partitions_changed(self, message: BenchmarkOptions.PartitionsChanged) -> None:
+        self.experiments_container.update_partitions(message.names)
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id and event.button.id.startswith("tab-"):
             index = int(event.button.id.split("-")[1])
@@ -127,7 +130,7 @@ class BenchmarkApp(App):
                 self.notify("Invalid config: missing global_options.", severity="error")
                 return
 
-            self.benchmark_container.set_state(data["global_options"])
+            await self.benchmark_container.set_state(data["global_options"])
 
             if "experiments" in data:
                 await self.experiments_container.set_state(data["experiments"])

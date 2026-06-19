@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Button, Input, Label
+from textual.containers import Container, VerticalScroll
+from textual.widgets import Button
 
 from .app_strip import AppStrip
 from .application_form import ApplicationForm
@@ -55,26 +55,10 @@ class ExperimentsPanel(Container):
 
     def compose(self) -> ComposeResult:
         yield self._exp_strip
-        with Container(id="exp-identity"):
-            with Horizontal(classes="exp-meta-row"):
-                with Container(classes="exp-meta-group"):
-                    yield Label("Experiment name:", classes="exp-meta-label")
-                    yield Input(
-                        placeholder="experiment_name",
-                        id="exp-name-input",
-                        classes="exp-meta-input",
-                    )
-                with Container(classes="exp-meta-group"):
-                    yield Label("Description (optional):", classes="exp-meta-label")
-                    yield Input(
-                        placeholder="free text note stored in config.json",
-                        id="exp-desc-input",
-                        classes="exp-meta-input",
-                    )
-        yield self._app_strip
         with VerticalScroll(id="exp-content-scroll"):
-            yield self._app_form
             yield self._local_opts
+            yield self._app_strip
+            yield self._app_form
 
     async def on_mount(self) -> None:
         await self._rebuild_exp_strip()
@@ -132,21 +116,13 @@ class ExperimentsPanel(Container):
         self._current_exp = -1  # force reload
         await self._switch_to_experiment(new_idx)
 
-    # ── Experiment identity fields ────────────────────────────────────────────
+    # ── Experiment identity ───────────────────────────────────────────────────
 
-    @on(Input.Changed, "#exp-name-input")
-    def _on_name_changed(self, event: Input.Changed) -> None:
-        if self._current_exp < 0 or self._current_exp >= len(self.experiments):
+    @on(ExperimentStrip.ExperimentRenamed)
+    def _on_exp_renamed(self, msg: ExperimentStrip.ExperimentRenamed) -> None:
+        if msg.index < 0 or msg.index >= len(self.experiments):
             return
-        name = event.value.strip() or f"experiment_{self._current_exp + 1}"
-        self.experiments[self._current_exp]["name"] = name
-        self._exp_strip.rename_tab(self._current_exp, name)
-
-    @on(Input.Changed, "#exp-desc-input")
-    def _on_desc_changed(self, event: Input.Changed) -> None:
-        if self._current_exp < 0 or self._current_exp >= len(self.experiments):
-            return
-        self.experiments[self._current_exp]["description"] = event.value
+        self.experiments[msg.index]["name"] = msg.name
 
     # ── App strip ─────────────────────────────────────────────────────────────
 
@@ -200,9 +176,12 @@ class ExperimentsPanel(Container):
     async def _load_experiment(self, index: int) -> None:
         exp = self.experiments[index]
 
-        # Identity fields
-        self.query_one("#exp-name-input", Input).value = exp.get("name", "")
-        self.query_one("#exp-desc-input", Input).value = exp.get("description", "")
+        # Experiment options (description + local overrides)
+        self._local_opts.clear()
+        self._local_opts.set_description(exp.get("description", ""))
+        lo = exp.get("local_options", {})
+        if lo:
+            self._local_opts.set_state(lo)
 
         # Await removal before remounting to prevent duplicate IDs
         await self._rebuild_app_strip(exp)
@@ -211,12 +190,6 @@ class ExperimentsPanel(Container):
         self._current_app = -1
         first_idx = min(exp["apps"].keys()) if exp["apps"] else 0
         self._switch_to_app(first_idx)
-
-        # Local options
-        self._local_opts.clear()
-        lo = exp.get("local_options", {})
-        if lo:
-            self._local_opts.set_state(lo)
 
     async def _rebuild_app_strip(self, exp: dict) -> None:
         await self._app_strip.clear_all()
@@ -238,13 +211,17 @@ class ExperimentsPanel(Container):
             exp["apps"][self._current_app] = self._app_form.get_form_data()
 
     def _save_current_state(self) -> None:
-        """Flush the active form + local options into self.experiments."""
+        """Flush the active form + experiment options into self.experiments."""
         if self._current_exp < 0 or self._current_exp >= len(self.experiments):
             return
         self._save_current_app()
         exp = self.experiments[self._current_exp]
-        lo = self._local_opts.get_state()
-        exp["local_options"] = lo
+        exp["local_options"] = self._local_opts.get_state()
+        exp["description"] = self._local_opts.get_description()
+
+    def update_partitions(self, names: list[str]) -> None:
+        """Refresh the partition dropdown in the active app form."""
+        self._app_form.update_partitions(names)
 
     # ── Public API (called by app.py for save/load/run) ───────────────────────
 
