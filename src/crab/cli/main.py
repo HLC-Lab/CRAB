@@ -98,7 +98,8 @@ def handle_web(args):
             print("Aborting. The web dashboard requires optional dependencies to run.")
             return
 
-    run_server(host=args.host, port=args.port, open_browser=not args.no_browser)
+    run_server(host=args.host, port=args.port, open_browser=not args.no_browser,
+               verbose=args.verbose)
 
 
 def handle_worker(args):
@@ -135,6 +136,7 @@ def cli_router():
     parser_web.add_argument("--host", default=None, help="Bind host (default: 127.0.0.1).")
     parser_web.add_argument("--port", type=int, default=None, help="Bind port (default: 8765).")
     parser_web.add_argument("--no-browser", action="store_true", help="Do not open a browser on start.")
+    parser_web.add_argument("-v", "--verbose", action="store_true", help="Verbose logging (startup + per-request access logs).")
     parser_web.set_defaults(func=handle_web)
 
     # 5. Export Command
