@@ -1,20 +1,18 @@
 """Guided CRAB bootstrap on a remote cluster (Phase 2b, decision D5).
 
-When a remote has no usable CRAB (``crab info --json`` doesn't parse), walk the
-user through installing it. The recipe mirrors the project's own quick-start
-(``git clone`` → ``make``, which creates ``.venv``, ``pip install -e .`` and
-leaves the ``crab`` binary in ``.venv/bin``): the **structural** commands — the
-repo URL, the clone target, ``make`` — are hard-coded so the flow can't drift
-per cluster. The only editable, optional knob is a list of *pre-commands* run
-first (e.g. ``module load python`` on clusters whose default Python is too old);
-this keeps the recipe universal without baking in any one cluster's environment.
+When a remote has no usable CRAB (``crab info --json`` fails), walk the user
+through installing it. The recipe mirrors the project's quick-start but skips
+the interactive wizard: ``git clone`` then ``make venv && pip install -e .``
+(plain ``make`` would also launch ``crab setup``, which can't run over a
+non-interactive SSH exec). The **structural** commands — repo URL, clone target,
+build — are hard-coded so the flow can't drift per cluster. The only editable,
+optional knob is a list of *pre-commands* run first (e.g. ``module load python``
+on clusters whose default Python is too old), keeping the recipe universal
+without baking in any one cluster's environment.
 
 Each step is run on confirmation and its captured output returned (step-by-step
 capture — no live streaming). A final :func:`detect` re-runs ``crab info --json``
-to confirm success regardless of ``make``'s exit code: ``make`` finishes by
-launching the interactive ``crab setup`` wizard, which aborts on the EOF stdin
-of a non-interactive SSH exec — harmless, because ``pip install -e .`` has
-already produced the binary by then.
+to confirm success. Configuring benchmarks (``crab setup``) is out of scope (D10).
 """
 
 from __future__ import annotations
@@ -84,7 +82,12 @@ def _inner_command(profile: Profile, step_id: str, pre_commands: list[str]) -> s
     if step_id == "clone":
         return f"{prefix}git clone {CRAB_REPO_URL} {dir_expr}"
     if step_id == "build":
-        return f"{prefix}cd {dir_expr} && make"
+        # `make venv` (python check + .venv + argcomplete) then an explicit
+        # editable install. This is `make` minus its trailing `crab setup`
+        # wizard, which is interactive and can't run over a non-interactive SSH
+        # exec — so it would abort and leave `make` non-zero. Configuring
+        # benchmarks (`crab setup`) is out of scope here (D10).
+        return f"{prefix}cd {dir_expr} && make venv && .venv/bin/pip install -e ."
     raise InputError(f"Unknown bootstrap step {step_id!r}.")
 
 
