@@ -51,7 +51,7 @@ async function submit() {
     <!-- Add form -->
     <form v-if="showAdd" class="card form" @submit.prevent="submit">
       <div class="grid">
-        <label>Name <input v-model="form.name" required placeholder="leonardo" /></label>
+        <label>Name <input v-model="form.name" required placeholder="my-cluster" /></label>
         <label>Transport
           <select v-model="form.transport">
             <option value="ssh">ssh</option>
@@ -59,8 +59,8 @@ async function submit() {
           </select>
         </label>
         <template v-if="form.transport === 'ssh'">
-          <label>Host <input v-model="form.host" placeholder="login.leonardo.cineca.it" /></label>
-          <label>User <input v-model="form.user" placeholder="mmarcel3" /></label>
+          <label>Host <input v-model="form.host" placeholder="login.hpc.example.org" /></label>
+          <label>User <input v-model="form.user" placeholder="username" /></label>
           <label>Port <input v-model.number="form.port" type="number" /></label>
           <label>Auth
             <select v-model="form.auth">
@@ -78,7 +78,7 @@ async function submit() {
           </label>
           <label>Remote CRAB <input v-model="form.remote_crab" placeholder="~/CRAB" /></label>
         </template>
-        <label>Preset <input v-model="form.preset" placeholder="leonardo" /></label>
+        <label>Preset <input v-model="form.preset" placeholder="cluster preset" /></label>
       </div>
       <button class="btn primary" type="submit">Save</button>
     </form>
