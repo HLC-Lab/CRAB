@@ -117,12 +117,26 @@ def execute_worker(work_dir: str, log_level_str: str = None):
         traceback.print_exc()
         sys.exit(1)
 
-def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level_str: str = None):
-    """Executes the orchestrator logic directly from provided arguments."""
+def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level_str: str = None,
+                         as_json: bool = False):
+    """Executes the orchestrator logic directly from provided arguments.
+
+    When ``as_json`` is True, all logs are routed to stderr and a single JSON
+    object ``{job_id, data_dir, system}`` is printed to stdout, so the web
+    backend gets a clean, parseable submit result.
+    """
     from crab.log import get_logger
-    
+
     level = _parse_log_level(log_level_str) if log_level_str else None
-    logger = get_logger(level=level)
+    if as_json:
+        # Keep stdout clean for the JSON result; logs go to stderr.
+        from crab.log import CrabLogger, LogLevel
+        from crab.log.formatters import PlainFormatter
+        from crab.log.handlers import StreamHandler
+        handler = StreamHandler(PlainFormatter(), stream=sys.stderr)
+        logger = CrabLogger(level=level or LogLevel.INFO, handlers=[handler])
+    else:
+        logger = get_logger(level=level)
 
     try:
         selected_preset = preset_arg or os.environ.get("CRAB_PRESET")
@@ -163,13 +177,18 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
 
         from crab.core.engine import Engine
         engine = Engine(logger=logger)
-        engine.run(
+        result = engine.run(
             config=benchmark_config,
             environment=execution_env,
             is_worker=False
         )
 
         logger.info("Orchestration complete — job submitted to SLURM")
+
+        if as_json:
+            print(json.dumps(result or {}, indent=2))
+
+        return result
 
     except KeyboardInterrupt:
         logger.warning("Orchestrator interrupted by user")

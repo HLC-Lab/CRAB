@@ -20,7 +20,81 @@ def _preset_completer(prefix, parsed_args, **kwargs):
 
 def handle_run(args):
     from crab.cli.orchestrator import execute_orchestrator
-    execute_orchestrator(args.app_config_file, args.preset, args.log_level)
+    execute_orchestrator(args.app_config_file, args.preset, args.log_level,
+                         as_json=getattr(args, "json", False))
+
+
+# --- Machine-readable introspection seam (consumed by the web dashboard) ---
+
+def handle_info(args):
+    from crab.cli import contract
+    data = contract.gather_info()
+
+    def human(d):
+        print(f"CRAB {d['crab_version']}  (contract schema v{d['schema']})")
+        print(f"root: {d['crab_root']}")
+        print("presets:")
+        for p in d["presets"]:
+            print(f"  {p['name']:<14} {p['description']}")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_list_benchmarks(args):
+    from crab.cli import contract
+    data = contract.gather_benchmarks()
+
+    def human(d):
+        print(f"Installed benchmarks ({len(d['benchmarks'])}):")
+        for b in d["benchmarks"]:
+            arch = f" [{b['target_arch']}]" if b.get("target_arch") else ""
+            print(f"  {b['id']}{arch}  ({b.get('type')})")
+        print(f"\nWrappers ({len(d['wrappers'])}):")
+        for w in d["wrappers"]:
+            tag = "" if w["loadable"] else "  (unloadable)"
+            print(f"  {w['relpath']}{tag}")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_nodes(args):
+    from crab.cli import contract
+    data = contract.gather_nodes()
+
+    def human(d):
+        if not d["available"]:
+            print(f"sinfo unavailable: {d.get('note', 'n/a')}")
+            return
+        print("partitions:")
+        for p in d["partitions"]:
+            print(f"  {p['name']:<18} avail={p.get('avail', '?')} nodes={p.get('nodes', '?')}")
+        print(f"node tokens: {len(d['nodes'])}")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_status(args):
+    from crab.cli import contract
+    data = contract.gather_status(args.job_ids)
+
+    def human(d):
+        for j in d["jobs"]:
+            print(f"  {j['job_id']:<12} {j['state']:<12} ({j.get('source', '')})")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_history(args):
+    from crab.cli import contract
+    data = contract.gather_history(system=args.system)
+
+    def human(d):
+        print(f"{len(d['experiments'])} experiment(s):")
+        for e in d["experiments"]:
+            print(f"  [{e['status']:<9}] {e['system']}/{e['job_name']}/{e['experiment_name']}  "
+                  f"{e['timestamp']}  apps={e['apps_list']}")
+
+    contract.emit(data, args.json, human)
 
 def handle_setup(args):
     from crab.setup.wizard import run as run_wizard
@@ -113,7 +187,8 @@ def handle_export(args):
 def cli_router():
     parser = argparse.ArgumentParser(prog="crab", description="CRAB Benchmarking Framework")
     # 'metavar' is used to hide the "worker" entry
-    subparsers = parser.add_subparsers(title="commands", dest="command", metavar="{setup,run,tui,web,export}")
+    subparsers = parser.add_subparsers(title="commands", dest="command",
+                                       metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history}")
     subparsers.required = True
 
     # 1. Setup Command
@@ -125,6 +200,7 @@ def cli_router():
     parser_run.add_argument("app_config_file", help="Path to the JSON benchmark config.").completer = FilesCompleter(allowednames=('.json',))
     parser_run.add_argument("-p", "--preset", help="Name of the preset to use.").completer = _preset_completer
     parser_run.add_argument("--log-level", dest="log_level", default=None, help="Log verbosity.")
+    parser_run.add_argument("--json", action="store_true", help="Print the submit result as JSON (logs go to stderr).")
     parser_run.set_defaults(func=handle_run)
 
     # 3. TUI Command
@@ -139,13 +215,35 @@ def cli_router():
     parser_web.add_argument("-v", "--verbose", action="store_true", help="Verbose logging (startup + per-request access logs).")
     parser_web.set_defaults(func=handle_web)
 
-    # 5. Export Command
+    # 5. Introspection commands (machine-readable seam for the web dashboard)
+    def _add_json_flag(p):
+        p.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of text.")
+        return p
+
+    parser_info = subparsers.add_parser("info", help="Show version, root, and available presets")
+    _add_json_flag(parser_info).set_defaults(func=handle_info)
+
+    parser_lb = subparsers.add_parser("list-benchmarks", help="List installed benchmarks and discovered wrappers")
+    _add_json_flag(parser_lb).set_defaults(func=handle_list_benchmarks)
+
+    parser_nodes = subparsers.add_parser("nodes", help="Show Slurm partitions and nodes (via sinfo)")
+    _add_json_flag(parser_nodes).set_defaults(func=handle_nodes)
+
+    parser_status = subparsers.add_parser("status", help="Show the state of Slurm job ids")
+    parser_status.add_argument("job_ids", nargs="*", help="Slurm job ids to query.")
+    _add_json_flag(parser_status).set_defaults(func=handle_status)
+
+    parser_history = subparsers.add_parser("history", help="List past experiments from metadata.csv")
+    parser_history.add_argument("-s", "--system", default=None, help="Limit to one system.")
+    _add_json_flag(parser_history).set_defaults(func=handle_history)
+
+    # 6. Export Command
     parser_export = subparsers.add_parser("export", help="Export results as a self-contained HTML dashboard")
     parser_export.add_argument("data_dir", help="Path to the directory containing experiment results.").completer = FilesCompleter()
     parser_export.add_argument("-o", "--output", default=None, help="Output HTML file (default: crab_export.html)")
     parser_export.set_defaults(func=handle_export)
 
-    # 6. Worker Command (Hidden)
+    # 7. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)

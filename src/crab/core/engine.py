@@ -20,9 +20,9 @@ class Engine:
 
     def run(self, config: Dict[str, Any], environment: Dict[str, Any], is_worker: bool = False, output_dir: str = None):
         if is_worker:
-            self._run_worker(config, environment, output_dir)
+            return self._run_worker(config, environment, output_dir)
         else:
-            self._run_orchestrator(config, environment)
+            return self._run_orchestrator(config, environment)
 
     def _generate_sbatch_header(self, global_opts: Dict[str, Any], data_directory: str) -> List[str]:
         """
@@ -214,6 +214,13 @@ class Engine:
                 self.log.warning(f"Interrupted — cancelling Slurm job {job_id}")
                 subprocess.run(['scancel', job_id], check=False)
             raise
+
+        # Structured result for programmatic callers (e.g. `crab run --json`).
+        return {
+            "job_id": job_id,
+            "data_dir": data_directory,
+            "system": safe_system,
+        }
 
 
 
