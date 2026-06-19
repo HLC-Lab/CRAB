@@ -21,7 +21,12 @@ export interface AppDraft {
   startAfter: string; // app index N, when startKind === "after" → "sN"
   endKind: EndKind;
   endTimed: string; // seconds, when endKind === "timed"
+  // Non-reserved app keys are injected as wrapper attributes by the engine
+  // (documented). Preserve them untouched so load→save doesn't drop them.
+  rest: Record<string, unknown>;
 }
+
+const RESERVED_APP_KEYS = new Set(["path", "args", "collect", "start", "end", "partition"]);
 
 function startStr(a: AppDraft): string {
   if (a.startKind === "delay") return a.startDelay.trim() || "0";
@@ -307,7 +312,7 @@ export function emptyApp(): AppDraft {
   return {
     path: "", args: "", collect: true, partition: "",
     startKind: "at_start", startDelay: "5", startAfter: "0",
-    endKind: "complete", endTimed: "60",
+    endKind: "complete", endTimed: "60", rest: {},
   };
 }
 
@@ -333,6 +338,7 @@ export function toConfig(draft: Draft): CrabConfig {
     const apps: Record<string, AppConfig> = {};
     exp.apps.forEach((a, i) => {
       const entry: AppConfig = {
+        ...a.rest, // wrapper-attribute extras; reserved keys below take precedence
         path: a.path.trim(),
         args: a.args,
         collect: a.collect,
@@ -374,7 +380,7 @@ export function fromConfig(config: CrabConfig): Draft {
   const draft = emptyDraft();
   draft.name = str(g.name);
   draft.numnodes = str(g.numnodes);
-  draft.ppn = str(g.ppn, "1");
+  draft.ppn = str(g.ppn); // faithful: no default injection on import (emptyDraft seeds "1" for new configs)
   draft.allocation = fromAllocation(g.allocation);
   draft.options = readOptions(g);
   draft.sbatch = fromSbatch(g.sbatch_directives);
@@ -389,11 +395,16 @@ export function fromConfig(config: CrabConfig): Draft {
       options: readOptions(lo),
       apps: Object.values(e.apps ?? {}).map((a) => {
         const app = a as Record<string, unknown>;
+        const rest: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(app)) {
+          if (!RESERVED_APP_KEYS.has(k)) rest[k] = v;
+        }
         return {
           path: str(app.path),
           args: str(app.args),
-          collect: app.collect !== false,
+          collect: app.collect === true, // doc default is false
           partition: str(app.partition),
+          rest,
           ...parseStart(str(app.start, "0")),
           ...parseEnd(str(app.end)),
         };
