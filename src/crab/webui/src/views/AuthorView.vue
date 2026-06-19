@@ -1,13 +1,31 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watchEffect } from "vue";
 import { useAuthorStore } from "@/stores/author";
+import { useRemotesStore } from "@/stores/remotes";
+import { useCatalogStore } from "@/stores/catalog";
 import { emptyApp, emptyExperiment, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 import SbatchEditor from "@/components/SbatchEditor.vue";
 
 const store = useAuthorStore();
+const remotes = useRemotesStore();
+const catalog = useCatalogStore();
 const d = store.draft;
+
+// -- Cluster source for the wrapper/node pickers ---------------------------
+// Wrappers live on the cluster, so browsing them needs a connected remote. We
+// auto-pick the only connected one; with several, the user chooses; with none,
+// the app path stays free-text (the picker is just unavailable).
+const connectedClusters = computed(() =>
+  remotes.items.filter((r) => r.connected).map((r) => r.name),
+);
+const sourceCluster = ref("");
+watchEffect(() => {
+  if (!connectedClusters.value.includes(sourceCluster.value)) {
+    sourceCluster.value = connectedClusters.value[0] ?? "";
+  }
+});
 
 const showAlloc = ref(false);
 const showTuning = ref(false);
@@ -73,12 +91,51 @@ function otherIndices(self: number): number[] {
   return (sel.value?.apps ?? []).map((_, j) => j).filter((j) => j !== self);
 }
 
+// -- Wrapper picker (searchable overlay over the cluster catalog) ----------
+const showWrapper = ref(false);
+const wrapperFor = ref<number | null>(null);
+const wrapperQuery = ref("");
+
+function openWrapperPicker(appIndex: number) {
+  if (!sourceCluster.value) return;
+  wrapperFor.value = appIndex;
+  wrapperQuery.value = "";
+  showWrapper.value = true;
+  catalog.loadBenchmarks(sourceCluster.value);
+}
+const wrappers = computed(() => catalog.benchmarks[sourceCluster.value]?.wrappers ?? []);
+const filteredWrappers = computed(() => {
+  const q = wrapperQuery.value.trim().toLowerCase();
+  const list = wrappers.value;
+  if (!q) return list;
+  return list.filter((w) =>
+    [w.relpath, w.bench_name, w.benchmark_id, w.group].some((s) => s?.toLowerCase().includes(q)),
+  );
+});
+// Group filtered wrappers by their top-level folder for display.
+const wrapperGroups = computed(() => {
+  const by: Record<string, typeof filteredWrappers.value> = {};
+  for (const w of filteredWrappers.value) (by[w.group || "other"] ??= []).push(w);
+  return Object.entries(by).sort(([a], [b]) => a.localeCompare(b));
+});
+function chooseWrapper(relpath: string) {
+  const e = sel.value;
+  if (e && wrapperFor.value !== null && e.apps[wrapperFor.value]) {
+    e.apps[wrapperFor.value].path = relpath;
+  }
+  showWrapper.value = false;
+  wrapperFor.value = null;
+}
+
 const showJson = ref(false);
 const showImport = ref(false);
 const importText = ref("");
 const copied = ref(false);
 
-onMounted(() => store.loadLibrary());
+onMounted(() => {
+  store.loadLibrary();
+  remotes.refresh(); // to know which clusters are connected for the pickers
+});
 
 function selectFirstOrNone() {
   selectedIndex.value = d.experiments.length ? 0 : null;
@@ -250,12 +307,33 @@ async function copyJson() {
             </template>
           </div>
 
+          <!-- Where the wrapper picker sources its catalog -->
+          <div class="wrapper-source">
+            <template v-if="connectedClusters.length > 1">
+              <label>Wrappers from
+                <select v-model="sourceCluster">
+                  <option v-for="c in connectedClusters" :key="c" :value="c">{{ c }}</option>
+                </select>
+              </label>
+            </template>
+            <span v-else-if="sourceCluster" class="src-note">Wrappers from <b>{{ sourceCluster }}</b></span>
+            <span v-else class="src-note muted">Connect a cluster (Remotes) to browse wrappers — paths can still be typed.</span>
+          </div>
+
           <!-- Apps -->
           <div class="apps">
             <div v-for="(app, i) in sel.apps" :key="i" class="app">
               <div class="app-row">
                 <span class="idx">#{{ i }}</span>
                 <input v-model="app.path" class="grow" placeholder="wrapper path, e.g. blink/a2a_comm_only.py" />
+                <button
+                  class="btn browse"
+                  :disabled="!sourceCluster"
+                  :title="sourceCluster ? `Browse wrappers on ${sourceCluster}` : 'Connect a cluster to browse wrappers'"
+                  @click="openWrapperPicker(i)"
+                >
+                  Browse…
+                </button>
                 <select
                   class="role"
                   :value="app.collect ? 'victim' : 'aggressor'"
@@ -361,6 +439,43 @@ async function copyJson() {
       </div>
     </div>
 
+    <!-- Wrapper picker overlay: searchable catalog from the source cluster -->
+    <div v-if="showWrapper" class="modal-bg" @click.self="showWrapper = false">
+      <div class="modal card wrapper-modal">
+        <header class="wm-head">
+          <input v-model="wrapperQuery" class="search" placeholder="Search wrappers by name, path, or group…" autofocus />
+          <span class="wm-src">{{ sourceCluster }}</span>
+        </header>
+
+        <p v-if="catalog.busy[sourceCluster]" class="wm-state">Loading wrappers from {{ sourceCluster }}…</p>
+        <p v-else-if="catalog.error[sourceCluster]" class="wm-state err">{{ catalog.error[sourceCluster] }}</p>
+
+        <div v-else class="wrapper-list">
+          <template v-for="[group, items] in wrapperGroups" :key="group">
+            <div class="wg-head">{{ group }}</div>
+            <button
+              v-for="w in items"
+              :key="w.relpath"
+              class="wrap-row"
+              :class="{ unloadable: !w.loadable }"
+              :title="w.error || w.relpath"
+              @click="chooseWrapper(w.relpath)"
+            >
+              <span class="wrap-main">
+                <span class="wrap-name">{{ w.bench_name || w.file }}</span>
+                <span class="wrap-path">{{ w.relpath }}</span>
+              </span>
+              <span class="wrap-tags">
+                <span v-if="w.metadata.length" class="tag">{{ w.metadata.length }} metric{{ w.metadata.length === 1 ? "" : "s" }}</span>
+                <span v-if="!w.loadable" class="tag warn">unloadable</span>
+              </span>
+            </button>
+          </template>
+          <p v-if="!wrapperGroups.length" class="empty">No matching wrappers.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Import modal -->
     <div v-if="showImport" class="modal-bg" @click.self="showImport = false">
       <div class="modal card">
@@ -390,6 +505,35 @@ async function copyJson() {
 .btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 .btn.on { border-color: var(--accent); color: var(--accent); }
 .btn.open { padding-right: 0.4rem; }
+.btn.browse { padding: 0.35rem 0.6rem; white-space: nowrap; }
+
+/* Wrapper source line + picker */
+.wrapper-source { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+.wrapper-source label { display: flex; align-items: center; gap: 0.4rem; color: var(--text2); font-size: 0.78rem; }
+.src-note { color: var(--text2); font-size: 0.78rem; }
+.src-note.muted { color: var(--text3); }
+.src-note b { color: var(--text); }
+.wrapper-modal { width: min(44rem, 94vw); padding: 0.75rem; display: flex; flex-direction: column; }
+.wm-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.wm-head .search { flex: 1; margin-bottom: 0; }
+.wm-src { font-size: 0.72rem; color: var(--text3); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; }
+.wm-state { color: var(--text2); font-size: 0.82rem; padding: 1rem 0.5rem; }
+.wm-state.err { color: var(--danger); }
+.wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
+.wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text3);
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.4rem 0.55rem 0.2rem; }
+.wrap-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+  border-radius: var(--r); padding: 0.4rem 0.55rem; cursor: pointer; color: var(--text); }
+.wrap-row:hover { background: var(--bg2); border-color: var(--accent); }
+.wrap-row.unloadable { opacity: 0.7; }
+.wrap-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.wrap-name { font-size: 0.84rem; }
+.wrap-path { font-size: 0.7rem; color: var(--text3); font-family: var(--mono); }
+.wrap-tags { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.tag.warn { color: var(--warn); border-color: var(--warn); }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent; color: var(--text2);

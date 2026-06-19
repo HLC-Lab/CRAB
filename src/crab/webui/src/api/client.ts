@@ -2,6 +2,7 @@
 // and the envelope contract live in one place (instructions §4).
 
 import type {
+  BenchmarksResult,
   BootstrapPlan,
   ConnectResult,
   CrabConfig,
@@ -9,6 +10,7 @@ import type {
   ErrorEnvelope,
   Health,
   LibraryEntry,
+  NodesResult,
   Profile,
   RemoteListItem,
   StepResult,
@@ -84,6 +86,12 @@ export const api = {
       request<void>(`/api/remotes/${encodeURIComponent(name)}/disconnect`, {
         method: "POST",
       }),
+
+    // Cluster catalog (require a live connection; for the authoring pickers).
+    benchmarks: (name: string) =>
+      request<BenchmarksResult>(`/api/remotes/${encodeURIComponent(name)}/benchmarks`),
+    nodes: (name: string) =>
+      request<NodesResult>(`/api/remotes/${encodeURIComponent(name)}/nodes`),
 
     bootstrap: {
       plan: (name: string) =>

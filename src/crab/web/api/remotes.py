@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from crab.web.errors import RemoteConnectionError
 from crab.web.remoteops.bootstrap import detect
+from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.store.profiles import Profile, ProfileStore
 
 router = APIRouter(prefix="/api/remotes", tags=["remotes"])
@@ -87,3 +88,37 @@ async def disconnect_remote(name: str, request: Request) -> None:
     manager = getattr(request.app.state, "manager", None)
     if manager:
         await manager.disconnect(name)
+
+
+def _live_transport(name: str, request: Request):
+    """The remote's existing live transport, or a clean error if not connected.
+
+    Uses the already-open connection (no implicit reconnect) so introspection
+    calls require the user to have connected the cluster first.
+    """
+    transport = _manager(request).get(name)
+    if transport is None:
+        raise RemoteConnectionError(
+            f"'{name}' is not connected. Connect the cluster first, then retry."
+        )
+    return transport
+
+
+@router.get("/{name}/benchmarks")
+async def remote_benchmarks(name: str, request: Request) -> dict:
+    """`crab list-benchmarks --json` on the connected cluster (for the wrapper picker).
+
+    Introspection runs every wrapper module on the login node, so allow a generous
+    timeout; the contract degrades unloadable wrappers gracefully rather than failing.
+    """
+    profile = _store(request).get(name)
+    transport = _live_transport(name, request)
+    return await run_crab_json(transport, profile, ["list-benchmarks", "--json"], timeout=90.0)
+
+
+@router.get("/{name}/nodes")
+async def remote_nodes(name: str, request: Request) -> dict:
+    """`crab nodes --json` on the connected cluster (informational partition list)."""
+    profile = _store(request).get(name)
+    transport = _live_transport(name, request)
+    return await run_crab_json(transport, profile, ["nodes", "--json"], timeout=30.0)

@@ -113,3 +113,45 @@ export interface LibraryEntry {
   updated_at: string;
   config: CrabConfig;
 }
+
+// -- Cluster catalog (Phase 3 pickers; crab list-benchmarks / nodes --json) --
+
+export interface WrapperMetric {
+  name: string | null;
+  unit: string | null;
+  conv: boolean;
+}
+
+/** One discovered wrapper file (loadable or not — unloadable are still listed). */
+export interface Wrapper {
+  file: string;
+  relpath: string; // what goes into an app's `path`, e.g. "blink/a2a_comm_only.py"
+  group: string;
+  loadable: boolean;
+  benchmark_id: string | null;
+  bench_name: string | null;
+  metadata: WrapperMetric[];
+  error?: string;
+}
+
+/** GET /api/remotes/{name}/benchmarks */
+export interface BenchmarksResult {
+  schema: number;
+  benchmarks: { id?: string; [key: string]: unknown }[];
+  wrappers: Wrapper[];
+}
+
+export interface NodePartition {
+  name: string;
+  avail?: string;
+  nodes?: number;
+}
+
+/** GET /api/remotes/{name}/nodes */
+export interface NodesResult {
+  schema: number;
+  available: boolean;
+  partitions: NodePartition[];
+  nodes: string[];
+  note?: string;
+}
