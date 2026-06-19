@@ -79,9 +79,13 @@ export const useRemotesStore = defineStore("remotes", () => {
     } catch (e) {
       connectError.value[name] = msg(e);
       connectCode.value[name] = code(e);
-      // A contract error means the SSH side is up but CRAB is unusable — the
-      // connection is live, so refresh to reflect the connected state.
-      if (code(e) === "contract_error") await refresh();
+      // The SSH connection may be live even though the `crab info` handshake
+      // failed — both a non-zero exit (CRAB/venv/path missing) and unparsable
+      // output (CRAB too old/broken) leave the channel open. Refresh so the row
+      // reflects the real connection state and the bootstrap offer can appear.
+      // (Auth and connection-drop errors leave nothing connected, so refresh
+      // simply shows it as disconnected.)
+      await refresh();
     } finally {
       busy.value[name] = false;
     }

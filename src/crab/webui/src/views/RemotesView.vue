@@ -152,9 +152,12 @@ async function submit() {
           </span>
         </div>
 
-        <!-- CRAB unusable on a live connection → offer guided setup. -->
+        <!-- Connected, but the `crab info` handshake failed → CRAB is missing or
+             unusable at this path. Offer guided setup. (A live connection plus a
+             recorded connect error can only mean a crab-info failure: auth and
+             drop errors leave nothing connected.) -->
         <div
-          v-if="r.connected && store.connectCode[r.name] === 'contract_error' && !store.plan[r.name]"
+          v-if="r.connected && store.connectError[r.name] && !store.plan[r.name]"
           class="setup-cta"
         >
           <button class="btn" :disabled="store.bootstrapBusy[r.name]" @click="openBootstrap(r.name)">
