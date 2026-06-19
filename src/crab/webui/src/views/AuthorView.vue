@@ -27,6 +27,15 @@ watchEffect(() => {
   }
 });
 
+// Informational cluster-node reference (Slurm partitions; NOT allocation groups).
+// Lazily fetched on first expand so opening the editor doesn't hit SSH.
+const showNodes = ref(false);
+const nodesInfo = computed(() => catalog.nodes[sourceCluster.value]);
+function toggleNodes() {
+  showNodes.value = !showNodes.value;
+  if (showNodes.value && sourceCluster.value) catalog.loadNodes(sourceCluster.value);
+}
+
 const showAlloc = ref(false);
 const showTuning = ref(false);
 const showSbatch = ref(false);
@@ -223,6 +232,30 @@ async function copyJson() {
           <label>Use case name <input v-model="d.name" placeholder="congestion_study" /></label>
           <label>Nodes <input v-model="d.numnodes" placeholder="8" /></label>
           <label>Procs / node <input v-model="d.ppn" /></label>
+
+          <!-- Informational cluster-node reference for sizing `Nodes` -->
+          <div v-if="sourceCluster" class="nodes-ref">
+            <button class="link-btn" @click="toggleNodes">
+              {{ showNodes ? "▾" : "▸" }} cluster nodes · {{ sourceCluster }}
+            </button>
+            <div v-if="showNodes" class="nodes-body">
+              <p v-if="catalog.busy[sourceCluster]" class="hint">Loading…</p>
+              <p v-else-if="catalog.error[sourceCluster]" class="hint err">{{ catalog.error[sourceCluster] }}</p>
+              <template v-else-if="nodesInfo">
+                <p v-if="!nodesInfo.available" class="hint">{{ nodesInfo.note || "sinfo unavailable here" }}</p>
+                <template v-else>
+                  <p class="hint">{{ nodesInfo.nodes.length }} nodes · {{ nodesInfo.partitions.length }} partition{{ nodesInfo.partitions.length === 1 ? "" : "s" }}</p>
+                  <ul class="part-list">
+                    <li v-for="p in nodesInfo.partitions" :key="p.name">
+                      <span class="pname">{{ p.name }}</span>
+                      <span class="pmeta">{{ p.nodes ?? "?" }}<span v-if="p.avail"> · {{ p.avail }}</span></span>
+                    </li>
+                  </ul>
+                  <p class="hint muted">Slurm partitions — distinct from allocation node groups.</p>
+                </template>
+              </template>
+            </div>
+          </div>
         </div>
 
         <!-- Node allocation (collapsible) -->
@@ -506,6 +539,22 @@ async function copyJson() {
 .btn.on { border-color: var(--accent); color: var(--accent); }
 .btn.open { padding-right: 0.4rem; }
 .btn.browse { padding: 0.35rem 0.6rem; white-space: nowrap; }
+
+/* Cluster-node reference (informational) */
+.nodes-ref { margin: -0.2rem 0 0.4rem; }
+.link-btn { background: transparent; border: none; color: var(--text2); cursor: pointer;
+  font-family: var(--mono); font-size: 0.72rem; padding: 0; }
+.link-btn:hover { color: var(--text); }
+.nodes-body { margin-top: 0.3rem; }
+.nodes-body .hint { color: var(--text3); font-size: 0.72rem; margin-bottom: 0.2rem; }
+.nodes-body .hint.err { color: var(--danger); }
+.nodes-body .hint.muted { color: var(--text3); font-style: italic; }
+.part-list { list-style: none; max-height: 9rem; overflow-y: auto; display: flex;
+  flex-direction: column; gap: 0.1rem; margin: 0.2rem 0; }
+.part-list li { display: flex; justify-content: space-between; gap: 0.5rem;
+  font-size: 0.72rem; color: var(--text2); padding: 0.1rem 0.2rem; }
+.pname { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmeta { color: var(--text3); white-space: nowrap; }
 
 /* Wrapper source line + picker */
 .wrapper-source { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
