@@ -155,11 +155,84 @@ export interface ExperimentDraft {
   apps: AppDraft[];
 }
 
+// -- Tunable options (convergence / output / advanced) -----------------------
+// These global_options keys are also overridable per-experiment via local_options
+// (a later increment), so the model is shared. Emission is emit-on-set: a blank
+// field is omitted (engine default globally / inherit-from-global locally) — there
+// is no full default written out. Booleans/enums use an empty string as "unset"
+// (a tri-state) so we can distinguish "leave default" from an explicit value.
+
+export type TriBool = "" | "true" | "false";
+
+export interface OptionsDraft {
+  minruns: string;
+  maxruns: string;
+  timeout: string;
+  convergeall: TriBool;
+  alpha: string;
+  beta: string;
+  outformat: "" | "csv" | "hdf";
+  retainFiles: TriBool;
+  tags: string;
+  extrainfo: string;
+  walltime: string;
+  datapath: string;
+}
+
+export function emptyOptions(): OptionsDraft {
+  return {
+    minruns: "", maxruns: "", timeout: "", convergeall: "", alpha: "", beta: "",
+    outformat: "", retainFiles: "", tags: "", extrainfo: "", walltime: "", datapath: "",
+  };
+}
+
+/** Spread the set option fields onto a target options object (global or local). */
+export function applyOptions(target: Record<string, unknown>, o: OptionsDraft): void {
+  const s = (k: string, v: string) => {
+    if (v.trim()) target[k] = v.trim();
+  };
+  // Numeric options are kept as strings, mirroring the hand-written examples.
+  s("minruns", o.minruns);
+  s("maxruns", o.maxruns);
+  s("timeout", o.timeout);
+  s("alpha", o.alpha);
+  s("beta", o.beta);
+  s("tags", o.tags);
+  s("extrainfo", o.extrainfo);
+  s("walltime", o.walltime);
+  s("datapath", o.datapath);
+  if (o.outformat) target.outformat = o.outformat;
+  if (o.convergeall) target.convergeall = o.convergeall === "true";
+  if (o.retainFiles) target.retain_files = o.retainFiles === "true";
+}
+
+/** Inverse: read the tunable option fields out of a global/local options object. */
+export function readOptions(src: Record<string, unknown>): OptionsDraft {
+  const o = emptyOptions();
+  const str = (v: unknown) => (v == null ? "" : String(v));
+  const tri = (v: unknown): TriBool => (v == null ? "" : v ? "true" : "false");
+  o.minruns = str(src.minruns);
+  o.maxruns = str(src.maxruns);
+  o.timeout = str(src.timeout);
+  o.alpha = str(src.alpha);
+  o.beta = str(src.beta);
+  o.tags = str(src.tags);
+  o.extrainfo = str(src.extrainfo);
+  o.walltime = str(src.walltime);
+  o.datapath = str(src.datapath);
+  const fmt = str(src.outformat);
+  o.outformat = fmt === "csv" || fmt === "hdf" ? fmt : "";
+  o.convergeall = tri(src.convergeall);
+  o.retainFiles = tri(src.retain_files);
+  return o;
+}
+
 export interface Draft {
   name: string;
   numnodes: string;
   ppn: string;
   allocation: AllocationDraft;
+  options: OptionsDraft;
   experiments: ExperimentDraft[];
 }
 
@@ -172,7 +245,7 @@ export function emptyApp(): AppDraft {
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", numnodes: "", ppn: "1", allocation: emptyAllocation(), experiments: [] };
+  return { name: "", numnodes: "", ppn: "1", allocation: emptyAllocation(), options: emptyOptions(), experiments: [] };
 }
 
 /** Build the engine config from the draft, pruning empty optionals. */
@@ -183,6 +256,7 @@ export function toConfig(draft: Draft): CrabConfig {
   if (draft.ppn.trim()) global.ppn = draft.ppn.trim();
   const allocation = toAllocation(draft.allocation);
   if (allocation) global.allocation = allocation;
+  applyOptions(global, draft.options);
 
   const experiments: CrabConfig["experiments"] = {};
   for (const exp of draft.experiments) {
@@ -223,6 +297,7 @@ export function fromConfig(config: CrabConfig): Draft {
   draft.numnodes = str(g.numnodes);
   draft.ppn = str(g.ppn, "1");
   draft.allocation = fromAllocation(g.allocation);
+  draft.options = readOptions(g);
   draft.experiments = Object.entries(experiments ?? {}).map(([name, exp]) => ({
     name,
     description: str((exp as { description?: unknown }).description),
@@ -245,15 +320,34 @@ export function fromConfig(config: CrabConfig): Draft {
 // Structural checks only (not engine semantics): the things that make a config
 // well-formed enough to submit. Returns a list of human-readable issues.
 
+const _posInt = (s: string) => /^[0-9]+$/.test(s.trim()) && parseInt(s, 10) > 0;
+const _numeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
+
+/** Validate the tunable option fields. `where` prefixes messages (e.g. an experiment name). */
+export function validateOptions(o: OptionsDraft, where = ""): string[] {
+  const issues: string[] = [];
+  const at = where ? `${where}: ` : "";
+  if (o.minruns.trim() && !_posInt(o.minruns)) issues.push(`${at}min runs must be a positive integer.`);
+  if (o.maxruns.trim() && !_posInt(o.maxruns)) issues.push(`${at}max runs must be a positive integer.`);
+  if (o.minruns.trim() && o.maxruns.trim() && _posInt(o.minruns) && _posInt(o.maxruns) &&
+      parseInt(o.maxruns, 10) < parseInt(o.minruns, 10))
+    issues.push(`${at}max runs must be ≥ min runs.`);
+  if (o.timeout.trim() && !_numeric(o.timeout)) issues.push(`${at}timeout must be a number (seconds).`);
+  if (o.alpha.trim() && !_numeric(o.alpha)) issues.push(`${at}alpha must be a number.`);
+  if (o.beta.trim() && !_numeric(o.beta)) issues.push(`${at}beta must be a number.`);
+  return issues;
+}
+
 export function validateDraft(d: Draft): string[] {
   const issues: string[] = [];
-  const posInt = (s: string) => /^[0-9]+$/.test(s.trim()) && parseInt(s, 10) > 0;
-  const numeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
+  const posInt = _posInt;
+  const numeric = _numeric;
 
   if (!d.numnodes.trim()) issues.push("Number of nodes is required.");
   else if (!posInt(d.numnodes)) issues.push("Number of nodes must be a positive integer.");
   if (d.ppn.trim() && !posInt(d.ppn)) issues.push("Procs per node must be a positive integer.");
   if (!d.experiments.length) issues.push("Add at least one experiment.");
+  issues.push(...validateOptions(d.options));
 
   // Allocation (global). Returns the defined node-group names for the per-app check.
   const groups = new Set<string>();

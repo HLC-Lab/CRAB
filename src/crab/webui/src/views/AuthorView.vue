@@ -3,12 +3,16 @@ import { computed, onMounted, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import { emptyApp, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
+import OptionsFields from "@/components/OptionsFields.vue";
 
 const store = useAuthorStore();
 const d = store.draft;
 
 const showAlloc = ref(false);
+const showTuning = ref(false);
 const allocActive = computed(() => hasAllocation(d.allocation));
+// Whether any tunable option has been set (drives the collapsed-section dot).
+const tuningActive = computed(() => Object.values(d.options).some((v) => v !== ""));
 // Node-group names defined by the global allocation, for the per-app partition picker.
 const groupNames = computed(() =>
   d.allocation.by === "groups"
@@ -160,7 +164,18 @@ async function copyJson() {
           </button>
           <AllocationEditor v-show="showAlloc" :alloc="d.allocation" />
         </div>
-        <!-- convergence · output · advanced land in the next increment -->
+
+        <!-- Convergence · output · advanced (collapsible) -->
+        <div class="section">
+          <button class="sec-head" @click="showTuning = !showTuning">
+            <span>Tuning</span>
+            <span class="sec-state">
+              <span v-if="tuningActive" class="dot" />
+              <span class="caret">{{ showTuning ? "▾" : "▸" }}</span>
+            </span>
+          </button>
+          <OptionsFields v-show="showTuning" :options="d.options" />
+        </div>
 
         <div class="exp-head">
           <span>Experiments</span>
