@@ -4,9 +4,11 @@
 import type {
   BootstrapPlan,
   ConnectResult,
+  CrabConfig,
   DetectResult,
   ErrorEnvelope,
   Health,
+  LibraryEntry,
   Profile,
   RemoteListItem,
   StepResult,
@@ -100,5 +102,27 @@ export const api = {
           { method: "POST" },
         ),
     },
+  },
+
+  experiments: {
+    list: () => request<LibraryEntry[]>("/api/experiments"),
+    get: (id: string) =>
+      request<LibraryEntry>(`/api/experiments/${encodeURIComponent(id)}`),
+    create: (name: string, config: CrabConfig) =>
+      request<LibraryEntry>("/api/experiments", {
+        method: "POST",
+        body: JSON.stringify({ name, config }),
+      }),
+    update: (id: string, name: string, config: CrabConfig) =>
+      request<LibraryEntry>(`/api/experiments/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify({ name, config }),
+      }),
+    duplicate: (id: string) =>
+      request<LibraryEntry>(`/api/experiments/${encodeURIComponent(id)}/duplicate`, {
+        method: "POST",
+      }),
+    remove: (id: string) =>
+      request<void>(`/api/experiments/${encodeURIComponent(id)}`, { method: "DELETE" }),
   },
 };

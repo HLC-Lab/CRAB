@@ -80,3 +80,36 @@ export interface DetectResult {
   info: CrabInfo | null;
   reason: string | null;
 }
+
+// -- Experiment authoring (Phase 3) ----------------------------------------
+
+/** One application within an experiment (engine-shaped; extra keys allowed). */
+export interface AppConfig {
+  path: string;
+  args?: string;
+  collect?: boolean;
+  start?: string;
+  end?: string;
+  partition?: string;
+  [key: string]: unknown;
+}
+
+export interface Experiment {
+  description?: string;
+  local_options?: Record<string, unknown>;
+  apps: Record<string, AppConfig>;
+}
+
+/** The engine config document a `crab run` consumes. */
+export interface CrabConfig {
+  global_options: Record<string, unknown>;
+  experiments: Record<string, Experiment>;
+}
+
+/** A saved config in the local library (mirrors web/store/library.py). */
+export interface LibraryEntry {
+  id: string;
+  name: string;
+  updated_at: string;
+  config: CrabConfig;
+}
