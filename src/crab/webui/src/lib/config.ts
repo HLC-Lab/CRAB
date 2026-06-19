@@ -294,7 +294,9 @@ export function validateDraft(d: Draft): string[] {
         if (!(ref >= 0 && ref < e.apps.length && ref !== ai))
           issues.push(`${label} · app #${ai}: "after" must reference another app.`);
       }
-      if (groups.size && a.partition.trim() && !groups.has(a.partition.trim()))
+      // A partition reference is invalid whenever it names no defined node group —
+      // including when none exist (e.g. after switching to "by app" or disabling allocation).
+      if (a.partition.trim() && !groups.has(a.partition.trim()))
         issues.push(`${label} · app #${ai}: partition "${a.partition.trim()}" is not a defined node group.`);
     });
   });
