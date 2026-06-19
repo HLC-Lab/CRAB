@@ -47,6 +47,96 @@ function parseEnd(s: string): Pick<AppDraft, "endKind" | "endTimed"> {
   return { endKind: "timed", endTimed: s };
 }
 
+// -- Allocation (node-to-app mapping) ----------------------------------------
+// The `allocation` object lives in global_options (and, later, per-experiment
+// local_options). Two alternative strategies: by app (a positional `split`
+// percentage array) or by named node groups (`partitions`, e.g. victim /
+// aggressor, each with a `share`). Numeric fields here are emitted as NUMBERS
+// (split[], share, stride, seed) — unlike numnodes/ppn which stay strings.
+
+export type AllocMode = "linear" | "interleaved" | "random";
+export type AllocBy = "app" | "groups";
+
+export interface PartitionDraft {
+  name: string;
+  share: string; // "" = unset (equal split); emitted as a number when set
+  rest: Record<string, unknown>; // inner mode/split etc., preserved untouched
+}
+
+export interface AllocationDraft {
+  enabled: boolean; // when false, no `allocation` key is emitted (engine default)
+  mode: AllocMode;
+  by: AllocBy;
+  split: string; // "60, 40" → [60, 40]; only meaningful when by === "app"
+  stride: string; // interleaved only
+  seed: string; // random only
+  partitions: PartitionDraft[]; // only meaningful when by === "groups"
+}
+
+export function emptyAllocation(): AllocationDraft {
+  return { enabled: false, mode: "linear", by: "app", split: "", stride: "", seed: "", partitions: [] };
+}
+
+export function emptyPartition(name = ""): PartitionDraft {
+  return { name, share: "", rest: {} };
+}
+
+const RESERVED_PARTITION_KEYS = new Set(["share"]);
+
+/** Build the `allocation` object, or undefined when disabled. */
+export function toAllocation(a: AllocationDraft): Record<string, unknown> | undefined {
+  if (!a.enabled) return undefined;
+  const out: Record<string, unknown> = { mode: a.mode };
+  if (a.mode === "interleaved" && a.stride.trim()) out.stride = Number(a.stride.trim());
+  if (a.mode === "random" && a.seed.trim()) out.seed = Number(a.seed.trim());
+
+  if (a.by === "groups") {
+    const partitions: Record<string, unknown> = {};
+    for (const p of a.partitions) {
+      const key = p.name.trim();
+      if (!key) continue;
+      const entry: Record<string, unknown> = { ...p.rest };
+      if (p.share.trim()) entry.share = Number(p.share.trim());
+      partitions[key] = entry;
+    }
+    if (Object.keys(partitions).length) out.partitions = partitions;
+  } else if (a.split.trim()) {
+    out.split = a.split
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => !Number.isNaN(n));
+  }
+  return out;
+}
+
+/** Inverse: read an `allocation` object into a draft. */
+export function fromAllocation(alloc: unknown): AllocationDraft {
+  const a = emptyAllocation();
+  if (!alloc || typeof alloc !== "object") return a;
+  const o = alloc as Record<string, unknown>;
+  a.enabled = true;
+  const mode = String(o.mode ?? "linear");
+  a.mode = mode === "interleaved" || mode === "random" ? mode : "linear";
+  if (o.stride != null) a.stride = String(o.stride);
+  if (o.seed != null) a.seed = String(o.seed);
+
+  if (o.partitions && typeof o.partitions === "object") {
+    a.by = "groups";
+    a.partitions = Object.entries(o.partitions as Record<string, unknown>).map(([name, raw]) => {
+      const p = (raw ?? {}) as Record<string, unknown>;
+      const rest: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(p)) {
+        if (!RESERVED_PARTITION_KEYS.has(k)) rest[k] = v;
+      }
+      return { name, share: p.share != null ? String(p.share) : "", rest };
+    });
+  } else if (Array.isArray(o.split)) {
+    a.by = "app";
+    a.split = (o.split as unknown[]).map((n) => String(n)).join(", ");
+  }
+  return a;
+}
+
 export interface ExperimentDraft {
   name: string;
   description: string;
@@ -57,6 +147,7 @@ export interface Draft {
   name: string;
   numnodes: string;
   ppn: string;
+  allocation: AllocationDraft;
   experiments: ExperimentDraft[];
 }
 
@@ -69,7 +160,7 @@ export function emptyApp(): AppDraft {
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", numnodes: "", ppn: "1", experiments: [] };
+  return { name: "", numnodes: "", ppn: "1", allocation: emptyAllocation(), experiments: [] };
 }
 
 /** Build the engine config from the draft, pruning empty optionals. */
@@ -78,6 +169,8 @@ export function toConfig(draft: Draft): CrabConfig {
   if (draft.name.trim()) global.name = draft.name.trim();
   if (draft.numnodes.trim()) global.numnodes = draft.numnodes.trim();
   if (draft.ppn.trim()) global.ppn = draft.ppn.trim();
+  const allocation = toAllocation(draft.allocation);
+  if (allocation) global.allocation = allocation;
 
   const experiments: CrabConfig["experiments"] = {};
   for (const exp of draft.experiments) {
@@ -117,6 +210,7 @@ export function fromConfig(config: CrabConfig): Draft {
   draft.name = str(g.name);
   draft.numnodes = str(g.numnodes);
   draft.ppn = str(g.ppn, "1");
+  draft.allocation = fromAllocation(g.allocation);
   draft.experiments = Object.entries(experiments ?? {}).map(([name, exp]) => ({
     name,
     description: str((exp as { description?: unknown }).description),
@@ -149,6 +243,37 @@ export function validateDraft(d: Draft): string[] {
   if (d.ppn.trim() && !posInt(d.ppn)) issues.push("Procs per node must be a positive integer.");
   if (!d.experiments.length) issues.push("Add at least one experiment.");
 
+  // Allocation (global). Returns the defined node-group names for the per-app check.
+  const groups = new Set<string>();
+  const alloc = d.allocation;
+  if (alloc.enabled) {
+    if (alloc.mode === "interleaved" && alloc.stride.trim() && !posInt(alloc.stride))
+      issues.push("Allocation stride must be a positive integer.");
+    if (alloc.mode === "random" && alloc.seed.trim() && !/^[0-9]+$/.test(alloc.seed.trim()))
+      issues.push("Allocation seed must be an integer.");
+    if (alloc.by === "app" && alloc.split.trim()) {
+      const parts = alloc.split.split(",").map((s) => s.trim());
+      if (!parts.every((s) => numeric(s)))
+        issues.push("Allocation split must be a comma-separated list of numbers.");
+    }
+    if (alloc.by === "groups") {
+      const named = alloc.partitions.filter((p) => p.name.trim());
+      if (!named.length) issues.push("Add at least one node group, or allocate by app instead.");
+      named.forEach((p) => {
+        if (groups.has(p.name.trim())) issues.push(`Duplicate node group "${p.name.trim()}".`);
+        else groups.add(p.name.trim());
+        if (p.share.trim() && !numeric(p.share)) issues.push(`Node group "${p.name.trim()}": share must be a number.`);
+      });
+      const shared = named.filter((p) => p.share.trim());
+      if (shared.length && shared.length !== named.length)
+        issues.push("Set a share on every node group, or on none (for an equal split).");
+      else if (shared.length && shared.every((p) => numeric(p.share))) {
+        const sum = shared.reduce((t, p) => t + Number(p.share), 0);
+        if (Math.abs(sum - 100) > 0.01) issues.push(`Node-group shares should sum to 100 (currently ${sum}).`);
+      }
+    }
+  }
+
   const names = new Set<string>();
   d.experiments.forEach((e, ei) => {
     const nm = e.name.trim();
@@ -169,6 +294,8 @@ export function validateDraft(d: Draft): string[] {
         if (!(ref >= 0 && ref < e.apps.length && ref !== ai))
           issues.push(`${label} · app #${ai}: "after" must reference another app.`);
       }
+      if (groups.size && a.partition.trim() && !groups.has(a.partition.trim()))
+        issues.push(`${label} · app #${ai}: partition "${a.partition.trim()}" is not a defined node group.`);
     });
   });
   return issues;

@@ -2,9 +2,18 @@
 import { computed, onMounted, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import { emptyApp, flowLayout, validateDraft } from "@/lib/config";
+import AllocationEditor from "@/components/AllocationEditor.vue";
 
 const store = useAuthorStore();
 const d = store.draft;
+
+const showAlloc = ref(false);
+// Node-group names defined by the global allocation, for the per-app partition picker.
+const groupNames = computed(() =>
+  d.allocation.enabled && d.allocation.by === "groups"
+    ? d.allocation.partitions.map((p) => p.name.trim()).filter(Boolean)
+    : [],
+);
 
 const selectedIndex = ref<number | null>(null);
 const sel = computed(() =>
@@ -137,8 +146,20 @@ async function copyJson() {
           <label>Use case name <input v-model="d.name" placeholder="congestion_study" /></label>
           <label>Nodes <input v-model="d.numnodes" placeholder="8" /></label>
           <label>Procs / node <input v-model="d.ppn" /></label>
-          <!-- allocation · convergence · output · advanced land in later increments -->
         </div>
+
+        <!-- Node allocation (collapsible) -->
+        <div class="section">
+          <button class="sec-head" @click="showAlloc = !showAlloc">
+            <span>Node allocation</span>
+            <span class="sec-state">
+              <span v-if="d.allocation.enabled" class="dot" />
+              <span class="caret">{{ showAlloc ? "▾" : "▸" }}</span>
+            </span>
+          </button>
+          <AllocationEditor v-show="showAlloc" :alloc="d.allocation" />
+        </div>
+        <!-- convergence · output · advanced land in the next increment -->
 
         <div class="exp-head">
           <span>Experiments</span>
@@ -199,6 +220,10 @@ async function copyJson() {
                 >
                   <option value="victim">victim (measured)</option>
                   <option value="aggressor">aggressor</option>
+                </select>
+                <select v-if="groupNames.length" v-model="app.partition" class="role" title="Node group">
+                  <option value="">— no group —</option>
+                  <option v-for="g in groupNames" :key="g" :value="g">{{ g }}</option>
                 </select>
                 <button class="icon-btn danger" title="Remove app" @click="removeApp(i)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -326,6 +351,16 @@ input, textarea, select {
   border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono); font-size: 0.82rem;
 }
 input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+/* Collapsible globals section (allocation, later convergence/output/advanced) */
+.section { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border); }
+.sec-head { width: 100%; display: flex; align-items: center; justify-content: space-between;
+  background: transparent; border: none; cursor: pointer; padding: 0; color: var(--text2);
+  font-family: var(--mono); font-size: 0.8rem; margin-bottom: 0.5rem; }
+.sec-head:hover { color: var(--text); }
+.sec-state { display: flex; align-items: center; gap: 0.4rem; }
+.sec-head .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.sec-head .caret { color: var(--text3); }
+
 .exp-head { display: flex; align-items: center; justify-content: space-between;
   margin: 1rem 0 0.4rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
   color: var(--text2); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
