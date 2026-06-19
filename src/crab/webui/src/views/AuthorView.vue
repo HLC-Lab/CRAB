@@ -30,7 +30,9 @@ const showOverrides = ref(false);
 // experiment (its local override when set, otherwise the global allocation).
 const effectiveAlloc = computed(() => {
   const e = sel.value;
-  return e && e.overrideAlloc && hasAllocation(e.allocation) ? e.allocation : d.allocation;
+  // Overriding replaces the global allocation wholesale, so its groups win even
+  // when bare-linear (⇒ no groups); only fall back to global when not overriding.
+  return e && e.overrideAlloc ? e.allocation : d.allocation;
 });
 const groupNames = computed(() =>
   effectiveAlloc.value.by === "groups"
@@ -41,7 +43,8 @@ const groupNames = computed(() =>
 const overridesActive = computed(() => {
   const e = sel.value;
   if (!e) return false;
-  return (e.overrideAlloc && hasAllocation(e.allocation)) || Object.values(e.options).some((v) => v !== "");
+  // overrideAlloc always emits an allocation (force, even bare linear), so it counts.
+  return e.overrideAlloc || Object.values(e.options).some((v) => v !== "");
 });
 
 // Open overlay (searchable library picker)

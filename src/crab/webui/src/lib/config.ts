@@ -501,8 +501,10 @@ export function validateDraft(d: Draft): string[] {
     // Per-experiment overrides. The merged allocation REPLACES the global one, so
     // the node groups an app may reference are the local ones when overridden.
     issues.push(...validateOptions(e.options, `Experiment "${label}"`));
+    // When overriding, the local allocation REPLACES the global one entirely
+    // (force-emitted, even bare linear ⇒ no groups), so use its groups, not the global's.
     let groups = global.groups;
-    if (e.overrideAlloc && hasAllocation(e.allocation)) {
+    if (e.overrideAlloc) {
       const local = validateAllocation(e.allocation, `Experiment "${label}"`);
       issues.push(...local.issues);
       groups = local.groups;
