@@ -135,6 +135,45 @@ export function fromConfig(config: CrabConfig): Draft {
   return draft;
 }
 
+// -- Shape validation --------------------------------------------------------
+// Structural checks only (not engine semantics): the things that make a config
+// well-formed enough to submit. Returns a list of human-readable issues.
+
+export function validateDraft(d: Draft): string[] {
+  const issues: string[] = [];
+  const posInt = (s: string) => /^[0-9]+$/.test(s.trim()) && parseInt(s, 10) > 0;
+  const numeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
+
+  if (!d.numnodes.trim()) issues.push("Number of nodes is required.");
+  else if (!posInt(d.numnodes)) issues.push("Number of nodes must be a positive integer.");
+  if (d.ppn.trim() && !posInt(d.ppn)) issues.push("Procs per node must be a positive integer.");
+  if (!d.experiments.length) issues.push("Add at least one experiment.");
+
+  const names = new Set<string>();
+  d.experiments.forEach((e, ei) => {
+    const nm = e.name.trim();
+    const label = nm || `#${ei}`;
+    if (!nm) issues.push(`Experiment ${label} needs a name.`);
+    else if (names.has(nm)) issues.push(`Duplicate experiment name "${nm}".`);
+    else names.add(nm);
+
+    if (!e.apps.length) issues.push(`Experiment "${label}" has no apps.`);
+    e.apps.forEach((a, ai) => {
+      if (!a.path.trim()) issues.push(`${label} · app #${ai}: wrapper path is required.`);
+      if (a.startKind === "delay" && !numeric(a.startDelay))
+        issues.push(`${label} · app #${ai}: start delay must be a number.`);
+      if (a.endKind === "timed" && !numeric(a.endTimed))
+        issues.push(`${label} · app #${ai}: timed duration must be a number.`);
+      if (a.startKind === "after") {
+        const ref = parseInt(a.startAfter, 10);
+        if (!(ref >= 0 && ref < e.apps.length && ref !== ai))
+          issues.push(`${label} · app #${ai}: "after" must reference another app.`);
+      }
+    });
+  });
+  return issues;
+}
+
 // -- Timeline diagram --------------------------------------------------------
 // A schematic (not-to-scale) layout of an experiment's apps on a shared time
 // axis, so the editor can show parallel vs staggered vs sequential launches and

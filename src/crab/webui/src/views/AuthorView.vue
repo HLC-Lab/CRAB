@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
-import { emptyApp, timelineLayout } from "@/lib/config";
+import { emptyApp, timelineLayout, validateDraft } from "@/lib/config";
 
 const store = useAuthorStore();
 const d = store.draft;
@@ -11,6 +11,8 @@ const sel = computed(() =>
   selectedIndex.value !== null ? d.experiments[selectedIndex.value] ?? null : null,
 );
 const timeline = computed(() => (sel.value ? timelineLayout(sel.value.apps) : []));
+const issues = computed(() => validateDraft(d));
+const showIssues = ref(false);
 
 function addApp() {
   sel.value?.apps.push(emptyApp());
@@ -110,6 +112,18 @@ async function copyJson() {
     </header>
 
     <p v-if="store.error" class="banner err">{{ store.error }}</p>
+
+    <!-- Non-blocking shape-validation summary -->
+    <div class="validity" :class="issues.length ? 'warn' : 'ok'">
+      <button v-if="issues.length" class="vbtn" @click="showIssues = !showIssues">
+        ⚠ {{ issues.length }} thing{{ issues.length === 1 ? "" : "s" }} to fix
+        <span class="caret">{{ showIssues ? "▾" : "▸" }}</span>
+      </button>
+      <span v-else class="vok">✓ Ready to submit</span>
+      <ul v-if="showIssues && issues.length" class="issue-list">
+        <li v-for="(msg, i) in issues" :key="i">{{ msg }}</li>
+      </ul>
+    </div>
 
     <div class="layout">
       <!-- Left rail: the important globals + the experiments list -->
@@ -331,6 +345,15 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 
 .banner { padding: 0.5rem 0.75rem; border-radius: var(--r); margin-bottom: 1rem; }
 .banner.err { background: rgba(245, 101, 101, 0.12); color: var(--danger); border: 1px solid var(--danger); }
+
+.validity { margin-bottom: 1rem; font-size: 0.8rem; }
+.validity .vok { color: var(--ok); }
+.vbtn { background: transparent; border: none; color: var(--warn); cursor: pointer;
+  font-family: var(--mono); font-size: 0.8rem; padding: 0; }
+.caret { color: var(--text3); }
+.issue-list { list-style: none; margin-top: 0.4rem; padding-left: 0.5rem;
+  border-left: 2px solid var(--warn); color: var(--text2); display: flex;
+  flex-direction: column; gap: 0.15rem; }
 
 .modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
   display: flex; align-items: center; justify-content: center; z-index: 50; }
