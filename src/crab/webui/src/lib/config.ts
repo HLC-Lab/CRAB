@@ -241,12 +241,65 @@ export function readOptions(src: Record<string, unknown>): OptionsDraft {
   return o;
 }
 
+// -- sbatch directives -------------------------------------------------------
+// Slurm `#SBATCH` lines. Two accepted shapes: a list of full directive strings
+// (doc-preferred) or a legacy dict ({key: value|true}). All real examples use the
+// dict form, so we preserve whichever was loaded. Internally we always hold full
+// directive strings ("--time=00:20:00", "--exclusive") and re-emit in `form`.
+
+export type SbatchForm = "list" | "dict";
+
+export interface SbatchDraft {
+  form: SbatchForm;
+  lines: string[];
+}
+
+export function emptySbatch(): SbatchDraft {
+  return { form: "list", lines: [] };
+}
+
+/** "--key=value" → ["key","value"]; "--key" → ["key", true] (bare flag). */
+function parseDirective(line: string): [string, string | true] | null {
+  const t = line.trim().replace(/^--/, "");
+  if (!t) return null;
+  const eq = t.indexOf("=");
+  return eq === -1 ? [t, true] : [t.slice(0, eq), t.slice(eq + 1)];
+}
+
+export function toSbatch(s: SbatchDraft): string[] | Record<string, string | boolean> | undefined {
+  const lines = s.lines.map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return undefined;
+  if (s.form === "list") return lines.map((l) => (l.startsWith("--") ? l : `--${l}`));
+  const dict: Record<string, string | boolean> = {};
+  for (const line of lines) {
+    const parsed = parseDirective(line);
+    if (parsed) dict[parsed[0]] = parsed[1];
+  }
+  return dict;
+}
+
+export function fromSbatch(v: unknown): SbatchDraft {
+  if (Array.isArray(v)) {
+    return { form: "list", lines: v.map((x) => String(x)) };
+  }
+  if (v && typeof v === "object") {
+    const lines: string[] = [];
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      if (val === false) continue; // dict false ⇒ directive omitted (a no-op)
+      lines.push(val === true ? `--${k}` : `--${k}=${val}`);
+    }
+    return { form: "dict", lines };
+  }
+  return emptySbatch();
+}
+
 export interface Draft {
   name: string;
   numnodes: string;
   ppn: string;
   allocation: AllocationDraft;
   options: OptionsDraft;
+  sbatch: SbatchDraft;
   experiments: ExperimentDraft[];
 }
 
@@ -259,7 +312,7 @@ export function emptyApp(): AppDraft {
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", numnodes: "", ppn: "1", allocation: emptyAllocation(), options: emptyOptions(), experiments: [] };
+  return { name: "", numnodes: "", ppn: "1", allocation: emptyAllocation(), options: emptyOptions(), sbatch: emptySbatch(), experiments: [] };
 }
 
 /** Build the engine config from the draft, pruning empty optionals. */
@@ -271,6 +324,8 @@ export function toConfig(draft: Draft): CrabConfig {
   const allocation = toAllocation(draft.allocation);
   if (allocation) global.allocation = allocation;
   applyOptions(global, draft.options);
+  const sbatch = toSbatch(draft.sbatch);
+  if (sbatch) global.sbatch_directives = sbatch;
 
   const experiments: CrabConfig["experiments"] = {};
   for (const exp of draft.experiments) {
@@ -322,6 +377,7 @@ export function fromConfig(config: CrabConfig): Draft {
   draft.ppn = str(g.ppn, "1");
   draft.allocation = fromAllocation(g.allocation);
   draft.options = readOptions(g);
+  draft.sbatch = fromSbatch(g.sbatch_directives);
   draft.experiments = Object.entries(experiments ?? {}).map(([name, exp]) => {
     const e = exp as { description?: unknown; local_options?: unknown; apps?: Record<string, never> };
     const lo = (e.local_options ?? {}) as Record<string, unknown>;
@@ -403,6 +459,23 @@ export function validateAllocation(a: AllocationDraft, where = ""): { issues: st
   return { issues, groups };
 }
 
+// CRAB computes these from numnodes/ppn and ignores user attempts to set them.
+const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "ntasks"]);
+
+export function validateSbatch(s: SbatchDraft): string[] {
+  const issues: string[] = [];
+  for (const line of s.lines.map((l) => l.trim()).filter(Boolean)) {
+    const parsed = parseDirective(line);
+    if (!parsed) continue;
+    const key = parsed[0];
+    if (PROTECTED_SBATCH.has(key))
+      issues.push(`Slurm directive "--${key}" is computed by CRAB from nodes/ppn and will be ignored.`);
+    else if (key === "output" || key === "error")
+      issues.push(`Slurm directive "--${key}" overrides CRAB's log redirection (allowed, but be aware).`);
+  }
+  return issues;
+}
+
 export function validateDraft(d: Draft): string[] {
   const issues: string[] = [];
   const numeric = _numeric;
@@ -412,6 +485,7 @@ export function validateDraft(d: Draft): string[] {
   if (d.ppn.trim() && !_posInt(d.ppn)) issues.push("Procs per node must be a positive integer.");
   if (!d.experiments.length) issues.push("Add at least one experiment.");
   issues.push(...validateOptions(d.options));
+  issues.push(...validateSbatch(d.sbatch));
 
   const global = validateAllocation(d.allocation);
   issues.push(...global.issues);

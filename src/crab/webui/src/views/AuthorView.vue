@@ -4,15 +4,18 @@ import { useAuthorStore } from "@/stores/author";
 import { emptyApp, emptyExperiment, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
+import SbatchEditor from "@/components/SbatchEditor.vue";
 
 const store = useAuthorStore();
 const d = store.draft;
 
 const showAlloc = ref(false);
 const showTuning = ref(false);
+const showSbatch = ref(false);
 const allocActive = computed(() => hasAllocation(d.allocation));
 // Whether any tunable option has been set (drives the collapsed-section dot).
 const tuningActive = computed(() => Object.values(d.options).some((v) => v !== ""));
+const sbatchActive = computed(() => d.sbatch.lines.some((l) => l.trim()));
 
 const selectedIndex = ref<number | null>(null);
 const sel = computed(() =>
@@ -184,6 +187,18 @@ async function copyJson() {
             </span>
           </button>
           <OptionsFields v-show="showTuning" :options="d.options" />
+        </div>
+
+        <!-- Slurm directives (collapsible) -->
+        <div class="section">
+          <button class="sec-head" @click="showSbatch = !showSbatch">
+            <span>Slurm directives</span>
+            <span class="sec-state">
+              <span v-if="sbatchActive" class="dot" />
+              <span class="caret">{{ showSbatch ? "▾" : "▸" }}</span>
+            </span>
+          </button>
+          <SbatchEditor v-show="showSbatch" :sbatch="d.sbatch" />
         </div>
 
         <div class="exp-head">
