@@ -1,18 +1,19 @@
-"""Guided CRAB bootstrap on a remote cluster (Phase 2b, decision D5).
+"""Guided CRAB install on a remote cluster (Phase 2b, decision D5).
 
-When a remote has no usable CRAB (``crab info --json`` fails), walk the user
-through installing it. The recipe mirrors the project's quick-start but skips
-the interactive wizard: ``git clone`` then ``make venv && pip install -e .``
-(plain ``make`` would also launch ``crab setup``, which can't run over a
-non-interactive SSH exec). The **structural** commands — repo URL, clone target,
-build — are hard-coded so the flow can't drift per cluster. The only editable,
-optional knob is a list of *pre-commands* run first (e.g. ``module load python``
-on clusters whose default Python is too old), keeping the recipe universal
-without baking in any one cluster's environment.
+If a remote has no usable CRAB, this installs it: clone the repository, then
+build it with ``make venv`` plus an editable install. The build skips the plain
+``make`` target on purpose, because that target ends by launching the
+interactive ``crab setup`` wizard, which cannot run over a non-interactive SSH
+session. Configuring benchmarks (``crab setup``) stays out of scope (D10).
 
-Each step is run on confirmation and its captured output returned (step-by-step
-capture — no live streaming). A final :func:`detect` re-runs ``crab info --json``
-to confirm success. Configuring benchmarks (``crab setup``) is out of scope (D10).
+The repository URL, branch, clone target and build commands are fixed so the
+flow stays the same on every cluster. The one thing the user can edit is an
+optional list of pre-commands that run once at the start, for clusters that
+need to prepare their environment first (for example loading a recent Python).
+
+Everything runs in a single login shell so the pre-commands carry over into the
+clone and build. The result is captured and returned in one go, and a final
+:func:`detect` re-runs ``crab info --json`` to confirm CRAB is there.
 """
 
 from __future__ import annotations
@@ -22,31 +23,28 @@ import shlex
 from pydantic import BaseModel
 
 from crab.web.connections.transport import Transport
-from crab.web.errors import ContractError, InputError, RemoteCommandError
+from crab.web.errors import ContractError, RemoteCommandError
 from crab.web.remoteops.crab_cli import _remote_path_expr, run_crab_json
 from crab.web.store.profiles import Profile
 
-# Canonical install source. Hard-coded on purpose (see module docstring).
 CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
 
-# Clone/build can be slow (network + pip). Generous ceiling; transport.run still
-# maps the timeout to a connection error so the UI never hangs forever.
+# TODO(pre-v1): the `--json` CLI seam this dashboard depends on only exists on
+# the feature branch, not master yet. Clone that branch for now. Once it is
+# merged, change this back to the default branch (master) and drop --branch.
+# Tracked in .crab-web-dev/06-pre-v1-todos.md.
+CRAB_REPO_BRANCH = "feature/web-dashboard"
+
+# Clone + build can be slow (network + pip). Generous ceiling; transport.run
+# still maps the timeout to a connection error so the UI never hangs forever.
 INSTALL_TIMEOUT = 600.0
 
 # Cap captured output so a chatty build doesn't bloat the response.
-_MAX_CAPTURE = 20_000
-
-# Ordered recipe: id → human label. The command for each id is built by
-# :func:`_inner_command`; structural parts are fixed there.
-_STEP_LABELS: dict[str, str] = {
-    "clone": "Clone the CRAB repository",
-    "build": "Build & install CRAB (make)",
-}
+_MAX_CAPTURE = 40_000
 
 
 class BootstrapStep(BaseModel):
-    """One install step, as shown to the user (the command is for display; it is
-    always rebuilt server-side from ``id`` + pre-commands when actually run)."""
+    """One install command, shown to the user as a readable preview."""
 
     id: str
     label: str
@@ -66,53 +64,42 @@ class DetectResult(BaseModel):
     reason: str | None = None
 
 
-def _prefix(pre_commands: list[str]) -> str:
-    """Join non-empty pre-commands into a ``… && `` prefix (empty if none)."""
-    parts = [c.strip() for c in pre_commands if c and c.strip()]
-    return " && ".join(parts) + " && " if parts else ""
+def _clone_command(profile: Profile) -> str:
+    return (
+        f"git clone --branch {CRAB_REPO_BRANCH} {CRAB_REPO_URL} "
+        f"{_remote_path_expr(profile.remote_crab)}"
+    )
 
 
-def _inner_command(profile: Profile, step_id: str, pre_commands: list[str]) -> str:
-    """Return the shell snippet for ``step_id`` (without the ``bash -lc`` wrap).
-
-    Only ``pre_commands`` is user-supplied; everything else is fixed.
-    """
+def _build_command(profile: Profile) -> str:
     dir_expr = _remote_path_expr(profile.remote_crab)
-    prefix = _prefix(pre_commands)
-    if step_id == "clone":
-        return f"{prefix}git clone {CRAB_REPO_URL} {dir_expr}"
-    if step_id == "build":
-        # `make venv` (python check + .venv + argcomplete) then an explicit
-        # editable install. This is `make` minus its trailing `crab setup`
-        # wizard, which is interactive and can't run over a non-interactive SSH
-        # exec — so it would abort and leave `make` non-zero. Configuring
-        # benchmarks (`crab setup`) is out of scope here (D10).
-        return f"{prefix}cd {dir_expr} && make venv && .venv/bin/pip install -e ."
-    raise InputError(f"Unknown bootstrap step {step_id!r}.")
+    return f"cd {dir_expr} && make venv && .venv/bin/pip install -e ."
 
 
-def build_command(profile: Profile, step_id: str, pre_commands: list[str]) -> str:
-    """The exact command run for ``step_id``, wrapped in a login bash so module
-    systems and rc files load (same convention as ``crab_cli``)."""
-    return f"bash -lc {shlex.quote(_inner_command(profile, step_id, pre_commands))}"
-
-
-def default_plan(profile: Profile, pre_commands: list[str] | None = None) -> list[BootstrapStep]:
-    """The install steps for ``profile``. Pre-commands default to the profile's
-    ``remote_setup`` (the same generic slot ``crab_cli`` uses before activation)."""
-    pre = profile.remote_setup if pre_commands is None else pre_commands
+def default_plan(profile: Profile) -> list[BootstrapStep]:
+    """The install commands for ``profile``, as a readable preview (the actual
+    run joins them into one shell, see :func:`build_install_command`)."""
     return [
-        BootstrapStep(id=sid, label=label, command=build_command(profile, sid, pre))
-        for sid, label in _STEP_LABELS.items()
+        BootstrapStep(id="clone", label="Clone the repository", command=_clone_command(profile)),
+        BootstrapStep(id="build", label="Build and install", command=_build_command(profile)),
     ]
+
+
+def build_install_command(profile: Profile, pre_commands: list[str]) -> str:
+    """The single command that installs CRAB: optional pre-commands once, then
+    the clone and build, all in one login shell so module loads carry over."""
+    pre = [c.strip() for c in pre_commands if c and c.strip()]
+    parts = [*pre, _clone_command(profile), _build_command(profile)]
+    inner = " && ".join(parts)
+    return f"bash -lc {shlex.quote(inner)}"
 
 
 async def detect(transport: Transport, profile: Profile) -> DetectResult:
     """Is a usable CRAB present? Runs ``crab info --json``.
 
-    A missing/old CRAB surfaces as ``installed=False`` (the *expected* case that
-    triggers bootstrap), not an exception. A dropped/timed-out connection still
-    raises ``RemoteConnectionError`` from the transport — that's a real fault.
+    A missing or broken CRAB comes back as ``installed=False`` (the expected
+    case that triggers install), not an exception. A dropped or timed-out
+    connection still raises ``RemoteConnectionError`` from the transport.
     """
     try:
         info = await run_crab_json(transport, profile, ["info", "--json"])
@@ -121,15 +108,14 @@ async def detect(transport: Transport, profile: Profile) -> DetectResult:
     return DetectResult(installed=True, info=info)
 
 
-async def run_step(
+async def install(
     transport: Transport,
     profile: Profile,
-    step_id: str,
     pre_commands: list[str],
     timeout: float = INSTALL_TIMEOUT,
 ) -> StepResult:
-    """Run one install step and return its captured (tail-truncated) output."""
-    command = build_command(profile, step_id, pre_commands)
+    """Run the whole install in one shell and return its captured output."""
+    command = build_install_command(profile, pre_commands)
     result = await transport.run(command, timeout=timeout)
     return StepResult(
         rc=result.rc,

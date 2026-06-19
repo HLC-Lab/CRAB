@@ -13,10 +13,6 @@ function msg(e: unknown): string {
   return e instanceof ApiError ? e.message : "Unexpected error";
 }
 
-function code(e: unknown): string {
-  return e instanceof ApiError ? e.code : "unexpected";
-}
-
 export const useRemotesStore = defineStore("remotes", () => {
   const items = ref<RemoteListItem[]>([]);
   const loading = ref(false);
@@ -24,14 +20,11 @@ export const useRemotesStore = defineStore("remotes", () => {
   // Per-remote transient state keyed by name.
   const busy = ref<Record<string, boolean>>({});
   const connectError = ref<Record<string, string>>({});
-  // Error code alongside the message, so the UI can react (e.g. offer bootstrap
-  // when a connect handshake reports the cluster CRAB is missing/incompatible).
-  const connectCode = ref<Record<string, string>>({});
   const info = ref<Record<string, CrabInfo>>({});
 
   // Bootstrap (guided install) state, keyed by remote name.
   const plan = ref<Record<string, BootstrapPlan>>({});
-  const stepResults = ref<Record<string, Record<string, StepResult>>>({});
+  const installResult = ref<Record<string, StepResult>>({});
   const bootstrapBusy = ref<Record<string, boolean>>({});
   const bootstrapError = ref<Record<string, string>>({});
 
@@ -71,21 +64,20 @@ export const useRemotesStore = defineStore("remotes", () => {
   async function connect(name: string, password?: string) {
     busy.value[name] = true;
     delete connectError.value[name];
-    delete connectCode.value[name];
     try {
       const res = await api.remotes.connect(name, password);
       info.value[name] = res.info;
       await refresh();
     } catch (e) {
       connectError.value[name] = msg(e);
-      connectCode.value[name] = code(e);
       // The SSH connection may be live even though the `crab info` handshake
-      // failed — both a non-zero exit (CRAB/venv/path missing) and unparsable
-      // output (CRAB too old/broken) leave the channel open. Refresh so the row
-      // reflects the real connection state and the bootstrap offer can appear.
-      // (Auth and connection-drop errors leave nothing connected, so refresh
-      // simply shows it as disconnected.)
+      // failed (a non-zero exit means CRAB or its venv is missing, unparsable
+      // output means it is too old or broken). Both leave the channel open, so
+      // refresh to reflect the real state. Auth and connection-drop errors
+      // leave nothing connected, so they simply show as disconnected.
       await refresh();
+      const live = items.value.find((i) => i.name === name)?.connected;
+      if (live) await loadPlan(name);
     } finally {
       busy.value[name] = false;
     }
@@ -97,7 +89,7 @@ export const useRemotesStore = defineStore("remotes", () => {
       await api.remotes.disconnect(name);
       delete info.value[name];
       delete plan.value[name];
-      delete stepResults.value[name];
+      delete installResult.value[name];
       await refresh();
     } catch (e) {
       connectError.value[name] = msg(e);
@@ -110,9 +102,9 @@ export const useRemotesStore = defineStore("remotes", () => {
   async function loadPlan(name: string) {
     bootstrapBusy.value[name] = true;
     delete bootstrapError.value[name];
+    delete installResult.value[name];
     try {
       plan.value[name] = await api.remotes.bootstrap.plan(name);
-      stepResults.value[name] = {};
     } catch (e) {
       bootstrapError.value[name] = msg(e);
     } finally {
@@ -120,33 +112,21 @@ export const useRemotesStore = defineStore("remotes", () => {
     }
   }
 
-  async function runStep(name: string, stepId: string, preCommands: string[]) {
+  // Run the whole install, then check whether CRAB is now usable.
+  async function install(name: string, preCommands: string[]) {
     bootstrapBusy.value[name] = true;
     delete bootstrapError.value[name];
     try {
-      const res = await api.remotes.bootstrap.run(name, stepId, preCommands);
-      stepResults.value[name] = { ...stepResults.value[name], [stepId]: res };
-    } catch (e) {
-      bootstrapError.value[name] = msg(e);
-    } finally {
-      bootstrapBusy.value[name] = false;
-    }
-  }
-
-  async function verify(name: string) {
-    bootstrapBusy.value[name] = true;
-    delete bootstrapError.value[name];
-    try {
+      installResult.value[name] = await api.remotes.bootstrap.install(name, preCommands);
       const res = await api.remotes.bootstrap.verify(name);
       if (res.installed && res.info) {
         info.value[name] = res.info;
         delete connectError.value[name];
-        delete connectCode.value[name];
         delete plan.value[name];
-      } else if (plan.value[name]) {
-        plan.value[name].installed = false;
+        delete installResult.value[name];
+      } else {
         bootstrapError.value[name] =
-          res.reason ?? "CRAB is still not detected on the cluster.";
+          res.reason ?? "CRAB still isn't usable. Check the install output below.";
       }
       await refresh();
     } catch (e) {
@@ -157,9 +137,9 @@ export const useRemotesStore = defineStore("remotes", () => {
   }
 
   return {
-    items, loading, error, busy, connectError, connectCode, info,
-    plan, stepResults, bootstrapBusy, bootstrapError,
+    items, loading, error, busy, connectError, info,
+    plan, installResult, bootstrapBusy, bootstrapError,
     refresh, add, remove, connect, disconnect,
-    loadPlan, runStep, verify,
+    loadPlan, install,
   };
 });

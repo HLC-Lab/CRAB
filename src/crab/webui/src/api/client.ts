@@ -84,10 +84,10 @@ export const api = {
           `/api/remotes/${encodeURIComponent(name)}/bootstrap/plan`,
           { method: "POST" },
         ),
-      run: (name: string, stepId: string, preCommands: string[]) =>
+      install: (name: string, preCommands: string[]) =>
         request<StepResult>(
-          `/api/remotes/${encodeURIComponent(name)}/bootstrap/run`,
-          { method: "POST", body: JSON.stringify({ step_id: stepId, pre_commands: preCommands }) },
+          `/api/remotes/${encodeURIComponent(name)}/bootstrap/install`,
+          { method: "POST", body: JSON.stringify({ pre_commands: preCommands }) },
         ),
       verify: (name: string) =>
         request<DetectResult>(

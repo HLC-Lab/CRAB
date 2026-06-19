@@ -6,13 +6,13 @@ import type { Profile, StepResult } from "@/api/types";
 const store = useRemotesStore();
 const showAdd = ref(false);
 const passwords = reactive<Record<string, string>>({});
-// Editable pre-commands per remote (one per line), for guided bootstrap.
+// Editable pre-commands per remote (one per line), for guided install.
 const preCommands = reactive<Record<string, string>>({});
 
-async function openBootstrap(name: string) {
+async function reloadPlan(name: string) {
   await store.loadPlan(name);
   const p = store.plan[name];
-  if (p) preCommands[name] = p.pre_commands.join("\n");
+  if (p && preCommands[name] === undefined) preCommands[name] = p.pre_commands.join("\n");
 }
 
 function preArr(name: string): string[] {
@@ -141,7 +141,8 @@ async function submit() {
           </div>
         </div>
 
-        <p v-if="store.connectError[r.name]" class="banner err small">
+        <!-- Real connection or auth failures (nothing connected) are shown as-is. -->
+        <p v-if="!r.connected && store.connectError[r.name]" class="banner err small">
           {{ store.connectError[r.name] }}
         </p>
 
@@ -152,50 +153,49 @@ async function submit() {
           </span>
         </div>
 
-        <!-- Connected, but the `crab info` handshake failed → CRAB is missing or
-             unusable at this path. Offer guided setup. (A live connection plus a
-             recorded connect error can only mean a crab-info failure: auth and
-             drop errors leave nothing connected.) -->
-        <div
-          v-if="r.connected && store.connectError[r.name] && !store.plan[r.name]"
-          class="setup-cta"
-        >
-          <button class="btn" :disabled="store.bootstrapBusy[r.name]" @click="openBootstrap(r.name)">
-            Set up CRAB
-          </button>
-        </div>
-
-        <div v-if="store.plan[r.name] && !store.plan[r.name].installed" class="bootstrap">
-          <p class="hint">
-            CRAB isn't installed here. Run the steps below to install it. Add any cluster-specific
-            pre-commands (e.g. <code>module load python</code>), one per line — they run before each step.
+        <!-- Connected, but `crab info` did not run. Treat this as CRAB not being
+             installed and offer to install it (a live connection plus a recorded
+             handshake error can only mean that: auth and drop errors leave
+             nothing connected). -->
+        <div v-if="r.connected && store.connectError[r.name]" class="setup">
+          <p class="notice">
+            CRAB is not installed on this cluster (looked under <code>{{ r.remote_crab }}</code>).
+            You can install it below.
           </p>
-          <label class="pre">Pre-commands (optional)
+
+          <label class="pre">
+            Pre-commands (optional, run once before installing)
             <textarea v-model="preCommands[r.name]" rows="2" placeholder="module load python" />
           </label>
-          <ol class="steps">
+
+          <ol v-if="store.plan[r.name]" class="steps">
             <li v-for="s in store.plan[r.name].steps" :key="s.id">
-              <div class="step-head">
-                <span class="step-label">{{ s.label }}</span>
-                <button
-                  class="btn"
-                  :disabled="store.bootstrapBusy[r.name]"
-                  @click="store.runStep(r.name, s.id, preArr(r.name))"
-                >
-                  Run
-                </button>
-              </div>
+              <span class="step-label">{{ s.label }}</span>
               <code class="cmd">{{ s.command }}</code>
-              <pre
-                v-if="store.stepResults[r.name] && store.stepResults[r.name][s.id]"
-                class="output"
-                :class="{ bad: !store.stepResults[r.name][s.id].ok }"
-              >{{ stepText(store.stepResults[r.name][s.id]) }}</pre>
             </li>
           </ol>
-          <button class="btn primary" :disabled="store.bootstrapBusy[r.name]" @click="store.verify(r.name)">
-            {{ store.bootstrapBusy[r.name] ? "Working…" : "Verify install" }}
+
+          <button
+            class="btn primary"
+            :disabled="store.bootstrapBusy[r.name]"
+            @click="store.install(r.name, preArr(r.name))"
+          >
+            {{ store.bootstrapBusy[r.name] ? "Installing…" : "Install CRAB" }}
           </button>
+          <button
+            v-if="!store.plan[r.name]"
+            class="btn"
+            :disabled="store.bootstrapBusy[r.name]"
+            @click="reloadPlan(r.name)"
+          >
+            Reload steps
+          </button>
+
+          <pre
+            v-if="store.installResult[r.name]"
+            class="output"
+            :class="{ bad: !store.installResult[r.name].ok }"
+          >{{ stepText(store.installResult[r.name]) }}</pre>
           <p v-if="store.bootstrapError[r.name]" class="banner err small">
             {{ store.bootstrapError[r.name] }}
           </p>
@@ -248,22 +248,21 @@ input, select {
 .banner.small { margin-top: 0.5rem; font-size: 0.8rem; }
 .empty { color: var(--text3); padding: 2rem 0; }
 
-/* Guided bootstrap */
-.setup-cta { margin-top: 0.6rem; }
-.bootstrap {
+/* Guided install */
+.setup {
   margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
 }
-.bootstrap .hint { color: var(--text2); font-size: 0.82rem; margin-bottom: 0.6rem; }
-.bootstrap .hint code { font-family: var(--mono); color: var(--text); }
-.pre { margin-bottom: 0.75rem; }
+.notice { color: var(--text2); font-size: 0.85rem; margin-bottom: 0.75rem; }
+.notice code { font-family: var(--mono); color: var(--text); }
+.pre { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem;
+  color: var(--text2); font-size: 0.8rem; }
 textarea {
   background: var(--bg2); border: 1px solid var(--border); color: var(--text);
   border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono);
   resize: vertical;
 }
 .steps { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem; }
-.step-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.step-label { font-size: 0.85rem; }
+.step-label { font-size: 0.85rem; color: var(--text2); }
 .cmd {
   display: block; margin-top: 0.3rem; padding: 0.3rem 0.5rem;
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r);
