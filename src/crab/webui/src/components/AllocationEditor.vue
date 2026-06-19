@@ -18,12 +18,9 @@ function removeGroup(i: number) {
 
 <template>
   <div class="alloc">
-    <label class="toggle">
-      <input type="checkbox" v-model="a.enabled" />
-      Customize node allocation
-    </label>
+    <p class="lead">Leave as <code>linear</code> with no split for the engine default (equal split). Set a mode, split, or node groups only if you need them.</p>
 
-    <div v-if="a.enabled" class="body">
+    <div class="body">
       <label class="field">Layout mode
         <select v-model="a.mode">
           <option value="linear">linear (contiguous blocks)</option>
@@ -77,9 +74,11 @@ function removeGroup(i: number) {
 
 <style scoped>
 .alloc { display: flex; flex-direction: column; gap: 0.6rem; }
-.toggle, .radio { display: flex; align-items: center; gap: 0.4rem; color: var(--text2);
+.lead { color: var(--text3); font-size: 0.72rem; line-height: 1.35; }
+.lead code { font-family: var(--mono); color: var(--text2); }
+.radio { display: flex; align-items: center; gap: 0.4rem; color: var(--text2);
   font-size: 0.8rem; cursor: pointer; }
-.toggle input, .radio input { accent-color: var(--accent); }
+.radio input { accent-color: var(--accent); }
 .body { display: flex; flex-direction: column; gap: 0.6rem; padding-left: 0.2rem; }
 .field { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: 0.78rem; }
 .by { border: 1px solid var(--border); border-radius: var(--r); padding: 0.4rem 0.6rem;

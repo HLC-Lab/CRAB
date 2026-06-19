@@ -1,1 +1,0 @@
-import{P as e}from"./PagePlaceholder-DgoPDwDH.js";import{b as o,c as a,y as n}from"./index-C8CXOzfG.js";const l=o({__name:"JobsView",setup(t){return(r,s)=>(a(),n(e,{title:"Jobs",phase:"Phase 4",blurb:"Submit experiments and monitor active jobs — manual refresh plus a 10s auto-poll over the live SSH connection, with cancel and on-demand log viewing."}))}});export{l as default};

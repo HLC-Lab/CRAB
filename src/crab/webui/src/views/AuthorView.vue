@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
-import { emptyApp, flowLayout, validateDraft } from "@/lib/config";
+import { emptyApp, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 
 const store = useAuthorStore();
 const d = store.draft;
 
 const showAlloc = ref(false);
+const allocActive = computed(() => hasAllocation(d.allocation));
 // Node-group names defined by the global allocation, for the per-app partition picker.
 const groupNames = computed(() =>
-  d.allocation.enabled && d.allocation.by === "groups"
+  d.allocation.by === "groups"
     ? d.allocation.partitions.map((p) => p.name.trim()).filter(Boolean)
     : [],
 );
@@ -153,7 +154,7 @@ async function copyJson() {
           <button class="sec-head" @click="showAlloc = !showAlloc">
             <span>Node allocation</span>
             <span class="sec-state">
-              <span v-if="d.allocation.enabled" class="dot" />
+              <span v-if="allocActive" class="dot" />
               <span class="caret">{{ showAlloc ? "▾" : "▸" }}</span>
             </span>
           </button>

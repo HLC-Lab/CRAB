@@ -64,7 +64,6 @@ export interface PartitionDraft {
 }
 
 export interface AllocationDraft {
-  enabled: boolean; // when false, no `allocation` key is emitted (engine default)
   mode: AllocMode;
   by: AllocBy;
   split: string; // "60, 40" → [60, 40]; only meaningful when by === "app"
@@ -74,7 +73,21 @@ export interface AllocationDraft {
 }
 
 export function emptyAllocation(): AllocationDraft {
-  return { enabled: false, mode: "linear", by: "app", split: "", stride: "", seed: "", partitions: [] };
+  return { mode: "linear", by: "app", split: "", stride: "", seed: "", partitions: [] };
+}
+
+/**
+ * Whether the user has actually configured an allocation. There is no explicit
+ * on/off toggle: the `allocation` key is emitted only when there is real content,
+ * so an untouched editor leaves the config at the engine's default (linear, equal
+ * split) rather than writing a redundant `{"mode":"linear"}`. A non-linear mode,
+ * a split, or at least one named node group all count as content. (`stride`/`seed`
+ * only apply to non-linear modes, so they are covered by the mode check.)
+ */
+export function hasAllocation(a: AllocationDraft): boolean {
+  if (a.mode !== "linear") return true;
+  if (a.by === "groups") return a.partitions.some((p) => p.name.trim());
+  return !!a.split.trim();
 }
 
 export function emptyPartition(name = ""): PartitionDraft {
@@ -85,7 +98,7 @@ const RESERVED_PARTITION_KEYS = new Set(["share"]);
 
 /** Build the `allocation` object, or undefined when disabled. */
 export function toAllocation(a: AllocationDraft): Record<string, unknown> | undefined {
-  if (!a.enabled) return undefined;
+  if (!hasAllocation(a)) return undefined;
   const out: Record<string, unknown> = { mode: a.mode };
   if (a.mode === "interleaved" && a.stride.trim()) out.stride = Number(a.stride.trim());
   if (a.mode === "random" && a.seed.trim()) out.seed = Number(a.seed.trim());
@@ -114,7 +127,6 @@ export function fromAllocation(alloc: unknown): AllocationDraft {
   const a = emptyAllocation();
   if (!alloc || typeof alloc !== "object") return a;
   const o = alloc as Record<string, unknown>;
-  a.enabled = true;
   const mode = String(o.mode ?? "linear");
   a.mode = mode === "interleaved" || mode === "random" ? mode : "linear";
   if (o.stride != null) a.stride = String(o.stride);
@@ -246,7 +258,7 @@ export function validateDraft(d: Draft): string[] {
   // Allocation (global). Returns the defined node-group names for the per-app check.
   const groups = new Set<string>();
   const alloc = d.allocation;
-  if (alloc.enabled) {
+  if (hasAllocation(alloc)) {
     if (alloc.mode === "interleaved" && alloc.stride.trim() && !posInt(alloc.stride))
       issues.push("Allocation stride must be a positive integer.");
     if (alloc.mode === "random" && alloc.seed.trim() && !/^[0-9]+$/.test(alloc.seed.trim()))
