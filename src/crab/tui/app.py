@@ -16,11 +16,12 @@ from .controller import TUIController
 
 class BenchmarkApp(App):
     CSS_PATH = "assets/tui.tcss"
-    BINDINGS = [("q", "quit", "Quit"), ("l", "load", "Load"), ("s", "save", "Save")]
+    BINDINGS = [("q", "quit", "Quit"), ("l", "action_load", "Load"), ("s", "action_save", "Save")]
 
     def __init__(self):
         super().__init__()
         self.current_environment_settings = {}
+        self._benchmark_running = False
 
         self.controller = TUIController(log_callback=self.log_to_tui)
 
@@ -73,10 +74,10 @@ class BenchmarkApp(App):
     def key_space(self) -> None:
         self.handle_run_request()
 
-    def key_l(self) -> None:
+    def action_load(self) -> None:
         self.load_form_data()
 
-    def key_s(self) -> None:
+    def action_save(self) -> None:
         self.save_form_data()
 
     def key_escape(self) -> None:
@@ -158,23 +159,35 @@ class BenchmarkApp(App):
     @on(RunBenchmark)
     @work
     async def handle_run_request(self) -> None:
-        log = self.query_one("#runner-log", RichLog)
-        log.clear()
-        self.show_tab(3)
+        if self._benchmark_running:
+            self.notify("A benchmark is already running.", severity="warning")
+            return
+        self._benchmark_running = True
+        try:
+            log = self.query_one("#runner-log", RichLog)
+            log.clear()
+            self.show_tab(3)
 
-        global_options = self.benchmark_container.get_state()
-        experiments = self.experiments_container.get_state()
+            global_options = self.benchmark_container.get_state()
+            experiments = self.experiments_container.get_state()
 
-        benchmark_config = {
-            "global_options": global_options,
-            "experiments": experiments,
-        }
+            benchmark_config = {
+                "global_options": global_options,
+                "experiments": experiments,
+            }
 
-        tui_settings = self.current_environment_settings.copy()
-        selected_preset = self.env_container.current_preset_name
+            tui_settings = self.current_environment_settings.copy()
+            selected_preset = self.env_container.current_preset_name
 
-        self.controller.run_in_thread(
-            benchmark_config=benchmark_config,
-            tui_settings=tui_settings,
-            selected_preset=selected_preset,
-        )
+            def _on_complete():
+                self._benchmark_running = False
+
+            self.controller.run_in_thread(
+                benchmark_config=benchmark_config,
+                tui_settings=tui_settings,
+                selected_preset=selected_preset,
+                on_complete=_on_complete,
+            )
+        except Exception:
+            self._benchmark_running = False
+            raise

@@ -122,8 +122,18 @@ class ExperimentRunner:
             
             if target_arch == "gpu":
                 # Check for GPU-specific SLURM flags or environment variables
-                # This is a basic check; adjust based on your Leonardo partition needs
-                partition = self.global_opts.get("sbatch_directives", {}).get("partition", "")
+                sd = self.global_opts.get("sbatch_directives", {})
+                if isinstance(sd, dict):
+                    partition = sd.get("partition", "")
+                elif isinstance(sd, list):
+                    partition = ""
+                    for _d in sd:
+                        _m = re.match(r'--partition[= ](\S+)', str(_d))
+                        if _m:
+                            partition = _m.group(1)
+                            break
+                else:
+                    partition = ""
                 if "cpu" in partition:
                      raise RuntimeError(f"Architecture Mismatch: {receipt.get('name', 'app')} is built for GPU but partition is {partition}")
             # ------------------------------

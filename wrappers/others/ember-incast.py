@@ -11,7 +11,7 @@ class app(base):
     ]
 
     def get_binary_path(self):
-        return os.environ["CRAB_ROOT"] + '/src/emberr/mpi/incast/incast'
+        return os.environ["CRAB_ROOT"] + '/src/ember/mpi/incast/incast'
     
     def read_data(self):
         data_list = [None]*self.num_metrics

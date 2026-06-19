@@ -101,12 +101,23 @@ def end_job(job, logger: CrabLogger) -> None:
     job.set_output(out, err)
     logger.debug(f"Killed App {job.id_num}")
   
-def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:  
-    """Waits for a job with a timeout. Returns True if timed out."""  
-    try:  
-        out, err = job.process.communicate(timeout=timeout_sec)  
-        job.set_output(out, err)  
-        return False  
-    except subprocess.TimeoutExpired:  
-        end_job(job, logger)  
+def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:
+    """Waits for a job with a timeout. Returns True if timed out."""
+    try:
+        job.process.wait(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        end_job(job, logger)
         return True
+
+    # Join the silent reader thread to drain any remaining buffered bytes
+    if hasattr(job, '_stream_thread') and job._stream_thread:
+        job._stream_thread.join(timeout=2.0)
+
+    out = b"".join(getattr(job, 'raw_stdout_buffer', []))
+    try:
+        err = job.process.stderr.read()
+    except OSError:
+        err = b""
+
+    job.set_output(out, err)
+    return False

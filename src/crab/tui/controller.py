@@ -61,9 +61,14 @@ class TUIController:
         except Exception as e:
             self.logger.error(f"Benchmark engine error: {e}")
 
-    def run_in_thread(self, benchmark_config: dict, tui_settings: Dict[str, str], selected_preset: str):
-        thread = threading.Thread(
-            target=self._execute_benchmark_logic,
-            args=(benchmark_config, tui_settings, selected_preset)
-        )
+    def run_in_thread(self, benchmark_config: dict, tui_settings: Dict[str, str],
+                      selected_preset: str, on_complete=None):
+        def _run():
+            try:
+                self._execute_benchmark_logic(benchmark_config, tui_settings, selected_preset)
+            finally:
+                if on_complete:
+                    on_complete()
+
+        thread = threading.Thread(target=_run)
         thread.start()

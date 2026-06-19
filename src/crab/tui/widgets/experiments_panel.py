@@ -251,9 +251,14 @@ class ExperimentsPanel(Container):
     def get_state(self) -> dict:
         """Return the experiments dict in native CRAB format."""
         self._save_current_state()
+        seen_names: set = set()
+        duplicates: list = []
         result = {}
         for exp in self.experiments:
             name = exp["name"]
+            if name in seen_names:
+                duplicates.append(name)
+            seen_names.add(name)
             entry: dict = {"apps": {str(k): v for k, v in sorted(exp["apps"].items())}}
             if exp.get("description"):
                 entry["description"] = exp["description"]
@@ -261,6 +266,11 @@ class ExperimentsPanel(Container):
             if lo:
                 entry["local_options"] = lo
             result[name] = entry
+        if duplicates:
+            raise ValueError(
+                f"Duplicate experiment name(s): {duplicates}. "
+                "Each experiment must have a unique name."
+            )
         return result
 
     async def set_state(self, experiments: dict) -> None:

@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -153,8 +154,10 @@ class Engine:
             # Fallback legacy: solo TIMESTAMP
             folder_name = timestamp_str
 
-        # 3. Costruzione path finale
-        runner_id = (environment.get("CRAB_SYSTEM", "unknown") + "/" + folder_name)
+        # 3. Costruzione path finale — sanitize CRAB_SYSTEM to prevent path traversal
+        raw_system = str(environment.get("CRAB_SYSTEM", "unknown"))
+        safe_system = re.sub(r'[^\w\-]', '_', raw_system)
+        runner_id = safe_system + "/" + folder_name
         data_directory = os.path.join(data_path, runner_id)
         # --------------------------------------
 
@@ -199,8 +202,18 @@ class Engine:
             f.write(f"\n{cmd}\n")
 
         self.log.info(f"Submitting: sbatch {script_path}")
-        out = subprocess.check_output(['sbatch', script_path], text=True)
-        self.log.info(out.strip())
+        job_id = None
+        try:
+            out = subprocess.check_output(['sbatch', script_path], text=True,
+                                          stderr=subprocess.STDOUT)
+            m = re.search(r'Submitted batch job (\d+)', out)
+            job_id = m.group(1) if m else None
+            self.log.info(out.strip())
+        except (KeyboardInterrupt, SystemExit):
+            if job_id:
+                self.log.warning(f"Interrupted — cancelling Slurm job {job_id}")
+                subprocess.run(['scancel', job_id], check=False)
+            raise
 
 
 
@@ -209,9 +222,10 @@ class Engine:
         
         orig_env = os.environ.copy()
         
-        # Safely expand and inject the framework delta into the compute node's native environment
-        for key, val in environment.items():
-            os.environ[key] = os.path.expandvars(str(val))
+        # Expand all values against the original env snapshot before any mutation,
+        # so that keys within `environment` do not cross-pollinate each other's expansions.
+        expanded = {k: os.path.expandvars(str(v)) for k, v in environment.items()}
+        os.environ.update(expanded)
 
         node_file = os.path.join(output_dir, "worker_nodelist.txt")
         try:

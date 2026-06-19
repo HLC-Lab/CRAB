@@ -73,7 +73,7 @@ class CrabLogger:
         """
         return CrabLogger(
             level=self.level,
-            handlers=self._handlers,
+            handlers=list(self._handlers),
             _context=self._context + [context_name],
             _lock=self._lock,
         )

@@ -28,7 +28,7 @@ class G500Recipe(BenchmarkRecipe):
             return False, None, "Git clone failed."
             
         src_dir = os.path.join(target_dir, "src")
-        build_cmd = ["make", "MPICC=mpicc -fcommon", "-j"]
+        build_cmd = ["make", "MPICC=mpicc", "CFLAGS=-fcommon", "-j"]
         
         if not self.run_command_streamed(build_cmd, src_dir, "Compiling Binaries...", env, log_callback):
             return False, None, "Make compilation failed."

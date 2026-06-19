@@ -108,6 +108,9 @@ def execute_worker(work_dir: str, log_level_str: str = None):
 
         logger.info(f"Engine run finished  elapsed={total}")
 
+    except KeyboardInterrupt:
+        logger.warning("Worker interrupted by user")
+        sys.exit(130)
     except Exception as e:
         logger.critical(f"Worker fatal error: {e}")
         import traceback
@@ -168,6 +171,9 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
 
         logger.info("Orchestration complete — job submitted to SLURM")
 
+    except KeyboardInterrupt:
+        logger.warning("Orchestrator interrupted by user")
+        sys.exit(130)
     except Exception as e:
         logger.critical(f"Orchestrator fatal error: {e}")
         import traceback

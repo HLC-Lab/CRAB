@@ -20,12 +20,14 @@ def ensure_env_dir():
     os.makedirs(ENV_DIR, exist_ok=True)
 
 def save_receipt(benchmark_id: str, receipt: Dict[str, Any]):
-    """Saves a rich environment receipt for a benchmark."""
+    """Saves a rich environment receipt for a benchmark (atomic write)."""
     ensure_env_dir()
     receipt_file = os.path.join(ENV_DIR, f"{benchmark_id}.json")
-    
-    with open(receipt_file, 'w') as f:
+    tmp_file = receipt_file + ".tmp"
+
+    with open(tmp_file, 'w') as f:
         json.dump(receipt, f, indent=4)
+    os.replace(tmp_file, receipt_file)
 
 def get_receipt(benchmark_id: str) -> Optional[Dict[str, Any]]:
     """Loads a benchmark receipt. Returns None if not configured."""
@@ -53,8 +55,10 @@ def get_receipt(benchmark_id: str) -> Optional[Dict[str, Any]]:
 def remove_receipt(benchmark_id: str):
     """Safely removes a benchmark receipt."""
     receipt_file = os.path.join(ENV_DIR, f"{benchmark_id}.json")
-    if os.path.exists(receipt_file):
+    try:
         os.remove(receipt_file)
+    except FileNotFoundError:
+        pass
 
 def get_all_receipts() -> Dict[str, Dict[str, Any]]:
     """Returns a dictionary of all configured benchmarks and their receipts."""

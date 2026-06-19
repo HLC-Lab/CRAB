@@ -15,14 +15,25 @@ class ncclbase(base):
 
     def read_data(self):  # return list (size num_metrics) of variable size lists
         output = self.stdout
-        lines = output.split('\n')
-        for l in lines:
-            if l[0] != "#":
-                l = ' '.join(l.strip().split()) # Replace multiple whitespaces with one
-                fields = l.split(' ')
-                return [[float(fields[5])], [float(fields[6])], [float(fields[7])], [float(fields[9])], [float(fields[10])], [float(fields[11])]]
+        rows = []
+        for l in output.split('\n'):
+            if not l.strip() or l.strip().startswith('#'):
+                continue
+            l = ' '.join(l.strip().split())
+            fields = l.split(' ')
+            try:
+                rows.append([
+                    float(fields[5]), float(fields[6]), float(fields[7]),
+                    float(fields[9]), float(fields[10]), float(fields[11])
+                ])
+            except (IndexError, ValueError):
+                continue
 
-        return [[0]*self.num_metrics]
+        if not rows:
+            return [[0]] * len(self.metadata)
+
+        # Transpose: N rows × 6 columns → 6 per-metric value lists
+        return [[row[i] for row in rows] for i in range(len(self.metadata))]
     
     def get_bench_input(self):
         if "-b" not in self.args or "-e" not in self.args:
