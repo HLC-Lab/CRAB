@@ -118,6 +118,12 @@ function removeApp(i: number) {
 function otherIndices(self: number): number[] {
   return (sel.value?.apps ?? []).map((_, j) => j).filter((j) => j !== self);
 }
+// Plain-language tooltip for a flow-diagram role (role follows the `end` behaviour).
+function roleHint(role: "victim" | "aggressor" | "timed"): string {
+  if (role === "aggressor") return "aggressor: stops when the other apps finish";
+  if (role === "timed") return "timed: stops after a set number of seconds";
+  return "victim: runs to completion";
+}
 
 // -- Wrapper picker (searchable overlay over the cluster catalog) ----------
 const showWrapper = ref(false);
@@ -403,15 +409,14 @@ async function copyJson() {
             <template v-for="(col, ci) in flow" :key="ci">
               <div v-if="ci > 0" class="flow-arrow" aria-hidden="true">→</div>
               <div class="flow-col">
-                <div v-for="node in col" :key="node.index" class="node" :class="node.role">
+                <div v-for="node in col" :key="node.index" class="node" :class="node.role" :title="roleHint(node.role)">
                   <span class="node-name">{{ node.name }}</span>
                   <span class="node-tags">
                     <span class="role-tag">{{ node.role }}</span>
+                    <span v-if="node.measured" class="tag meas-tag">measured</span>
                     <span v-if="node.group" class="tag grp-tag">{{ node.group }}</span>
                     <span v-if="node.nodes != null" class="tag node-tag">~{{ node.nodes }} node{{ node.nodes === 1 ? "" : "s" }}</span>
                     <span v-if="node.note" class="tag">{{ node.note }}</span>
-                    <span v-if="node.endKind === 'force'" class="tag">stops w/ others</span>
-                    <span v-else-if="node.endKind === 'timed'" class="tag">timed</span>
                   </span>
                 </div>
               </div>
@@ -447,11 +452,12 @@ async function copyJson() {
                 </button>
                 <select
                   class="role"
-                  :value="app.collect ? 'victim' : 'aggressor'"
-                  @change="app.collect = ($event.target as HTMLSelectElement).value === 'victim'"
+                  :value="app.collect ? 'yes' : 'no'"
+                  title="Parse and store this app's metrics"
+                  @change="app.collect = ($event.target as HTMLSelectElement).value === 'yes'"
                 >
-                  <option value="victim">victim (measured)</option>
-                  <option value="aggressor">aggressor</option>
+                  <option value="yes">collect metrics</option>
+                  <option value="no">don't collect</option>
                 </select>
                 <select v-if="groupNames.length" v-model="app.partition" class="role" title="Node group">
                   <option value="">— no group —</option>
@@ -682,6 +688,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   border: 1px solid var(--border2); display: flex; flex-direction: column; gap: 0.25rem; }
 .node.victim { border-left: 3px solid var(--accent); background: var(--accent-glow); }
 .node.aggressor { border-left: 3px solid var(--warn); }
+.node.timed { border-left: 3px solid var(--text3); }
 .node-name { font-size: 0.82rem; color: var(--text); word-break: break-all; }
 .node-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 .role-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text2); }
@@ -689,6 +696,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   border-radius: 999px; padding: 0 0.4rem; }
 .tag.warn { color: var(--warn); border-color: var(--warn); }
 .tag.grp-tag { color: var(--accent); border-color: var(--accent); }
+.tag.meas-tag { color: var(--ok); border-color: var(--ok); }
 .tag.node-tag { color: var(--text2); border-color: var(--border2); }
 .role { font-size: 0.78rem; }
 

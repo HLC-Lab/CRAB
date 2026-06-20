@@ -545,13 +545,18 @@ export function validateDraft(d: Draft): string[] {
 // -- Flow diagram ------------------------------------------------------------
 // An abstract (not-to-scale) view of an experiment's apps: columns are
 // sequential stages (an "after app N" app sits one stage right of N), apps in
-// the same column run in parallel, and colour shows victim (measured) vs
-// aggressor (the `collect` flag, #1). Duration is intentionally not depicted.
+// the same column run in parallel. The role follows the engine's definition,
+// which is the `end` behaviour (NOT `collect`): runs-to-completion = victim,
+// force-stop = aggressor, timed = timed. `measured` reflects `collect` separately.
+// Duration is intentionally not depicted.
+
+export type FlowRole = "victim" | "aggressor" | "timed";
 
 export interface FlowNode {
   index: number;
   name: string;
-  role: "victim" | "aggressor";
+  role: FlowRole;
+  measured: boolean; // the `collect` flag: metrics are parsed and stored
   endKind: EndKind;
   note: string; // small qualifier, e.g. "+5s"
   group?: string; // node-group name, when the effective allocation is partitioned
@@ -626,7 +631,8 @@ export function flowLayout(apps: AppDraft[], alloc?: AllocationDraft, numnodes =
     const node: FlowNode = {
       index: i,
       name: _wrapperName(a.path) || `app ${i}`,
-      role: a.collect ? "victim" : "aggressor",
+      role: a.endKind === "force" ? "aggressor" : a.endKind === "timed" ? "timed" : "victim",
+      measured: a.collect,
       endKind: a.endKind,
       note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
       group: badges[i]?.group,
