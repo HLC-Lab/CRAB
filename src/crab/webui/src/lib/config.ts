@@ -370,11 +370,15 @@ export function fromConfig(config: CrabConfig): Draft {
   const g = (config?.global_options ?? {}) as Record<string, unknown>;
   const str = (v: unknown, fallback = "") => (v == null ? fallback : String(v));
 
-  // Legacy single-experiment form: a top-level `applications` block.
+  // Legacy single-experiment form: a top-level `applications` block. The engine
+  // (engine.py:119-132) accepts two shapes: a TUI-style object that already holds
+  // `apps` (+ maybe `local_options`), used as-is; or a flat `{0:{...},1:{...}}`
+  // map, wrapped under `apps`. Either way it becomes the experiment `default_ex`.
   let experiments = config?.experiments;
   const legacy = (config as unknown as { applications?: unknown })?.applications;
-  if (!experiments && legacy) {
-    experiments = { default_ex: { apps: legacy as never } };
+  if (!experiments && legacy && typeof legacy === "object") {
+    const l = legacy as Record<string, unknown>;
+    experiments = "apps" in l ? { default_ex: l as never } : { default_ex: { apps: legacy as never } };
   }
 
   const draft = emptyDraft();

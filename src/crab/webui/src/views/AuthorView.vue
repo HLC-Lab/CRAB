@@ -249,6 +249,7 @@ async function copyJson() {
     </header>
 
     <p v-if="store.error" class="banner err">{{ store.error }}</p>
+    <p v-if="store.notice" class="banner info">{{ store.notice }}</p>
 
     <!-- Non-blocking shape-validation summary -->
     <div class="validity" :class="issues.length ? 'warn' : 'ok'">
@@ -532,7 +533,9 @@ async function copyJson() {
               {{ e.updated_at.slice(0, 10) }}
             </span>
           </li>
-          <li v-if="!filteredLibrary.length" class="empty">No matching use cases.</li>
+          <li v-if="!filteredLibrary.length" class="empty">
+            {{ store.library.length ? "No matching use cases." : "No saved use cases yet." }}
+          </li>
         </ul>
       </div>
     </div>
@@ -547,7 +550,10 @@ async function copyJson() {
 
         <p v-if="catalog.busy[sourceCluster]" class="wm-state">Loading wrappers from {{ sourceCluster }}…</p>
         <p v-else-if="!sourceCluster" class="wm-state">No cluster connected. Type a path below and use "+ Add".</p>
-        <p v-else-if="catalog.error[sourceCluster]" class="wm-state err">{{ catalog.error[sourceCluster] }}</p>
+        <div v-else-if="catalog.error[sourceCluster]" class="wm-state err">
+          <p>{{ catalog.error[sourceCluster] }}</p>
+          <button class="btn" @click="catalog.loadBenchmarks(sourceCluster, true)">Retry</button>
+        </div>
 
         <div v-else class="wrapper-list">
           <template v-for="[group, items] in wrapperGroups" :key="group">
@@ -566,7 +572,7 @@ async function copyJson() {
               </span>
               <span class="wrap-tags">
                 <span v-if="w.metadata.length" class="tag">{{ w.metadata.length }} metric{{ w.metadata.length === 1 ? "" : "s" }}</span>
-                <span v-if="!w.loadable" class="tag warn">unloadable</span>
+                <span v-if="!w.loadable" class="tag warn" title="Introspection failed on the cluster. The path still works.">unloadable</span>
               </span>
             </button>
           </template>
@@ -757,6 +763,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 
 .banner { padding: 0.5rem 0.75rem; border-radius: var(--r); margin-bottom: 1rem; }
 .banner.err { background: rgba(245, 101, 101, 0.12); color: var(--danger); border: 1px solid var(--danger); }
+.banner.info { background: var(--accent-glow); color: var(--text2); border: 1px solid var(--border2); }
 
 .validity { margin-bottom: 1rem; font-size: 0.8rem; }
 .validity .vok { color: var(--ok); }
@@ -795,7 +802,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .wm-src { font-size: 0.72rem; color: var(--text3); border: 1px solid var(--border);
   border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; }
 .wm-state { color: var(--text2); font-size: 0.82rem; padding: 1rem 0.5rem; }
-.wm-state.err { color: var(--danger); }
+.wm-state.err { color: var(--danger); display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; }
 .wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
 /* Prominent suite headers (wrappers/<suite>/…) */
 .wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text);
