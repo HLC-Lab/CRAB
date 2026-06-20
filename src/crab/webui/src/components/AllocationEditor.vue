@@ -23,7 +23,7 @@ function removeGroup(i: number) {
 
 <template>
   <div class="alloc">
-    <p class="lead">Leave as <code>linear</code> with no split for the engine default (equal split). Set a mode, split, or node groups only if you need them.</p>
+    <p class="lead">Leave this on <code>linear</code> with no split to use the engine default (an equal split). Set a mode, split, or node groups only if you need them.</p>
 
     <div class="body">
       <label v-if="!hideMode" class="field">Layout mode
@@ -47,7 +47,7 @@ function removeGroup(i: number) {
       </fieldset>
 
       <label v-if="a.by === 'app'" class="field">Split (% per app)
-        <input v-model="a.split" placeholder="e.g. 60, 40 — blank = equal" />
+        <input v-model="a.split" placeholder="e.g. 60, 40. Blank means equal." />
       </label>
 
       <div v-else class="groups">
@@ -57,11 +57,11 @@ function removeGroup(i: number) {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
           </button>
         </div>
-        <p class="hint">Named groups (e.g. <code>victim</code> / <code>aggressor</code>) an app can target. Set a share on all, or none for an equal split.</p>
+        <p class="hint">Named groups (for example <code>victim</code> and <code>aggressor</code>) that an app can target. Set a share on every group, or on none for an equal split.</p>
         <div v-for="(p, i) in a.partitions" :key="i" class="grow-row">
           <input v-model="p.name" class="gname" placeholder="group name" />
           <div class="share">
-            <input v-model="p.share" class="gshare" placeholder="—" />
+            <input v-model="p.share" class="gshare" placeholder="auto" />
             <span class="pct">%</span>
           </div>
           <span v-if="Object.keys(p.rest).length" class="inner" title="Has inner mode/split (preserved)">⋯</span>

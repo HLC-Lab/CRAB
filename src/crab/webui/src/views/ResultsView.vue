@@ -6,6 +6,6 @@ import PagePlaceholder from "@/components/PagePlaceholder.vue";
   <PagePlaceholder
     title="Results"
     phase="Phase 5"
-    blurb="Fetch result data to your laptop and explore it in the rethought Chart.js dashboard — scatter, line, bar, violin, and cross-experiment compare."
+    blurb="Fetch result data to your laptop and explore it in a Chart.js dashboard: scatter, line, bar, violin, and cross-experiment compare."
   />
 </template>

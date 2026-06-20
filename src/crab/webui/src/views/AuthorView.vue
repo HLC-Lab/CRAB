@@ -343,7 +343,7 @@ async function copyJson() {
                       <span class="pmeta">{{ p.nodes ?? "?" }}<span v-if="p.avail"> · {{ p.avail }}</span></span>
                     </li>
                   </ul>
-                  <p class="hint muted">Slurm partitions — distinct from allocation node groups.</p>
+                  <p class="hint muted">Slurm partitions on the cluster, not the same as allocation node groups.</p>
                 </template>
               </template>
             </div>
@@ -387,16 +387,16 @@ async function copyJson() {
               <svg class="chev" :class="{ open: showOverrides }" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
               <span class="ov-title">Overrides for this experiment</span>
               <span v-if="overridesActive" class="ov-badge">active</span>
-              <span class="ov-hint">{{ showOverrides ? "" : "vary globals for this experiment" }}</span>
+              <span class="ov-hint">{{ showOverrides ? "" : "change settings for this experiment only" }}</span>
             </button>
             <div v-show="showOverrides" class="ov-body">
-              <p class="hint">Leave a field as <em>inherit</em> / blank to use the use-case globals; set one only to vary it here.</p>
+              <p class="hint">Leave a field on <em>inherit</em> or blank to use the global options. Set one only to change it for this experiment.</p>
               <label class="ov-field">Node allocation
                 <select v-model="overrideMode">
-                  <option value="inherit">inherit — use globals</option>
-                  <option value="linear">override · linear</option>
-                  <option value="interleaved">override · interleaved</option>
-                  <option value="random">override · random</option>
+                  <option value="inherit">inherit (use global options)</option>
+                  <option value="linear">override: linear</option>
+                  <option value="interleaved">override: interleaved</option>
+                  <option value="random">override: random</option>
                 </select>
               </label>
               <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" hide-mode />
@@ -433,7 +433,7 @@ async function copyJson() {
               </label>
             </template>
             <span v-else-if="sourceCluster" class="src-note">Wrappers from <b>{{ sourceCluster }}</b></span>
-            <span v-else class="src-note muted">Connect a cluster (Remotes) to browse wrappers — paths can still be typed.</span>
+            <span v-else class="src-note muted">Connect a cluster in Remotes to browse wrappers. You can still type a path.</span>
           </div>
 
           <!-- Apps -->
@@ -460,7 +460,7 @@ async function copyJson() {
                   <option value="no">don't collect</option>
                 </select>
                 <select v-if="groupNames.length" v-model="app.partition" class="role" title="Node group">
-                  <option value="">— no group —</option>
+                  <option value="">no group</option>
                   <option v-for="g in groupNames" :key="g" :value="g">{{ g }}</option>
                 </select>
                 <button class="icon-btn danger" title="Remove app" @click="removeApp(i)">
@@ -546,7 +546,7 @@ async function copyJson() {
         </header>
 
         <p v-if="catalog.busy[sourceCluster]" class="wm-state">Loading wrappers from {{ sourceCluster }}…</p>
-        <p v-else-if="!sourceCluster" class="wm-state">No cluster connected — type a path below and use “+ Add”.</p>
+        <p v-else-if="!sourceCluster" class="wm-state">No cluster connected. Type a path below and use "+ Add".</p>
         <p v-else-if="catalog.error[sourceCluster]" class="wm-state err">{{ catalog.error[sourceCluster] }}</p>
 
         <div v-else class="wrapper-list">
@@ -575,7 +575,7 @@ async function copyJson() {
 
         <!-- Force a path that isn't in the catalog (e.g. not on the remote yet) -->
         <button v-if="canAddFree" class="wm-add" @click="chooseWrapper(trimmedQuery)">
-          + Add “{{ trimmedQuery }}”
+          + Add "{{ trimmedQuery }}"
           <span class="wm-add-hint">use this path even if it's not on {{ sourceCluster || "the cluster" }} yet</span>
         </button>
       </div>

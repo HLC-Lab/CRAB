@@ -6,6 +6,6 @@ import PagePlaceholder from "@/components/PagePlaceholder.vue";
   <PagePlaceholder
     title="Jobs"
     phase="Phase 4"
-    blurb="Submit experiments and monitor active jobs — manual refresh plus a 10s auto-poll over the live SSH connection, with cancel and on-demand log viewing."
+    blurb="Submit experiments and monitor active jobs. Manual refresh plus a 10s auto-poll over the live SSH connection, with cancel and on-demand log viewing."
   />
 </template>
