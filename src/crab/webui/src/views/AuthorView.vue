@@ -15,7 +15,7 @@ const catalog = useCatalogStore();
 const d = store.draft;
 
 // What the main pane shows: a global section or one experiment.
-type GlobalId = "job" | "alloc" | "tuning" | "slurm";
+type GlobalId = "job" | "alloc" | "converge" | "output" | "slurm";
 const view = ref<{ kind: "global" | "exp"; id: GlobalId | number }>({ kind: "global", id: "job" });
 function selectGlobal(id: GlobalId) {
   view.value = { kind: "global", id };
@@ -28,8 +28,11 @@ const sel = computed(() =>
 );
 
 // Active dots on the global nav items.
+const CONVERGE_KEYS = ["minruns", "maxruns", "timeout", "convergeall", "alpha", "beta"] as const;
+const OUTPUT_KEYS = ["outformat", "retainFiles", "tags", "extrainfo", "walltime", "datapath"] as const;
 const allocActive = computed(() => hasAllocation(d.allocation));
-const tuningActive = computed(() => Object.values(d.options).some((v) => v !== ""));
+const convergeActive = computed(() => CONVERGE_KEYS.some((k) => d.options[k] !== ""));
+const outputActive = computed(() => OUTPUT_KEYS.some((k) => d.options[k] !== ""));
 const sbatchActive = computed(() => d.sbatch.lines.some((l) => l.trim()));
 
 // -- Cluster source for the wrapper/node pickers ---------------------------
@@ -257,16 +260,19 @@ async function copyJson() {
       <!-- Left rail: navigator over global sections + experiments -->
       <aside class="rail">
         <div class="nav-group">
-          <div class="nav-head">Globals</div>
+          <div class="nav-head">Global options</div>
           <ul class="nav-list">
             <li :class="{ active: view.kind === 'global' && view.id === 'job' }" @click="selectGlobal('job')">
-              <span>Job basics</span>
+              <span>Basics</span>
             </li>
             <li :class="{ active: view.kind === 'global' && view.id === 'alloc' }" @click="selectGlobal('alloc')">
               <span>Node allocation</span><span v-if="allocActive" class="dot" />
             </li>
-            <li :class="{ active: view.kind === 'global' && view.id === 'tuning' }" @click="selectGlobal('tuning')">
-              <span>Tuning</span><span v-if="tuningActive" class="dot" />
+            <li :class="{ active: view.kind === 'global' && view.id === 'converge' }" @click="selectGlobal('converge')">
+              <span>Convergence</span><span v-if="convergeActive" class="dot" />
+            </li>
+            <li :class="{ active: view.kind === 'global' && view.id === 'output' }" @click="selectGlobal('output')">
+              <span>Output &amp; advanced</span><span v-if="outputActive" class="dot" />
             </li>
             <li :class="{ active: view.kind === 'global' && view.id === 'slurm' }" @click="selectGlobal('slurm')">
               <span>Slurm directives</span><span v-if="sbatchActive" class="dot" />
@@ -298,13 +304,19 @@ async function copyJson() {
 
       <!-- Main pane: the selected section or experiment, full width -->
       <main class="pane">
-        <!-- GLOBAL · Job basics -->
+        <!-- GLOBAL · Basics -->
         <template v-if="view.kind === 'global' && view.id === 'job'">
-          <h2 class="pane-title">Job basics</h2>
+          <h2 class="pane-title">Basics</h2>
           <div class="job-grid">
-            <label>Use case name <input v-model="d.name" placeholder="name" /></label>
-            <label>Nodes <input v-model="d.numnodes" /></label>
-            <label>Procs / node <input v-model="d.ppn" /></label>
+            <label>Name <input v-model="d.name" placeholder="my_use_case" />
+              <small>Names the run and prefixes the output folder.</small>
+            </label>
+            <label>Nodes <input v-model="d.numnodes" />
+              <small>Total nodes to allocate.</small>
+            </label>
+            <label>Processes per node <input v-model="d.ppn" />
+              <small>Tasks launched per node (ppn).</small>
+            </label>
           </div>
 
           <!-- Informational cluster-node reference for sizing `Nodes` -->
@@ -338,10 +350,16 @@ async function copyJson() {
           <AllocationEditor :alloc="d.allocation" />
         </template>
 
-        <!-- GLOBAL · Tuning -->
-        <template v-else-if="view.kind === 'global' && view.id === 'tuning'">
-          <h2 class="pane-title">Tuning</h2>
-          <OptionsFields :options="d.options" />
+        <!-- GLOBAL · Convergence -->
+        <template v-else-if="view.kind === 'global' && view.id === 'converge'">
+          <h2 class="pane-title">Convergence</h2>
+          <OptionsFields :options="d.options" :groups="['convergence']" />
+        </template>
+
+        <!-- GLOBAL · Output & advanced -->
+        <template v-else-if="view.kind === 'global' && view.id === 'output'">
+          <h2 class="pane-title">Output &amp; advanced</h2>
+          <OptionsFields :options="d.options" :groups="['output', 'advanced']" />
         </template>
 
         <!-- GLOBAL · Slurm directives -->
@@ -631,6 +649,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .pane-title { font-family: var(--sans); font-size: 1.15rem; color: var(--text); }
 .job-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.9rem; max-width: 38rem; }
 .job-grid label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: 0.8rem; }
+.job-grid small { color: var(--text3); font-size: 0.68rem; line-height: 1.3; }
 .empty { color: var(--text3); font-size: 0.82rem; }
 .empty.pad { padding: 2rem; }
 
