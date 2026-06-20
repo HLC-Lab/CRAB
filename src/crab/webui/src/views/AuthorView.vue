@@ -13,10 +13,25 @@ const remotes = useRemotesStore();
 const catalog = useCatalogStore();
 const d = store.draft;
 
+// What the main pane shows: a global section or one experiment.
+type GlobalId = "job" | "alloc" | "tuning" | "slurm";
+const view = ref<{ kind: "global" | "exp"; id: GlobalId | number }>({ kind: "global", id: "job" });
+function selectGlobal(id: GlobalId) {
+  view.value = { kind: "global", id };
+}
+function selectExp(i: number) {
+  view.value = { kind: "exp", id: i };
+}
+const sel = computed(() =>
+  view.value.kind === "exp" ? d.experiments[view.value.id as number] ?? null : null,
+);
+
+// Active dots on the global nav items.
+const allocActive = computed(() => hasAllocation(d.allocation));
+const tuningActive = computed(() => Object.values(d.options).some((v) => v !== ""));
+const sbatchActive = computed(() => d.sbatch.lines.some((l) => l.trim()));
+
 // -- Cluster source for the wrapper/node pickers ---------------------------
-// Wrappers live on the cluster, so browsing them needs a connected remote. We
-// auto-pick the only connected one; with several, the user chooses; with none,
-// the app path stays free-text (the picker is just unavailable).
 const connectedClusters = computed(() =>
   remotes.items.filter((r) => r.connected).map((r) => r.name),
 );
@@ -28,7 +43,6 @@ watchEffect(() => {
 });
 
 // Informational cluster-node reference (Slurm partitions; NOT allocation groups).
-// Lazily fetched on first expand so opening the editor doesn't hit SSH.
 const showNodes = ref(false);
 const nodesInfo = computed(() => catalog.nodes[sourceCluster.value]);
 function toggleNodes() {
@@ -36,18 +50,6 @@ function toggleNodes() {
   if (showNodes.value && sourceCluster.value) catalog.loadNodes(sourceCluster.value);
 }
 
-const showAlloc = ref(false);
-const showTuning = ref(false);
-const showSbatch = ref(false);
-const allocActive = computed(() => hasAllocation(d.allocation));
-// Whether any tunable option has been set (drives the collapsed-section dot).
-const tuningActive = computed(() => Object.values(d.options).some((v) => v !== ""));
-const sbatchActive = computed(() => d.sbatch.lines.some((l) => l.trim()));
-
-const selectedIndex = ref<number | null>(null);
-const sel = computed(() =>
-  selectedIndex.value !== null ? d.experiments[selectedIndex.value] ?? null : null,
-);
 const flow = computed(() => (sel.value ? flowLayout(sel.value.apps) : []));
 const issues = computed(() => validateDraft(d));
 const showIssues = ref(false);
@@ -57,8 +59,6 @@ const showOverrides = ref(false);
 // experiment (its local override when set, otherwise the global allocation).
 const effectiveAlloc = computed(() => {
   const e = sel.value;
-  // Overriding replaces the global allocation wholesale, so its groups win even
-  // when bare-linear (⇒ no groups); only fall back to global when not overriding.
   return e && e.overrideAlloc ? e.allocation : d.allocation;
 });
 const groupNames = computed(() =>
@@ -66,11 +66,9 @@ const groupNames = computed(() =>
     ? effectiveAlloc.value.partitions.map((p) => p.name.trim()).filter(Boolean)
     : [],
 );
-// Whether the selected experiment has any local_options set (drives its dot).
 const overridesActive = computed(() => {
   const e = sel.value;
   if (!e) return false;
-  // overrideAlloc always emits an allocation (force, even bare linear), so it counts.
   return e.overrideAlloc || Object.values(e.options).some((v) => v !== "");
 });
 
@@ -84,7 +82,7 @@ const filteredLibrary = computed(() => {
 });
 async function openEntry(id: string) {
   await store.open(id);
-  selectFirstOrNone();
+  selectAfterLoad();
   showOpen.value = false;
   openQuery.value = "";
 }
@@ -95,7 +93,6 @@ function addApp() {
 function removeApp(i: number) {
   sel.value?.apps.splice(i, 1);
 }
-// App indices an app can depend on (everything but itself).
 function otherIndices(self: number): number[] {
   return (sel.value?.apps ?? []).map((_, j) => j).filter((j) => j !== self);
 }
@@ -121,7 +118,6 @@ const filteredWrappers = computed(() => {
     [w.relpath, w.bench_name, w.benchmark_id, w.group].some((s) => s?.toLowerCase().includes(q)),
   );
 });
-// Group filtered wrappers by their top-level folder for display.
 const wrapperGroups = computed(() => {
   const by: Record<string, typeof filteredWrappers.value> = {};
   for (const w of filteredWrappers.value) (by[w.group || "other"] ??= []).push(w);
@@ -146,33 +142,34 @@ onMounted(() => {
   remotes.refresh(); // to know which clusters are connected for the pickers
 });
 
-function selectFirstOrNone() {
-  selectedIndex.value = d.experiments.length ? 0 : null;
+function selectAfterLoad() {
+  if (d.experiments.length) selectExp(0);
+  else selectGlobal("job");
 }
 
 function newConfig() {
   store.newConfig();
-  selectedIndex.value = null;
+  selectGlobal("job");
 }
 
 function addExperiment() {
   d.experiments.push(emptyExperiment(`experiment_${d.experiments.length + 1}`));
-  selectedIndex.value = d.experiments.length - 1;
+  selectExp(d.experiments.length - 1);
 }
 
 function removeExperiment() {
-  if (selectedIndex.value === null) return;
-  d.experiments.splice(selectedIndex.value, 1);
-  selectedIndex.value = d.experiments.length
-    ? Math.min(selectedIndex.value, d.experiments.length - 1)
-    : null;
+  if (view.value.kind !== "exp") return;
+  const i = view.value.id as number;
+  d.experiments.splice(i, 1);
+  if (d.experiments.length) selectExp(Math.min(i, d.experiments.length - 1));
+  else selectGlobal("job");
 }
 
 function doImport() {
   if (store.importJson(importText.value)) {
     showImport.value = false;
     importText.value = "";
-    selectFirstOrNone();
+    selectAfterLoad();
   }
 }
 
@@ -225,13 +222,58 @@ async function copyJson() {
     </div>
 
     <div class="layout">
-      <!-- Left rail: the important globals + the experiments list -->
+      <!-- Left rail: navigator over global sections + experiments -->
       <aside class="rail">
-        <div class="globals">
-          <h2>Use case</h2>
-          <label>Use case name <input v-model="d.name" placeholder="congestion_study" /></label>
-          <label>Nodes <input v-model="d.numnodes" placeholder="8" /></label>
-          <label>Procs / node <input v-model="d.ppn" /></label>
+        <div class="nav-group">
+          <div class="nav-head">Globals</div>
+          <ul class="nav-list">
+            <li :class="{ active: view.kind === 'global' && view.id === 'job' }" @click="selectGlobal('job')">
+              <span>Job basics</span>
+            </li>
+            <li :class="{ active: view.kind === 'global' && view.id === 'alloc' }" @click="selectGlobal('alloc')">
+              <span>Node allocation</span><span v-if="allocActive" class="dot" />
+            </li>
+            <li :class="{ active: view.kind === 'global' && view.id === 'tuning' }" @click="selectGlobal('tuning')">
+              <span>Tuning</span><span v-if="tuningActive" class="dot" />
+            </li>
+            <li :class="{ active: view.kind === 'global' && view.id === 'slurm' }" @click="selectGlobal('slurm')">
+              <span>Slurm directives</span><span v-if="sbatchActive" class="dot" />
+            </li>
+          </ul>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-head">
+            <span>Experiments</span>
+            <button class="icon-btn" title="Add experiment" @click="addExperiment">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+            </button>
+          </div>
+          <ul class="nav-list">
+            <li
+              v-for="(exp, i) in d.experiments"
+              :key="i"
+              :class="{ active: view.kind === 'exp' && view.id === i }"
+              @click="selectExp(i)"
+            >
+              <span class="exp-name">{{ exp.name || "untitled" }}</span>
+              <span class="exp-meta">{{ exp.apps.length }} app{{ exp.apps.length === 1 ? "" : "s" }}</span>
+            </li>
+            <li v-if="!d.experiments.length" class="empty nav-empty">No experiments yet.</li>
+          </ul>
+        </div>
+      </aside>
+
+      <!-- Main pane: the selected section or experiment, full width -->
+      <main class="pane">
+        <!-- GLOBAL · Job basics -->
+        <template v-if="view.kind === 'global' && view.id === 'job'">
+          <h2 class="pane-title">Job basics</h2>
+          <div class="job-grid">
+            <label>Use case name <input v-model="d.name" placeholder="name" /></label>
+            <label>Nodes <input v-model="d.numnodes" /></label>
+            <label>Procs / node <input v-model="d.ppn" /></label>
+          </div>
 
           <!-- Informational cluster-node reference for sizing `Nodes` -->
           <div v-if="sourceCluster" class="nodes-ref">
@@ -256,71 +298,34 @@ async function copyJson() {
               </template>
             </div>
           </div>
-        </div>
+        </template>
 
-        <!-- Node allocation (collapsible) -->
-        <div class="section">
-          <button class="sec-head" @click="showAlloc = !showAlloc">
-            <span>Node allocation</span>
-            <span class="sec-state">
-              <span v-if="allocActive" class="dot" />
-              <span class="caret">{{ showAlloc ? "▾" : "▸" }}</span>
-            </span>
-          </button>
-          <AllocationEditor v-show="showAlloc" :alloc="d.allocation" />
-        </div>
+        <!-- GLOBAL · Node allocation -->
+        <template v-else-if="view.kind === 'global' && view.id === 'alloc'">
+          <h2 class="pane-title">Node allocation</h2>
+          <AllocationEditor :alloc="d.allocation" />
+        </template>
 
-        <!-- Convergence · output · advanced (collapsible) -->
-        <div class="section">
-          <button class="sec-head" @click="showTuning = !showTuning">
-            <span>Tuning</span>
-            <span class="sec-state">
-              <span v-if="tuningActive" class="dot" />
-              <span class="caret">{{ showTuning ? "▾" : "▸" }}</span>
-            </span>
-          </button>
-          <OptionsFields v-show="showTuning" :options="d.options" />
-        </div>
+        <!-- GLOBAL · Tuning -->
+        <template v-else-if="view.kind === 'global' && view.id === 'tuning'">
+          <h2 class="pane-title">Tuning</h2>
+          <OptionsFields :options="d.options" />
+        </template>
 
-        <!-- Slurm directives (collapsible) -->
-        <div class="section">
-          <button class="sec-head" @click="showSbatch = !showSbatch">
-            <span>Slurm directives</span>
-            <span class="sec-state">
-              <span v-if="sbatchActive" class="dot" />
-              <span class="caret">{{ showSbatch ? "▾" : "▸" }}</span>
-            </span>
-          </button>
-          <SbatchEditor v-show="showSbatch" :sbatch="d.sbatch" />
-        </div>
+        <!-- GLOBAL · Slurm directives -->
+        <template v-else-if="view.kind === 'global' && view.id === 'slurm'">
+          <h2 class="pane-title">Slurm directives</h2>
+          <SbatchEditor :sbatch="d.sbatch" />
+        </template>
 
-        <div class="exp-head">
-          <span>Experiments</span>
-          <button class="icon-btn" title="Add experiment" @click="addExperiment">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
-          </button>
-        </div>
-        <ul class="exp-list">
-          <li
-            v-for="(exp, i) in d.experiments"
-            :key="i"
-            :class="{ active: i === selectedIndex }"
-            @click="selectedIndex = i"
-          >
-            <span class="exp-name">{{ exp.name || "untitled" }}</span>
-            <span class="exp-meta">{{ exp.apps.length }} app{{ exp.apps.length === 1 ? "" : "s" }}</span>
-          </li>
-          <li v-if="!d.experiments.length" class="empty">No experiments yet.</li>
-        </ul>
-      </aside>
-
-      <!-- Main pane: the selected experiment -->
-      <main class="pane">
-        <template v-if="sel">
+        <!-- EXPERIMENT -->
+        <template v-else-if="sel">
           <div class="exp-edit">
             <label>Experiment name <input v-model="sel.name" /></label>
             <label>Description <input v-model="sel.description" placeholder="optional note" /></label>
           </div>
+
+          <!-- Per-experiment overrides (local_options) — kept at the bottom for now -->
 
           <!-- Abstract app flow: columns = sequential stages, colour = role -->
           <div v-if="sel.apps.length" class="flow">
@@ -358,7 +363,7 @@ async function copyJson() {
             <div v-for="(app, i) in sel.apps" :key="i" class="app">
               <div class="app-row">
                 <span class="idx">#{{ i }}</span>
-                <input v-model="app.path" class="grow" placeholder="wrapper path, e.g. blink/a2a_comm_only.py" />
+                <input v-model="app.path" class="grow" placeholder="wrapper path" />
                 <button
                   class="btn browse"
                   :disabled="!sourceCluster"
@@ -385,7 +390,7 @@ async function copyJson() {
                   </svg>
                 </button>
               </div>
-              <input v-model="app.args" class="full" placeholder="args, e.g. -msgsize 8192 -iter 1000" />
+              <input v-model="app.args" class="full" placeholder="args" />
               <div class="timing">
                 <label>Starts
                   <select v-model="app.startKind">
@@ -435,7 +440,8 @@ async function copyJson() {
 
           <button class="btn danger remove-exp" @click="removeExperiment">Remove experiment</button>
         </template>
-        <p v-else class="empty pad">Select or add an experiment to edit its apps.</p>
+
+        <p v-else class="empty pad">Select a section or experiment to edit.</p>
       </main>
 
       <!-- JSON view -->
@@ -537,52 +543,7 @@ async function copyJson() {
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 .btn.on { border-color: var(--accent); color: var(--accent); }
-.btn.open { padding-right: 0.4rem; }
 .btn.browse { padding: 0.35rem 0.6rem; white-space: nowrap; }
-
-/* Cluster-node reference (informational) */
-.nodes-ref { margin: -0.2rem 0 0.4rem; }
-.link-btn { background: transparent; border: none; color: var(--text2); cursor: pointer;
-  font-family: var(--mono); font-size: 0.72rem; padding: 0; }
-.link-btn:hover { color: var(--text); }
-.nodes-body { margin-top: 0.3rem; }
-.nodes-body .hint { color: var(--text3); font-size: 0.72rem; margin-bottom: 0.2rem; }
-.nodes-body .hint.err { color: var(--danger); }
-.nodes-body .hint.muted { color: var(--text3); font-style: italic; }
-.part-list { list-style: none; max-height: 9rem; overflow-y: auto; display: flex;
-  flex-direction: column; gap: 0.1rem; margin: 0.2rem 0; }
-.part-list li { display: flex; justify-content: space-between; gap: 0.5rem;
-  font-size: 0.72rem; color: var(--text2); padding: 0.1rem 0.2rem; }
-.pname { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pmeta { color: var(--text3); white-space: nowrap; }
-
-/* Wrapper source line + picker */
-.wrapper-source { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
-.wrapper-source label { display: flex; align-items: center; gap: 0.4rem; color: var(--text2); font-size: 0.78rem; }
-.src-note { color: var(--text2); font-size: 0.78rem; }
-.src-note.muted { color: var(--text3); }
-.src-note b { color: var(--text); }
-.wrapper-modal { width: min(44rem, 94vw); padding: 0.75rem; display: flex; flex-direction: column; }
-.wm-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
-.wm-head .search { flex: 1; margin-bottom: 0; }
-.wm-src { font-size: 0.72rem; color: var(--text3); border: 1px solid var(--border);
-  border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; }
-.wm-state { color: var(--text2); font-size: 0.82rem; padding: 1rem 0.5rem; }
-.wm-state.err { color: var(--danger); }
-.wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
-.wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text3);
-  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
-  padding: 0.4rem 0.55rem 0.2rem; }
-.wrap-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-  width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
-  border-radius: var(--r); padding: 0.4rem 0.55rem; cursor: pointer; color: var(--text); }
-.wrap-row:hover { background: var(--bg2); border-color: var(--accent); }
-.wrap-row.unloadable { opacity: 0.7; }
-.wrap-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
-.wrap-name { font-size: 0.84rem; }
-.wrap-path { font-size: 0.7rem; color: var(--text3); font-family: var(--mono); }
-.wrap-tags { display: flex; gap: 0.25rem; flex-shrink: 0; }
-.tag.warn { color: var(--warn); border-color: var(--warn); }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 1px solid transparent; color: var(--text2);
@@ -594,21 +555,103 @@ async function copyJson() {
   stroke-linecap: round; stroke-linejoin: round;
 }
 
-.layout { display: grid; grid-template-columns: 18rem 1fr auto; gap: 1rem; align-items: start; }
-.rail, .pane, .jsonpane {
-  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2);
-}
-.rail { padding: 1rem; }
-.globals h2 { font-family: var(--sans); font-size: 1rem; margin-bottom: 0.6rem; }
-.globals label { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.6rem;
-  color: var(--text2); font-size: 0.78rem; }
 input, textarea, select {
   background: var(--bg2); border: 1px solid var(--border); color: var(--text);
   border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono); font-size: 0.82rem;
 }
-input:focus, textarea:focus { outline: none; border-color: var(--accent); }
-/* Collapsible globals section (allocation, later convergence/output/advanced) */
-.section { margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid var(--border); }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+
+.layout { display: grid; grid-template-columns: 15rem 1fr auto; gap: 1rem; align-items: start; }
+.rail, .pane, .jsonpane {
+  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2);
+}
+.rail { padding: 0.75rem; display: flex; flex-direction: column; gap: 1rem; }
+
+/* Rail navigator */
+.nav-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.nav-head { display: flex; align-items: center; justify-content: space-between;
+  color: var(--text3); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0 0.2rem; }
+.nav-list { list-style: none; display: flex; flex-direction: column; gap: 0.15rem; }
+.nav-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.55rem; border: 1px solid transparent; border-radius: var(--r);
+  cursor: pointer; color: var(--text2); font-size: 0.85rem; }
+.nav-list li:hover { background: var(--bg2); color: var(--text); }
+.nav-list li.active { background: var(--bg2); border-color: var(--accent); color: var(--text); }
+.nav-list .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.exp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-meta { color: var(--text3); font-size: 0.72rem; flex-shrink: 0; }
+.nav-empty { cursor: default; color: var(--text3); }
+.nav-empty:hover { background: transparent; }
+
+/* Main pane */
+.pane { padding: 1.5rem; min-height: 18rem; display: flex; flex-direction: column; gap: 1.1rem; }
+.pane-title { font-family: var(--sans); font-size: 1.15rem; color: var(--text); }
+.job-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.9rem; max-width: 38rem; }
+.job-grid label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: 0.8rem; }
+.empty { color: var(--text3); font-size: 0.82rem; }
+.empty.pad { padding: 2rem; }
+
+/* Cluster-node reference (informational) */
+.nodes-ref { margin-top: -0.2rem; }
+.link-btn { background: transparent; border: none; color: var(--text2); cursor: pointer;
+  font-family: var(--mono); font-size: 0.74rem; padding: 0; }
+.link-btn:hover { color: var(--text); }
+.nodes-body { margin-top: 0.4rem; max-width: 30rem; }
+.nodes-body .hint { color: var(--text3); font-size: 0.74rem; margin-bottom: 0.2rem; }
+.nodes-body .hint.err { color: var(--danger); }
+.nodes-body .hint.muted { color: var(--text3); font-style: italic; }
+.part-list { list-style: none; max-height: 12rem; overflow-y: auto; display: flex;
+  flex-direction: column; gap: 0.1rem; margin: 0.2rem 0; }
+.part-list li { display: flex; justify-content: space-between; gap: 0.5rem;
+  font-size: 0.74rem; color: var(--text2); padding: 0.12rem 0.2rem; }
+.pname { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmeta { color: var(--text3); white-space: nowrap; }
+
+/* Experiment editor */
+.exp-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+.exp-edit label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: 0.8rem; }
+
+/* Abstract flow diagram */
+.flow { display: flex; align-items: stretch; gap: 0.5rem; overflow-x: auto;
+  border: 1px solid var(--border); border-radius: var(--r); padding: 0.75rem; background: var(--bg2); }
+.flow-col { display: flex; flex-direction: column; gap: 0.5rem; justify-content: center; }
+.flow-arrow { display: flex; align-items: center; color: var(--text3); font-size: 1rem; }
+.node { min-width: 10rem; border-radius: var(--r); padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border2); display: flex; flex-direction: column; gap: 0.25rem; }
+.node.victim { border-left: 3px solid var(--accent); background: var(--accent-glow); }
+.node.aggressor { border-left: 3px solid var(--warn); }
+.node-name { font-size: 0.82rem; color: var(--text); word-break: break-all; }
+.node-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.role-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text2); }
+.tag { font-size: 0.62rem; color: var(--text3); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0 0.4rem; }
+.tag.warn { color: var(--warn); border-color: var(--warn); }
+.role { font-size: 0.78rem; }
+
+/* Wrapper source line */
+.wrapper-source { display: flex; align-items: center; gap: 0.5rem; }
+.wrapper-source label { display: flex; align-items: center; gap: 0.4rem; color: var(--text2); font-size: 0.78rem; }
+.src-note { color: var(--text2); font-size: 0.78rem; }
+.src-note.muted { color: var(--text3); }
+.src-note b { color: var(--text); }
+
+/* Apps — clearly separated cards */
+.apps { display: flex; flex-direction: column; gap: 1rem; }
+.app { border: 1px solid var(--border); border-radius: var(--r2); padding: 0.9rem;
+  display: flex; flex-direction: column; gap: 0.6rem; background: var(--bg2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.app-row { display: flex; align-items: center; gap: 0.5rem; }
+.idx { color: var(--text3); font-size: 0.78rem; font-weight: 600; }
+.grow { flex: 1; }
+.full { width: 100%; }
+.timing { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; align-items: end;
+  padding-top: 0.5rem; border-top: 1px dashed var(--border); }
+.timing label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: 0.75rem; }
+.remove-exp { align-self: flex-start; }
+
+/* Collapsible section (overrides) */
+.section { padding-top: 0.8rem; border-top: 1px solid var(--border); }
 .sec-head { width: 100%; display: flex; align-items: center; justify-content: space-between;
   background: transparent; border: none; cursor: pointer; padding: 0; color: var(--text2);
   font-family: var(--mono); font-size: 0.8rem; margin-bottom: 0.5rem; }
@@ -616,62 +659,12 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .sec-state { display: flex; align-items: center; gap: 0.4rem; }
 .sec-head .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .sec-head .caret { color: var(--text3); }
-
-.exp-head { display: flex; align-items: center; justify-content: space-between;
-  margin: 1rem 0 0.4rem; padding-top: 0.8rem; border-top: 1px solid var(--border);
-  color: var(--text2); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.exp-list { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
-.exp-list li { display: flex; justify-content: space-between; align-items: center;
-  padding: 0.4rem 0.5rem; border: 1px solid transparent; border-radius: var(--r); cursor: pointer; }
-.exp-list li:hover { background: var(--bg2); }
-.exp-list li.active { background: var(--bg2); border-color: var(--accent); }
-.exp-meta { color: var(--text3); font-size: 0.72rem; }
-.empty { color: var(--text3); font-size: 0.82rem; }
-.empty.pad { padding: 2rem; }
-
-.pane { padding: 1.25rem; min-height: 16rem; display: flex; flex-direction: column; gap: 1rem; }
-.exp-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-.exp-edit label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: 0.78rem; }
-/* Abstract flow diagram */
-.flow { display: flex; align-items: stretch; gap: 0.5rem; overflow-x: auto;
-  border: 1px solid var(--border); border-radius: var(--r); padding: 0.75rem; background: var(--bg2); }
-.flow-col { display: flex; flex-direction: column; gap: 0.5rem; justify-content: center; }
-.flow-arrow { display: flex; align-items: center; color: var(--text3); font-size: 1rem; }
-.node { min-width: 9rem; border-radius: var(--r); padding: 0.45rem 0.6rem;
-  border: 1px solid var(--border2); display: flex; flex-direction: column; gap: 0.25rem; }
-.node.victim { border-left: 3px solid var(--accent); background: var(--accent-glow); }
-.node.aggressor { border-left: 3px solid var(--warn); }
-.node-name { font-size: 0.82rem; color: var(--text); }
-.node-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.role-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--text2); }
-.tag { font-size: 0.62rem; color: var(--text3); border: 1px solid var(--border);
-  border-radius: 999px; padding: 0 0.4rem; }
-.role { font-size: 0.78rem; }
-
-/* Apps */
-.apps { display: flex; flex-direction: column; gap: 0.6rem; }
-.app { border: 1px solid var(--border); border-radius: var(--r); padding: 0.6rem;
-  display: flex; flex-direction: column; gap: 0.5rem; background: var(--bg2); }
-.app-row { display: flex; align-items: center; gap: 0.5rem; }
-.idx { color: var(--text3); font-size: 0.75rem; }
-.grow { flex: 1; }
-.full { width: 100%; }
-.chk { display: flex; align-items: center; gap: 0.3rem; color: var(--text2); font-size: 0.78rem;
-  white-space: nowrap; flex-direction: row; }
-.chk input { accent-color: var(--accent); }
-.timing { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: end; }
-.timing label { flex-direction: column; }
-.remove-exp { align-self: flex-start; }
-
-/* Per-experiment overrides */
-.overrides { margin-top: 0; }
-.ov-body { display: flex; flex-direction: column; gap: 0.8rem; }
+.overrides .ov-body { display: flex; flex-direction: column; gap: 0.8rem; }
 .ov-body .hint { color: var(--text3); font-size: 0.75rem; }
 .ov-toggle { display: flex; align-items: center; gap: 0.4rem; color: var(--text2); font-size: 0.8rem; cursor: pointer; }
 .ov-toggle input { accent-color: var(--accent); }
 
-.jsonpane { width: 26rem; max-height: 36rem; overflow: auto; }
+.jsonpane { width: 26rem; max-height: 40rem; overflow: auto; }
 .jsonpane header { position: sticky; top: 0; background: var(--bg2); color: var(--text2);
   padding: 0.4rem 0.75rem; font-size: 0.75rem; border-bottom: 1px solid var(--border); }
 .jsonpane pre { padding: 0.75rem; font-size: 0.75rem; white-space: pre-wrap; color: var(--text2); }
@@ -708,4 +701,26 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .open-list li.current { border-color: var(--accent); }
 .open-name { color: var(--text); }
 .open-meta { color: var(--text3); font-size: 0.72rem; }
+
+/* Wrapper picker overlay */
+.wrapper-modal { width: min(44rem, 94vw); padding: 0.75rem; display: flex; flex-direction: column; }
+.wm-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.wm-head .search { flex: 1; margin-bottom: 0; }
+.wm-src { font-size: 0.72rem; color: var(--text3); border: 1px solid var(--border);
+  border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; }
+.wm-state { color: var(--text2); font-size: 0.82rem; padding: 1rem 0.5rem; }
+.wm-state.err { color: var(--danger); }
+.wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
+.wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text3);
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.4rem 0.55rem 0.2rem; }
+.wrap-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+  border-radius: var(--r); padding: 0.4rem 0.55rem; cursor: pointer; color: var(--text); }
+.wrap-row:hover { background: var(--bg2); border-color: var(--accent); }
+.wrap-row.unloadable { opacity: 0.7; }
+.wrap-main { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.wrap-name { font-size: 0.84rem; }
+.wrap-path { font-size: 0.7rem; color: var(--text3); font-family: var(--mono); }
+.wrap-tags { display: flex; gap: 0.25rem; flex-shrink: 0; }
 </style>

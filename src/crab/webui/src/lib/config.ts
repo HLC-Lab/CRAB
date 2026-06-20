@@ -556,9 +556,9 @@ export interface FlowNode {
   note: string; // small qualifier, e.g. "+5s"
 }
 
-function _base(path: string): string {
-  const p = path.trim().replace(/\/+$/, "");
-  return p ? p.split("/").pop()!.replace(/\.py$/, "") : "";
+function _wrapperName(path: string): string {
+  // Full relative path (so suite/benchmark is visible), minus the .py extension.
+  return path.trim().replace(/\.py$/, "");
 }
 
 /** Apps grouped into sequential stages (each stage = one column of parallel apps). */
@@ -578,7 +578,7 @@ export function flowLayout(apps: AppDraft[]): FlowNode[][] {
   apps.forEach((a, i) => {
     const node: FlowNode = {
       index: i,
-      name: _base(a.path) || `app ${i}`,
+      name: _wrapperName(a.path) || `app ${i}`,
       role: a.collect ? "victim" : "aggressor",
       endKind: a.endKind,
       note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
