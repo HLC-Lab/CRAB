@@ -567,6 +567,18 @@ export interface FlowNode {
   nodes?: number; // approximate node count for this app (sizing aid, not engine placement)
 }
 
+/** A flow node plus the apps that depend on it (their `start` is "s<index>"). */
+export interface FlowTree extends FlowNode {
+  children: FlowTree[];
+}
+
+/** Plain-language tooltip for a flow role (the role follows the engine's `end`). */
+export function flowRoleHint(role: FlowRole): string {
+  if (role === "aggressor") return "aggressor: stops when the other apps finish";
+  if (role === "timed") return "timed: stops after a set number of seconds";
+  return "victim: runs to completion";
+}
+
 function _wrapperName(path: string): string {
   // Full relative path (so suite/benchmark is visible), minus the .py extension.
   return path.trim().replace(/\.py$/, "");
@@ -614,35 +626,46 @@ export function allocationSummary(
 }
 
 /**
- * Apps grouped into sequential stages (each stage = one column of parallel apps).
- * Pass the effective allocation + numnodes to annotate nodes with allocation badges.
+ * Build the dependency forest of an experiment's apps. An app whose `start` is
+ * "s<index>" (startKind "after") becomes a child of that app, drawn directly off
+ * it; apps that start at run start or after a delay are roots (they run together).
+ * Cycles and forward/invalid references degrade gracefully to roots. Pass the
+ * effective allocation + numnodes to annotate nodes with allocation badges.
  */
-export function flowLayout(apps: AppDraft[], alloc?: AllocationDraft, numnodes = ""): FlowNode[][] {
-  const level: number[] = [];
-  apps.forEach((a, i) => {
-    if (a.startKind === "after") {
-      const ref = parseInt(a.startAfter, 10);
-      const refLevel = Number.isInteger(ref) && ref >= 0 && ref < i ? (level[ref] ?? 0) : 0;
-      level[i] = refLevel + 1;
-    } else {
-      level[i] = 0;
-    }
-  });
-
+export function flowForest(apps: AppDraft[], alloc?: AllocationDraft, numnodes = ""): FlowTree[] {
   const badges = alloc ? allocationSummary(apps, alloc, numnodes) : [];
-  const columns: FlowNode[][] = [];
-  apps.forEach((a, i) => {
-    const node: FlowNode = {
-      index: i,
-      name: _wrapperName(a.path) || `app ${i}`,
-      role: a.endKind === "force" ? "aggressor" : a.endKind === "timed" ? "timed" : "victim",
-      measured: a.collect,
-      endKind: a.endKind,
-      note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
-      group: badges[i]?.group,
-      nodes: badges[i]?.nodes,
-    };
-    (columns[level[i]] ??= []).push(node);
+  const nodes: FlowTree[] = apps.map((a, i) => ({
+    index: i,
+    name: _wrapperName(a.path) || `app ${i}`,
+    role: a.endKind === "force" ? "aggressor" : a.endKind === "timed" ? "timed" : "victim",
+    measured: a.collect,
+    endKind: a.endKind,
+    note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
+    group: badges[i]?.group,
+    nodes: badges[i]?.nodes,
+    children: [],
+  }));
+
+  // The app each one starts after, if any and valid.
+  const parentOf = apps.map((a, i) => {
+    if (a.startKind !== "after") return -1;
+    const ref = parseInt(a.startAfter, 10);
+    return Number.isInteger(ref) && ref >= 0 && ref < apps.length && ref !== i ? ref : -1;
   });
-  return columns.filter(Boolean);
+  // Drop a parent link that would close a cycle, so rendering can't recurse forever.
+  const wouldCycle = (i: number): boolean => {
+    const seen = new Set<number>([i]);
+    for (let p = parentOf[i]; p >= 0; p = parentOf[p]) {
+      if (seen.has(p)) return true;
+      seen.add(p);
+    }
+    return false;
+  };
+  const roots: FlowTree[] = [];
+  apps.forEach((_, i) => {
+    const p = parentOf[i];
+    if (p >= 0 && !wouldCycle(i)) nodes[p].children.push(nodes[i]);
+    else roots.push(nodes[i]);
+  });
+  return roots;
 }

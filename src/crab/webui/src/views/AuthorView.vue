@@ -4,10 +4,11 @@ import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
 import type { AllocMode } from "@/lib/config";
-import { emptyApp, emptyExperiment, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
+import { emptyApp, emptyExperiment, flowForest, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 import SbatchEditor from "@/components/SbatchEditor.vue";
+import FlowChain from "@/components/FlowChain.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
@@ -55,7 +56,7 @@ function toggleNodes() {
 }
 
 const flow = computed(() =>
-  sel.value ? flowLayout(sel.value.apps, effectiveAlloc.value, d.numnodes) : [],
+  sel.value ? flowForest(sel.value.apps, effectiveAlloc.value, d.numnodes) : [],
 );
 const issues = computed(() => validateDraft(d));
 const showIssues = ref(false);
@@ -117,12 +118,6 @@ function removeApp(i: number) {
 }
 function otherIndices(self: number): number[] {
   return (sel.value?.apps ?? []).map((_, j) => j).filter((j) => j !== self);
-}
-// Plain-language tooltip for a flow-diagram role (role follows the `end` behaviour).
-function roleHint(role: "victim" | "aggressor" | "timed"): string {
-  if (role === "aggressor") return "aggressor: stops when the other apps finish";
-  if (role === "timed") return "timed: stops after a set number of seconds";
-  return "victim: runs to completion";
 }
 
 // -- Wrapper picker (searchable overlay over the cluster catalog) ----------
@@ -405,23 +400,12 @@ async function copyJson() {
             </div>
           </div>
 
-          <!-- Abstract app flow: columns = sequential stages, colour = role -->
+          <!-- App flow: a dependency tree. Roots run together; an arrow points
+               from an app to each app that starts after it. Colour = role. -->
           <div v-if="sel.apps.length" class="flow">
-            <template v-for="(col, ci) in flow" :key="ci">
-              <div v-if="ci > 0" class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-col">
-                <div v-for="node in col" :key="node.index" class="node" :class="node.role" :title="roleHint(node.role)">
-                  <span class="node-name">{{ node.name }}</span>
-                  <span class="node-tags">
-                    <span class="role-tag">{{ node.role }}</span>
-                    <span v-if="node.measured" class="tag meas-tag">measured</span>
-                    <span v-if="node.group" class="tag grp-tag">{{ node.group }}</span>
-                    <span v-if="node.nodes != null" class="tag node-tag">~{{ node.nodes }} node{{ node.nodes === 1 ? "" : "s" }}</span>
-                    <span v-if="node.note" class="tag">{{ node.note }}</span>
-                  </span>
-                </div>
-              </div>
-            </template>
+            <div class="flow-roots">
+              <FlowChain v-for="root in flow" :key="root.index" :node="root" />
+            </div>
           </div>
 
           <!-- Where the wrapper picker sources its catalog -->
@@ -685,25 +669,15 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .exp-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
 .exp-edit label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: 0.8rem; }
 
-/* Abstract flow diagram */
-.flow { display: flex; align-items: stretch; gap: 0.5rem; overflow-x: auto;
-  border: 1px solid var(--border); border-radius: var(--r); padding: 0.75rem; background: var(--bg2); }
-.flow-col { display: flex; flex-direction: column; gap: 0.5rem; justify-content: center; }
-.flow-arrow { display: flex; align-items: center; color: var(--text3); font-size: 1rem; }
-.node { min-width: 10rem; border-radius: var(--r); padding: 0.45rem 0.6rem;
-  border: 1px solid var(--border2); display: flex; flex-direction: column; gap: 0.25rem; }
-.node.victim { border-left: 3px solid var(--accent); background: var(--accent-glow); }
-.node.aggressor { border-left: 3px solid var(--warn); }
-.node.timed { border-left: 3px solid var(--text3); }
-.node-name { font-size: 0.82rem; color: var(--text); word-break: break-all; }
-.node-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; }
-.role-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text2); }
+/* App flow diagram (nodes + edges live in FlowChain.vue) */
+.flow { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r);
+  padding: 0.75rem; background: var(--bg2); }
+.flow-roots { display: flex; flex-direction: column; gap: 0.6rem; align-items: flex-start;
+  width: max-content; }
+/* shared tag pill (wrapper picker rows) */
 .tag { font-size: 0.62rem; color: var(--text3); border: 1px solid var(--border);
   border-radius: 999px; padding: 0 0.4rem; }
 .tag.warn { color: var(--warn); border-color: var(--warn); }
-.tag.grp-tag { color: var(--accent); border-color: var(--accent); }
-.tag.meas-tag { color: var(--ok); border-color: var(--ok); }
-.tag.node-tag { color: var(--text2); border-color: var(--border2); }
 .role { font-size: 0.78rem; }
 
 /* Wrapper source line */
