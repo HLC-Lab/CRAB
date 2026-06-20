@@ -124,6 +124,11 @@ def _mount_frontend(app, settings: Settings) -> None:
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
+    # The SPA shell must never be cached: it names the current (hashed) asset
+    # bundles, so a stale index.html would load an old frontend even after a
+    # rebuild. The hashed assets themselves are immutable and cache freely.
+    _index_headers = {"Cache-Control": "no-cache"}
+
     @app.get("/{full_path:path}")
     async def spa(full_path: str):
         """Serve a real static file if present, else fall back to index.html
@@ -136,4 +141,4 @@ def _mount_frontend(app, settings: Settings) -> None:
             and candidate.is_file()
         ):
             return FileResponse(candidate)
-        return FileResponse(index)
+        return FileResponse(index, headers=_index_headers)
