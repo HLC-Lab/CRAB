@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watchEffect } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
+import type { AllocMode } from "@/lib/config";
 import { emptyApp, emptyExperiment, flowLayout, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
@@ -70,6 +71,22 @@ const overridesActive = computed(() => {
   const e = sel.value;
   if (!e) return false;
   return e.overrideAlloc || Object.values(e.options).some((v) => v !== "");
+});
+
+// Override allocation mode, with an "inherit (use globals)" pseudo-mode that maps
+// to overrideAlloc=false. Picking a real mode turns the override on (force-emitted).
+const overrideMode = computed<"inherit" | AllocMode>({
+  get: () => (sel.value?.overrideAlloc ? sel.value.allocation.mode : "inherit"),
+  set: (v) => {
+    const e = sel.value;
+    if (!e) return;
+    if (v === "inherit") {
+      e.overrideAlloc = false;
+    } else {
+      e.overrideAlloc = true;
+      e.allocation.mode = v;
+    }
+  },
 });
 
 // Open overlay (searchable library picker)
@@ -325,7 +342,28 @@ async function copyJson() {
             <label>Description <input v-model="sel.description" placeholder="optional note" /></label>
           </div>
 
-          <!-- Per-experiment overrides (local_options) — kept at the bottom for now -->
+          <!-- Per-experiment overrides (local_options) — expandable card at the top -->
+          <div class="ov-card" :class="{ open: showOverrides }">
+            <button class="ov-head" @click="showOverrides = !showOverrides">
+              <svg class="chev" :class="{ open: showOverrides }" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+              <span class="ov-title">Overrides for this experiment</span>
+              <span v-if="overridesActive" class="ov-badge">active</span>
+              <span class="ov-hint">{{ showOverrides ? "" : "vary globals for this experiment" }}</span>
+            </button>
+            <div v-show="showOverrides" class="ov-body">
+              <p class="hint">Leave a field as <em>inherit</em> / blank to use the use-case globals; set one only to vary it here.</p>
+              <label class="ov-field">Node allocation
+                <select v-model="overrideMode">
+                  <option value="inherit">inherit — use globals</option>
+                  <option value="linear">override · linear</option>
+                  <option value="interleaved">override · interleaved</option>
+                  <option value="random">override · random</option>
+                </select>
+              </label>
+              <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" hide-mode />
+              <OptionsFields :options="sel.options" unset-label="inherit" />
+            </div>
+          </div>
 
           <!-- Abstract app flow: columns = sequential stages, colour = role -->
           <div v-if="sel.apps.length" class="flow">
@@ -416,26 +454,6 @@ async function copyJson() {
               </div>
             </div>
             <button class="btn" @click="addApp">+ Add app</button>
-          </div>
-
-          <!-- Per-experiment overrides (local_options) -->
-          <div class="section overrides">
-            <button class="sec-head" @click="showOverrides = !showOverrides">
-              <span>Overrides for this experiment</span>
-              <span class="sec-state">
-                <span v-if="overridesActive" class="dot" />
-                <span class="caret">{{ showOverrides ? "▾" : "▸" }}</span>
-              </span>
-            </button>
-            <div v-show="showOverrides" class="ov-body">
-              <p class="hint">Unset fields inherit the use-case globals. Set one only to vary it for this experiment.</p>
-              <label class="ov-toggle">
-                <input type="checkbox" v-model="sel.overrideAlloc" />
-                Override node allocation for this experiment
-              </label>
-              <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" />
-              <OptionsFields :options="sel.options" unset-label="inherit" />
-            </div>
           </div>
 
           <button class="btn danger remove-exp" @click="removeExperiment">Remove experiment</button>
@@ -650,19 +668,24 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .timing label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: 0.75rem; }
 .remove-exp { align-self: flex-start; }
 
-/* Collapsible section (overrides) */
-.section { padding-top: 0.8rem; border-top: 1px solid var(--border); }
-.sec-head { width: 100%; display: flex; align-items: center; justify-content: space-between;
-  background: transparent; border: none; cursor: pointer; padding: 0; color: var(--text2);
-  font-family: var(--mono); font-size: 0.8rem; margin-bottom: 0.5rem; }
-.sec-head:hover { color: var(--text); }
-.sec-state { display: flex; align-items: center; gap: 0.4rem; }
-.sec-head .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.sec-head .caret { color: var(--text3); }
-.overrides .ov-body { display: flex; flex-direction: column; gap: 0.8rem; }
+/* Per-experiment overrides — expandable card */
+.ov-card { border: 1px solid var(--border); border-radius: var(--r2); background: var(--bg2); }
+.ov-card.open { border-color: var(--accent); }
+.ov-head { width: 100%; display: flex; align-items: center; gap: 0.55rem;
+  background: transparent; border: none; cursor: pointer; padding: 0.7rem 0.9rem;
+  color: var(--text); font-family: var(--mono); font-size: 0.85rem; }
+.ov-head:hover { background: var(--bg1); border-radius: var(--r2); }
+.chev { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; color: var(--text3); transition: transform 0.12s ease; }
+.chev.open { transform: rotate(90deg); color: var(--accent); }
+.ov-title { font-weight: 600; }
+.ov-badge { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 0.4rem; }
+.ov-hint { color: var(--text3); font-size: 0.74rem; margin-left: auto; }
+.ov-body { display: flex; flex-direction: column; gap: 0.85rem; padding: 0 0.9rem 0.9rem; }
 .ov-body .hint { color: var(--text3); font-size: 0.75rem; }
-.ov-toggle { display: flex; align-items: center; gap: 0.4rem; color: var(--text2); font-size: 0.8rem; cursor: pointer; }
-.ov-toggle input { accent-color: var(--accent); }
+.ov-body .hint em { color: var(--text2); font-style: normal; }
+.ov-field { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: 0.78rem; max-width: 22rem; }
 
 .jsonpane { width: 26rem; max-height: 40rem; overflow: auto; }
 .jsonpane header { position: sticky; top: 0; background: var(--bg2); color: var(--text2);

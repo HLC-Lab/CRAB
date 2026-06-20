@@ -5,7 +5,12 @@
 import { computed } from "vue";
 import { type AllocationDraft, emptyPartition } from "@/lib/config";
 
-const props = defineProps<{ alloc: AllocationDraft }>();
+const props = defineProps<{
+  alloc: AllocationDraft;
+  // When the caller owns the mode selector (e.g. the per-experiment override,
+  // which adds an "inherit" option), hide this component's own mode <select>.
+  hideMode?: boolean;
+}>();
 const a = computed(() => props.alloc);
 
 function addGroup() {
@@ -21,7 +26,7 @@ function removeGroup(i: number) {
     <p class="lead">Leave as <code>linear</code> with no split for the engine default (equal split). Set a mode, split, or node groups only if you need them.</p>
 
     <div class="body">
-      <label class="field">Layout mode
+      <label v-if="!hideMode" class="field">Layout mode
         <select v-model="a.mode">
           <option value="linear">linear (contiguous blocks)</option>
           <option value="interleaved">interleaved (round-robin)</option>
