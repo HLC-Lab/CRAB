@@ -51,7 +51,9 @@ function toggleNodes() {
   if (showNodes.value && sourceCluster.value) catalog.loadNodes(sourceCluster.value);
 }
 
-const flow = computed(() => (sel.value ? flowLayout(sel.value.apps) : []));
+const flow = computed(() =>
+  sel.value ? flowLayout(sel.value.apps, effectiveAlloc.value, d.numnodes) : [],
+);
 const issues = computed(() => validateDraft(d));
 const showIssues = ref(false);
 const showOverrides = ref(false);
@@ -374,6 +376,8 @@ async function copyJson() {
                   <span class="node-name">{{ node.name }}</span>
                   <span class="node-tags">
                     <span class="role-tag">{{ node.role }}</span>
+                    <span v-if="node.group" class="tag grp-tag">{{ node.group }}</span>
+                    <span v-if="node.nodes != null" class="tag node-tag">~{{ node.nodes }} node{{ node.nodes === 1 ? "" : "s" }}</span>
                     <span v-if="node.note" class="tag">{{ node.note }}</span>
                     <span v-if="node.endKind === 'force'" class="tag">stops w/ others</span>
                     <span v-else-if="node.endKind === 'timed'" class="tag">timed</span>
@@ -645,6 +649,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .tag { font-size: 0.62rem; color: var(--text3); border: 1px solid var(--border);
   border-radius: 999px; padding: 0 0.4rem; }
 .tag.warn { color: var(--warn); border-color: var(--warn); }
+.tag.grp-tag { color: var(--accent); border-color: var(--accent); }
+.tag.node-tag { color: var(--text2); border-color: var(--border2); }
 .role { font-size: 0.78rem; }
 
 /* Wrapper source line */

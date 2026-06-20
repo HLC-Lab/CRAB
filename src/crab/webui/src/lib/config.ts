@@ -554,6 +554,8 @@ export interface FlowNode {
   role: "victim" | "aggressor";
   endKind: EndKind;
   note: string; // small qualifier, e.g. "+5s"
+  group?: string; // node-group name, when the effective allocation is partitioned
+  nodes?: number; // approximate node count for this app (sizing aid, not engine placement)
 }
 
 function _wrapperName(path: string): string {
@@ -561,8 +563,52 @@ function _wrapperName(path: string): string {
   return path.trim().replace(/\.py$/, "");
 }
 
-/** Apps grouped into sequential stages (each stage = one column of parallel apps). */
-export function flowLayout(apps: AppDraft[]): FlowNode[][] {
+/**
+ * Approximate per-app node allocation, for the flow-diagram badges. Returns a
+ * value only when allocation is actually configured (named groups, or a split):
+ * we never guess the engine's default placement. `share% × numnodes` for groups
+ * (equal split when shares are unset), `split% × numnodes` for by-app. Indexed
+ * by app position. Best-effort sizing aid — NOT authoritative placement.
+ */
+export function allocationSummary(
+  apps: AppDraft[],
+  alloc: AllocationDraft,
+  numnodes: string,
+): { group?: string; nodes?: number }[] {
+  const out = apps.map(() => ({}) as { group?: string; nodes?: number });
+  if (!apps.length || !hasAllocation(alloc)) return out;
+  const n = parseInt(numnodes.trim(), 10);
+  const total = Number.isFinite(n) && n > 0 ? n : 0;
+
+  if (alloc.by === "groups") {
+    const named = alloc.partitions.filter((p) => p.name.trim());
+    const allShared = named.length > 0 && named.every((p) => p.share.trim() && _numeric(p.share));
+    const groupNodes: Record<string, number> = {};
+    if (total) {
+      for (const p of named) {
+        groupNodes[p.name.trim()] = allShared
+          ? Math.round((Number(p.share) / 100) * total)
+          : Math.floor(total / named.length);
+      }
+    }
+    apps.forEach((a, i) => {
+      const g = a.partition.trim();
+      out[i] = { group: g || undefined, nodes: g && g in groupNodes ? groupNodes[g] : undefined };
+    });
+  } else if (alloc.split.trim() && total) {
+    const split = alloc.split.split(",").map((s) => Number(s.trim()));
+    if (split.length === apps.length && split.every((x) => !Number.isNaN(x))) {
+      apps.forEach((_, i) => (out[i] = { nodes: Math.round((split[i] / 100) * total) }));
+    }
+  }
+  return out;
+}
+
+/**
+ * Apps grouped into sequential stages (each stage = one column of parallel apps).
+ * Pass the effective allocation + numnodes to annotate nodes with allocation badges.
+ */
+export function flowLayout(apps: AppDraft[], alloc?: AllocationDraft, numnodes = ""): FlowNode[][] {
   const level: number[] = [];
   apps.forEach((a, i) => {
     if (a.startKind === "after") {
@@ -574,6 +620,7 @@ export function flowLayout(apps: AppDraft[]): FlowNode[][] {
     }
   });
 
+  const badges = alloc ? allocationSummary(apps, alloc, numnodes) : [];
   const columns: FlowNode[][] = [];
   apps.forEach((a, i) => {
     const node: FlowNode = {
@@ -582,6 +629,8 @@ export function flowLayout(apps: AppDraft[]): FlowNode[][] {
       role: a.collect ? "victim" : "aggressor",
       endKind: a.endKind,
       note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
+      group: badges[i]?.group,
+      nodes: badges[i]?.nodes,
     };
     (columns[level[i]] ??= []).push(node);
   });
