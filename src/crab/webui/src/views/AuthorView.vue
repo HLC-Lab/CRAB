@@ -122,11 +122,12 @@ const wrapperFor = ref<number | null>(null);
 const wrapperQuery = ref("");
 
 function openWrapperPicker(appIndex: number) {
-  if (!sourceCluster.value) return;
   wrapperFor.value = appIndex;
   wrapperQuery.value = "";
   showWrapper.value = true;
-  catalog.loadBenchmarks(sourceCluster.value);
+  // Catalog needs a connected cluster; without one the picker still opens so the
+  // user can force a free path via "+ Add".
+  if (sourceCluster.value) catalog.loadBenchmarks(sourceCluster.value);
 }
 const wrappers = computed(() => catalog.benchmarks[sourceCluster.value]?.wrappers ?? []);
 const filteredWrappers = computed(() => {
@@ -137,11 +138,23 @@ const filteredWrappers = computed(() => {
     [w.relpath, w.bench_name, w.benchmark_id, w.group].some((s) => s?.toLowerCase().includes(q)),
   );
 });
+// Group by suite (top folder); within a suite, sort by the rest of the path so
+// benchmark/version order is preserved.
 const wrapperGroups = computed(() => {
   const by: Record<string, typeof filteredWrappers.value> = {};
   for (const w of filteredWrappers.value) (by[w.group || "other"] ??= []).push(w);
+  for (const items of Object.values(by)) items.sort((a, b) => a.relpath.localeCompare(b.relpath));
   return Object.entries(by).sort(([a], [b]) => a.localeCompare(b));
 });
+// The path within its suite, e.g. "blink/v7/a2a.py" → "v7/a2a.py".
+function subPath(relpath: string, group: string): string {
+  return group && relpath.startsWith(group + "/") ? relpath.slice(group.length + 1) : relpath;
+}
+// Offer "+ Add" when the typed query isn't already an exact wrapper path.
+const trimmedQuery = computed(() => wrapperQuery.value.trim());
+const canAddFree = computed(
+  () => !!trimmedQuery.value && !wrappers.value.some((w) => w.relpath === trimmedQuery.value),
+);
 function chooseWrapper(relpath: string) {
   const e = sel.value;
   if (e && wrapperFor.value !== null && e.apps[wrapperFor.value]) {
@@ -405,14 +418,14 @@ async function copyJson() {
             <div v-for="(app, i) in sel.apps" :key="i" class="app">
               <div class="app-row">
                 <span class="idx">#{{ i }}</span>
-                <input v-model="app.path" class="grow" placeholder="wrapper path" />
                 <button
-                  class="btn browse"
-                  :disabled="!sourceCluster"
-                  :title="sourceCluster ? `Browse wrappers on ${sourceCluster}` : 'Connect a cluster to browse wrappers'"
+                  class="wrap-chip"
+                  :class="{ empty: !app.path }"
+                  title="Choose or change the wrapper"
                   @click="openWrapperPicker(i)"
                 >
-                  Browse…
+                  <span class="chip-text">{{ app.path || "Choose wrapper…" }}</span>
+                  <svg class="chip-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
                 </button>
                 <select
                   class="role"
@@ -509,6 +522,7 @@ async function copyJson() {
         </header>
 
         <p v-if="catalog.busy[sourceCluster]" class="wm-state">Loading wrappers from {{ sourceCluster }}…</p>
+        <p v-else-if="!sourceCluster" class="wm-state">No cluster connected — type a path below and use “+ Add”.</p>
         <p v-else-if="catalog.error[sourceCluster]" class="wm-state err">{{ catalog.error[sourceCluster] }}</p>
 
         <div v-else class="wrapper-list">
@@ -524,7 +538,7 @@ async function copyJson() {
             >
               <span class="wrap-main">
                 <span class="wrap-name">{{ w.bench_name || w.file }}</span>
-                <span class="wrap-path">{{ w.relpath }}</span>
+                <span class="wrap-path">{{ subPath(w.relpath, group) }}</span>
               </span>
               <span class="wrap-tags">
                 <span v-if="w.metadata.length" class="tag">{{ w.metadata.length }} metric{{ w.metadata.length === 1 ? "" : "s" }}</span>
@@ -532,8 +546,14 @@ async function copyJson() {
               </span>
             </button>
           </template>
-          <p v-if="!wrapperGroups.length" class="empty">No matching wrappers.</p>
+          <p v-if="!wrapperGroups.length && !canAddFree" class="empty">Type a wrapper path to add it.</p>
         </div>
+
+        <!-- Force a path that isn't in the catalog (e.g. not on the remote yet) -->
+        <button v-if="canAddFree" class="wm-add" @click="chooseWrapper(trimmedQuery)">
+          + Add “{{ trimmedQuery }}”
+          <span class="wm-add-hint">use this path even if it's not on {{ sourceCluster || "the cluster" }} yet</span>
+        </button>
       </div>
     </div>
 
@@ -667,8 +687,18 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
 .app-row { display: flex; align-items: center; gap: 0.5rem; }
 .idx { color: var(--text3); font-size: 0.78rem; font-weight: 600; }
-.grow { flex: 1; }
 .full { width: 100%; }
+
+/* Wrapper chip (opens the picker) */
+.wrap-chip { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r);
+  padding: 0.4rem 0.6rem; cursor: pointer; color: var(--text); font-family: var(--mono);
+  font-size: 0.82rem; text-align: left; }
+.wrap-chip:hover { border-color: var(--accent); }
+.wrap-chip.empty .chip-text { color: var(--text3); }
+.chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; color: var(--text3); flex-shrink: 0; }
 .timing { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; align-items: end;
   padding-top: 0.5rem; border-top: 1px dashed var(--border); }
 .timing label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: 0.75rem; }
@@ -740,9 +770,11 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .wm-state { color: var(--text2); font-size: 0.82rem; padding: 1rem 0.5rem; }
 .wm-state.err { color: var(--danger); }
 .wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
-.wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text3);
-  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
-  padding: 0.4rem 0.55rem 0.2rem; }
+/* Prominent suite headers (wrappers/<suite>/…) */
+.wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text);
+  font-family: var(--sans); font-size: 0.92rem; font-weight: 600; letter-spacing: 0.01em;
+  padding: 0.7rem 0.55rem 0.3rem; border-bottom: 1px solid var(--border); margin-bottom: 0.15rem; }
+.wg-head:not(:first-child) { margin-top: 0.5rem; }
 .wrap-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
   width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
   border-radius: var(--r); padding: 0.4rem 0.55rem; cursor: pointer; color: var(--text); }
@@ -752,4 +784,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .wrap-name { font-size: 0.84rem; }
 .wrap-path { font-size: 0.7rem; color: var(--text3); font-family: var(--mono); }
 .wrap-tags { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.wm-add { margin-top: 0.5rem; width: 100%; display: flex; flex-direction: column; gap: 0.1rem;
+  align-items: flex-start; background: var(--bg2); border: 1px dashed var(--accent);
+  border-radius: var(--r); padding: 0.5rem 0.6rem; cursor: pointer; color: var(--accent);
+  font-family: var(--mono); font-size: 0.82rem; text-align: left; }
+.wm-add:hover { background: var(--accent-glow); }
+.wm-add-hint { color: var(--text3); font-size: 0.7rem; }
 </style>
