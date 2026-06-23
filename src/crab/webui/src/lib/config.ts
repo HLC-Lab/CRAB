@@ -669,3 +669,168 @@ export function flowForest(apps: AppDraft[], alloc?: AllocationDraft, numnodes =
   });
   return roots;
 }
+
+// -- Node-layout diagram model (display-only) --------------------------------
+// Pure + deterministic (no Math.random) so the render is stable across edits.
+// Schematic per design D1: block sizes/counts are APPROXIMATE, not the engine's
+// real placement. See .crab-web-dev/10-allocation-diagram-design.md.
+
+export interface NodeBlockApp {
+  name: string;
+  role: FlowRole;
+  measured: boolean; // the `collect` flag
+}
+
+export interface NodeBlock {
+  kind: "group" | "app";
+  name: string;
+  share: number | null; // percentage when known, else null (equal split)
+  approxNodes: number | null; // ≈ node count; null when numnodes is unknown
+  weight: number; // 0..100, drives block width (always present)
+  division: number; // palette index; -1 = unassigned (no node allocation)
+  note: string; // "", "no apps here", "no matching node group", "split does not match app count"
+  apps: NodeBlockApp[];
+}
+
+export interface NodeStrip {
+  cells: number[]; // division index per rendered cell
+  shown: number; // cells.length
+  total: number; // real node count (may exceed shown when capped)
+}
+
+export interface NodeLayout {
+  blocks: NodeBlock[];
+  strip: NodeStrip;
+}
+
+const STRIP_MAX = 64; // cap rendered cells; large jobs render a representative row
+
+function _roleOf(a: AppDraft): FlowRole {
+  return a.endKind === "force" ? "aggressor" : a.endKind === "timed" ? "timed" : "victim";
+}
+
+function _blockApp(a: AppDraft): NodeBlockApp {
+  return { name: _wrapperName(a.path) || "app", role: _roleOf(a), measured: a.collect };
+}
+
+// Deterministic Fisher-Yates using a tiny LCG, so the "random" mode preview is
+// stable for a given input rather than reshuffling on every keystroke.
+function _stableShuffle(arr: number[], seed: number): number[] {
+  const out = arr.slice();
+  let s = (seed || 1) >>> 0;
+  for (let i = out.length - 1; i > 0; i--) {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    const j = s % (i + 1);
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
+  }
+  return out;
+}
+
+export function nodeLayout(apps: AppDraft[], alloc: AllocationDraft, numnodes: string): NodeLayout {
+  const n = parseInt(numnodes.trim(), 10);
+  const total = Number.isFinite(n) && n > 0 ? n : 0;
+
+  // 1. Build divisions, each carrying its block + a node fraction (0..1).
+  const divs: { block: NodeBlock; fraction: number }[] = [];
+  const useGroups = alloc.by === "groups" && alloc.partitions.some((p) => p.name.trim());
+
+  if (useGroups) {
+    const named = alloc.partitions.filter((p) => p.name.trim());
+    const allShared = named.length > 0 && named.every((p) => p.share.trim() && _numeric(p.share));
+    named.forEach((p, i) => {
+      const name = p.name.trim();
+      const fraction = allShared ? Number(p.share) / 100 : 1 / named.length;
+      const inGroup = apps.filter((a) => a.partition.trim() === name).map(_blockApp);
+      divs.push({
+        block: {
+          kind: "group", name,
+          share: allShared ? Number(p.share) : null,
+          approxNodes: null, weight: 0, division: i,
+          note: inGroup.length ? "" : "no apps here",
+          apps: inGroup,
+        },
+        fraction,
+      });
+    });
+    const groupNames = new Set(named.map((p) => p.name.trim()));
+    const orphan = apps.filter((a) => !groupNames.has(a.partition.trim())).map(_blockApp);
+    if (orphan.length) {
+      divs.push({
+        block: { kind: "app", name: "unassigned", share: null, approxNodes: null, weight: 0,
+                 division: -1, note: "no matching node group", apps: orphan },
+        fraction: 0,
+      });
+    }
+  } else {
+    const split = alloc.split.trim() ? alloc.split.split(",").map((s) => Number(s.trim())) : [];
+    const validSplit = split.length === apps.length && split.length > 0 && split.every((x) => !Number.isNaN(x));
+    if (alloc.split.trim() && !validSplit) {
+      split.forEach((pct, i) => {
+        divs.push({
+          block: { kind: "app", name: `slot ${i}`, share: Number.isNaN(pct) ? null : pct,
+                   approxNodes: null, weight: 0, division: i, note: "split does not match app count", apps: [] },
+          fraction: Number.isNaN(pct) ? 0 : pct / 100,
+        });
+      });
+    } else {
+      apps.forEach((a, i) => {
+        const pct = validSplit ? split[i] : 100 / (apps.length || 1);
+        divs.push({
+          block: { kind: "app", name: _wrapperName(a.path) || `app ${i}`,
+                   share: validSplit ? split[i] : null,
+                   approxNodes: null, weight: 0, division: i, note: "", apps: [_blockApp(a)] },
+          fraction: pct / 100,
+        });
+      });
+    }
+  }
+
+  // 2. weight (always) + approxNodes (when total known), last sized block absorbs rounding.
+  const sized = divs.filter((d) => d.fraction > 0);
+  divs.forEach((d) => (d.block.weight = Math.round(d.fraction * 100)));
+  if (total && sized.length) {
+    let assigned = 0;
+    sized.forEach((d, i) => {
+      const c = i === sized.length - 1 ? total - assigned : Math.round(d.fraction * total);
+      d.block.approxNodes = Math.max(0, c);
+      assigned += d.block.approxNodes;
+    });
+  }
+
+  // 3. Strip: up to STRIP_MAX cells, ordered by mode.
+  let cells: number[] = [];
+  if (total && sized.length) {
+    const renderTotal = Math.min(total, STRIP_MAX);
+    const counts: { division: number; count: number }[] = [];
+    let assigned = 0;
+    sized.forEach((d, i) => {
+      const c = i === sized.length - 1 ? renderTotal - assigned : Math.round(d.fraction * renderTotal);
+      counts.push({ division: d.block.division, count: Math.max(0, c) });
+      assigned += Math.max(0, c);
+    });
+    if (alloc.mode === "interleaved") {
+      const stride = Math.max(1, parseInt(alloc.stride.trim(), 10) || 1);
+      const remaining = counts.map((c) => c.count);
+      let any = true;
+      while (any) {
+        any = false;
+        counts.forEach((c, di) => {
+          for (let k = 0; k < stride && remaining[di] > 0; k++) {
+            cells.push(c.division);
+            remaining[di]--;
+            any = true;
+          }
+        });
+      }
+    } else {
+      counts.forEach((c) => {
+        for (let k = 0; k < c.count; k++) cells.push(c.division);
+      });
+      if (alloc.mode === "random") cells = _stableShuffle(cells, total + sized.length);
+    }
+  }
+
+  return { blocks: divs.map((d) => d.block), strip: { cells, shown: cells.length, total } };
+}
