@@ -9,6 +9,7 @@ import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 import SbatchEditor from "@/components/SbatchEditor.vue";
 import FlowChain from "@/components/FlowChain.vue";
+import NodeLayoutDiagram from "@/components/NodeLayoutDiagram.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
@@ -32,6 +33,13 @@ const sel = computed(() =>
 const CONVERGE_KEYS = ["minruns", "maxruns", "timeout", "convergeall", "alpha", "beta"] as const;
 const OUTPUT_KEYS = ["outformat", "retainFiles", "tags", "extrainfo", "walltime", "datapath"] as const;
 const allocActive = computed(() => hasAllocation(d.allocation));
+
+// Which experiment's apps to overlay on the global allocation diagram. "" = none
+// (structure only). Index into d.experiments otherwise.
+const allocPreview = ref<number | "">("");
+const allocPreviewApps = computed(() =>
+  allocPreview.value !== "" ? d.experiments[allocPreview.value as number]?.apps ?? [] : [],
+);
 const convergeActive = computed(() => CONVERGE_KEYS.some((k) => d.options[k] !== ""));
 const outputActive = computed(() => OUTPUT_KEYS.some((k) => d.options[k] !== ""));
 const sbatchActive = computed(() => d.sbatch.lines.some((l) => l.trim()));
@@ -350,6 +358,15 @@ async function copyJson() {
         <template v-else-if="view.kind === 'global' && view.id === 'alloc'">
           <h2 class="pane-title">Node allocation</h2>
           <AllocationEditor :alloc="d.allocation" />
+          <div class="diag-wrap">
+            <label class="preview-pick">Preview with experiment
+              <select v-model="allocPreview">
+                <option value="">structure only</option>
+                <option v-for="(exp, i) in d.experiments" :key="i" :value="i">{{ exp.name || "experiment " + (i + 1) }}</option>
+              </select>
+            </label>
+            <NodeLayoutDiagram :apps="allocPreviewApps" :alloc="d.allocation" :numnodes="d.numnodes" />
+          </div>
         </template>
 
         <!-- GLOBAL · Convergence -->
@@ -396,6 +413,9 @@ async function copyJson() {
                 </select>
               </label>
               <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" hide-mode />
+              <div class="diag-wrap">
+                <NodeLayoutDiagram :apps="sel.apps" :alloc="effectiveAlloc" :numnodes="d.numnodes" />
+              </div>
               <OptionsFields :options="sel.options" unset-label="inherit" />
             </div>
           </div>
@@ -643,6 +663,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 /* Main pane */
 .pane { padding: 1.5rem; min-height: 18rem; display: flex; flex-direction: column; gap: 1.1rem; }
 .pane-title { font-family: var(--sans); font-size: 1.15rem; color: var(--text); }
+.diag-wrap { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 0.9rem;
+  display: flex; flex-direction: column; gap: 0.6rem; }
+.preview-pick { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2);
+  font-size: 0.76rem; max-width: 18rem; }
 .job-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.9rem; max-width: 38rem; }
 .job-grid label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: 0.8rem; }
 .job-grid small { color: var(--text3); font-size: 0.68rem; line-height: 1.3; }
