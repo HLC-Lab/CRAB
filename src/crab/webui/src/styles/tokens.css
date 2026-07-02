@@ -31,6 +31,7 @@
   --t-lg: 1.05rem;
   --t-md: 0.9rem;
   --t-sm: 0.76rem;
+  --t-xs: 0.66rem;
 }
 
 /* Native number-input spinner reset, shared by every stepper-backed field. */

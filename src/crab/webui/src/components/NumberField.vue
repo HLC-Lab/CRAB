@@ -11,15 +11,11 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
 }>();
 
-function clamp(raw: string): string {
-  if (raw === "" || props.min === undefined) return raw;
-  const n = parseInt(raw, 10);
-  if (Number.isNaN(n) || n >= props.min) return raw;
-  return String(props.min);
-}
-
+// Typing is emitted verbatim — clamping mid-keystroke would fight the user
+// (e.g. min=10, typing "15" would snap "1" up to "10"). Only the ▲/▼ buttons
+// enforce `min`, matching the alloc-v5 mockup's behaviour.
 function onInput(e: Event) {
-  emit("update:modelValue", clamp((e.target as HTMLInputElement).value));
+  emit("update:modelValue", (e.target as HTMLInputElement).value);
 }
 
 function step(delta: number) {
