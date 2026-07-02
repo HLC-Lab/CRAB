@@ -381,16 +381,19 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
   const experiments = (clone.experiments ?? {}) as Record<string, Experiment>;
 
   // A split array → a partitions object keyed group_1..group_N (+ the keys, in
-  // order). An even share (100/N) is omitted, matching the emit-on-set contract.
+  // order). Evenness is ALL-OR-NOTHING: shares are omitted only when the WHOLE
+  // split is the equal division (100/N each); otherwise every group gets an
+  // explicit share. A mix of shared/unshared partitions is rejected by the
+  // engine ("either all partitions specify 'share' or none"), so never emit one.
   const toGroups = (split: unknown[]): { partitions: Record<string, unknown>; keys: string[] } => {
     const n = split.length || 1;
+    const nums = split.map((raw) => Number(raw));
+    const even = 100 % n === 0 && nums.every((v) => Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9);
     const partitions: Record<string, unknown> = {};
     const keys: string[] = [];
-    split.forEach((raw, i) => {
+    nums.forEach((v, i) => {
       const key = `group_${i + 1}`;
       keys.push(key);
-      const v = Number(raw);
-      const even = Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9;
       partitions[key] = even ? {} : { share: v };
     });
     return { partitions, keys };

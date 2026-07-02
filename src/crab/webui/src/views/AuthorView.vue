@@ -345,7 +345,7 @@ async function copyJson() {
         <!-- GLOBAL · Node allocation -->
         <template v-else-if="view.kind === 'global' && view.id === 'alloc'">
           <h2 class="pane-title">Node allocation</h2>
-          <AllocationEditor :alloc="d.allocation" />
+          <AllocationEditor :alloc="d.allocation" :numnodes="d.numnodes" />
         </template>
 
         <!-- GLOBAL · Run settings (convergence, output & advanced, slurm) -->

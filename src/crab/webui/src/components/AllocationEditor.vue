@@ -6,15 +6,19 @@
 // share (the bar computes "50%"); an unequal divide writes explicit shares.
 // `alloc.by` is always "groups"; `alloc.split` is unused by this UI.
 //
-// The "total nodes" field is a LOCAL illustration total (the real node count is
-// a job-level Basics field): counts and the placement strip are a preview, not
-// the engine's exact runtime placement.
+// The node count driving the preview is the job's real `numnodes` (owned by the
+// Basics pane and passed in); when absent/blank it falls back to an illustration
+// value. Counts and the placement strip are a preview, not the engine's exact
+// runtime placement.
 import { computed, ref } from "vue";
 import { type AllocationDraft, emptyPartition } from "@/lib/config";
 import NumberField from "@/components/NumberField.vue";
 
 const props = defineProps<{
   alloc: AllocationDraft;
+  // The job's total node count (from Basics). Blank/absent falls back to 8 for
+  // the illustration; the bar only displays it, it does not edit it.
+  numnodes?: string;
   // When the caller owns the placement mode (e.g. the per-experiment override),
   // hide this component's own mode segmented control + stride/seed.
   hideMode?: boolean;
@@ -23,13 +27,20 @@ const a = computed(() => props.alloc);
 
 const COLORS = ["#6ea8fe", "#ff8c78", "#7ec699", "#b69cff", "#e0b352", "#56c2c2"];
 const DEFAULT_NAMES = ["victim", "aggressor"];
+const FALLBACK_TOTAL = 8;
 
 const barRef = ref<HTMLElement | null>(null);
-const total = ref("8"); // illustration only
 
 const partitions = computed(() => a.value.partitions);
 const solo = computed(() => partitions.value.length === 0);
-const totalN = computed(() => Math.max(1, parseInt(total.value || "1", 10) || 1));
+const hasRealTotal = computed(() => {
+  const n = parseInt((props.numnodes ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0;
+});
+const totalN = computed(() => {
+  const n = parseInt((props.numnodes ?? "").trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : FALLBACK_TOTAL;
+});
 const strideN = computed(() => Math.max(1, parseInt(a.value.stride || "1", 10) || 1));
 const seedN = computed(() => parseInt(a.value.seed || "0", 10) || 0);
 
@@ -209,6 +220,22 @@ function removeSlice(i: number): void {
   writeShares(sh);
 }
 
+// While a percentage input is focused, show exactly what the user typed (so an
+// out-of-range/clamped keystroke does not re-patch the field and jump the caret
+// to the end). Non-focused slices always show the rebalanced model value. This
+// mirrors the mockup's "skip document.activeElement on refresh" behaviour.
+const editing = ref<{ i: number; raw: string } | null>(null);
+function displayPct(i: number): number | string {
+  return editing.value?.i === i ? editing.value.raw : shares.value[i];
+}
+function onPctInput(i: number, raw: string): void {
+  editing.value = { i, raw };
+  onPct(i, raw);
+}
+function endPctEdit(): void {
+  editing.value = null;
+}
+
 // Typed percentage: clamp 1..99 and rebalance the others to sum 100.
 function onPct(i: number, raw: string): void {
   let val = parseInt(raw, 10);
@@ -271,9 +298,10 @@ function startDrag(e: PointerEvent, i: number): void {
 
     <div class="headrow">
       <span class="sect">Divide the nodes</span>
-      <label class="total">total nodes
-        <NumberField v-model="total" :min="1" class="totfield" />
-      </label>
+      <span class="total">
+        <template v-if="hasRealTotal">{{ totalN }} node{{ totalN === 1 ? "" : "s" }}</template>
+        <template v-else>{{ FALLBACK_TOTAL }} nodes (illustration; set nodes in Basics)</template>
+      </span>
     </div>
 
     <!-- Solo: no division -->
@@ -304,9 +332,10 @@ function startDrag(e: PointerEvent, i: number): void {
                 type="number"
                 min="1"
                 max="99"
-                :value="shares[i]"
+                :value="displayPct(i)"
                 :style="{ color: ink(colorOf(i)) }"
-                @input="onPct(i, ($event.target as HTMLInputElement).value)"
+                @input="onPctInput(i, ($event.target as HTMLInputElement).value)"
+                @blur="endPctEdit"
               />
               <span class="u">%</span>
             </div>
@@ -355,8 +384,7 @@ function startDrag(e: PointerEvent, i: number): void {
 .lede { color: var(--text2); font-size: var(--t-sm); line-height: 1.45; margin-bottom: 1rem; max-width: 42rem; }
 
 .headrow { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.8rem; }
-.total { display: flex; align-items: center; gap: 0.5rem; color: var(--text2); font-size: var(--t-sm); font-family: var(--sans); }
-.totfield { width: 4.4rem; }
+.total { color: var(--text2); font-size: var(--t-sm); font-family: var(--sans); }
 .sect { font-size: var(--t-sm); color: var(--text3); text-transform: uppercase; letter-spacing: 0.07em;
   font-weight: 600; font-family: var(--sans); }
 
