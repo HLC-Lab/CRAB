@@ -17,7 +17,7 @@ const catalog = useCatalogStore();
 const d = store.draft;
 
 // What the main pane shows: a global section or one experiment.
-type GlobalId = "job" | "alloc" | "converge" | "output" | "slurm";
+type GlobalId = "job" | "alloc" | "run";
 const view = ref<{ kind: "global" | "exp"; id: GlobalId | number }>({ kind: "global", id: "job" });
 function selectGlobal(id: GlobalId) {
   view.value = { kind: "global", id };
@@ -40,9 +40,12 @@ const allocPreview = ref<number | "">("");
 const allocPreviewApps = computed(() =>
   allocPreview.value !== "" ? d.experiments[allocPreview.value as number]?.apps ?? [] : [],
 );
-const convergeActive = computed(() => CONVERGE_KEYS.some((k) => d.options[k] !== ""));
-const outputActive = computed(() => OUTPUT_KEYS.some((k) => d.options[k] !== ""));
-const sbatchActive = computed(() => d.sbatch.lines.some((l) => l.trim()));
+const runActive = computed(
+  () =>
+    CONVERGE_KEYS.some((k) => d.options[k] !== "") ||
+    OUTPUT_KEYS.some((k) => d.options[k] !== "") ||
+    d.sbatch.lines.some((l) => l.trim()),
+);
 
 // -- Cluster source for the wrapper/node pickers ---------------------------
 const connectedClusters = computed(() =>
@@ -269,39 +272,31 @@ async function copyJson() {
     <div class="layout">
       <!-- Left rail: navigator over global sections + experiments -->
       <aside class="rail">
-        <div class="nav-group">
-          <div class="nav-head">Global options</div>
-          <ul class="nav-list">
-            <li :class="{ active: view.kind === 'global' && view.id === 'job' }" @click="selectGlobal('job')">
+        <div class="zone">
+          <div class="zlabel">Setup</div>
+          <ul>
+            <li :class="{ on: view.kind === 'global' && view.id === 'job' }" @click="selectGlobal('job')">
               <span>Basics</span>
             </li>
-            <li :class="{ active: view.kind === 'global' && view.id === 'alloc' }" @click="selectGlobal('alloc')">
+            <li :class="{ on: view.kind === 'global' && view.id === 'alloc' }" @click="selectGlobal('alloc')">
               <span>Node allocation</span><span v-if="allocActive" class="dot" />
             </li>
-            <li :class="{ active: view.kind === 'global' && view.id === 'converge' }" @click="selectGlobal('converge')">
-              <span>Convergence</span><span v-if="convergeActive" class="dot" />
-            </li>
-            <li :class="{ active: view.kind === 'global' && view.id === 'output' }" @click="selectGlobal('output')">
-              <span>Output &amp; advanced</span><span v-if="outputActive" class="dot" />
-            </li>
-            <li :class="{ active: view.kind === 'global' && view.id === 'slurm' }" @click="selectGlobal('slurm')">
-              <span>Slurm directives</span><span v-if="sbatchActive" class="dot" />
+            <li :class="{ on: view.kind === 'global' && view.id === 'run' }" @click="selectGlobal('run')">
+              <span>Run settings</span><span v-if="runActive" class="dot" />
             </li>
           </ul>
         </div>
 
-        <div class="nav-group">
-          <div class="nav-head">
+        <div class="zone">
+          <div class="zlabel">
             <span>Experiments</span>
-            <button class="icon-btn" title="Add experiment" @click="addExperiment">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
-            </button>
+            <button class="add" title="Add experiment" @click="addExperiment">+</button>
           </div>
-          <ul class="nav-list">
+          <ul>
             <li
               v-for="(exp, i) in d.experiments"
               :key="i"
-              :class="{ active: view.kind === 'exp' && view.id === i }"
+              :class="{ on: view.kind === 'exp' && view.id === i }"
               @click="selectExp(i)"
             >
               <span class="exp-name">{{ exp.name || "untitled" }}</span>
@@ -369,21 +364,11 @@ async function copyJson() {
           </div>
         </template>
 
-        <!-- GLOBAL · Convergence -->
-        <template v-else-if="view.kind === 'global' && view.id === 'converge'">
-          <h2 class="pane-title">Convergence</h2>
-          <OptionsFields :options="d.options" :groups="['convergence']" />
-        </template>
-
-        <!-- GLOBAL · Output & advanced -->
-        <template v-else-if="view.kind === 'global' && view.id === 'output'">
-          <h2 class="pane-title">Output &amp; advanced</h2>
-          <OptionsFields :options="d.options" :groups="['output', 'advanced']" />
-        </template>
-
-        <!-- GLOBAL · Slurm directives -->
-        <template v-else-if="view.kind === 'global' && view.id === 'slurm'">
-          <h2 class="pane-title">Slurm directives</h2>
+        <!-- GLOBAL · Run settings (convergence, output & advanced, slurm) -->
+        <template v-else-if="view.kind === 'global' && view.id === 'run'">
+          <h2 class="pane-title">Run settings</h2>
+          <OptionsFields :options="d.options" />
+          <h3 class="section-title">Slurm directives</h3>
           <SbatchEditor :sbatch="d.sbatch" />
         </template>
 
@@ -643,18 +628,21 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 }
 .rail { padding: 0.75rem; display: flex; flex-direction: column; gap: 1rem; }
 
-/* Rail navigator */
-.nav-group { display: flex; flex-direction: column; gap: 0.3rem; }
-.nav-head { display: flex; align-items: center; justify-content: space-between;
-  color: var(--text3); font-size: var(--t-sm); text-transform: uppercase; letter-spacing: 0.06em;
-  padding: 0 0.2rem; }
-.nav-list { list-style: none; display: flex; flex-direction: column; gap: 0.15rem; }
-.nav-list li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+/* Rail navigator: two labelled zones (Setup / Experiments) */
+.zone { display: flex; flex-direction: column; gap: 0.3rem; }
+.zlabel { display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--sans); color: var(--text3); font-size: var(--t-sm);
+  text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; padding: 0 0.2rem; }
+.zone .add { background: transparent; border: none; color: var(--text3); cursor: pointer;
+  font-size: 1rem; line-height: 1; padding: 0; }
+.zone .add:hover { color: var(--text); }
+.zone ul { list-style: none; display: flex; flex-direction: column; gap: 0.15rem; }
+.zone li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
   padding: 0.4rem 0.55rem; border: 1px solid transparent; border-radius: var(--r);
   cursor: pointer; color: var(--text2); font-size: var(--t-md); }
-.nav-list li:hover { background: var(--bg2); color: var(--text); }
-.nav-list li.active { background: var(--bg2); border-color: var(--accent); color: var(--text); }
-.nav-list .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.zone li:hover { background: var(--bg2); color: var(--text); }
+.zone li.on { background: var(--bg2); border-color: var(--accent); color: var(--text); }
+.zone .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
 .exp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-meta { color: var(--text3); font-size: var(--t-sm); flex-shrink: 0; }
 .nav-empty { cursor: default; color: var(--text3); }
@@ -663,6 +651,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 /* Main pane */
 .pane { padding: 1.5rem; min-height: 18rem; display: flex; flex-direction: column; gap: 1.1rem; }
 .pane-title { font-family: var(--sans); font-size: var(--t-lg); color: var(--text); }
+.section-title { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text3); margin-top: -0.3rem; }
 .diag-wrap { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 0.9rem;
   display: flex; flex-direction: column; gap: 0.6rem; }
 .preview-pick { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2);
