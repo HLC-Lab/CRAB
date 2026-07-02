@@ -4,12 +4,12 @@
 // on first activation; Delete emits `confirm`; Cancel or clicking away resets.
 //
 // Click-outside (a document `mousedown` listener), not a plain `focusout`
-// handler, detects "away": activating the trigger removes it from the DOM
+// handler, detects "away". Activating the trigger removes it from the DOM
 // (the `v-if` below swaps it for the confirm UI), and a focused element being
-// removed fires a synchronous blur/focusout on it — a naive focusout handler
-// would see that as "focus left the widget" and instantly self-cancel before
-// the confirm UI is ever shown. `mousedown` isn't synthesized by DOM removal,
-// so it only fires on a real click, sidestepping that race.
+// removed fires a synchronous blur/focusout on it. A naive focusout handler
+// would read that as "focus left the widget" and instantly self-cancel,
+// before the confirm UI is ever shown. `mousedown` isn't synthesized by DOM
+// removal, so it only fires on a real click, sidestepping that race.
 import { nextTick, onBeforeUnmount, ref } from "vue";
 
 const props = defineProps<{ label?: string }>();
@@ -46,7 +46,9 @@ onBeforeUnmount(reset);
 <template>
   <span ref="root" class="confirm-btn">
     <slot v-if="!confirming" :trigger="start" />
-    <span v-else class="confirm-inline">
+    <!-- .stop: a host row often has its own click handler (e.g. the rail's
+         row-select); Cancel/Delete must never let that fire too. -->
+    <span v-else class="confirm-inline" @click.stop>
       <span class="confirm-text">Delete{{ props.label ? ` ${props.label}` : "" }}?</span>
       <button ref="cancelBtn" type="button" class="confirm-cancel" @click="cancel">Cancel</button>
       <button type="button" class="confirm-delete" @click="doConfirm">Delete</button>

@@ -234,7 +234,7 @@ function addExperiment() {
   selectExp(d.experiments.length - 1);
 }
 
-// Removes the experiment at `i` (any row, not necessarily the selected one —
+// Removes the experiment at `i` (any row, not necessarily the selected one:
 // the rail hover-trash can delete a row without first navigating to it).
 function removeExperiment(i: number) {
   d.experiments.splice(i, 1);
