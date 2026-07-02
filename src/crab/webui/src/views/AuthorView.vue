@@ -8,6 +8,7 @@ import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 import SbatchEditor from "@/components/SbatchEditor.vue";
 import FlowChain from "@/components/FlowChain.vue";
+import ConfirmButton from "@/components/ConfirmButton.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
@@ -26,6 +27,9 @@ function selectExp(i: number) {
 const sel = computed(() =>
   view.value.kind === "exp" ? d.experiments[view.value.id as number] ?? null : null,
 );
+// Index of the currently-selected experiment, or null when a global section
+// is showing. Used to guard the "Remove experiment" action in the pane.
+const curExpIndex = computed(() => (view.value.kind === "exp" ? (view.value.id as number) : null));
 
 // Active dots on the global nav items.
 const CONVERGE_KEYS = ["minruns", "maxruns", "timeout", "convergeall", "alpha", "beta"] as const;
@@ -37,6 +41,13 @@ const runActive = computed(
     CONVERGE_KEYS.some((k) => d.options[k] !== "") ||
     OUTPUT_KEYS.some((k) => d.options[k] !== "") ||
     d.sbatch.lines.some((l) => l.trim()),
+);
+
+// There's no persisted "dirty since last save" flag in the store; this is a
+// lightweight stand-in that asks "is the draft non-empty" so New/Open don't
+// nag when there's nothing to lose (e.g. right after a fresh New).
+const draftHasContent = computed(
+  () => d.name.trim() !== "" || d.experiments.length > 0 || allocActive.value || runActive.value,
 );
 
 // -- Cluster source for the wrapper/node pickers ---------------------------
@@ -223,12 +234,18 @@ function addExperiment() {
   selectExp(d.experiments.length - 1);
 }
 
-function removeExperiment() {
-  if (view.value.kind !== "exp") return;
-  const i = view.value.id as number;
+// Removes the experiment at `i` (any row, not necessarily the selected one —
+// the rail hover-trash can delete a row without first navigating to it).
+function removeExperiment(i: number) {
   d.experiments.splice(i, 1);
-  if (d.experiments.length) selectExp(Math.min(i, d.experiments.length - 1));
-  else selectGlobal("job");
+  if (view.value.kind !== "exp") return;
+  const cur = view.value.id as number;
+  if (cur === i) {
+    if (d.experiments.length) selectExp(Math.min(i, d.experiments.length - 1));
+    else selectGlobal("job");
+  } else if (cur > i) {
+    view.value = { kind: "exp", id: cur - 1 };
+  }
 }
 
 function doImport() {
@@ -254,17 +271,25 @@ async function copyJson() {
   <section class="author">
     <header class="bar">
       <div class="grp">
-        <button class="btn" @click="newConfig">+ New</button>
-        <button class="btn" @click="showOpen = true">Open…</button>
+        <ConfirmButton v-if="draftHasContent" v-slot="{ trigger }" label="the current draft" @confirm="newConfig">
+          <button class="btn" @click="trigger">+ New</button>
+        </ConfirmButton>
+        <button v-else class="btn" @click="newConfig">+ New</button>
+
+        <ConfirmButton v-if="draftHasContent" v-slot="{ trigger }" label="the current draft" @confirm="showOpen = true">
+          <button class="btn" @click="trigger">Open…</button>
+        </ConfirmButton>
+        <button v-else class="btn" @click="showOpen = true">Open…</button>
+
         <button class="btn primary" :disabled="store.busy" @click="store.save()">
           {{ store.busy ? "Saving…" : "Save" }}
         </button>
         <button class="btn" :disabled="!store.entryId" @click="store.duplicate(store.entryId!)">
           Duplicate
         </button>
-        <button class="btn danger" :disabled="!store.entryId" @click="store.remove(store.entryId!)">
-          Delete
-        </button>
+        <ConfirmButton v-slot="{ trigger }" :label="d.name.trim() || 'this use case'" @confirm="store.remove(store.entryId!)">
+          <button class="btn danger" :disabled="!store.entryId" @click="trigger">Delete</button>
+        </ConfirmButton>
       </div>
       <div class="grp">
         <button class="btn" @click="showImport = true">Import JSON</button>
@@ -320,6 +345,18 @@ async function copyJson() {
             >
               <span class="exp-name">{{ exp.name || "untitled" }}</span>
               <span class="exp-meta">{{ exp.apps.length }} app{{ exp.apps.length === 1 ? "" : "s" }}</span>
+              <ConfirmButton
+                v-slot="{ trigger }"
+                class="exp-trash"
+                :label="exp.name || 'this experiment'"
+                @confirm="removeExperiment(i)"
+              >
+                <button type="button" class="icon-btn danger" title="Remove experiment" @click.stop="trigger">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                  </svg>
+                </button>
+              </ConfirmButton>
             </li>
             <li v-if="!d.experiments.length" class="empty nav-empty">No experiments yet.</li>
           </ul>
@@ -478,11 +515,13 @@ async function copyJson() {
                   <span class="swi" :class="{ off: !app.collect }" />
                   collect metrics
                 </button>
-                <button class="icon-btn danger" title="Remove app" @click="removeApp(i)">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
-                  </svg>
-                </button>
+                <ConfirmButton v-slot="{ trigger }" :label="app.path || `app #${i}`" @confirm="removeApp(i)">
+                  <button type="button" class="icon-btn danger" title="Remove app" @click="trigger">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                    </svg>
+                  </button>
+                </ConfirmButton>
               </div>
               <input v-model="app.args" class="full" placeholder="args" />
               <div class="timing">
@@ -512,7 +551,15 @@ async function copyJson() {
             <button class="btn" @click="addApp">+ Add app</button>
           </div>
 
-          <button class="btn danger remove-exp" @click="removeExperiment">Remove experiment</button>
+          <ConfirmButton
+            v-if="curExpIndex !== null"
+            v-slot="{ trigger }"
+            class="remove-exp"
+            :label="sel.name || 'this experiment'"
+            @confirm="removeExperiment(curExpIndex!)"
+          >
+            <button class="btn danger" @click="trigger">Remove experiment</button>
+          </ConfirmButton>
         </template>
 
         <p v-else class="empty pad">Select a section or experiment to edit.</p>
@@ -668,10 +715,19 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .zone li:hover { background: var(--bg2); color: var(--text); }
 .zone li.on { background: var(--bg2); border-color: var(--accent); color: var(--text); }
 .zone .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
-.exp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .exp-meta { color: var(--text3); font-size: var(--t-sm); flex-shrink: 0; }
 .nav-empty { cursor: default; color: var(--text3); }
 .nav-empty:hover { background: transparent; }
+/* Hover-trash: replaces the "N apps" meta text on hover (per the approved
+   integration mockup), min-width: 0 so its inline confirm can ellipsize
+   rather than overflow the rail. Stays visible mid-confirm even if the
+   pointer drifts off the row (:has the confirm UI), not just on :hover. */
+.exp-trash { opacity: 0; flex-shrink: 0; min-width: 0; }
+.zone li:hover .exp-trash,
+.zone li:has(.confirm-inline) .exp-trash { opacity: 1; }
+.zone li:hover .exp-meta,
+.zone li:has(.confirm-inline) .exp-meta { display: none; }
 
 /* Main pane */
 .pane { padding: 1.5rem; min-height: 18rem; display: flex; flex-direction: column; gap: 1.1rem; }
