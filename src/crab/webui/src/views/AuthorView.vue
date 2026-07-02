@@ -117,10 +117,12 @@ const miniSlices = computed(() => {
   return ps.map((p, i) => ({ color: p.color, width: widths[i] }));
 });
 
+// "active" for the run-settings card only — placement override has its own
+// inherited/override badge on the placement summary card above.
 const overridesActive = computed(() => {
   const e = sel.value;
   if (!e) return false;
-  return e.overrideAlloc || Object.values(e.options).some((v) => v !== "");
+  return Object.values(e.options).some((v) => v !== "");
 });
 
 // Open overlay (searchable library picker)
