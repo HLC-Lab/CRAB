@@ -3,7 +3,6 @@ import { computed, onMounted, ref, watchEffect } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
-import type { AllocMode } from "@/lib/config";
 import { emptyApp, emptyExperiment, flowForest, hasAllocation, validateDraft } from "@/lib/config";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
@@ -72,31 +71,56 @@ const effectiveAlloc = computed(() => {
   const e = sel.value;
   return e && e.overrideAlloc ? e.allocation : d.allocation;
 });
-const groupNames = computed(() =>
+
+// Colours for named partitions — mirrors AllocationEditor's own slice palette
+// (duplicated here since it isn't exported) so the placement summary's mini
+// bar and the per-app slice picker agree visually with AllocationEditor's bar.
+const SLICE_COLORS = ["#6ea8fe", "#ff8c78", "#7ec699", "#b69cff", "#e0b352", "#56c2c2"];
+function sliceColorAt(i: number): string {
+  return SLICE_COLORS[i % SLICE_COLORS.length];
+}
+// Named partitions of the effective allocation, paired with a colour (colour
+// index = position in the full partitions list, matching how AllocationEditor
+// colours its own slices).
+const namedSlices = computed(() =>
   effectiveAlloc.value.by === "groups"
-    ? effectiveAlloc.value.partitions.map((p) => p.name.trim()).filter(Boolean)
+    ? effectiveAlloc.value.partitions
+        .map((p, i) => ({ name: p.name.trim(), share: p.share, color: sliceColorAt(i) }))
+        .filter((s) => s.name)
     : [],
 );
+const groupNames = computed(() => namedSlices.value.map((s) => s.name));
+function colorForGroup(name: string): string {
+  return namedSlices.value.find((s) => s.name === name)?.color ?? "var(--text3)";
+}
+// Mini placement-bar widths (%), mirroring AllocationEditor's even-split rule:
+// no explicit shares -> equal division across slices; otherwise each slice's
+// own share (a display approximation, not the exact runtime placement).
+function equalShares(n: number): number[] {
+  const base = Math.floor(100 / n);
+  const arr = Array(n).fill(base);
+  const rem = 100 - base * n;
+  for (let i = 0; i < rem; i++) arr[i]++;
+  return arr;
+}
+const miniSlices = computed(() => {
+  const ps = namedSlices.value;
+  const n = ps.length;
+  if (!n) return [{ color: "var(--accent)", width: 100 }];
+  const anySet = ps.some((p) => p.share.trim() !== "");
+  const widths = anySet
+    ? ps.map((p) => {
+        const v = parseInt(p.share.trim(), 10);
+        return Number.isFinite(v) ? v : Math.round(100 / n);
+      })
+    : equalShares(n);
+  return ps.map((p, i) => ({ color: p.color, width: widths[i] }));
+});
+
 const overridesActive = computed(() => {
   const e = sel.value;
   if (!e) return false;
   return e.overrideAlloc || Object.values(e.options).some((v) => v !== "");
-});
-
-// Override allocation mode, with an "inherit (use globals)" pseudo-mode that maps
-// to overrideAlloc=false. Picking a real mode turns the override on (force-emitted).
-const overrideMode = computed<"inherit" | AllocMode>({
-  get: () => (sel.value?.overrideAlloc ? sel.value.allocation.mode : "inherit"),
-  set: (v) => {
-    const e = sel.value;
-    if (!e) return;
-    if (v === "inherit") {
-      e.overrideAlloc = false;
-    } else {
-      e.overrideAlloc = true;
-      e.allocation.mode = v;
-    }
-  },
 });
 
 // Open overlay (searchable library picker)
@@ -363,25 +387,38 @@ async function copyJson() {
             <label>Description <input v-model="sel.description" placeholder="optional note" /></label>
           </div>
 
-          <!-- Per-experiment overrides (local_options) — expandable card at the top -->
+          <!-- Placement: the node allocation this experiment's apps attach to,
+               inherited from the global allocation unless overridden here. -->
+          <div class="place-section">
+            <div class="seclabel">Placement</div>
+            <div class="place">
+              <span class="mini">
+                <i v-for="(m, mi) in miniSlices" :key="mi" :style="{ background: m.color, width: m.width + '%' }" />
+              </span>
+              <span v-if="groupNames.length" class="txt">
+                Uses {{ sel.overrideAlloc ? "its own" : "the global" }} allocation:
+                <b>{{ groupNames.join(" / ") }}</b>, laid out <b>{{ effectiveAlloc.mode }}</b>
+              </span>
+              <span v-else class="txt">The machine runs one workload, no division.</span>
+              <span class="inh" :class="{ over: sel.overrideAlloc }">{{ sel.overrideAlloc ? "override" : "inherited" }}</span>
+              <span class="spacer" />
+              <button class="btn" @click="sel.overrideAlloc = !sel.overrideAlloc">
+                {{ sel.overrideAlloc ? "Use global allocation" : "Override for this experiment" }}
+              </button>
+            </div>
+            <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" :numnodes="d.numnodes" />
+          </div>
+
+          <!-- Per-experiment run-setting overrides (local_options) — expandable card -->
           <div class="ov-card" :class="{ open: showOverrides }">
             <button class="ov-head" @click="showOverrides = !showOverrides">
               <svg class="chev" :class="{ open: showOverrides }" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-              <span class="ov-title">Overrides for this experiment</span>
+              <span class="ov-title">Override run settings</span>
               <span v-if="overridesActive" class="ov-badge">active</span>
               <span class="ov-hint">{{ showOverrides ? "" : "change settings for this experiment only" }}</span>
             </button>
             <div v-show="showOverrides" class="ov-body">
-              <p class="hint">Leave a field on <em>inherit</em> or blank to use the global options. Set one only to change it for this experiment.</p>
-              <label class="ov-field">Node allocation
-                <select v-model="overrideMode">
-                  <option value="inherit">inherit (use global options)</option>
-                  <option value="linear">override: linear</option>
-                  <option value="interleaved">override: interleaved</option>
-                  <option value="random">override: random</option>
-                </select>
-              </label>
-              <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" hide-mode />
+              <p class="hint">Leave a field on <em>inherit</em> or blank to use the global run settings. Set one only to change it for this experiment.</p>
               <OptionsFields :options="sel.options" unset-label="inherit" />
             </div>
           </div>
@@ -421,19 +458,24 @@ async function copyJson() {
                   <span class="chip-text">{{ app.path || "Choose wrapper…" }}</span>
                   <svg class="chip-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
                 </button>
-                <select
-                  class="role"
-                  :value="app.collect ? 'yes' : 'no'"
+                <span v-if="groupNames.length" class="slicepick" title="Node group">
+                  <span class="sw" :style="{ background: app.partition ? colorForGroup(app.partition) : 'var(--text3)' }" />
+                  <select v-model="app.partition">
+                    <option value="">no group</option>
+                    <option v-for="g in groupNames" :key="g" :value="g">{{ g }}</option>
+                  </select>
+                </span>
+                <button
+                  type="button"
+                  class="toggle"
+                  role="switch"
+                  :aria-checked="app.collect"
                   title="Parse and store this app's metrics"
-                  @change="app.collect = ($event.target as HTMLSelectElement).value === 'yes'"
+                  @click="app.collect = !app.collect"
                 >
-                  <option value="yes">collect metrics</option>
-                  <option value="no">don't collect</option>
-                </select>
-                <select v-if="groupNames.length" v-model="app.partition" class="role" title="Node group">
-                  <option value="">no group</option>
-                  <option v-for="g in groupNames" :key="g" :value="g">{{ g }}</option>
-                </select>
+                  <span class="swi" :class="{ off: !app.collect }" />
+                  collect metrics
+                </button>
                 <button class="icon-btn danger" title="Remove app" @click="removeApp(i)">
                   <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
@@ -669,7 +711,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .tag { font-size: var(--t-xs); color: var(--text3); border: 1px solid var(--border);
   border-radius: 999px; padding: 0 0.4rem; }
 .tag.warn { color: var(--warn); border-color: var(--warn); }
-.role { font-size: var(--t-sm); }
 
 /* Wrapper source line */
 .wrapper-source { display: flex; align-items: center; gap: 0.5rem; }
@@ -702,12 +743,47 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .timing label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: var(--t-sm); }
 .remove-exp { align-self: flex-start; }
 
-/* Per-experiment overrides — expandable card */
+/* Placement summary card (ported from the approved integration.html mockup) */
+.place-section { display: flex; flex-direction: column; gap: 0.6rem; }
+.seclabel { font-family: var(--sans); font-size: var(--t-xs); text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text3); font-weight: 700; }
+.place { border: 1px solid var(--border); border-radius: var(--r); background: var(--bg2);
+  padding: 0.6rem 0.85rem; display: flex; align-items: center; gap: 0.7rem; flex-wrap: wrap; }
+.place .mini { display: flex; height: 20px; width: 120px; border-radius: 4px; overflow: hidden;
+  border: 1px solid var(--border); flex-shrink: 0; }
+.place .mini i { display: block; font-style: normal; }
+.place .txt { font-family: var(--sans); font-size: var(--t-sm); color: var(--text2); }
+.place .txt b { color: var(--text); }
+.place .inh { font-family: var(--sans); font-size: var(--t-xs); color: var(--text3);
+  border: 1px solid var(--border); border-radius: 999px; padding: 0.05rem 0.45rem; white-space: nowrap; }
+.place .inh.over { color: var(--accent); border-color: var(--accent); }
+.place .spacer { flex: 1; }
+
+/* Per-app slice picker — a native select dressed as a small pill with a colour dot */
+.slicepick { display: inline-flex; align-items: center; gap: 0.35rem; background: var(--bg1);
+  border: 1px solid var(--border); border-radius: var(--r); padding: 0.25rem 0.5rem; }
+.slicepick .sw { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.slicepick select { background: transparent; border: none; padding: 0; font-family: var(--sans);
+  font-size: var(--t-sm); color: var(--text2); }
+.slicepick select:focus { outline: none; }
+
+/* Collect-metrics toggle switch */
+.toggle { display: inline-flex; align-items: center; gap: 0.4rem; background: transparent;
+  border: none; cursor: pointer; font-family: var(--sans); font-size: var(--t-sm); color: var(--text2);
+  padding: 0; white-space: nowrap; }
+.toggle .swi { width: 30px; height: 17px; border-radius: 999px; background: var(--accent);
+  position: relative; flex-shrink: 0; transition: background 0.12s ease; }
+.toggle .swi.off { background: var(--bg3); }
+.toggle .swi::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px;
+  border-radius: 50%; background: #fff; transition: left 0.12s ease; }
+.toggle .swi.off::after { left: 15px; background: var(--text3); }
+
+/* Per-experiment run-setting overrides — expandable card */
 .ov-card { border: 1px solid var(--border); border-radius: var(--r2); background: var(--bg2); }
 .ov-card.open { border-color: var(--accent); }
 .ov-head { width: 100%; display: flex; align-items: center; gap: 0.55rem;
   background: transparent; border: none; cursor: pointer; padding: 0.7rem 0.9rem;
-  color: var(--text); font-family: var(--mono); font-size: var(--t-md); }
+  color: var(--text); font-family: var(--sans); font-size: var(--t-md); }
 .ov-head:hover { background: var(--bg1); border-radius: var(--r2); }
 .chev { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; color: var(--text3); transition: transform 0.12s ease; }
@@ -719,7 +795,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .ov-body { display: flex; flex-direction: column; gap: 0.85rem; padding: 0 0.9rem 0.9rem; }
 .ov-body .hint { color: var(--text3); font-size: var(--t-sm); }
 .ov-body .hint em { color: var(--text2); font-style: normal; }
-.ov-field { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: var(--t-sm); max-width: 22rem; }
 
 .jsonpane { width: 26rem; max-height: 40rem; overflow: auto; }
 .jsonpane header { position: sticky; top: 0; background: var(--bg2); color: var(--text2);
