@@ -9,7 +9,6 @@ import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 import SbatchEditor from "@/components/SbatchEditor.vue";
 import FlowChain from "@/components/FlowChain.vue";
-import NodeLayoutDiagram from "@/components/NodeLayoutDiagram.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
@@ -34,12 +33,6 @@ const CONVERGE_KEYS = ["minruns", "maxruns", "timeout", "convergeall", "alpha", 
 const OUTPUT_KEYS = ["outformat", "retainFiles", "tags", "extrainfo", "walltime", "datapath"] as const;
 const allocActive = computed(() => hasAllocation(d.allocation));
 
-// Which experiment's apps to overlay on the global allocation diagram. "" = none
-// (structure only). Index into d.experiments otherwise.
-const allocPreview = ref<number | "">("");
-const allocPreviewApps = computed(() =>
-  allocPreview.value !== "" ? d.experiments[allocPreview.value as number]?.apps ?? [] : [],
-);
 const runActive = computed(
   () =>
     CONVERGE_KEYS.some((k) => d.options[k] !== "") ||
@@ -353,15 +346,6 @@ async function copyJson() {
         <template v-else-if="view.kind === 'global' && view.id === 'alloc'">
           <h2 class="pane-title">Node allocation</h2>
           <AllocationEditor :alloc="d.allocation" />
-          <div class="diag-wrap">
-            <label class="preview-pick">Preview with experiment
-              <select v-model="allocPreview">
-                <option value="">structure only</option>
-                <option v-for="(exp, i) in d.experiments" :key="i" :value="i">{{ exp.name || "experiment " + (i + 1) }}</option>
-              </select>
-            </label>
-            <NodeLayoutDiagram :apps="allocPreviewApps" :alloc="d.allocation" :numnodes="d.numnodes" />
-          </div>
         </template>
 
         <!-- GLOBAL · Run settings (convergence, output & advanced, slurm) -->
@@ -398,9 +382,6 @@ async function copyJson() {
                 </select>
               </label>
               <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" hide-mode />
-              <div class="diag-wrap">
-                <NodeLayoutDiagram :apps="sel.apps" :alloc="effectiveAlloc" :numnodes="d.numnodes" />
-              </div>
               <OptionsFields :options="sel.options" unset-label="inherit" />
             </div>
           </div>
@@ -653,10 +634,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .pane-title { font-family: var(--sans); font-size: var(--t-lg); color: var(--text); }
 .section-title { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text3); margin-top: -0.3rem; }
-.diag-wrap { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 0.9rem;
-  display: flex; flex-direction: column; gap: 0.6rem; }
-.preview-pick { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2);
-  font-size: var(--t-sm); max-width: 18rem; }
 .job-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.9rem; max-width: 38rem; }
 .job-grid label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: var(--t-md); }
 .job-grid small { color: var(--text3); font-size: var(--t-xs); line-height: 1.3; }

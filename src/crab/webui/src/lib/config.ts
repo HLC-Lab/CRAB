@@ -5,7 +5,7 @@
 // Value encoding mirrors the hand-written examples: numeric *options* stay
 // strings, collect is boolean. (More fields land in later increments.)
 
-import type { AppConfig, CrabConfig } from "@/api/types";
+import type { AppConfig, CrabConfig, Experiment } from "@/api/types";
 
 // start: when the app launches. end: when it stops (the victim/aggressor axis).
 export type StartKind = "at_start" | "delay" | "after";
@@ -365,8 +365,76 @@ export function toConfig(draft: Draft): CrabConfig {
   return { global_options: global, experiments };
 }
 
+/**
+ * Normalize legacy `split`-form allocations to the `partitions` form the editor
+ * uses. For the global allocation and each experiment's `local_options.allocation`
+ * that carries an array `split` and no `partitions`, the split becomes named
+ * groups `group_1..group_N` (share = the split value, omitted for an even split,
+ * i.e. share == 100/N) and the governed apps are tagged `partition` by order
+ * (app index i → `group_{i+1}`), unless an app already carries a partition. The
+ * global allocation governs experiments that have no local allocation override.
+ * Deep-clones; the input is not mutated.
+ */
+export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
+  const clone = JSON.parse(JSON.stringify(config ?? {})) as CrabConfig;
+  const g = (clone.global_options ?? {}) as Record<string, unknown>;
+  const experiments = (clone.experiments ?? {}) as Record<string, Experiment>;
+
+  // A split array → a partitions object keyed group_1..group_N (+ the keys, in
+  // order). An even share (100/N) is omitted, matching the emit-on-set contract.
+  const toGroups = (split: unknown[]): { partitions: Record<string, unknown>; keys: string[] } => {
+    const n = split.length || 1;
+    const partitions: Record<string, unknown> = {};
+    const keys: string[] = [];
+    split.forEach((raw, i) => {
+      const key = `group_${i + 1}`;
+      keys.push(key);
+      const v = Number(raw);
+      const even = Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9;
+      partitions[key] = even ? {} : { share: v };
+    });
+    return { partitions, keys };
+  };
+
+  const tagApps = (apps: Record<string, AppConfig> | undefined, keys: string[]): void => {
+    if (!apps) return;
+    Object.values(apps).forEach((app, i) => {
+      if (app && typeof app === "object" && (app.partition == null || app.partition === "") && i < keys.length) {
+        app.partition = keys[i];
+      }
+    });
+  };
+
+  // Global allocation: convert + tag apps of experiments with no local override.
+  const ga = g.allocation as Record<string, unknown> | undefined;
+  if (ga && Array.isArray(ga.split) && ga.partitions == null) {
+    const { partitions, keys } = toGroups(ga.split);
+    delete ga.split;
+    ga.partitions = partitions;
+    for (const e of Object.values(experiments)) {
+      const lo = (e?.local_options ?? {}) as Record<string, unknown>;
+      if (lo.allocation == null) tagApps(e?.apps, keys);
+    }
+  }
+
+  // Per-experiment overrides: convert + tag that experiment's apps.
+  for (const e of Object.values(experiments)) {
+    const lo = (e?.local_options ?? {}) as Record<string, unknown>;
+    const la = lo.allocation as Record<string, unknown> | undefined;
+    if (la && Array.isArray(la.split) && la.partitions == null) {
+      const { partitions, keys } = toGroups(la.split);
+      delete la.split;
+      la.partitions = partitions;
+      tagApps(e?.apps, keys);
+    }
+  }
+
+  return clone;
+}
+
 /** Inverse: load an engine config (or legacy `applications` form) into a draft. */
 export function fromConfig(config: CrabConfig): Draft {
+  config = normalizeSplitToPartitions(config);
   const g = (config?.global_options ?? {}) as Record<string, unknown>;
   const str = (v: unknown, fallback = "") => (v == null ? fallback : String(v));
 
