@@ -318,7 +318,7 @@ async function copyJson() {
         <template v-if="view.kind === 'global' && view.id === 'job'">
           <h2 class="pane-title">Basics</h2>
           <div class="job-grid">
-            <label>Name <input v-model="d.name" placeholder="my_use_case" />
+            <label>Name <input v-model="d.name" />
               <small>Names the run and prefixes the output folder.</small>
             </label>
             <label>Nodes <input v-model="d.numnodes" />
@@ -612,7 +612,7 @@ async function copyJson() {
 .grp { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .btn {
   background: var(--bg2); border: 1px solid var(--border); color: var(--text);
-  border-radius: var(--r); padding: 0.35rem 0.8rem; cursor: pointer; font-family: var(--mono);
+  border-radius: var(--r); padding: 0.35rem 0.8rem; cursor: pointer; font-family: var(--sans);
 }
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:disabled { opacity: 0.4; cursor: default; }
@@ -676,7 +676,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 /* Cluster-node reference (informational) */
 .nodes-ref { margin-top: -0.2rem; }
 .link-btn { background: transparent; border: none; color: var(--text2); cursor: pointer;
-  font-family: var(--mono); font-size: 0.74rem; padding: 0; }
+  font-family: var(--sans); font-size: 0.74rem; padding: 0; }
 .link-btn:hover { color: var(--text); }
 .nodes-body { margin-top: 0.4rem; max-width: 30rem; }
 .nodes-body .hint { color: var(--text3); font-size: 0.74rem; margin-bottom: 0.2rem; }
@@ -766,7 +766,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .validity { margin-bottom: 1rem; font-size: 0.8rem; }
 .validity .vok { color: var(--ok); }
 .vbtn { background: transparent; border: none; color: var(--warn); cursor: pointer;
-  font-family: var(--mono); font-size: 0.8rem; padding: 0; }
+  font-family: var(--sans); font-size: 0.8rem; padding: 0; }
 .caret { color: var(--text3); }
 .issue-list { list-style: none; margin-top: 0.4rem; padding-left: 0.5rem;
   border-left: 2px solid var(--warn); color: var(--text2); display: flex;

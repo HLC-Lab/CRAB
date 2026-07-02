@@ -25,6 +25,22 @@
   --sans: "Syne", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --r: 6px;
   --r2: 12px;
+
+  /* Type scale — replaces ad-hoc per-component font sizes. */
+  --t-xl: 1.35rem;
+  --t-lg: 1.05rem;
+  --t-md: 0.9rem;
+  --t-sm: 0.76rem;
+}
+
+/* Native number-input spinner reset, shared by every stepper-backed field. */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 html.light {

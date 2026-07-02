@@ -27,15 +27,9 @@ const single = computed(() => props.groups?.length === 1);
     <section v-if="show('convergence')">
       <h4 v-if="!single">Convergence</h4>
       <div class="grid">
-        <label>Min runs <input v-model="o.minruns" placeholder="10" />
-          <small>Runs before convergence is first checked.</small>
-        </label>
-        <label>Max runs <input v-model="o.maxruns" placeholder="20" />
-          <small>Hard cap on the number of runs.</small>
-        </label>
-        <label>Timeout (s) <input v-model="o.timeout" placeholder="1200.0" />
-          <small>Wall-clock budget per experiment.</small>
-        </label>
+        <label>Min runs <input v-model="o.minruns" placeholder="10" /></label>
+        <label>Max runs <input v-model="o.maxruns" placeholder="20" /></label>
+        <label>Timeout (s) <input v-model="o.timeout" placeholder="1200.0" /></label>
         <label>Converge all
           <select v-model="o.convergeall">
             <option value="">({{ unset }})</option>
@@ -69,24 +63,16 @@ const single = computed(() => props.groups?.length === 1);
             <option value="false">no, delete scratch files</option>
           </select>
         </label>
-        <label class="wide">Tags <input v-model="o.tags" placeholder="free-form label" />
-          <small>Saved in the run registry (metadata.csv).</small>
-        </label>
+        <label class="wide">Tags <input v-model="o.tags" placeholder="none" /></label>
       </div>
     </section>
 
     <section v-if="show('advanced')">
       <h4 v-if="!single">Advanced</h4>
       <div class="grid">
-        <label>Extra info <input v-model="o.extrainfo" placeholder="job" />
-          <small>Token used to build the Slurm job name.</small>
-        </label>
-        <label>Walltime <input v-model="o.walltime" placeholder="00:10:00" />
-          <small>Base Slurm time limit.</small>
-        </label>
-        <label class="wide">Data path <input v-model="o.datapath" placeholder="defaults to <CRAB_ROOT>/data" />
-          <small>Where results are written.</small>
-        </label>
+        <label>Extra info <input v-model="o.extrainfo" placeholder="job" /></label>
+        <label>Walltime <input v-model="o.walltime" placeholder="00:10:00" /></label>
+        <label class="wide">Data path <input v-model="o.datapath" placeholder="defaults to <CRAB_ROOT>/data" /></label>
       </div>
     </section>
   </div>
@@ -105,4 +91,7 @@ input, select {
   border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono); font-size: 0.8rem;
 }
 input:focus, select:focus { outline: none; border-color: var(--accent); }
+/* Placeholders here are real engine defaults shown as ghost text, not example
+   values — keep them visually distinct from a value the user actually typed. */
+input::placeholder { color: var(--text3); opacity: 1; }
 </style>
