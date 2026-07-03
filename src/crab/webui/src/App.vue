@@ -60,6 +60,7 @@ onMounted(() => app.checkHealth());
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
+  z-index: 100;
   backdrop-filter: blur(6px);
 }
 .brand {
