@@ -1,9 +1,9 @@
-"""``/api/local`` — introspect the CRAB checkout on the machine running
+"""``/api/local``, introspect the CRAB checkout on the machine running
 ``crab web`` itself.
 
 Unlike ``/api/remotes/{name}/benchmarks`` (over SSH to a cluster), this runs
-``crab list-benchmarks --json`` as a plain local subprocess on the host — no
-SSH, no stored profile, no live connection required. Reuses the exact same
+``crab list-benchmarks --json`` as a plain local subprocess on the host (no
+SSH, no stored profile, no live connection required). Reuses the exact same
 contract (``cli/contract.py``) and command-building path (``LocalTransport`` +
 ``run_crab_json``) already proven by the ``local`` transport profile. Backs the
 wrapper picker's local half (see ``.crab-web-dev/14-authoring-polish-design.md`` §9).

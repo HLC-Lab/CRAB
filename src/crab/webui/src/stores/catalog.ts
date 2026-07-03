@@ -17,7 +17,7 @@ export const useCatalogStore = defineStore("catalog", () => {
   const busy = ref<Record<string, boolean>>({});
   const error = ref<Record<string, string>>({});
 
-  // The host machine's own wrappers/ (the checkout running crab web) — a
+  // The host machine's own wrappers/ (the checkout running crab web), a
   // single catalog, not keyed per cluster, since there's exactly one host.
   const localBenchmarks = ref<BenchmarksResult | null>(null);
   const localBusy = ref(false);

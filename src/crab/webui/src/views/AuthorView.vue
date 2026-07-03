@@ -186,7 +186,7 @@ function openWrapperPicker(appIndex: number) {
   wrapperQuery.value = "";
   showWrapper.value = true;
   // The host catalog always loads (no connection needed); the remote catalog
-  // needs a connected cluster — without one the picker still opens so the
+  // needs a connected cluster, without one the picker still opens so the
   // user can force a free path via "+ Add" or pick a host-only wrapper.
   catalog.loadLocalBenchmarks();
   if (sourceCluster.value) catalog.loadBenchmarks(sourceCluster.value);
@@ -198,7 +198,7 @@ const wrapperCatalogBusy = computed(
 );
 // Merged by relpath: present on the host, the remote, or both. Matching by
 // relpath assumes both sides are the same crab repo checkout (possibly a
-// different branch/commit) — a reasonable identity key for a wrapper file.
+// different branch/commit), a reasonable identity key for a wrapper file.
 const wrappers = computed<TaggedWrapper[]>(() => {
   const byPath = new Map<string, TaggedWrapper>();
   for (const w of localWrappers.value) byPath.set(w.relpath, { ...w, origin: "host" });
@@ -215,7 +215,7 @@ function originOf(relpath: string): WrapperOrigin | null {
 function wrapperWarning(relpath: string): string {
   if (!relpath.trim() || !sourceCluster.value) return "";
   if (originOf(relpath) === "host") {
-    return `Not found on ${sourceCluster.value} — running there may fail unless this wrapper is synced.`;
+    return `Not found on ${sourceCluster.value}, running there may fail unless this wrapper is synced.`;
   }
   return "";
 }
@@ -662,7 +662,7 @@ async function copyJson() {
             {{ sourceCluster }}: {{ catalog.error[sourceCluster] }}
             <button class="btn" @click="catalog.loadBenchmarks(sourceCluster, true)">Retry</button>
           </p>
-          <p v-if="!sourceCluster && !catalog.localError" class="wm-hint">No cluster connected — showing wrappers on this host only.</p>
+          <p v-if="!sourceCluster && !catalog.localError" class="wm-hint">No cluster connected, showing wrappers on this host only.</p>
           <template v-for="[group, items] in wrapperGroups" :key="group">
             <div class="wg-head">{{ group }}</div>
             <button
