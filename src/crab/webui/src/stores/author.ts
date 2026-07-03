@@ -22,8 +22,16 @@ export const useAuthorStore = defineStore("author", () => {
   const config = computed(() => toConfig(draft));
   const configJson = computed(() => JSON.stringify(config.value, null, 2));
 
+  // Snapshot of `configJson` as of the last save/open/new-draft. `isDirty`
+  // compares the live config against it, so New/Open only need to warn when
+  // there is something that would actually be lost, not merely "the draft
+  // has content" (a saved, unedited draft has content but nothing unsaved).
+  const savedSnapshot = ref<string>(JSON.stringify(toConfig(emptyDraft()), null, 2));
+  const isDirty = computed(() => configJson.value !== savedSnapshot.value);
+
   function _load(d: Draft) {
     Object.assign(draft, emptyDraft(), d);
+    savedSnapshot.value = configJson.value;
   }
 
   async function loadLibrary() {
@@ -77,6 +85,7 @@ export const useAuthorStore = defineStore("author", () => {
         : await api.experiments.create(name, config.value);
       entryId.value = entry.id;
       await loadLibrary();
+      savedSnapshot.value = configJson.value;
       flashNotice(`Saved "${name}".`);
       return true;
     } catch (e) {
@@ -129,11 +138,12 @@ export const useAuthorStore = defineStore("author", () => {
     }
     entryId.value = null;
     _load(fromConfig(parsed as never));
+    savedSnapshot.value = ""; // imported content is never "clean" until saved
     return true;
   }
 
   return {
-    library, entryId, draft, error, notice, busy, config, configJson,
+    library, entryId, draft, error, notice, busy, config, configJson, isDirty,
     loadLibrary, newConfig, open, save, duplicate, remove, importJson,
   };
 });

@@ -52,13 +52,6 @@ const runActive = computed(
     d.sbatch.lines.some((l) => l.trim()),
 );
 
-// There's no persisted "dirty since last save" flag in the store; this is a
-// lightweight stand-in that asks "is the draft non-empty" so New/Open don't
-// nag when there's nothing to lose (e.g. right after a fresh New).
-const draftHasContent = computed(
-  () => d.name.trim() !== "" || d.experiments.length > 0 || allocActive.value || runActive.value,
-);
-
 // -- Cluster source for the wrapper/node pickers ---------------------------
 const connectedClusters = computed(() =>
   remotes.items.filter((r) => r.connected).map((r) => r.name),
@@ -149,6 +142,34 @@ async function openEntry(id: string) {
   selectAfterLoad();
   showOpen.value = false;
   openQuery.value = "";
+}
+
+// Discard-unsaved-changes guard for "+ New" and "Open…", gated on real
+// dirtiness (store.isDirty) rather than the old "draft is non-empty" heuristic.
+const showDiscardConfirm = ref(false);
+const pendingAction = ref<"new" | "open" | null>(null);
+
+function requestNew(): void {
+  if (store.isDirty) {
+    pendingAction.value = "new";
+    showDiscardConfirm.value = true;
+  } else {
+    newConfig();
+  }
+}
+function requestOpen(): void {
+  if (store.isDirty) {
+    pendingAction.value = "open";
+    showDiscardConfirm.value = true;
+  } else {
+    showOpen.value = true;
+  }
+}
+function confirmDiscard(): void {
+  showDiscardConfirm.value = false;
+  if (pendingAction.value === "new") newConfig();
+  else if (pendingAction.value === "open") showOpen.value = true;
+  pendingAction.value = null;
 }
 
 function addApp() {
@@ -333,15 +354,8 @@ async function copyJson() {
   <section class="author">
     <header class="bar">
       <div class="grp">
-        <ConfirmButton v-if="draftHasContent" v-slot="{ trigger }" label="the current draft" @confirm="newConfig">
-          <button class="btn" @click="trigger">+ New</button>
-        </ConfirmButton>
-        <button v-else class="btn" @click="newConfig">+ New</button>
-
-        <ConfirmButton v-if="draftHasContent" v-slot="{ trigger }" label="the current draft" @confirm="showOpen = true">
-          <button class="btn" @click="trigger">Open…</button>
-        </ConfirmButton>
-        <button v-else class="btn" @click="showOpen = true">Open…</button>
+        <button class="btn" @click="requestNew">+ New</button>
+        <button class="btn" @click="requestOpen">Open…</button>
 
         <button class="btn primary" :disabled="store.busy" @click="requestSave">
           {{ store.busy ? "Saving…" : "Save" }}
@@ -633,6 +647,21 @@ async function copyJson() {
         <header>config.json</header>
         <pre>{{ store.configJson }}</pre>
       </aside>
+    </div>
+
+    <!-- Discard-unsaved-changes confirm, for New/Open when the draft is dirty -->
+    <div v-if="showDiscardConfirm" class="modal-bg" @click.self="showDiscardConfirm = false">
+      <div class="modal card">
+        <h2>Discard unsaved changes?</h2>
+        <p class="hint">
+          {{ pendingAction === "new" ? "Starting a new use case" : "Opening another use case" }}
+          will discard the changes you haven't saved.
+        </p>
+        <div class="modal-actions">
+          <button class="btn" @click="showDiscardConfirm = false">Cancel</button>
+          <button class="btn danger" @click="confirmDiscard">Discard</button>
+        </div>
+      </div>
     </div>
 
     <!-- Open overlay: searchable library picker -->
