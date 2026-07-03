@@ -843,9 +843,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .toggle .swi { width: 30px; height: 17px; border-radius: 999px; background: var(--accent);
   position: relative; flex-shrink: 0; transition: background 0.12s ease; }
 .toggle .swi.off { background: var(--bg3); }
-.toggle .swi::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px;
+.toggle .swi::after { content: ""; position: absolute; top: 2px; left: 15px; width: 13px; height: 13px;
   border-radius: 50%; background: #fff; transition: left 0.12s ease; }
-.toggle .swi.off::after { left: 15px; background: var(--text3); }
+.toggle .swi.off::after { left: 2px; background: var(--text3); }
 
 /* Per-experiment run-setting overrides — expandable card */
 .ov-card { border: 1px solid var(--border); border-radius: var(--r2); background: var(--bg2); }
