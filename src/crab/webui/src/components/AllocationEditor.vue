@@ -28,11 +28,18 @@ const a = computed(() => props.alloc);
 const COLORS = ["#6ea8fe", "#ff8c78", "#7ec699", "#b69cff", "#e0b352", "#56c2c2"];
 const DEFAULT_NAMES = ["victim", "aggressor"];
 const FALLBACK_TOTAL = 8;
+// Measured against the page's fixed max-width layout (AuthorView's `.author`
+// caps at 80rem regardless of monitor size): with per-slice name/count/percent
+// text shown, 4 slices is the first count that overflows the pane's fair
+// share of the layout grid, so the compact fallback must already be active by
+// then. See polish-task-1-report.md for the render-verify measurements.
+const COMPACT_THRESHOLD = 3; // groups beyond this switch to the compact list layout
 
 const barRef = ref<HTMLElement | null>(null);
 
 const partitions = computed(() => a.value.partitions);
 const solo = computed(() => partitions.value.length === 0);
+const compact = computed(() => partitions.value.length > COMPACT_THRESHOLD);
 const hasRealTotal = computed(() => {
   const n = parseInt((props.numnodes ?? "").trim(), 10);
   return Number.isFinite(n) && n > 0;
@@ -156,35 +163,18 @@ function owners(mode: string, cs: number[], stride: number, seed: number): numbe
 
 const nodeCounts = computed(() => counts(totalN.value, shares.value));
 
-// The placement strip: capped at 64 cells, wraps to a matrix above 32.
-const strip = computed(() => {
-  const T = totalN.value;
-  const cs = nodeCounts.value.slice();
-  const shown = Math.min(T, 64);
-  let sc = cs;
-  if (T > 64) sc = cs.map((c) => Math.max(1, Math.round((c / T) * 64)));
-  let d = shown - sc.reduce((x, y) => x + y, 0);
-  for (let k = 0; k < Math.abs(d); k++) {
-    let idx = 0;
-    sc.forEach((c, j) => {
-      if (d > 0 ? c > sc[idx] : c < sc[idx]) idx = j;
-    });
-    sc[idx] += Math.sign(d);
-  }
-  return owners(a.value.mode, sc, strideN.value, seedN.value);
-});
-const isMatrix = computed(() => Math.min(totalN.value, 64) > 32);
+// The placement strip: wraps to a matrix above 32.
+const strip = computed(() => owners(a.value.mode, nodeCounts.value, strideN.value, seedN.value));
+const isMatrix = computed(() => totalN.value > 32);
 
 const caption = computed(() => {
-  const T = totalN.value;
   const desc =
     a.value.mode === "interleaved"
       ? `groups alternate every ${strideN.value} node${strideN.value === 1 ? "" : "s"}`
       : a.value.mode === "random"
         ? `node assignment shuffled (seed ${seedN.value})`
         : "each group gets a contiguous block";
-  const cap = T > 64 ? `. showing 64 of ${T}` : "";
-  return `${desc}${cap}. Illustration of placement, exact assignment happens at runtime.`;
+  return `${desc}. Illustration of placement, exact assignment happens at runtime.`;
 });
 
 // -- Slice mutations --------------------------------------------------------
@@ -260,6 +250,10 @@ function onPct(i: number, raw: string): void {
 
 function setMode(m: AllocationDraft["mode"]): void {
   a.value.mode = m;
+  if (m === "interleaved" && !a.value.stride.trim()) a.value.stride = "1";
+  if (m === "random" && !a.value.seed.trim()) {
+    a.value.seed = String(Math.floor(Math.random() * 1_000_000));
+  }
 }
 
 // Drag a divider: repartition the two adjacent slices by the pointer position.
@@ -314,36 +308,61 @@ function startDrag(e: PointerEvent, i: number): void {
     </div>
 
     <!-- Division bar -->
-    <div v-else ref="barRef" class="bar">
+    <div v-else ref="barRef" class="bar" :class="{ compact }">
       <template v-for="(p, i) in partitions" :key="i">
         <div
           class="slice"
           :style="{ flex: shares[i], background: colorOf(i), color: ink(colorOf(i)) }"
         >
-          <div class="top">
-            <span class="dot" :style="{ background: ink(colorOf(i)), opacity: 0.5 }" />
-            <input v-model="p.name" class="nm" :placeholder="placeholder(i)" />
-          </div>
-          <div class="meta">
-            <div class="cnt">{{ nodeCounts[i] }} node{{ nodeCounts[i] === 1 ? "" : "s" }}</div>
-            <div class="pctwrap">
-              <input
-                class="pct"
-                type="number"
-                min="1"
-                max="99"
-                :value="displayPct(i)"
-                :style="{ color: ink(colorOf(i)) }"
-                @input="onPctInput(i, ($event.target as HTMLInputElement).value)"
-                @blur="endPctEdit"
-              />
-              <span class="u">%</span>
+          <template v-if="!compact">
+            <div class="top">
+              <span class="dot" :style="{ background: ink(colorOf(i)), opacity: 0.5 }" />
+              <input v-model="p.name" class="nm" :placeholder="placeholder(i)" />
             </div>
-          </div>
-          <button class="rm" title="remove slice" :style="{ color: ink(colorOf(i)) }" @click="removeSlice(i)">&times;</button>
+            <div class="meta">
+              <div class="cnt">{{ nodeCounts[i] }} node{{ nodeCounts[i] === 1 ? "" : "s" }}</div>
+              <div class="pctwrap">
+                <input
+                  class="pct"
+                  type="number"
+                  min="1"
+                  max="99"
+                  :value="displayPct(i)"
+                  :style="{ color: ink(colorOf(i)) }"
+                  @input="onPctInput(i, ($event.target as HTMLInputElement).value)"
+                  @blur="endPctEdit"
+                />
+                <span class="u">%</span>
+              </div>
+            </div>
+            <button class="rm" title="remove slice" :style="{ color: ink(colorOf(i)) }" @click="removeSlice(i)">&times;</button>
+          </template>
         </div>
         <div v-if="i < partitions.length - 1" class="handle" @pointerdown="startDrag($event, i)" />
       </template>
+    </div>
+
+    <!-- Compact mode: the bar above becomes a thin color strip (no text); the
+         editable fields move here as a wrapping list, same pattern as .legend. -->
+    <div v-if="!solo && compact" class="slice-list">
+      <div v-for="(p, i) in partitions" :key="i" class="slice-row">
+        <span class="dot" :style="{ background: colorOf(i) }" />
+        <input v-model="p.name" class="nm" :placeholder="placeholder(i)" />
+        <span class="cnt">{{ nodeCounts[i] }} node{{ nodeCounts[i] === 1 ? "" : "s" }}</span>
+        <span class="pctwrap">
+          <input
+            class="pct"
+            type="number"
+            min="1"
+            max="99"
+            :value="displayPct(i)"
+            @input="onPctInput(i, ($event.target as HTMLInputElement).value)"
+            @blur="endPctEdit"
+          />
+          <span class="u">%</span>
+        </span>
+        <button class="rm" title="remove slice" @click="removeSlice(i)">&times;</button>
+      </div>
     </div>
 
     <div class="actions">
@@ -392,7 +411,8 @@ function startDrag(e: PointerEvent, i: number): void {
   border: 1px solid var(--border); user-select: none; }
 .slice { position: relative; display: flex; flex-direction: column; justify-content: space-between;
   padding: 0.75rem 0.85rem; min-width: 0; }
-.slice .top { display: flex; align-items: center; gap: 0.4rem; }
+.slice .top { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.slice .meta { min-width: 0; }
 .slice .dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 9px; }
 .slice input.nm { all: unset; font-family: var(--sans); font-weight: 600; font-size: var(--t-md);
   min-width: 0; flex: 1; text-overflow: ellipsis; cursor: text; }
@@ -443,4 +463,21 @@ function startDrag(e: PointerEvent, i: number): void {
 .legend .sw { width: 11px; height: 11px; border-radius: 3px; }
 .legend .k b { color: var(--text); font-weight: 600; font-family: var(--sans); }
 .cap { color: var(--text3); font-size: var(--t-sm); margin-top: 0.55rem; }
+
+.bar.compact { height: 28px; }
+.slice-list { display: flex; flex-wrap: wrap; gap: 0.6rem 1.4rem; margin-top: 0.7rem; }
+.slice-row { display: inline-flex; align-items: center; gap: 0.4rem; font-size: var(--t-sm); }
+.slice-row .dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 9px; }
+.slice-row input.nm { all: unset; font-family: var(--sans); font-weight: 600; min-width: 3.5rem;
+  max-width: 8rem; cursor: text; border-bottom: 1px dashed transparent; }
+.slice-row input.nm:hover, .slice-row input.nm:focus { border-bottom-color: var(--border2); }
+.slice-row .cnt { font-family: var(--mono); color: var(--text2); }
+.slice-row .pctwrap { display: inline-flex; align-items: center; gap: 1px; }
+.slice-row input.pct { all: unset; font-family: var(--mono); width: 2.2rem; cursor: text;
+  border-bottom: 1px dashed transparent; }
+.slice-row input.pct:hover, .slice-row input.pct:focus { border-bottom-color: var(--border2); }
+.slice-row .u { font-family: var(--mono); color: var(--text3); font-size: var(--t-sm); }
+.slice-row .rm { background: transparent; border: none; cursor: pointer; color: var(--text3);
+  font-size: 14px; line-height: 1; padding: 0 0.2rem; }
+.slice-row .rm:hover { color: var(--danger); }
 </style>
