@@ -94,6 +94,18 @@ export function cloneAllocation(a: AllocationDraft): AllocationDraft {
   };
 }
 
+/** Deep copy of an experiment, so mutating the clone never affects the source. */
+export function cloneExperiment(e: ExperimentDraft): ExperimentDraft {
+  return {
+    name: e.name,
+    description: e.description,
+    overrideAlloc: e.overrideAlloc,
+    allocation: cloneAllocation(e.allocation),
+    options: { ...e.options },
+    apps: e.apps.map((a) => ({ ...a, rest: { ...a.rest } })),
+  };
+}
+
 /**
  * Whether the user has actually configured an allocation. There is no explicit
  * on/off toggle: the `allocation` key is emitted only when there is real content,

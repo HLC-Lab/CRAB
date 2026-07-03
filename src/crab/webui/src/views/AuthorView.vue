@@ -6,6 +6,7 @@ import { useCatalogStore } from "@/stores/catalog";
 import type { Wrapper } from "@/api/types";
 import {
   cloneAllocation,
+  cloneExperiment,
   emptyApp,
   emptyExperiment,
   flowForest,
@@ -331,6 +332,17 @@ function removeExperiment(i: number) {
   }
 }
 
+// Duplicates the experiment at `i`, inserting the copy right after it and
+// selecting it. Mirrors the library's own "<name> copy" naming convention
+// (see store/library.py's duplicate()).
+function duplicateExperiment(i: number): void {
+  const src = d.experiments[i];
+  const copy = cloneExperiment(src);
+  copy.name = src.name.trim() ? `${src.name.trim()} copy` : "";
+  d.experiments.splice(i + 1, 0, copy);
+  selectExp(i + 1);
+}
+
 function doImport() {
   if (store.importJson(importText.value)) {
     showImport.value = false;
@@ -421,18 +433,30 @@ async function copyJson() {
             >
               <span class="exp-name">{{ exp.name || "untitled" }}</span>
               <span class="exp-meta">{{ exp.apps.length }} app{{ exp.apps.length === 1 ? "" : "s" }}</span>
-              <ConfirmButton
-                v-slot="{ trigger }"
-                class="exp-trash"
-                :label="exp.name || 'this experiment'"
-                @confirm="removeExperiment(i)"
-              >
-                <button type="button" class="icon-btn danger" title="Remove experiment" @click.stop="trigger">
+              <span class="exp-actions">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  title="Duplicate experiment"
+                  @click.stop="duplicateExperiment(i)"
+                >
                   <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
                   </svg>
                 </button>
-              </ConfirmButton>
+                <ConfirmButton
+                  v-slot="{ trigger }"
+                  :label="exp.name || 'this experiment'"
+                  @confirm="removeExperiment(i)"
+                >
+                  <button type="button" class="icon-btn danger" title="Remove experiment" @click.stop="trigger">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                    </svg>
+                  </button>
+                </ConfirmButton>
+              </span>
             </li>
             <li v-if="!d.experiments.length" class="empty nav-empty">No experiments yet.</li>
           </ul>
@@ -836,9 +860,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
    integration mockup), min-width: 0 so its inline confirm can ellipsize
    rather than overflow the rail. Stays visible mid-confirm even if the
    pointer drifts off the row (:has the confirm UI), not just on :hover. */
-.exp-trash { opacity: 0; flex-shrink: 0; min-width: 0; }
-.zone li:hover .exp-trash,
-.zone li:has(.confirm-inline) .exp-trash { opacity: 1; }
+.exp-actions { display: inline-flex; align-items: center; gap: 0.15rem; opacity: 0; flex-shrink: 0; min-width: 0; }
+.zone li:hover .exp-actions,
+.zone li:has(.confirm-inline) .exp-actions { opacity: 1; }
 .zone li:hover .exp-meta,
 .zone li:has(.confirm-inline) .exp-meta { display: none; }
 
