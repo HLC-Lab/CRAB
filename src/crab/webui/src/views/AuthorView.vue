@@ -257,6 +257,24 @@ const showJson = ref(false);
 const showImport = ref(false);
 const importText = ref("");
 const copied = ref(false);
+const showNamePrompt = ref(false);
+const namePromptValue = ref("");
+
+async function requestSave() {
+  if (!d.name.trim()) {
+    namePromptValue.value = "";
+    showNamePrompt.value = true;
+    return;
+  }
+  await store.save();
+}
+async function confirmNamePrompt() {
+  const name = namePromptValue.value.trim();
+  if (!name) return;
+  d.name = name;
+  showNamePrompt.value = false;
+  await store.save();
+}
 
 onMounted(() => {
   store.loadLibrary();
@@ -325,7 +343,7 @@ async function copyJson() {
         </ConfirmButton>
         <button v-else class="btn" @click="showOpen = true">Open…</button>
 
-        <button class="btn primary" :disabled="store.busy" @click="store.save()">
+        <button class="btn primary" :disabled="store.busy" @click="requestSave">
           {{ store.busy ? "Saving…" : "Save" }}
         </button>
         <button class="btn" :disabled="!store.entryId" @click="store.duplicate(store.entryId!)">
@@ -692,6 +710,25 @@ async function copyJson() {
           + Add "{{ trimmedQuery }}"
           <span class="wm-add-hint">use this path even if it's not on {{ sourceCluster || "the cluster" }} yet</span>
         </button>
+      </div>
+    </div>
+
+    <!-- Name-required prompt: shown when Save is clicked with no name set -->
+    <div v-if="showNamePrompt" class="modal-bg" @click.self="showNamePrompt = false">
+      <div class="modal card">
+        <h2>Name this use case</h2>
+        <p class="hint">Choose a name before saving.</p>
+        <input
+          v-model="namePromptValue"
+          class="search"
+          placeholder="Use case name"
+          autofocus
+          @keyup.enter="confirmNamePrompt"
+        />
+        <div class="modal-actions">
+          <button class="btn" @click="showNamePrompt = false">Cancel</button>
+          <button class="btn primary" :disabled="!namePromptValue.trim()" @click="confirmNamePrompt">Save</button>
+        </div>
       </div>
     </div>
 

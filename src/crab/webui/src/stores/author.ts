@@ -56,16 +56,28 @@ export const useAuthorStore = defineStore("author", () => {
     }
   }
 
+  function flashNotice(text: string, ms = 3000): void {
+    notice.value = text;
+    setTimeout(() => {
+      if (notice.value === text) notice.value = null;
+    }, ms);
+  }
+
   async function save() {
     error.value = null;
+    if (!draft.name.trim()) {
+      error.value = "Name the use case before saving.";
+      return false;
+    }
     busy.value = true;
     try {
-      const name = draft.name.trim() || "Untitled";
+      const name = draft.name.trim();
       const entry = entryId.value
         ? await api.experiments.update(entryId.value, name, config.value)
         : await api.experiments.create(name, config.value);
       entryId.value = entry.id;
       await loadLibrary();
+      flashNotice(`Saved "${name}".`);
       return true;
     } catch (e) {
       error.value = msg(e);
@@ -79,7 +91,8 @@ export const useAuthorStore = defineStore("author", () => {
     try {
       const entry = await api.experiments.duplicate(id);
       await loadLibrary();
-      await open(entry.id);
+      await open(entry.id); // clears `notice` as part of opening; flash after
+      flashNotice(`Duplicated as "${entry.name}".`);
     } catch (e) {
       error.value = msg(e);
     }
