@@ -81,6 +81,18 @@ export function emptyAllocation(): AllocationDraft {
   return { mode: "linear", by: "app", split: "", stride: "", seed: "", partitions: [] };
 }
 
+/** Deep copy, so mutating the clone never affects the source allocation. */
+export function cloneAllocation(a: AllocationDraft): AllocationDraft {
+  return {
+    mode: a.mode,
+    by: a.by,
+    split: a.split,
+    stride: a.stride,
+    seed: a.seed,
+    partitions: a.partitions.map((p) => ({ name: p.name, share: p.share, rest: { ...p.rest } })),
+  };
+}
+
 /**
  * Whether the user has actually configured an allocation. There is no explicit
  * on/off toggle: the `allocation` key is emitted only when there is real content,

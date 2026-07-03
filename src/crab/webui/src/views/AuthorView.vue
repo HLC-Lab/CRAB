@@ -3,7 +3,14 @@ import { computed, onMounted, ref, watchEffect } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
-import { emptyApp, emptyExperiment, flowForest, hasAllocation, validateDraft } from "@/lib/config";
+import {
+  cloneAllocation,
+  emptyApp,
+  emptyExperiment,
+  flowForest,
+  hasAllocation,
+  validateDraft,
+} from "@/lib/config";
 import { equalShares, sliceColor, sliceName } from "@/lib/slices";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
@@ -148,6 +155,18 @@ function addApp() {
 }
 function removeApp(i: number) {
   sel.value?.apps.splice(i, 1);
+}
+function toggleOverride(): void {
+  const e = sel.value;
+  if (!e) return;
+  if (!e.overrideAlloc && !hasAllocation(e.allocation)) {
+    // Fork from the current global allocation instead of starting blank, so
+    // the editor opens pre-filled with what the user already sees globally.
+    // This is a one-time copy, not a live binding: later edits to the global
+    // allocation never retroactively change an override that already exists.
+    e.allocation = cloneAllocation(d.allocation);
+  }
+  e.overrideAlloc = !e.overrideAlloc;
 }
 function otherIndices(self: number): number[] {
   return (sel.value?.apps ?? []).map((_, j) => j).filter((j) => j !== self);
@@ -433,7 +452,7 @@ async function copyJson() {
               <span v-else class="txt">The machine runs one workload, no division.</span>
               <span class="inh" :class="{ over: sel.overrideAlloc }">{{ sel.overrideAlloc ? "override" : "inherited" }}</span>
               <span class="spacer" />
-              <button class="btn" @click="sel.overrideAlloc = !sel.overrideAlloc">
+              <button class="btn" @click="toggleOverride">
                 {{ sel.overrideAlloc ? "Use global allocation" : "Override for this experiment" }}
               </button>
             </div>
