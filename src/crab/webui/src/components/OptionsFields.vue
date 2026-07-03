@@ -3,7 +3,7 @@
 // the passed OptionsDraft in place. Reused for global_options and, later, for an
 // experiment's local_options overrides. Blank/("default") fields are not emitted.
 import { computed } from "vue";
-import type { OptionsDraft } from "@/lib/config";
+import type { OptionsDraft, TriBool } from "@/lib/config";
 
 type Group = "convergence" | "output" | "advanced";
 const props = defineProps<{
@@ -27,6 +27,25 @@ const show = (g: Group) => !props.groups || props.groups.includes(g);
 const isGlobal = computed(() => unset.value === "default");
 // A single-group pane is titled by its <h2>, so drop the redundant section <h4>.
 const single = computed(() => props.groups?.length === 1);
+
+// Display-only normalization: on the global pane the explicit value matching
+// the field's real default has no corresponding <option> (it was removed so
+// the pane shows exactly 2 options), so without this the select would render
+// as blank for a config that saved that value explicitly. The getter never
+// writes to the draft; only the setter does, when the user actually picks
+// something, so an explicit false/csv/true keeps round-tripping unchanged.
+const convergeallDisplay = computed({
+  get: () => (isGlobal.value && o.value.convergeall === "false" ? "" : o.value.convergeall),
+  set: (v: TriBool) => { o.value.convergeall = v; },
+});
+const outformatDisplay = computed({
+  get: () => (isGlobal.value && o.value.outformat === "csv" ? "" : o.value.outformat),
+  set: (v: OptionsDraft["outformat"]) => { o.value.outformat = v; },
+});
+const retainFilesDisplay = computed({
+  get: () => (isGlobal.value && o.value.retainFiles === "true" ? "" : o.value.retainFiles),
+  set: (v: TriBool) => { o.value.retainFiles = v; },
+});
 </script>
 
 <template>
@@ -38,7 +57,7 @@ const single = computed(() => props.groups?.length === 1);
         <label>Max runs <input v-model="o.maxruns" placeholder="20" /></label>
         <label>Timeout (s) <input v-model="o.timeout" placeholder="1200" /></label>
         <label>Converge all
-          <select v-model="o.convergeall">
+          <select v-model="convergeallDisplay">
             <option value="">{{ isGlobal ? "no, only flagged metrics" : "(inherit)" }}</option>
             <option value="true">yes, every metric</option>
             <option v-if="!isGlobal" value="false">no, only flagged metrics</option>
@@ -57,14 +76,14 @@ const single = computed(() => props.groups?.length === 1);
       <h4 v-if="!single">Output</h4>
       <div class="grid">
         <label>Format
-          <select v-model="o.outformat">
+          <select v-model="outformatDisplay">
             <option value="">{{ isGlobal ? "csv" : "(inherit)" }}</option>
             <option v-if="!isGlobal" value="csv">csv</option>
             <option value="hdf">hdf</option>
           </select>
         </label>
         <label>Retain files
-          <select v-model="o.retainFiles">
+          <select v-model="retainFilesDisplay">
             <option value="">{{ isGlobal ? "yes" : "(inherit)" }}</option>
             <option value="false">no, delete scratch files</option>
             <option v-if="!isGlobal" value="true">yes</option>
