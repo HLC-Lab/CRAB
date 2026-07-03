@@ -10,7 +10,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
 
 <template>
   <div class="modal-bg" @click.self="emit('cancel')">
-    <div class="modal card">
+    <div class="modal">
       <h2>{{ title }}</h2>
       <p class="hint">{{ message }}</p>
       <div class="modal-actions">

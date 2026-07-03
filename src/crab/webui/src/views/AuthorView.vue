@@ -844,7 +844,7 @@ async function copyJson() {
 .btn:disabled { opacity: 0.4; cursor: default; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.danger { border-color: var(--danger); color: var(--danger); }
-.btn.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.btn.danger:hover:not(:disabled) { background: var(--danger); color: var(--text); }
 .btn.on { border-color: var(--accent); color: var(--accent); }
 .btn.browse { padding: 0.35rem 0.6rem; white-space: nowrap; }
 .icon-btn {
