@@ -104,5 +104,6 @@ onMounted(() => app.checkHealth());
 }
 .content {
   flex: 1;
+  overflow-x: auto;
 }
 </style>

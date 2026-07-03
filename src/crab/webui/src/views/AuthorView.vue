@@ -833,7 +833,7 @@ async function copyJson() {
 </template>
 
 <style scoped>
-.author { padding: 1.25rem 1.5rem; max-width: 80rem; }
+.author { padding: 1.25rem 1.5rem; max-width: 80rem; overflow-x: auto; }
 .bar { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; margin-bottom: 1rem; }
 .grp { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .btn {
@@ -864,7 +864,8 @@ input, textarea, select {
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
 
-.layout { display: grid; grid-template-columns: 15rem 1fr auto; gap: 1rem; align-items: start; }
+.layout { display: grid; grid-template-columns: 15rem minmax(45rem, 1fr) auto; gap: 1rem;
+  align-items: start; min-width: 60rem; }
 .rail, .pane, .jsonpane {
   background: var(--bg1); border: 1px solid var(--border); border-radius: var(--r2);
 }
