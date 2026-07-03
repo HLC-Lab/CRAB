@@ -27,9 +27,9 @@ const single = computed(() => props.groups?.length === 1);
     <section v-if="show('convergence')">
       <h4 v-if="!single">Convergence</h4>
       <div class="grid">
-        <label>Min runs <span class="def">default 10</span><input v-model="o.minruns" /></label>
-        <label>Max runs <span class="def">default 20</span><input v-model="o.maxruns" /></label>
-        <label>Timeout (s) <span class="def">default 1200</span><input v-model="o.timeout" /></label>
+        <label>Min runs <input v-model="o.minruns" placeholder="10" /></label>
+        <label>Max runs <input v-model="o.maxruns" placeholder="20" /></label>
+        <label>Timeout (s) <input v-model="o.timeout" placeholder="1200" /></label>
         <label>Converge all
           <select v-model="o.convergeall">
             <option value="">({{ unset }})</option>
@@ -37,10 +37,10 @@ const single = computed(() => props.groups?.length === 1);
             <option value="false">no, only flagged metrics</option>
           </select>
         </label>
-        <label>Alpha <span class="def">default 0.05</span><input v-model="o.alpha" />
+        <label>Alpha <input v-model="o.alpha" placeholder="0.05" />
           <small>Confidence-interval significance level.</small>
         </label>
-        <label>Beta <span class="def">default 0.05</span><input v-model="o.beta" />
+        <label>Beta <input v-model="o.beta" placeholder="0.05" />
           <small>CI width must fall below beta times the mean.</small>
         </label>
       </div>
@@ -70,9 +70,9 @@ const single = computed(() => props.groups?.length === 1);
     <section v-if="show('advanced')">
       <h4 v-if="!single">Advanced</h4>
       <div class="grid">
-        <label>Extra info <span class="def">default job</span><input v-model="o.extrainfo" /></label>
-        <label>Walltime <span class="def">default 00:10:00</span><input v-model="o.walltime" /></label>
-        <label class="wide">Data path <span class="def">default &lt;CRAB_ROOT&gt;/data</span><input v-model="o.datapath" /></label>
+        <label>Extra info <input v-model="o.extrainfo" placeholder="job" /></label>
+        <label>Walltime <input v-model="o.walltime" placeholder="00:10:00" /></label>
+        <label class="wide">Data path <input v-model="o.datapath" placeholder="<CRAB_ROOT>/data" /></label>
       </div>
     </section>
   </div>
@@ -86,12 +86,10 @@ h4 { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase
 label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: var(--t-sm); }
 label.wide { grid-column: 1 / -1; }
 small { color: var(--text3); font-size: var(--t-xs); line-height: 1.3; }
-/* Engine default surfaced as a muted label hint (never as a value inside the
-   input, which would read as a real, committed value). */
-.def { color: var(--text3); font-family: var(--mono); font-size: var(--t-xs); }
 input, select {
   background: var(--bg2); border: 1px solid var(--border); color: var(--text);
   border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono); font-size: var(--t-md);
 }
+input::placeholder { color: var(--text3); opacity: 0.75; }
 input:focus, select:focus { outline: none; border-color: var(--accent); }
 </style>
