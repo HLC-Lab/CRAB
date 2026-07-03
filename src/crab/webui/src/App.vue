@@ -9,6 +9,7 @@ const app = useAppStore();
 const nav = [
   { to: "/remotes", label: "Remotes" },
   { to: "/author", label: "Author" },
+  { to: "/wrappers", label: "Wrappers" },
   { to: "/jobs", label: "Jobs" },
   { to: "/results", label: "Results" },
 ];

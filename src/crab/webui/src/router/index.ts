@@ -16,6 +16,12 @@ const routes = [
     meta: { title: "Author" },
   },
   {
+    path: "/wrappers",
+    name: "wrappers",
+    component: () => import("@/views/WrappersView.vue"),
+    meta: { title: "Wrappers" },
+  },
+  {
     path: "/jobs",
     name: "jobs",
     component: () => import("@/views/JobsView.vue"),
