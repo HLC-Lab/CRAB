@@ -28,12 +28,13 @@ const a = computed(() => props.alloc);
 const COLORS = ["#6ea8fe", "#ff8c78", "#7ec699", "#b69cff", "#e0b352", "#56c2c2"];
 const DEFAULT_NAMES = ["victim", "aggressor"];
 const FALLBACK_TOTAL = 8;
-// Measured against the page's fixed max-width layout (AuthorView's `.author`
-// caps at 80rem regardless of monitor size): with per-slice name/count/percent
-// text shown, 4 slices is the first count that overflows the pane's fair
-// share of the layout grid, so the compact fallback must already be active by
-// then. See polish-task-1-report.md for the render-verify measurements.
-const COMPACT_THRESHOLD = 3; // groups beyond this switch to the compact list layout
+// Now that AuthorView's `.pane` has `min-width: 0` (grid-blowout fix), the bar
+// never forces page-level overflow, so the limit is legibility, not layout.
+// Name truncation (ellipsis, by design on `.nm`) starts at 8 slices and is
+// fine; at 9 the per-slice content gets tight enough that "N nodes" wraps
+// onto two lines, which reads as broken rather than truncated. See
+// polish-task-1-report.md for the render-verify screenshots.
+const COMPACT_THRESHOLD = 8; // groups beyond this switch to the compact list layout
 
 const barRef = ref<HTMLElement | null>(null);
 

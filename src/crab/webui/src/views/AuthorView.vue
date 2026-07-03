@@ -730,7 +730,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .zone li:has(.confirm-inline) .exp-meta { display: none; }
 
 /* Main pane */
-.pane { padding: 1.5rem; min-height: 18rem; display: flex; flex-direction: column; gap: 1.1rem; }
+.pane { padding: 1.5rem; min-height: 18rem; min-width: 0; display: flex; flex-direction: column; gap: 1.1rem; }
 .pane-title { font-family: var(--sans); font-size: var(--t-lg); color: var(--text); }
 .section-title { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text3); margin-top: -0.3rem; }
