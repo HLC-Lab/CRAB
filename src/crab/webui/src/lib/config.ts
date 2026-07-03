@@ -6,7 +6,7 @@
 // strings, collect is boolean. (More fields land in later increments.)
 
 import type { AppConfig, CrabConfig, Experiment } from "@/api/types";
-import { sliceColor } from "@/lib/slices";
+import { sliceColor, sliceName } from "@/lib/slices";
 
 // start: when the app launches. end: when it stops (the victim/aggressor axis).
 export type StartKind = "at_start" | "delay" | "after";
@@ -676,14 +676,18 @@ export function allocationSummary(
   const total = Number.isFinite(n) && n > 0 ? n : 0;
 
   if (alloc.by === "groups") {
-    const indexed = alloc.partitions.map((p, i) => ({ p, i })).filter(({ p }) => p.name.trim());
+    // Keyed by the resolved display name (own name, else the positional "group
+    // N" fallback), matching how AuthorView's namedSlices/dropdown resolve group
+    // identity — otherwise an unnamed slice's apps would show correctly in the
+    // editor/dropdown but lose their color/node-count badge here.
+    const indexed = alloc.partitions.map((p, i) => ({ p, i, name: sliceName(p.name, i) }));
     const allShared = indexed.length > 0 && indexed.every(({ p }) => p.share.trim() && _numeric(p.share));
     const groupNodes: Record<string, number> = {};
     const groupColor: Record<string, string> = {};
-    for (const { p, i } of indexed) {
-      groupColor[p.name.trim()] = sliceColor(i);
+    for (const { p, i, name } of indexed) {
+      groupColor[name] = sliceColor(i);
       if (total) {
-        groupNodes[p.name.trim()] = allShared
+        groupNodes[name] = allShared
           ? Math.round((Number(p.share) / 100) * total)
           : Math.floor(total / indexed.length);
       }

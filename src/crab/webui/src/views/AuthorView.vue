@@ -507,7 +507,7 @@ async function copyJson() {
           </div>
 
           <!-- App flow: a dependency tree. Roots run together; an arrow points
-               from an app to each app that starts after it. Colour = role. -->
+               from an app to each app that starts after it. Colour = allocation group. -->
           <div v-if="sel.apps.length" class="flow">
             <div class="flow-roots">
               <FlowChain v-for="root in flow" :key="root.index" :node="root" />
@@ -951,7 +951,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .wm-src { font-size: var(--t-sm); color: var(--text3); border: 1px solid var(--border);
   border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; }
 .wm-state { color: var(--text2); font-size: var(--t-md); padding: 1rem 0.5rem; }
-.wm-state.err { color: var(--danger); display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; }
 .wm-hint { color: var(--text3); font-size: var(--t-sm); padding: 0.3rem 0.2rem; }
 .wm-hint.err { color: var(--danger); }
 .wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
