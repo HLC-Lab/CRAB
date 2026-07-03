@@ -19,6 +19,7 @@ import OptionsFields from "@/components/OptionsFields.vue";
 import SbatchEditor from "@/components/SbatchEditor.vue";
 import FlowChain from "@/components/FlowChain.vue";
 import ConfirmButton from "@/components/ConfirmButton.vue";
+import ConfirmModal from "@/components/ConfirmModal.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
@@ -344,6 +345,17 @@ function removeExperiment(i: number) {
   }
 }
 
+// Rail trash icon requests removal via the confirm modal instead of removing
+// immediately; the target index is held until the modal is confirmed/cancelled.
+const removeExperimentTarget = ref<number | null>(null);
+function requestRemoveExperiment(i: number): void {
+  removeExperimentTarget.value = i;
+}
+function confirmRemoveExperiment(): void {
+  if (removeExperimentTarget.value !== null) removeExperiment(removeExperimentTarget.value);
+  removeExperimentTarget.value = null;
+}
+
 // Duplicates the experiment at `i`, inserting the copy right after it and
 // selecting it. Mirrors the library's own "<name> copy" naming convention
 // (see store/library.py's duplicate()).
@@ -457,17 +469,16 @@ async function copyJson() {
                     <path d="M5 15V5a2 2 0 0 1 2-2h10" />
                   </svg>
                 </button>
-                <ConfirmButton
-                  v-slot="{ trigger }"
-                  :label="exp.name || 'this experiment'"
-                  @confirm="removeExperiment(i)"
+                <button
+                  type="button"
+                  class="icon-btn danger"
+                  title="Remove experiment"
+                  @click.stop="requestRemoveExperiment(i)"
                 >
-                  <button type="button" class="icon-btn danger" title="Remove experiment" @click.stop="trigger">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
-                    </svg>
-                  </button>
-                </ConfirmButton>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                  </svg>
+                </button>
               </span>
             </li>
             <li v-if="!d.experiments.length" class="empty nav-empty">No experiments yet.</li>
@@ -686,19 +697,24 @@ async function copyJson() {
     </div>
 
     <!-- Discard-unsaved-changes confirm, for New/Open when the draft is dirty -->
-    <div v-if="showDiscardConfirm" class="modal-bg" @click.self="showDiscardConfirm = false">
-      <div class="modal card">
-        <h2>Discard unsaved changes?</h2>
-        <p class="hint">
-          {{ pendingAction === "new" ? "Starting a new use case" : "Opening another use case" }}
-          will discard the changes you haven't saved.
-        </p>
-        <div class="modal-actions">
-          <button class="btn" @click="showDiscardConfirm = false">Cancel</button>
-          <button class="btn danger" @click="confirmDiscard">Discard</button>
-        </div>
-      </div>
-    </div>
+    <ConfirmModal
+      v-if="showDiscardConfirm"
+      title="Discard unsaved changes?"
+      :message="`${pendingAction === 'new' ? 'Starting a new use case' : 'Opening another use case'} will discard the changes you haven't saved.`"
+      confirm-label="Discard"
+      @confirm="confirmDiscard"
+      @cancel="showDiscardConfirm = false"
+    />
+
+    <!-- Remove-experiment confirm, triggered from the rail's trash icon -->
+    <ConfirmModal
+      v-if="removeExperimentTarget !== null"
+      title="Remove this experiment?"
+      :message="`Remove ${d.experiments[removeExperimentTarget]?.name ? '“' + d.experiments[removeExperimentTarget]!.name + '”' : 'this experiment'}? This cannot be undone.`"
+      confirm-label="Remove"
+      @confirm="confirmRemoveExperiment"
+      @cancel="removeExperimentTarget = null"
+    />
 
     <!-- Open overlay: searchable library picker -->
     <div v-if="showOpen" class="modal-bg" @click.self="showOpen = false">
@@ -827,7 +843,8 @@ async function copyJson() {
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:disabled { opacity: 0.4; cursor: default; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.btn.danger { border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
 .btn.on { border-color: var(--accent); color: var(--accent); }
 .btn.browse { padding: 0.35rem 0.6rem; white-space: nowrap; }
 .icon-btn {
