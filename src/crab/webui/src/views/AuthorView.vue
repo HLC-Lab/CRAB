@@ -199,6 +199,18 @@ function otherIndices(self: number): number[] {
 const showWrapper = ref(false);
 const wrapperFor = ref<number | null>(null);
 const wrapperQuery = ref("");
+const collapsedSuites = ref<Set<string>>(new Set());
+function toggleSuite(group: string): void {
+  const next = new Set(collapsedSuites.value);
+  if (next.has(group)) next.delete(group);
+  else next.add(group);
+  collapsedSuites.value = next;
+}
+// A suite stays open while searching, so a match is never hidden inside a
+// collapsed suite the user forgot about.
+function isSuiteOpen(group: string): boolean {
+  return wrapperQuery.value.trim() !== "" || !collapsedSuites.value.has(group);
+}
 
 type WrapperOrigin = "host" | "remote" | "both";
 type TaggedWrapper = Wrapper & { origin: WrapperOrigin };
@@ -735,9 +747,13 @@ async function copyJson() {
           </p>
           <p v-if="!sourceCluster && !catalog.localError" class="wm-hint">No cluster connected, showing wrappers on this host only.</p>
           <template v-for="[group, items] in wrapperGroups" :key="group">
-            <div class="wg-head">{{ group }}</div>
+            <button type="button" class="wg-head" @click="toggleSuite(group)">
+              <svg class="chev" :class="{ open: isSuiteOpen(group) }" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+              <span class="wg-title">{{ group }}</span>
+            </button>
             <button
               v-for="w in items"
+              v-show="isSuiteOpen(group)"
               :key="w.relpath"
               class="wrap-row"
               :class="{ unloadable: !w.loadable }"
@@ -1045,10 +1061,14 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .wm-hint.err { color: var(--danger); }
 .wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
 /* Prominent suite headers (wrappers/<suite>/…) */
-.wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text);
-  font-family: var(--sans); font-size: var(--t-md); font-weight: 600; letter-spacing: 0.01em;
-  padding: 0.7rem 0.55rem 0.3rem; border-bottom: 1px solid var(--border); margin-bottom: 0.15rem; }
+.wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--accent);
+  font-family: var(--sans); font-size: var(--t-lg); font-weight: 700; letter-spacing: 0.01em;
+  padding: 0.7rem 0.55rem 0.3rem; border: none; border-bottom: 1px solid var(--border);
+  margin-bottom: 0.15rem; width: 100%; display: flex; align-items: center; gap: 0.45rem;
+  cursor: pointer; text-align: left; }
 .wg-head:not(:first-child) { margin-top: 0.5rem; }
+.wg-head:hover { background: var(--bg2); }
+.wg-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wrap-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
   width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
   border-radius: var(--r); padding: 0.4rem 0.55rem; cursor: pointer; color: var(--text); }
