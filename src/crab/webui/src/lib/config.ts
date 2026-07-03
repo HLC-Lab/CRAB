@@ -6,6 +6,7 @@
 // strings, collect is boolean. (More fields land in later increments.)
 
 import type { AppConfig, CrabConfig, Experiment } from "@/api/types";
+import { sliceColor } from "@/lib/slices";
 
 // start: when the app launches. end: when it stops (the victim/aggressor axis).
 export type StartKind = "at_start" | "delay" | "after";
@@ -632,34 +633,24 @@ export function validateDraft(d: Draft): string[] {
 // -- Flow diagram ------------------------------------------------------------
 // An abstract (not-to-scale) view of an experiment's apps: columns are
 // sequential stages (an "after app N" app sits one stage right of N), apps in
-// the same column run in parallel. The role follows the engine's definition,
-// which is the `end` behaviour (NOT `collect`): runs-to-completion = victim,
-// force-stop = aggressor, timed = timed. `measured` reflects `collect` separately.
-// Duration is intentionally not depicted.
-
-export type FlowRole = "victim" | "aggressor" | "timed";
+// the same column run in parallel. End-behavior (victim/aggressor/timed) is
+// not shown here; it's already surfaced by each app's own "Ends" dropdown in
+// the editor. `measured` reflects `collect`. Duration is intentionally not
+// depicted.
 
 export interface FlowNode {
   index: number;
   name: string;
-  role: FlowRole;
   measured: boolean; // the `collect` flag: metrics are parsed and stored
-  endKind: EndKind;
   note: string; // small qualifier, e.g. "+5s"
   group?: string; // node-group name, when the effective allocation is partitioned
+  color?: string; // the group's slice color, when grouped (see lib/slices.ts)
   nodes?: number; // approximate node count for this app (sizing aid, not engine placement)
 }
 
 /** A flow node plus the apps that depend on it (their `start` is "s<index>"). */
 export interface FlowTree extends FlowNode {
   children: FlowTree[];
-}
-
-/** Plain-language tooltip for a flow role (the role follows the engine's `end`). */
-export function flowRoleHint(role: FlowRole): string {
-  if (role === "aggressor") return "aggressor: stops when the other apps finish";
-  if (role === "timed") return "timed: stops after a set number of seconds";
-  return "victim: runs to completion";
 }
 
 function _wrapperName(path: string): string {
@@ -678,26 +669,32 @@ export function allocationSummary(
   apps: AppDraft[],
   alloc: AllocationDraft,
   numnodes: string,
-): { group?: string; nodes?: number }[] {
-  const out = apps.map(() => ({}) as { group?: string; nodes?: number });
+): { group?: string; color?: string; nodes?: number }[] {
+  const out = apps.map(() => ({}) as { group?: string; color?: string; nodes?: number });
   if (!apps.length || !hasAllocation(alloc)) return out;
   const n = parseInt(numnodes.trim(), 10);
   const total = Number.isFinite(n) && n > 0 ? n : 0;
 
   if (alloc.by === "groups") {
-    const named = alloc.partitions.filter((p) => p.name.trim());
-    const allShared = named.length > 0 && named.every((p) => p.share.trim() && _numeric(p.share));
+    const indexed = alloc.partitions.map((p, i) => ({ p, i })).filter(({ p }) => p.name.trim());
+    const allShared = indexed.length > 0 && indexed.every(({ p }) => p.share.trim() && _numeric(p.share));
     const groupNodes: Record<string, number> = {};
-    if (total) {
-      for (const p of named) {
+    const groupColor: Record<string, string> = {};
+    for (const { p, i } of indexed) {
+      groupColor[p.name.trim()] = sliceColor(i);
+      if (total) {
         groupNodes[p.name.trim()] = allShared
           ? Math.round((Number(p.share) / 100) * total)
-          : Math.floor(total / named.length);
+          : Math.floor(total / indexed.length);
       }
     }
     apps.forEach((a, i) => {
       const g = a.partition.trim();
-      out[i] = { group: g || undefined, nodes: g && g in groupNodes ? groupNodes[g] : undefined };
+      out[i] = {
+        group: g || undefined,
+        nodes: g && g in groupNodes ? groupNodes[g] : undefined,
+        color: g && g in groupColor ? groupColor[g] : undefined,
+      };
     });
   } else if (alloc.split.trim() && total) {
     const split = alloc.split.split(",").map((s) => Number(s.trim()));
@@ -720,11 +717,10 @@ export function flowForest(apps: AppDraft[], alloc?: AllocationDraft, numnodes =
   const nodes: FlowTree[] = apps.map((a, i) => ({
     index: i,
     name: _wrapperName(a.path) || `app ${i}`,
-    role: a.endKind === "force" ? "aggressor" : a.endKind === "timed" ? "timed" : "victim",
     measured: a.collect,
-    endKind: a.endKind,
     note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
     group: badges[i]?.group,
+    color: badges[i]?.color,
     nodes: badges[i]?.nodes,
     children: [],
   }));
