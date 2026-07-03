@@ -18,6 +18,15 @@ const props = defineProps<{
 const o = computed(() => props.options);
 const unset = computed(() => props.unsetLabel ?? "default");
 const show = (g: Group) => !props.groups || props.groups.includes(g);
+// For the global pane (unset === "default"), the blank option states the
+// engine's real default outcome instead of the bare word "(default)". For a
+// per-experiment override (unsetLabel="inherit"), it must keep reading
+// "(inherit)" regardless of the global's current value, so it's computed
+// separately per select rather than sharing one generic label.
+const isGlobal = computed(() => unset.value === "default");
+const convergeallLabel = computed(() => (isGlobal.value ? "no, only flagged metrics (default)" : "(inherit)"));
+const outformatLabel = computed(() => (isGlobal.value ? "csv (default)" : "(inherit)"));
+const retainFilesLabel = computed(() => (isGlobal.value ? "yes (default)" : "(inherit)"));
 // A single-group pane is titled by its <h2>, so drop the redundant section <h4>.
 const single = computed(() => props.groups?.length === 1);
 </script>
@@ -32,7 +41,7 @@ const single = computed(() => props.groups?.length === 1);
         <label>Timeout (s) <input v-model="o.timeout" placeholder="1200" /></label>
         <label>Converge all
           <select v-model="o.convergeall">
-            <option value="">({{ unset }})</option>
+            <option value="">{{ convergeallLabel }}</option>
             <option value="true">yes, every metric</option>
             <option value="false">no, only flagged metrics</option>
           </select>
@@ -51,14 +60,14 @@ const single = computed(() => props.groups?.length === 1);
       <div class="grid">
         <label>Format
           <select v-model="o.outformat">
-            <option value="">({{ unset }})</option>
+            <option value="">{{ outformatLabel }}</option>
             <option value="csv">csv</option>
             <option value="hdf">hdf</option>
           </select>
         </label>
         <label>Retain files
           <select v-model="o.retainFiles">
-            <option value="">({{ unset }})</option>
+            <option value="">{{ retainFilesLabel }}</option>
             <option value="true">yes</option>
             <option value="false">no, delete scratch files</option>
           </select>
