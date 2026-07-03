@@ -12,6 +12,7 @@
 // runtime placement.
 import { computed, ref } from "vue";
 import { type AllocationDraft, emptyPartition } from "@/lib/config";
+import { equalShares as sharedEqualShares, sliceColor, slicePlaceholder } from "@/lib/slices";
 import NumberField from "@/components/NumberField.vue";
 
 const props = defineProps<{
@@ -25,8 +26,6 @@ const props = defineProps<{
 }>();
 const a = computed(() => props.alloc);
 
-const COLORS = ["#6ea8fe", "#ff8c78", "#7ec699", "#b69cff", "#e0b352", "#56c2c2"];
-const DEFAULT_NAMES = ["victim", "aggressor"];
 const FALLBACK_TOTAL = 8;
 // Now that AuthorView's `.pane` has `min-width: 0` (grid-blowout fix), the bar
 // never forces page-level overflow, so the limit is legibility, not layout.
@@ -61,10 +60,10 @@ function ink(c: string): string {
   return (r * 299 + g * 587 + b * 114) / 1000 > 150 ? "#0b1220" : "#eceef2";
 }
 function colorOf(i: number): string {
-  return COLORS[i % COLORS.length];
+  return sliceColor(i);
 }
 function placeholder(i: number): string {
-  return DEFAULT_NAMES[i] ?? `group ${i + 1}`;
+  return slicePlaceholder(i);
 }
 function nameOf(i: number): string {
   return partitions.value[i]?.name.trim() || placeholder(i);
@@ -73,11 +72,7 @@ function nameOf(i: number): string {
 // -- Share model: partitions carry a string share ("" = even). The bar works in
 // integer percentages summing to 100; even splits read as the equal division. --
 function equalShares(n: number): number[] {
-  const base = Math.floor(100 / n);
-  const arr = Array(n).fill(base);
-  const rem = 100 - base * n;
-  for (let i = 0; i < rem; i++) arr[i]++;
-  return arr;
+  return sharedEqualShares(n);
 }
 function readShares(): number[] {
   const ps = partitions.value;
@@ -193,7 +188,7 @@ function addSlice(): void {
   });
   const g = Math.max(1, Math.round(sh[bi] / 2));
   sh[bi] -= g;
-  ps.push(emptyPartition(""));
+  ps.push(emptyPartition(placeholder(ps.length)));
   sh.push(g);
   writeShares(sh);
 }

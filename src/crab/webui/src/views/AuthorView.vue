@@ -4,6 +4,7 @@ import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
 import { emptyApp, emptyExperiment, flowForest, hasAllocation, validateDraft } from "@/lib/config";
+import { equalShares, sliceColor, sliceName } from "@/lib/slices";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 import SbatchEditor from "@/components/SbatchEditor.vue";
@@ -83,21 +84,19 @@ const effectiveAlloc = computed(() => {
   return e && e.overrideAlloc ? e.allocation : d.allocation;
 });
 
-// Colours for named partitions — mirrors AllocationEditor's own slice palette
-// (duplicated here since it isn't exported) so the placement summary's mini
-// bar and the per-app slice picker agree visually with AllocationEditor's bar.
-const SLICE_COLORS = ["#6ea8fe", "#ff8c78", "#7ec699", "#b69cff", "#e0b352", "#56c2c2"];
-function sliceColorAt(i: number): string {
-  return SLICE_COLORS[i % SLICE_COLORS.length];
-}
-// Named partitions of the effective allocation, paired with a colour (colour
-// index = position in the full partitions list, matching how AllocationEditor
-// colours its own slices).
+// Every partition of the effective allocation, paired with a colour (colour
+// index = position in the full partitions list, matching AllocationEditor) and
+// a display name that falls back to the same "group N" label AllocationEditor
+// shows for an unnamed slice, so a still-unnamed 3rd+ slice (an edge case:
+// fresh slices are auto-named on creation, see AllocationEditor.vue) is still
+// visible and selectable here instead of silently disappearing.
 const namedSlices = computed(() =>
   effectiveAlloc.value.by === "groups"
-    ? effectiveAlloc.value.partitions
-        .map((p, i) => ({ name: p.name.trim(), share: p.share, color: sliceColorAt(i) }))
-        .filter((s) => s.name)
+    ? effectiveAlloc.value.partitions.map((p, i) => ({
+        name: sliceName(p.name, i),
+        share: p.share,
+        color: sliceColor(i),
+      }))
     : [],
 );
 const groupNames = computed(() => namedSlices.value.map((s) => s.name));
@@ -107,13 +106,6 @@ function colorForGroup(name: string): string {
 // Mini placement-bar widths (%), mirroring AllocationEditor's even-split rule:
 // no explicit shares -> equal division across slices; otherwise each slice's
 // own share (a display approximation, not the exact runtime placement).
-function equalShares(n: number): number[] {
-  const base = Math.floor(100 / n);
-  const arr = Array(n).fill(base);
-  const rem = 100 - base * n;
-  for (let i = 0; i < rem; i++) arr[i]++;
-  return arr;
-}
 const miniSlices = computed(() => {
   const ps = namedSlices.value;
   const n = ps.length;
