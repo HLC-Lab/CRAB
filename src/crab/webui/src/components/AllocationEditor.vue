@@ -378,7 +378,7 @@ function startDrag(e: PointerEvent, i: number): void {
         <label v-if="!hideMode && a.mode === 'interleaved'" class="subc">every
           <NumberField v-model="a.stride" :min="1" class="subfield" /> node(s)</label>
         <label v-if="!hideMode && a.mode === 'random'" class="subc">seed
-          <NumberField v-model="a.seed" class="subfield" /></label>
+          <NumberField v-model="a.seed" class="subfield seed" /></label>
       </div>
       <div class="strip" :class="{ matrix: isMatrix }">
         <span v-for="(o, i) in strip" :key="i" class="c" :style="{ background: colorOf(o) }" />
@@ -449,6 +449,7 @@ function startDrag(e: PointerEvent, i: number): void {
 .seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
 .subc { display: flex; align-items: center; gap: 0.45rem; color: var(--text2); font-size: var(--t-sm); font-family: var(--sans); }
 .subfield { width: 3.8rem; }
+.subfield.seed { width: 5.5rem; }
 
 .strip { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; }
 .strip.matrix { grid-auto-flow: row; grid-template-columns: repeat(auto-fill, 18px); justify-content: start; }
