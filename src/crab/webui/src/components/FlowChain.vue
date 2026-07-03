@@ -3,9 +3,9 @@
 // dependency tree: the node on the left, an arrow per dependent, each dependent
 // rendered recursively to the right. Roots (apps that start at run start or
 // after a delay) are stacked vertically by the parent (they run together).
-// End-behavior (victim/aggressor/timed) is not shown here — it's already the
-// app's own "Ends" dropdown in the editor below; this diagram is structure +
-// grouping only, colored by the app's allocation group instead of its role.
+// End-behavior (victim/aggressor/timed) is not shown here; it's already the
+// app's own "Ends" dropdown in the editor below. This diagram is structure
+// and grouping only, colored by the app's allocation group instead of its role.
 import { type FlowTree } from "@/lib/config";
 
 defineProps<{ node: FlowTree }>();
