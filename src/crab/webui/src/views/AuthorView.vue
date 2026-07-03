@@ -880,9 +880,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   font-size: 1rem; line-height: 1; padding: 0; }
 .zone .add:hover { color: var(--text); }
 .zone ul { list-style: none; display: flex; flex-direction: column; gap: 0.15rem; }
-.zone li { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
-  padding: 0.4rem 0.55rem; border: 1px solid transparent; border-radius: var(--r);
-  cursor: pointer; color: var(--text2); font-size: var(--t-md); }
+.zone li { position: relative; display: flex; justify-content: space-between; align-items: center;
+  gap: 0.5rem; padding: 0.4rem 4.6rem 0.4rem 0.55rem; border: 1px solid transparent;
+  border-radius: var(--r); cursor: pointer; color: var(--text2); font-size: var(--t-md); }
 .zone li:hover { background: var(--bg2); color: var(--text); }
 .zone li.on { background: var(--bg2); border-color: var(--accent); color: var(--text); }
 .zone .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
@@ -890,15 +890,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .exp-meta { color: var(--text3); font-size: var(--t-sm); flex-shrink: 0; }
 .nav-empty { cursor: default; color: var(--text3); }
 .nav-empty:hover { background: transparent; }
-/* Hover-trash: replaces the "N apps" meta text on hover (per the approved
-   integration mockup), min-width: 0 so its inline confirm can ellipsize
-   rather than overflow the rail. Stays visible mid-confirm even if the
-   pointer drifts off the row (:has the confirm UI), not just on :hover. */
-.exp-actions { display: inline-flex; align-items: center; gap: 0.15rem; opacity: 0; flex-shrink: 0; min-width: 0; }
-.zone li:hover .exp-actions,
-.zone li:has(.confirm-inline) .exp-actions { opacity: 1; }
-.zone li:hover .exp-meta,
-.zone li:has(.confirm-inline) .exp-meta { display: none; }
+/* Hover-actions: duplicate/delete replace the "N apps" meta text on hover.
+   Both are absolutely positioned in the same spot (not flex siblings of
+   .exp-name), so neither ever reserves layout width while hidden -- .exp-name
+   gets the row's full available width at all times, and only truncates when
+   the text genuinely doesn't fit next to the reserved right-hand gutter
+   (see .zone li's padding-right above). */
+.exp-meta, .exp-actions { position: absolute; right: 0.55rem; top: 50%; transform: translateY(-50%); }
+.exp-meta { transition: opacity 0.1s ease; }
+.exp-actions { display: inline-flex; align-items: center; gap: 0.15rem; opacity: 0; }
+.zone li:hover .exp-actions { opacity: 1; }
+.zone li:hover .exp-meta { opacity: 0; }
 
 /* Main pane */
 .pane { padding: 1.5rem; min-height: 18rem; min-width: 0; display: flex; flex-direction: column; gap: 1.1rem; }
