@@ -17,6 +17,25 @@ export const useCatalogStore = defineStore("catalog", () => {
   const busy = ref<Record<string, boolean>>({});
   const error = ref<Record<string, string>>({});
 
+  // The host machine's own wrappers/ (the checkout running crab web) — a
+  // single catalog, not keyed per cluster, since there's exactly one host.
+  const localBenchmarks = ref<BenchmarksResult | null>(null);
+  const localBusy = ref(false);
+  const localError = ref("");
+
+  async function loadLocalBenchmarks(force = false) {
+    if (!force && localBenchmarks.value) return;
+    localBusy.value = true;
+    localError.value = "";
+    try {
+      localBenchmarks.value = await api.local.benchmarks();
+    } catch (e) {
+      localError.value = msg(e);
+    } finally {
+      localBusy.value = false;
+    }
+  }
+
   async function loadBenchmarks(cluster: string, force = false) {
     if (!cluster || (!force && benchmarks.value[cluster])) return;
     busy.value[cluster] = true;
@@ -50,5 +69,8 @@ export const useCatalogStore = defineStore("catalog", () => {
     delete error.value[cluster];
   }
 
-  return { benchmarks, nodes, busy, error, loadBenchmarks, loadNodes, forget };
+  return {
+    benchmarks, nodes, busy, error, loadBenchmarks, loadNodes, forget,
+    localBenchmarks, localBusy, localError, loadLocalBenchmarks,
+  };
 });

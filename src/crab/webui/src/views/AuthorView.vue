@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watchEffect } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
+import type { Wrapper } from "@/api/types";
 import {
   cloneAllocation,
   emptyApp,
@@ -177,15 +178,47 @@ const showWrapper = ref(false);
 const wrapperFor = ref<number | null>(null);
 const wrapperQuery = ref("");
 
+type WrapperOrigin = "host" | "remote" | "both";
+type TaggedWrapper = Wrapper & { origin: WrapperOrigin };
+
 function openWrapperPicker(appIndex: number) {
   wrapperFor.value = appIndex;
   wrapperQuery.value = "";
   showWrapper.value = true;
-  // Catalog needs a connected cluster; without one the picker still opens so the
-  // user can force a free path via "+ Add".
+  // The host catalog always loads (no connection needed); the remote catalog
+  // needs a connected cluster — without one the picker still opens so the
+  // user can force a free path via "+ Add" or pick a host-only wrapper.
+  catalog.loadLocalBenchmarks();
   if (sourceCluster.value) catalog.loadBenchmarks(sourceCluster.value);
 }
-const wrappers = computed(() => catalog.benchmarks[sourceCluster.value]?.wrappers ?? []);
+const localWrappers = computed(() => catalog.localBenchmarks?.wrappers ?? []);
+const remoteWrappers = computed(() => catalog.benchmarks[sourceCluster.value]?.wrappers ?? []);
+const wrapperCatalogBusy = computed(
+  () => catalog.localBusy || (!!sourceCluster.value && !!catalog.busy[sourceCluster.value]),
+);
+// Merged by relpath: present on the host, the remote, or both. Matching by
+// relpath assumes both sides are the same crab repo checkout (possibly a
+// different branch/commit) — a reasonable identity key for a wrapper file.
+const wrappers = computed<TaggedWrapper[]>(() => {
+  const byPath = new Map<string, TaggedWrapper>();
+  for (const w of localWrappers.value) byPath.set(w.relpath, { ...w, origin: "host" });
+  for (const w of remoteWrappers.value) {
+    const onHost = byPath.has(w.relpath);
+    byPath.set(w.relpath, { ...w, origin: onHost ? "both" : "remote" });
+  }
+  return [...byPath.values()];
+});
+function originOf(relpath: string): WrapperOrigin | null {
+  return wrappers.value.find((w) => w.relpath === relpath)?.origin ?? null;
+}
+/** Non-blocking heads-up when a chosen wrapper isn't on the currently targeted remote. */
+function wrapperWarning(relpath: string): string {
+  if (!relpath.trim() || !sourceCluster.value) return "";
+  if (originOf(relpath) === "host") {
+    return `Not found on ${sourceCluster.value} — running there may fail unless this wrapper is synced.`;
+  }
+  return "";
+}
 const filteredWrappers = computed(() => {
   const q = wrapperQuery.value.trim().toLowerCase();
   const list = wrappers.value;
@@ -508,6 +541,7 @@ async function copyJson() {
                   <span class="chip-text">{{ app.path || "Choose wrapper…" }}</span>
                   <svg class="chip-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
                 </button>
+                <span v-if="wrapperWarning(app.path)" class="wrap-warn" :title="wrapperWarning(app.path)">&#9888;</span>
                 <span v-if="groupNames.length" class="slicepick" title="Node group">
                   <span class="sw" :style="{ background: app.partition ? colorForGroup(app.partition) : 'var(--text3)' }" />
                   <select v-model="app.partition">
@@ -620,14 +654,15 @@ async function copyJson() {
           <span class="wm-src">{{ sourceCluster }}</span>
         </header>
 
-        <p v-if="catalog.busy[sourceCluster]" class="wm-state">Loading wrappers from {{ sourceCluster }}…</p>
-        <p v-else-if="!sourceCluster" class="wm-state">No cluster connected. Type a path below and use "+ Add".</p>
-        <div v-else-if="catalog.error[sourceCluster]" class="wm-state err">
-          <p>{{ catalog.error[sourceCluster] }}</p>
-          <button class="btn" @click="catalog.loadBenchmarks(sourceCluster, true)">Retry</button>
-        </div>
+        <p v-if="wrapperCatalogBusy" class="wm-state">Loading wrappers…</p>
 
         <div v-else class="wrapper-list">
+          <p v-if="catalog.localError" class="wm-hint err">Host wrappers: {{ catalog.localError }}</p>
+          <p v-if="sourceCluster && catalog.error[sourceCluster]" class="wm-hint err">
+            {{ sourceCluster }}: {{ catalog.error[sourceCluster] }}
+            <button class="btn" @click="catalog.loadBenchmarks(sourceCluster, true)">Retry</button>
+          </p>
+          <p v-if="!sourceCluster && !catalog.localError" class="wm-hint">No cluster connected — showing wrappers on this host only.</p>
           <template v-for="[group, items] in wrapperGroups" :key="group">
             <div class="wg-head">{{ group }}</div>
             <button
@@ -643,8 +678,9 @@ async function copyJson() {
                 <span class="wrap-path">{{ subPath(w.relpath, group) }}</span>
               </span>
               <span class="wrap-tags">
+                <span class="tag origin" :class="w.origin">{{ w.origin === "both" ? "host + remote" : w.origin }}</span>
                 <span v-if="w.metadata.length" class="tag">{{ w.metadata.length }} metric{{ w.metadata.length === 1 ? "" : "s" }}</span>
-                <span v-if="!w.loadable" class="tag warn" title="Introspection failed on the cluster. The path still works.">unloadable</span>
+                <span v-if="!w.loadable" class="tag warn" title="Introspection failed. The path still works.">unloadable</span>
               </span>
             </button>
           </template>
@@ -780,6 +816,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .tag { font-size: var(--t-xs); color: var(--text3); border: 1px solid var(--border);
   border-radius: 999px; padding: 0 0.4rem; }
 .tag.warn { color: var(--warn); border-color: var(--warn); }
+.tag.origin.host { color: var(--text2); border-color: var(--border2); }
+.tag.origin.remote { color: var(--accent); border-color: var(--accent); }
+.tag.origin.both { color: var(--ok); border-color: var(--ok); }
 
 /* Wrapper source line */
 .wrapper-source { display: flex; align-items: center; gap: 0.5rem; }
@@ -807,6 +846,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; color: var(--text3); flex-shrink: 0; }
+.wrap-warn { color: var(--warn); font-size: 0.9rem; cursor: help; }
 .timing { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; align-items: end;
   padding-top: 0.5rem; border-top: 1px dashed var(--border); }
 .timing label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: var(--t-sm); }
@@ -912,6 +952,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap; }
 .wm-state { color: var(--text2); font-size: var(--t-md); padding: 1rem 0.5rem; }
 .wm-state.err { color: var(--danger); display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+.wm-hint { color: var(--text3); font-size: var(--t-sm); padding: 0.3rem 0.2rem; }
+.wm-hint.err { color: var(--danger); }
 .wrapper-list { max-height: 26rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.1rem; }
 /* Prominent suite headers (wrappers/<suite>/…) */
 .wg-head { position: sticky; top: 0; background: var(--bg1); color: var(--text);

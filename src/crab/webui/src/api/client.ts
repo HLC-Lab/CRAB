@@ -63,6 +63,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<Health>("/api/health"),
 
+  local: {
+    benchmarks: () => request<BenchmarksResult>("/api/local/benchmarks"),
+  },
+
   remotes: {
     list: () => request<RemoteListItem[]>("/api/remotes"),
     add: (profile: Partial<Profile>) =>
