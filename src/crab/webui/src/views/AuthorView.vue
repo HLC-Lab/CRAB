@@ -884,7 +884,7 @@ async function copyJson() {
 </template>
 
 <style scoped>
-.author { padding: 1.25rem 1.5rem; max-width: 92rem; overflow-x: auto; }
+.author { padding: 1.25rem 1.5rem; max-width: 98rem; overflow-x: auto; }
 .bar { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; margin-bottom: 1rem; }
 .grp { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .btn {
