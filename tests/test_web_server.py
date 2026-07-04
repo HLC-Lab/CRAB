@@ -21,7 +21,6 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from conftest import auth_client  # noqa: E402
-
 from crab.web.errors import (  # noqa: E402
     AuthError,
     CrabWebError,

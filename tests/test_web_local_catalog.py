@@ -13,7 +13,6 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from conftest import auth_client  # noqa: E402
-
 from crab.web.server import create_app
 from crab.web.settings import Settings
 

@@ -10,10 +10,8 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("fastapi", reason="web extra not installed")
-from fastapi.testclient import TestClient  # noqa: E402
 
 from conftest import auth_client  # noqa: E402
-
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.remoteops.bootstrap import (  # noqa: E402

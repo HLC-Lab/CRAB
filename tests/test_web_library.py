@@ -10,7 +10,6 @@ pytest.importorskip("fastapi", reason="web extra not installed")
 from fastapi.testclient import TestClient  # noqa: E402
 
 from conftest import auth_client  # noqa: E402
-
 from crab.web.errors import InputError, NotFoundError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
