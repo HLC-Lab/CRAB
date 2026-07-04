@@ -215,3 +215,30 @@ def test_connect_unknown_profile_returns_404(tmp_path: Path):
         resp = client.post("/api/remotes/ghost/connect")
         assert resp.status_code == 404
         assert resp.json()["code"] == "not_found"
+
+
+def test_rename_to_an_existing_name_conflicts(tmp_path: Path):
+    with _client(tmp_path) as client:
+        a = _leonardo().model_dump()
+        b = {**a, "name": "other"}
+        assert client.post("/api/remotes", json=a).status_code == 201
+        assert client.post("/api/remotes", json=b).status_code == 201
+
+        clash = client.put("/api/remotes/leonardo", json={**a, "name": "other"})
+        assert clash.status_code == 409
+        assert clash.json()["code"] == "conflict"
+
+
+def test_rename_closes_the_stale_connection(tmp_path: Path):
+    with _client(tmp_path) as client:
+        app = client.app
+        payload = _leonardo().model_dump()
+        assert client.post("/api/remotes", json=payload).status_code == 201
+        assert client.post("/api/remotes/leonardo/connect").status_code == 200
+        assert app.state.manager.get("leonardo") is not None
+
+        renamed = client.put("/api/remotes/leonardo", json={**payload, "name": "leo2"})
+        assert renamed.status_code == 200
+        # The live connection was keyed by the old name; it must not linger.
+        assert app.state.manager.get("leonardo") is None
+        assert client.get("/api/remotes").json()[0]["name"] == "leo2"

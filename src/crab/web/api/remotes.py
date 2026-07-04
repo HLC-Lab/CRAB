@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
-from crab.web.errors import RemoteConnectionError
+from crab.web.errors import ConflictError, RemoteConnectionError
 from crab.web.remoteops.bootstrap import detect
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.store.profiles import Profile, ProfileStore
@@ -55,7 +55,18 @@ async def add_remote(profile: Profile, request: Request) -> dict:
 
 @router.put("/{name}")
 async def update_remote(name: str, profile: Profile, request: Request) -> dict:
-    return _store(request).update(name, profile).model_dump()
+    store = _store(request)
+    if profile.name != name:
+        # Renaming: the new name must be free, and any live connection is keyed
+        # by the old name — close it so it can't linger unreachable.
+        if any(p.name == profile.name for p in store.list()):
+            raise ConflictError(f"A profile named {profile.name!r} already exists.")
+        updated = store.update(name, profile)
+        manager = getattr(request.app.state, "manager", None)
+        if manager:
+            await manager.disconnect(name)
+        return updated.model_dump()
+    return store.update(name, profile).model_dump()
 
 
 @router.delete("/{name}", status_code=204)
