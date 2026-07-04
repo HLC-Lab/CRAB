@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from crab.web.connections.transport import Transport
 from crab.web.errors import ContractError, RemoteCommandError
-from crab.web.remoteops.crab_cli import _remote_path_expr, crab_dir, run_crab_json
+from crab.web.remoteops.crab_cli import crab_dir, remote_path_expr, run_crab_json
 from crab.web.store.profiles import Profile
 
 CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
@@ -68,12 +68,12 @@ def _clone_command(profile: Profile) -> str:
     # Clones into a `CRAB` subfolder of the profile's base dir (see crab_dir).
     return (
         f"git clone --branch {CRAB_REPO_BRANCH} {CRAB_REPO_URL} "
-        f"{_remote_path_expr(crab_dir(profile))}"
+        f"{remote_path_expr(crab_dir(profile))}"
     )
 
 
 def _build_command(profile: Profile) -> str:
-    dir_expr = _remote_path_expr(crab_dir(profile))
+    dir_expr = remote_path_expr(crab_dir(profile))
     return f"cd {dir_expr} && make venv && .venv/bin/pip install -e ."
 
 

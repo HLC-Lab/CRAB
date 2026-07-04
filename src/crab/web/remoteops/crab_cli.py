@@ -18,7 +18,7 @@ from crab.web.errors import ContractError, RemoteCommandError
 from crab.web.store.profiles import Profile
 
 
-def _remote_path_expr(path: str) -> str:
+def remote_path_expr(path: str) -> str:
     """Quote a remote path while preserving ``~``/``$HOME`` expansion.
 
     ``shlex.quote('~/CRAB')`` would stop tilde expansion, so leading ``~`` is
@@ -53,8 +53,8 @@ def build_crab_command(profile: Profile, args: list[str]) -> str:
     parts: list[str] = list(profile.remote_setup)
     cdir = crab_dir(profile)
     venv = profile.venv_activate or f"{cdir}/.venv/bin/activate"
-    parts.append(f"cd {_remote_path_expr(cdir)}")
-    parts.append(f". {_remote_path_expr(venv)}")
+    parts.append(f"cd {remote_path_expr(cdir)}")
+    parts.append(f". {remote_path_expr(venv)}")
     parts.append(f"crab {crab_args}")
     inner = " && ".join(parts)
     # Wrap so the remote login shell hands `inner` to a login bash verbatim.
