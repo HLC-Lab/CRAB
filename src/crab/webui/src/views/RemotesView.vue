@@ -69,7 +69,7 @@ function closeForm() {
 
 async function submit() {
   const payload: Partial<Profile> = { ...form };
-  if (!payload.host) delete (payload as any).host;
+  if (!payload.host) delete payload.host;
   const ok = editingName.value
     ? await store.update(editingName.value, payload)
     : await store.add(payload);

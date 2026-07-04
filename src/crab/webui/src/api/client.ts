@@ -38,7 +38,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { "Content-Type": "application/json" },
       ...init,
     });
-  } catch (e) {
+  } catch {
     // Network-level failure (backend down, etc.) — normalise to ApiError.
     throw new ApiError(
       { code: "network_error", message: "Cannot reach the dashboard backend." },
