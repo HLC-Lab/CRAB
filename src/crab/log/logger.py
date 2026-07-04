@@ -6,6 +6,8 @@ Provides a hierarchical logger that tracks execution context
 pluggable handlers.
 """
 
+from __future__ import annotations
+
 import datetime
 import threading
 from enum import IntEnum
@@ -59,7 +61,7 @@ class CrabLogger:
     def __init__(
         self,
         level: LogLevel = LogLevel.INFO,
-        handlers: list["BaseHandler"] | None = None,
+        handlers: list[BaseHandler] | None = None,
         _context: list[str] | None = None,
         _lock: threading.Lock | None = None,
     ):
@@ -70,7 +72,7 @@ class CrabLogger:
 
     # -- Context management --
 
-    def enter(self, context_name: str) -> "CrabLogger":
+    def enter(self, context_name: str) -> CrabLogger:
         """
         Create a child logger with an additional context level.
 
@@ -86,7 +88,7 @@ class CrabLogger:
 
     # -- Handler management --
 
-    def add_handler(self, handler: "BaseHandler") -> None:
+    def add_handler(self, handler: BaseHandler) -> None:
         self._handlers.append(handler)
 
     # -- Core emit --

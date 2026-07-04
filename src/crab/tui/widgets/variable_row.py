@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.message import Message
@@ -10,7 +12,7 @@ class VariableRow(Horizontal):
     class Deleted(Message):
         """Sent when the delete button is pressed."""
 
-        def __init__(self, row_widget: "VariableRow"):
+        def __init__(self, row_widget: VariableRow):
             self.row_widget = row_widget
             super().__init__()
 
