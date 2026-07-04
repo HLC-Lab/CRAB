@@ -9,7 +9,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
 </script>
 
 <template>
-  <div class="modal-bg" @click.self="emit('cancel')">
+  <div class="confirm-modal-bg" @click.self="emit('cancel')">
     <div class="modal">
       <h2>{{ title }}</h2>
       <p class="hint">{{ message }}</p>
@@ -22,12 +22,15 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
 </template>
 
 <style scoped>
-/* !important: this component's root div also carries its host's own scope-id
-   attribute (Vue scoped-CSS lets a parent style a child's root element), so a
-   plain z-index here ties in specificity with the host's own ".modal-bg" rule
-   and loses on source order. This must win regardless of where it's mounted. */
-.modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
-  display: flex; align-items: center; justify-content: center; z-index: 60 !important; }
+/* Named .confirm-modal-bg rather than the more generic ".modal-bg" used by
+   other overlays (Open/Import/Wrapper-picker in AuthorView.vue): this
+   component's root div also carries its host's own scope-id attribute (Vue
+   scoped-CSS lets a parent style a child's root element), so a same-named
+   class here would tie in specificity with the host's own rule and could
+   lose the z-index fight on source order alone. A distinct class name avoids
+   the collision at its source instead of out-muscling it with !important. */
+.confirm-modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
+  display: flex; align-items: center; justify-content: center; z-index: 60; }
 .modal { width: min(28rem, 92vw); padding: 1.25rem; background: var(--bg1);
   border: 1px solid var(--border); border-radius: var(--r2); }
 .modal h2 { font-family: var(--sans); font-size: var(--t-lg); margin-bottom: 0.3rem; }
