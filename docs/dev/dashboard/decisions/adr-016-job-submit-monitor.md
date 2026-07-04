@@ -48,6 +48,14 @@ the worst status among them (`FAILED` > `TIMEOUT` > `COMPLETED`) rather than the
 one failed experiment among several is never hidden by an optimistic guess. No match at all ⇒
 stays `UNKNOWN` ("stale"), never guessed.
 
+**Update (2026-07-04):** the same cross-check also runs the first time a job transitions to a
+fresh `COMPLETED` from squeue/sacct, not only on `UNKNOWN`. `engine.py`'s `_run_worker` catches
+and logs each experiment's exception rather than aborting the allocation, so the Slurm job can
+exit 0 while an experiment inside it genuinely failed — found on the first real-cluster submit.
+Since a job only ever appears in the active-polling set while its stored state is non-terminal,
+this fires exactly once, at the transition, never on a re-poll. A no-match COMPLETED (e.g.
+metadata not written yet) is left as COMPLETED, same never-guess rule as UNKNOWN.
+
 ## Alternatives considered
 
 - Base64/heredoc the config through `run()` instead of `write_file()` — avoids extending
@@ -73,3 +81,9 @@ free-text fallback in the submit modal only shows real presets when the current 
 has called `connect()` itself (a page reload loses that client-side cache even though the
 backend connection persists) — a known, minor UX rough edge, not a correctness issue. Live log
 tail remains future work once a persistent-process design is worth taking on.
+
+Owner idea from the first real-cluster run (2026-07-04, not scoped here): a way to resubmit only
+the failed experiments from a job rather than the whole config again. Would need per-experiment
+status exposed somewhere (the history cross-check above only surfaces a worst-case job-level
+state), which points at the Phase 5 Results per-experiment detail view as the natural home for
+it — noted for that plan's grilling pass, not designed here.
