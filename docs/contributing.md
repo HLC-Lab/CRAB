@@ -10,11 +10,26 @@ git clone https://github.com/HLC-Lab/CRAB
 cd CRAB
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[tui]        # editable install, including the TUI extra
+pip install -e .[web,dev]    # editable install with the web dashboard + dev tools
 ```
 
 Requires **Python 3.10+**. The package is installed in editable mode, so changes to `src/crab/` take
-effect without reinstalling.
+effect without reinstalling. Frontend work additionally needs node: `cd src/crab/webui && npm install`.
+
+## Verification
+
+Before considering any change done (and before every commit), run from the repo root:
+
+```bash
+make verify        # lint + format check + type check + all unit tests
+make verify-full   # verify + frontend build/sync check + end-to-end tests
+```
+
+Use `make verify-full` whenever you touched `src/crab/webui/`. `make fmt` auto-formats both
+languages. What each gate runs, and how to write tests, is documented in
+[Testing & verification](dev/dashboard/testing.md); the dashboard's design is in
+[Web dashboard architecture](dev/dashboard/architecture.md), and the reasoning behind
+non-obvious choices in the [decision records](dev/dashboard/decisions/index.md).
 
 ## Project layout
 

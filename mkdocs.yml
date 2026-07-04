@@ -81,4 +81,10 @@ nav:
       - Supported benchmarks: reference/supported-benchmarks.md
       - Wrapper & Recipe API: reference/api.md
   - Contributing: contributing.md
+  - Development:
+      - Web dashboard architecture: dev/dashboard/architecture.md
+      - Testing & verification: dev/dashboard/testing.md
+      - Roadmap: dev/dashboard/roadmap.md
+      - Deferred work: dev/dashboard/deferred.md
+      - Decision records: dev/dashboard/decisions/index.md
   - Glossary: glossary.md
