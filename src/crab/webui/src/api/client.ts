@@ -4,11 +4,15 @@
 import type {
   BenchmarksResult,
   BootstrapPlan,
+  CancelResponse,
   ConnectResult,
   CrabConfig,
   DetectResult,
   ErrorEnvelope,
   Health,
+  JobListItem,
+  JobLogs,
+  JobRecord,
   LibraryEntry,
   NodesResult,
   Profile,
@@ -143,5 +147,23 @@ export const api = {
       }),
     remove: (id: string) =>
       request<void>(`/api/experiments/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  },
+
+  jobs: {
+    list: () => request<JobListItem[]>("/api/jobs"),
+    submit: (body: {
+      profile_name: string;
+      config_id?: string;
+      config?: CrabConfig;
+      name?: string;
+      preset?: string;
+    }) =>
+      request<JobRecord>("/api/jobs/submit", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    cancel: (id: string) =>
+      request<CancelResponse>(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+    logs: (id: string) => request<JobLogs>(`/api/jobs/${encodeURIComponent(id)}/logs`),
   },
 };

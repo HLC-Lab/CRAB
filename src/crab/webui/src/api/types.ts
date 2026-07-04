@@ -150,3 +150,27 @@ export interface NodesResult {
   nodes: string[];
   note?: string;
 }
+
+// -- Jobs (Phase 4: submit & monitor) ---------------------------------------
+
+export type JobRecord = components["schemas"]["JobRecord"];
+/** GET /api/jobs item = job record + whether its cluster is currently connected. */
+export type JobListItem = components["schemas"]["JobListItem"];
+/** POST /api/jobs/{id}/cancel — `cancelled` is false when the job was already gone. */
+export type CancelResponse = components["schemas"]["CancelResponse"];
+
+/** One captured stream in a job's logs (crab logs --json; cli/contract.py). */
+export interface LogStream {
+  path: string;
+  exists: boolean;
+  content: string;
+  truncated: boolean;
+}
+
+/** GET /api/jobs/{id}/logs — cluster-contract passthrough, not in the OpenAPI schema. */
+export interface JobLogs {
+  schema: number;
+  data_dir: string;
+  stdout: LogStream;
+  stderr: LogStream;
+}
