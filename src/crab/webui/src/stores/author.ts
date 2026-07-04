@@ -143,7 +143,21 @@ export const useAuthorStore = defineStore("author", () => {
   }
 
   return {
-    library, entryId, draft, error, notice, busy, config, configJson, isDirty,
-    loadLibrary, newConfig, open, save, duplicate, remove, importJson,
+    library,
+    entryId,
+    draft,
+    error,
+    notice,
+    busy,
+    config,
+    configJson,
+    isDirty,
+    loadLibrary,
+    newConfig,
+    open,
+    save,
+    duplicate,
+    remove,
+    importJson,
   };
 });

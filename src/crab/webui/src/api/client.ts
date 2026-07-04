@@ -94,32 +94,28 @@ export const api = {
     // Cluster catalog (require a live connection; for the authoring pickers).
     benchmarks: (name: string) =>
       request<BenchmarksResult>(`/api/remotes/${encodeURIComponent(name)}/benchmarks`),
-    nodes: (name: string) =>
-      request<NodesResult>(`/api/remotes/${encodeURIComponent(name)}/nodes`),
+    nodes: (name: string) => request<NodesResult>(`/api/remotes/${encodeURIComponent(name)}/nodes`),
 
     bootstrap: {
       plan: (name: string) =>
-        request<BootstrapPlan>(
-          `/api/remotes/${encodeURIComponent(name)}/bootstrap/plan`,
-          { method: "POST" },
-        ),
+        request<BootstrapPlan>(`/api/remotes/${encodeURIComponent(name)}/bootstrap/plan`, {
+          method: "POST",
+        }),
       install: (name: string, preCommands: string[]) =>
-        request<StepResult>(
-          `/api/remotes/${encodeURIComponent(name)}/bootstrap/install`,
-          { method: "POST", body: JSON.stringify({ pre_commands: preCommands }) },
-        ),
+        request<StepResult>(`/api/remotes/${encodeURIComponent(name)}/bootstrap/install`, {
+          method: "POST",
+          body: JSON.stringify({ pre_commands: preCommands }),
+        }),
       verify: (name: string) =>
-        request<DetectResult>(
-          `/api/remotes/${encodeURIComponent(name)}/bootstrap/verify`,
-          { method: "POST" },
-        ),
+        request<DetectResult>(`/api/remotes/${encodeURIComponent(name)}/bootstrap/verify`, {
+          method: "POST",
+        }),
     },
   },
 
   experiments: {
     list: () => request<LibraryEntry[]>("/api/experiments"),
-    get: (id: string) =>
-      request<LibraryEntry>(`/api/experiments/${encodeURIComponent(id)}`),
+    get: (id: string) => request<LibraryEntry>(`/api/experiments/${encodeURIComponent(id)}`),
     create: (name: string, config: CrabConfig) =>
       request<LibraryEntry>("/api/experiments", {
         method: "POST",

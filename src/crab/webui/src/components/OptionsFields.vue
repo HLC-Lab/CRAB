@@ -36,15 +36,21 @@ const single = computed(() => props.groups?.length === 1);
 // something, so an explicit false/csv/true keeps round-tripping unchanged.
 const convergeallDisplay = computed({
   get: () => (isGlobal.value && o.value.convergeall === "false" ? "" : o.value.convergeall),
-  set: (v: TriBool) => { o.value.convergeall = v; },
+  set: (v: TriBool) => {
+    o.value.convergeall = v;
+  },
 });
 const outformatDisplay = computed({
   get: () => (isGlobal.value && o.value.outformat === "csv" ? "" : o.value.outformat),
-  set: (v: OptionsDraft["outformat"]) => { o.value.outformat = v; },
+  set: (v: OptionsDraft["outformat"]) => {
+    o.value.outformat = v;
+  },
 });
 const retainFilesDisplay = computed({
   get: () => (isGlobal.value && o.value.retainFiles === "true" ? "" : o.value.retainFiles),
-  set: (v: TriBool) => { o.value.retainFiles = v; },
+  set: (v: TriBool) => {
+    o.value.retainFiles = v;
+  },
 });
 </script>
 
@@ -56,17 +62,20 @@ const retainFilesDisplay = computed({
         <label>Min runs <input v-model="o.minruns" placeholder="10" /></label>
         <label>Max runs <input v-model="o.maxruns" placeholder="20" /></label>
         <label>Timeout (s) <input v-model="o.timeout" placeholder="1200" /></label>
-        <label>Converge all
+        <label
+          >Converge all
           <select v-model="convergeallDisplay">
             <option value="">{{ isGlobal ? "no, only flagged metrics" : "(inherit)" }}</option>
             <option value="true">yes, every metric</option>
             <option v-if="!isGlobal" value="false">no, only flagged metrics</option>
           </select>
         </label>
-        <label>Alpha <input v-model="o.alpha" placeholder="0.05" />
+        <label
+          >Alpha <input v-model="o.alpha" placeholder="0.05" />
           <small>Confidence-interval significance level.</small>
         </label>
-        <label>Beta <input v-model="o.beta" placeholder="0.05" />
+        <label
+          >Beta <input v-model="o.beta" placeholder="0.05" />
           <small>CI width must fall below beta times the mean.</small>
         </label>
       </div>
@@ -75,14 +84,16 @@ const retainFilesDisplay = computed({
     <section v-if="show('output')">
       <h4 v-if="!single">Output</h4>
       <div class="grid">
-        <label>Format
+        <label
+          >Format
           <select v-model="outformatDisplay">
             <option value="">{{ isGlobal ? "csv" : "(inherit)" }}</option>
             <option v-if="!isGlobal" value="csv">csv</option>
             <option value="hdf">hdf</option>
           </select>
         </label>
-        <label>Retain files
+        <label
+          >Retain files
           <select v-model="retainFilesDisplay">
             <option value="">{{ isGlobal ? "yes" : "(inherit)" }}</option>
             <option value="false">no, delete scratch files</option>
@@ -98,24 +109,65 @@ const retainFilesDisplay = computed({
       <div class="grid">
         <label>Extra info <input v-model="o.extrainfo" placeholder="job" /></label>
         <label>Walltime <input v-model="o.walltime" placeholder="00:10:00" /></label>
-        <label class="wide">Data path <input v-model="o.datapath" placeholder="<CRAB_ROOT>/data" /></label>
+        <label class="wide"
+          >Data path <input v-model="o.datapath" placeholder="<CRAB_ROOT>/data"
+        /></label>
       </div>
     </section>
   </div>
 </template>
 
 <style scoped>
-.opts { display: flex; flex-direction: column; gap: 0.8rem; }
-h4 { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase;
-  letter-spacing: 0.05em; color: var(--text3); margin-bottom: 0.4rem; }
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
-label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--text2); font-size: var(--t-sm); }
-label.wide { grid-column: 1 / -1; }
-small { color: var(--text3); font-size: var(--t-xs); line-height: 1.3; }
-input, select {
-  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
-  border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono); font-size: var(--t-md);
+.opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
 }
-input::placeholder { color: var(--text3); opacity: 0.75; }
-input:focus, select:focus { outline: none; border-color: var(--accent); }
+h4 {
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text3);
+  margin-bottom: 0.4rem;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--text2);
+  font-size: var(--t-sm);
+}
+label.wide {
+  grid-column: 1 / -1;
+}
+small {
+  color: var(--text3);
+  font-size: var(--t-xs);
+  line-height: 1.3;
+}
+input,
+select {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--mono);
+  font-size: var(--t-md);
+}
+input::placeholder {
+  color: var(--text3);
+  opacity: 0.75;
+}
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 </style>

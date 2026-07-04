@@ -59,18 +59,49 @@ onBeforeUnmount(reset);
 <style scoped>
 /* min-width: 0 down the chain lets this shrink (and ellipsize the label)
    instead of overflowing a narrow host, e.g. the rail's experiment rows. */
-.confirm-btn { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; }
+.confirm-btn {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
 .confirm-inline {
-  display: flex; align-items: center; gap: 0.4rem; min-width: 0; max-width: 100%;
-  font-family: var(--sans); font-size: var(--t-sm); color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  max-width: 100%;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  color: var(--text2);
 }
-.confirm-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.confirm-cancel, .confirm-delete {
-  font-family: var(--sans); font-size: var(--t-sm); border-radius: var(--r);
-  padding: 0.15rem 0.55rem; cursor: pointer; background: var(--bg2); color: var(--text);
-  border: 1px solid var(--border); flex-shrink: 0;
+.confirm-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.confirm-cancel:hover { border-color: var(--border2); }
-.confirm-delete { border-color: var(--danger); color: var(--danger); }
-.confirm-delete:hover { background: var(--danger); color: var(--text); }
+.confirm-cancel,
+.confirm-delete {
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  border-radius: var(--r);
+  padding: 0.15rem 0.55rem;
+  cursor: pointer;
+  background: var(--bg2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.confirm-cancel:hover {
+  border-color: var(--border2);
+}
+.confirm-delete {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.confirm-delete:hover {
+  background: var(--danger);
+  color: var(--text);
+}
 </style>

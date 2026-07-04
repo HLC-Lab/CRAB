@@ -1,13 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
-import type {
-  BootstrapPlan,
-  CrabInfo,
-  Profile,
-  RemoteListItem,
-  StepResult,
-} from "@/api/types";
+import type { BootstrapPlan, CrabInfo, Profile, RemoteListItem, StepResult } from "@/api/types";
 
 function msg(e: unknown): string {
   return e instanceof ApiError ? e.message : "Unexpected error";
@@ -154,9 +148,24 @@ export const useRemotesStore = defineStore("remotes", () => {
   }
 
   return {
-    items, loading, error, busy, connectError, crabMissing, info,
-    plan, installResult, bootstrapBusy, bootstrapError,
-    refresh, add, update, remove, connect, disconnect,
-    loadPlan, install,
+    items,
+    loading,
+    error,
+    busy,
+    connectError,
+    crabMissing,
+    info,
+    plan,
+    installResult,
+    bootstrapBusy,
+    bootstrapError,
+    refresh,
+    add,
+    update,
+    remove,
+    connect,
+    disconnect,
+    loadPlan,
+    install,
   };
 });

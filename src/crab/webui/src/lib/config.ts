@@ -42,7 +42,8 @@ function endStr(a: AppDraft): string {
 }
 
 function parseStart(s: string): Pick<AppDraft, "startKind" | "startDelay" | "startAfter"> {
-  if (s.startsWith("s")) return { startKind: "after", startDelay: "5", startAfter: s.slice(1) || "0" };
+  if (s.startsWith("s"))
+    return { startKind: "after", startDelay: "5", startAfter: s.slice(1) || "0" };
   if (s === "" || s === "0") return { startKind: "at_start", startDelay: "5", startAfter: "0" };
   return { startKind: "delay", startDelay: s, startAfter: "0" };
 }
@@ -131,7 +132,10 @@ const RESERVED_PARTITION_KEYS = new Set(["share"]);
  * `force` for a per-experiment override, where even a bare `{mode:"linear"}` is
  * meaningful (it replaces — rather than inherits — the global allocation).
  */
-export function toAllocation(a: AllocationDraft, force = false): Record<string, unknown> | undefined {
+export function toAllocation(
+  a: AllocationDraft,
+  force = false,
+): Record<string, unknown> | undefined {
   if (!force && !hasAllocation(a)) return undefined;
   const out: Record<string, unknown> = { mode: a.mode };
   if (a.mode === "interleaved" && a.stride.trim()) out.stride = Number(a.stride.trim());
@@ -196,7 +200,14 @@ export interface ExperimentDraft {
 }
 
 export function emptyExperiment(name = ""): ExperimentDraft {
-  return { name, description: "", overrideAlloc: false, allocation: emptyAllocation(), options: emptyOptions(), apps: [] };
+  return {
+    name,
+    description: "",
+    overrideAlloc: false,
+    allocation: emptyAllocation(),
+    options: emptyOptions(),
+    apps: [],
+  };
 }
 
 // -- Tunable options (convergence / output / advanced) -----------------------
@@ -225,8 +236,18 @@ export interface OptionsDraft {
 
 export function emptyOptions(): OptionsDraft {
   return {
-    minruns: "", maxruns: "", timeout: "", convergeall: "", alpha: "", beta: "",
-    outformat: "", retainFiles: "", tags: "", extrainfo: "", walltime: "", datapath: "",
+    minruns: "",
+    maxruns: "",
+    timeout: "",
+    convergeall: "",
+    alpha: "",
+    beta: "",
+    outformat: "",
+    retainFiles: "",
+    tags: "",
+    extrainfo: "",
+    walltime: "",
+    datapath: "",
   };
 }
 
@@ -335,14 +356,29 @@ export interface Draft {
 
 export function emptyApp(): AppDraft {
   return {
-    path: "", args: "", collect: true, partition: "",
-    startKind: "at_start", startDelay: "5", startAfter: "0",
-    endKind: "complete", endTimed: "60", rest: {},
+    path: "",
+    args: "",
+    collect: true,
+    partition: "",
+    startKind: "at_start",
+    startDelay: "5",
+    startAfter: "0",
+    endKind: "complete",
+    endTimed: "60",
+    rest: {},
   };
 }
 
 export function emptyDraft(): Draft {
-  return { name: "", numnodes: "", ppn: "1", allocation: emptyAllocation(), options: emptyOptions(), sbatch: emptySbatch(), experiments: [] };
+  return {
+    name: "",
+    numnodes: "",
+    ppn: "1",
+    allocation: emptyAllocation(),
+    options: emptyOptions(),
+    sbatch: emptySbatch(),
+    experiments: [],
+  };
 }
 
 /** Build the engine config from the draft, pruning empty optionals. */
@@ -413,7 +449,8 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
   const toGroups = (split: unknown[]): { partitions: Record<string, unknown>; keys: string[] } => {
     const n = split.length || 1;
     const nums = split.map((raw) => Number(raw));
-    const even = 100 % n === 0 && nums.every((v) => Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9);
+    const even =
+      100 % n === 0 && nums.every((v) => Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9);
     const partitions: Record<string, unknown> = {};
     const keys: string[] = [];
     nums.forEach((v, i) => {
@@ -427,7 +464,12 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
   const tagApps = (apps: Record<string, AppConfig> | undefined, keys: string[]): void => {
     if (!apps) return;
     Object.values(apps).forEach((app, i) => {
-      if (app && typeof app === "object" && (app.partition == null || app.partition === "") && i < keys.length) {
+      if (
+        app &&
+        typeof app === "object" &&
+        (app.partition == null || app.partition === "") &&
+        i < keys.length
+      ) {
         app.partition = keys[i];
       }
     });
@@ -474,7 +516,8 @@ export function fromConfig(config: CrabConfig): Draft {
   const legacy = (config as unknown as { applications?: unknown })?.applications;
   if (!experiments && legacy && typeof legacy === "object") {
     const l = legacy as Record<string, unknown>;
-    experiments = "apps" in l ? { default_ex: l as never } : { default_ex: { apps: legacy as never } };
+    experiments =
+      "apps" in l ? { default_ex: l as never } : { default_ex: { apps: legacy as never } };
   }
 
   const draft = emptyDraft();
@@ -485,7 +528,11 @@ export function fromConfig(config: CrabConfig): Draft {
   draft.options = readOptions(g);
   draft.sbatch = fromSbatch(g.sbatch_directives);
   draft.experiments = Object.entries(experiments ?? {}).map(([name, exp]) => {
-    const e = exp as { description?: unknown; local_options?: unknown; apps?: Record<string, never> };
+    const e = exp as {
+      description?: unknown;
+      local_options?: unknown;
+      apps?: Record<string, never>;
+    };
     const lo = (e.local_options ?? {}) as Record<string, unknown>;
     return {
       name,
@@ -525,19 +572,30 @@ const _numeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
 export function validateOptions(o: OptionsDraft, where = ""): string[] {
   const issues: string[] = [];
   const at = where ? `${where}: ` : "";
-  if (o.minruns.trim() && !_posInt(o.minruns)) issues.push(`${at}min runs must be a positive integer.`);
-  if (o.maxruns.trim() && !_posInt(o.maxruns)) issues.push(`${at}max runs must be a positive integer.`);
-  if (o.minruns.trim() && o.maxruns.trim() && _posInt(o.minruns) && _posInt(o.maxruns) &&
-      parseInt(o.maxruns, 10) < parseInt(o.minruns, 10))
+  if (o.minruns.trim() && !_posInt(o.minruns))
+    issues.push(`${at}min runs must be a positive integer.`);
+  if (o.maxruns.trim() && !_posInt(o.maxruns))
+    issues.push(`${at}max runs must be a positive integer.`);
+  if (
+    o.minruns.trim() &&
+    o.maxruns.trim() &&
+    _posInt(o.minruns) &&
+    _posInt(o.maxruns) &&
+    parseInt(o.maxruns, 10) < parseInt(o.minruns, 10)
+  )
     issues.push(`${at}max runs must be ≥ min runs.`);
-  if (o.timeout.trim() && !_numeric(o.timeout)) issues.push(`${at}timeout must be a number (seconds).`);
+  if (o.timeout.trim() && !_numeric(o.timeout))
+    issues.push(`${at}timeout must be a number (seconds).`);
   if (o.alpha.trim() && !_numeric(o.alpha)) issues.push(`${at}alpha must be a number.`);
   if (o.beta.trim() && !_numeric(o.beta)) issues.push(`${at}beta must be a number.`);
   return issues;
 }
 
 /** Validate an allocation and return its defined node-group names (for per-app checks). */
-export function validateAllocation(a: AllocationDraft, where = ""): { issues: string[]; groups: Set<string> } {
+export function validateAllocation(
+  a: AllocationDraft,
+  where = "",
+): { issues: string[]; groups: Set<string> } {
   const issues: string[] = [];
   const groups = new Set<string>();
   const at = where ? `${where}: ` : "";
@@ -557,14 +615,16 @@ export function validateAllocation(a: AllocationDraft, where = ""): { issues: st
     named.forEach((p) => {
       if (groups.has(p.name.trim())) issues.push(`${at}duplicate node group "${p.name.trim()}".`);
       else groups.add(p.name.trim());
-      if (p.share.trim() && !_numeric(p.share)) issues.push(`${at}node group "${p.name.trim()}": share must be a number.`);
+      if (p.share.trim() && !_numeric(p.share))
+        issues.push(`${at}node group "${p.name.trim()}": share must be a number.`);
     });
     const shared = named.filter((p) => p.share.trim());
     if (shared.length && shared.length !== named.length)
       issues.push(`${at}set a share on every node group, or on none (for an equal split).`);
     else if (shared.length && shared.every((p) => _numeric(p.share))) {
       const sum = shared.reduce((t, p) => t + Number(p.share), 0);
-      if (Math.abs(sum - 100) > 0.01) issues.push(`${at}node-group shares should sum to 100 (currently ${sum}).`);
+      if (Math.abs(sum - 100) > 0.01)
+        issues.push(`${at}node-group shares should sum to 100 (currently ${sum}).`);
     }
   }
   return { issues, groups };
@@ -580,9 +640,13 @@ export function validateSbatch(s: SbatchDraft): string[] {
     if (!parsed) continue;
     const key = parsed[0];
     if (PROTECTED_SBATCH.has(key))
-      issues.push(`Slurm directive "--${key}" is computed by CRAB from nodes/ppn and will be ignored.`);
+      issues.push(
+        `Slurm directive "--${key}" is computed by CRAB from nodes/ppn and will be ignored.`,
+      );
     else if (key === "output" || key === "error")
-      issues.push(`Slurm directive "--${key}" overrides CRAB's log redirection (allowed, but be aware).`);
+      issues.push(
+        `Slurm directive "--${key}" overrides CRAB's log redirection (allowed, but be aware).`,
+      );
   }
   return issues;
 }
@@ -636,7 +700,9 @@ export function validateDraft(d: Draft): string[] {
       // A partition reference is invalid whenever it names no defined node group —
       // including when none exist (e.g. after switching to "by app" or disabling allocation).
       if (a.partition.trim() && !groups.has(a.partition.trim()))
-        issues.push(`${label} · app #${ai}: partition "${a.partition.trim()}" is not a defined node group.`);
+        issues.push(
+          `${label} · app #${ai}: partition "${a.partition.trim()}" is not a defined node group.`,
+        );
     });
   });
   return issues;
@@ -693,7 +759,8 @@ export function allocationSummary(
     // identity — otherwise an unnamed slice's apps would show correctly in the
     // editor/dropdown but lose their color/node-count badge here.
     const indexed = alloc.partitions.map((p, i) => ({ p, i, name: sliceName(p.name, i) }));
-    const allShared = indexed.length > 0 && indexed.every(({ p }) => p.share.trim() && _numeric(p.share));
+    const allShared =
+      indexed.length > 0 && indexed.every(({ p }) => p.share.trim() && _numeric(p.share));
     const groupNodes: Record<string, number> = {};
     const groupColor: Record<string, string> = {};
     for (const { p, i, name } of indexed) {
@@ -764,4 +831,3 @@ export function flowForest(apps: AppDraft[], alloc?: AllocationDraft, numnodes =
   });
   return roots;
 }
-

@@ -105,7 +105,8 @@ function confirmRemove(name: string) {
       </div>
       <div class="grid">
         <label>Name <input v-model="form.name" required placeholder="my-cluster" /></label>
-        <label>Transport
+        <label
+          >Transport
           <select v-model="form.transport">
             <option value="ssh">ssh</option>
             <option value="local">local</option>
@@ -115,21 +116,26 @@ function confirmRemove(name: string) {
           <label>Host <input v-model="form.host" placeholder="login.hpc.example.org" /></label>
           <label>User <input v-model="form.user" placeholder="username" /></label>
           <label>Port <input v-model.number="form.port" type="number" /></label>
-          <label>Auth
+          <label
+            >Auth
             <select v-model="form.auth">
               <option value="agent">agent (ssh-agent / cert)</option>
               <option value="key">key file</option>
               <option value="password">password</option>
             </select>
           </label>
-          <label v-if="form.auth === 'key'">Key path <input v-model="form.key_path" placeholder="~/.ssh/id_ed25519" /></label>
-          <label>Host key
+          <label v-if="form.auth === 'key'"
+            >Key path <input v-model="form.key_path" placeholder="~/.ssh/id_ed25519"
+          /></label>
+          <label
+            >Host key
             <select v-model="form.hostkey_policy">
               <option value="strict">strict</option>
               <option value="insecure">insecure (rotating login nodes)</option>
             </select>
           </label>
-          <label>Install dir
+          <label
+            >Install dir
             <input v-model="form.remote_crab" placeholder="~" />
             <small class="field-hint">CRAB goes in {{ crabDir(form.remote_crab) }}</small>
           </label>
@@ -171,7 +177,12 @@ function confirmRemove(name: string) {
             >
               {{ store.busy[r.name] ? "Connecting…" : "Connect" }}
             </button>
-            <button v-else class="btn" :disabled="store.busy[r.name]" @click="store.disconnect(r.name)">
+            <button
+              v-else
+              class="btn"
+              :disabled="store.busy[r.name]"
+              @click="store.disconnect(r.name)"
+            >
               Disconnect
             </button>
             <button
@@ -210,9 +221,11 @@ function confirmRemove(name: string) {
         <!-- Connected, but CRAB isn't installed there. Offer a guided install. -->
         <div v-if="r.connected && store.crabMissing[r.name]" class="setup">
           <p class="notice">
-            CRAB is not installed on this cluster (looked in <code>{{ crabDir(r.remote_crab) }}</code>).
-            It will be installed into a <code>CRAB</code> subfolder there, at
-            <code>{{ crabDir(r.remote_crab) }}</code>.
+            CRAB is not installed on this cluster (looked in
+            <code>{{ crabDir(r.remote_crab) }}</code
+            >). It will be installed into a <code>CRAB</code> subfolder there, at
+            <code>{{ crabDir(r.remote_crab) }}</code
+            >.
           </p>
 
           <label class="pre">
@@ -247,7 +260,7 @@ function confirmRemove(name: string) {
             v-if="store.installResult[r.name]"
             class="output"
             :class="{ bad: !store.installResult[r.name].ok }"
-          >{{ stepText(store.installResult[r.name]) }}</pre>
+            >{{ stepText(store.installResult[r.name]) }}</pre>
           <p v-if="store.bootstrapError[r.name]" class="banner err small">
             {{ store.bootstrapError[r.name] }}
           </p>
@@ -258,89 +271,258 @@ function confirmRemove(name: string) {
 </template>
 
 <style scoped>
-.remotes { padding: 1.5rem 2rem; max-width: 64rem; }
-.head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-h1 { font-family: var(--sans); font-size: 1.6rem; }
-.actions { display: flex; gap: 0.5rem; }
-.btn {
-  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
-  border-radius: var(--r); padding: 0.35rem 0.8rem; cursor: pointer; font-family: var(--mono);
+.remotes {
+  padding: 1.5rem 2rem;
+  max-width: 64rem;
 }
-.btn:hover:not(:disabled) { border-color: var(--accent); }
-.btn:disabled { opacity: 0.5; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+h1 {
+  font-family: var(--sans);
+  font-size: 1.6rem;
+}
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.btn {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  font-family: var(--mono);
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 .icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: 1px solid transparent; color: var(--text2);
-  border-radius: var(--r); padding: 0.3rem; cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text2);
+  border-radius: var(--r);
+  padding: 0.3rem;
+  cursor: pointer;
 }
 .icon-btn svg {
-  width: 18px; height: 18px; display: block;
-  fill: none; stroke: currentColor; stroke-width: 1.75;
-  stroke-linecap: round; stroke-linejoin: round;
+  width: 18px;
+  height: 18px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.icon-btn:hover:not(:disabled) { border-color: var(--border); color: var(--text); }
-.icon-btn:disabled { opacity: 0.35; cursor: default; }
-.icon-btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.icon-btn:hover:not(:disabled) {
+  border-color: var(--border);
+  color: var(--text);
+}
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icon-btn.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 .form-head {
-  display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
 }
-.field-hint { color: var(--text3); font-size: 0.72rem; }
+.field-hint {
+  color: var(--text3);
+  font-size: 0.72rem;
+}
 .card {
-  background: var(--bg1); border: 1px solid var(--border);
-  border-radius: var(--r2); padding: 1rem; margin-bottom: 0.75rem;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 1rem;
+  margin-bottom: 0.75rem;
 }
 .form .grid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 0.75rem; margin-bottom: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
-label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: 0.8rem; }
-input, select {
-  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
-  border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono);
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--text2);
+  font-size: 0.8rem;
 }
-.list { list-style: none; }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.ident { display: flex; align-items: center; gap: 0.5rem; }
-.sub { color: var(--text2); font-size: 0.85rem; }
-.warn { color: var(--warn); }
-.ctrls { display: flex; gap: 0.4rem; align-items: center; }
-.pw { width: 9rem; }
-.dot { width: 9px; height: 9px; border-radius: 50%; }
-.dot.on { background: var(--ok); }
-.dot.off { background: var(--text3); }
-.info { margin-top: 0.6rem; color: var(--text2); font-size: 0.82rem; }
-.presets { margin-left: 0.5rem; color: var(--text3); }
-.banner { padding: 0.5rem 0.75rem; border-radius: var(--r); }
-.banner.err { background: rgba(245, 101, 101, 0.12); color: var(--danger); border: 1px solid var(--danger); }
-.banner.small { margin-top: 0.5rem; font-size: 0.8rem; }
-.empty { color: var(--text3); padding: 2rem 0; }
+input,
+select {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--mono);
+}
+.list {
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.ident {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sub {
+  color: var(--text2);
+  font-size: 0.85rem;
+}
+.warn {
+  color: var(--warn);
+}
+.ctrls {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.pw {
+  width: 9rem;
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.dot.on {
+  background: var(--ok);
+}
+.dot.off {
+  background: var(--text3);
+}
+.info {
+  margin-top: 0.6rem;
+  color: var(--text2);
+  font-size: 0.82rem;
+}
+.presets {
+  margin-left: 0.5rem;
+  color: var(--text3);
+}
+.banner {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r);
+}
+.banner.err {
+  background: rgba(245, 101, 101, 0.12);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.banner.small {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+.empty {
+  color: var(--text3);
+  padding: 2rem 0;
+}
 
 /* Guided install */
 .setup {
-  margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
 }
-.notice { color: var(--text2); font-size: 0.85rem; margin-bottom: 0.75rem; }
-.notice code { font-family: var(--mono); color: var(--text); }
-.pre { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem;
-  color: var(--text2); font-size: 0.8rem; }
+.notice {
+  color: var(--text2);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.notice code {
+  font-family: var(--mono);
+  color: var(--text);
+}
+.pre {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+  color: var(--text2);
+  font-size: 0.8rem;
+}
 textarea {
-  background: var(--bg2); border: 1px solid var(--border); color: var(--text);
-  border-radius: var(--r); padding: 0.35rem 0.5rem; font-family: var(--mono);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--mono);
   resize: vertical;
 }
-.steps { list-style: none; display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.75rem; }
-.step-label { font-size: 0.85rem; color: var(--text2); }
+.steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+.step-label {
+  font-size: 0.85rem;
+  color: var(--text2);
+}
 .cmd {
-  display: block; margin-top: 0.3rem; padding: 0.3rem 0.5rem;
-  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r);
-  font-family: var(--mono); font-size: 0.78rem; color: var(--text2); overflow-x: auto;
+  display: block;
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--text2);
+  overflow-x: auto;
 }
 .output {
-  margin-top: 0.3rem; padding: 0.4rem 0.5rem; max-height: 16rem; overflow: auto;
-  background: var(--bg0, var(--bg2)); border: 1px solid var(--border); border-radius: var(--r);
-  font-family: var(--mono); font-size: 0.75rem; color: var(--text2); white-space: pre-wrap;
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  max-height: 16rem;
+  overflow: auto;
+  background: var(--bg0, var(--bg2));
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--text2);
+  white-space: pre-wrap;
 }
-.output.bad { border-color: var(--danger); color: var(--danger); }
+.output.bad {
+  border-color: var(--danger);
+  color: var(--danger);
+}
 </style>

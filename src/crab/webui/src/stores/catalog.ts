@@ -70,7 +70,16 @@ export const useCatalogStore = defineStore("catalog", () => {
   }
 
   return {
-    benchmarks, nodes, busy, error, loadBenchmarks, loadNodes, forget,
-    localBenchmarks, localBusy, localError, loadLocalBenchmarks,
+    benchmarks,
+    nodes,
+    busy,
+    error,
+    loadBenchmarks,
+    loadNodes,
+    forget,
+    localBenchmarks,
+    localBusy,
+    localError,
+    loadLocalBenchmarks,
   };
 });
