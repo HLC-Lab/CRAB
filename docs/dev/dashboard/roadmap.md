@@ -19,8 +19,8 @@ decisions live in the [decision records](decisions/index.md).
 ## v1.0 gates (remaining)
 
 1. **Submit & monitor** — push a config to a cluster, `crab run --json`, job registry, status
-   polling (refresh + 10 s auto-poll of active jobs), cancel, open logs on demand, reconcile
-   on reconnect.
+   polling (refresh + selectable auto-poll interval of active jobs), cancel, open logs on
+   demand, reconcile on reconnect.
 2. **Results** — fetch result CSVs to a local cache, history across clusters, a Chart.js
    results dashboard (port of the `crab export` charts), per-experiment detail, **and a
    standalone self-contained HTML export** (data embedded, shareable offline).
