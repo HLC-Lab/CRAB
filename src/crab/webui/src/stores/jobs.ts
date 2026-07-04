@@ -87,6 +87,12 @@ export const useJobsStore = defineStore("jobs", () => {
     delete cancelError.value[id];
     try {
       const res = await api.jobs.cancel(id);
+      // A 200 with cancelled: false isn't a request failure (e.g. the job was
+      // already gone) — surface `detail` the same way an error would be shown,
+      // since silently doing nothing would look like the click had no effect.
+      if (!res.cancelled) {
+        cancelError.value[id] = res.detail || "Could not cancel this job.";
+      }
       await refresh();
       return res;
     } catch (e) {
