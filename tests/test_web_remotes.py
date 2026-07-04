@@ -15,11 +15,16 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, LocalTransport, Transport  # noqa: E402
-from crab.web.errors import ConflictError, ContractError, NotFoundError, RemoteCommandError  # noqa: E402
+from crab.web.errors import (  # noqa: E402
+    ConflictError,
+    ContractError,
+    NotFoundError,
+    RemoteCommandError,
+)
 from crab.web.remoteops.crab_cli import build_crab_command, run_crab_json  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
-from crab.web.store.profiles import Profile, ProfileStore  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
+from crab.web.store.profiles import Profile, ProfileStore  # noqa: E402
 
 _INFO_JSON = '{"schema":1,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"Leonardo @ CINECA"}]}'
 
@@ -48,8 +53,13 @@ class FakeTransport(Transport):
 
 def _leonardo() -> Profile:
     return Profile(
-        name="leonardo", host="login.leonardo.cineca.it", user="mmarcel3",
-        auth="agent", hostkey_policy="insecure", remote_crab="~/CRAB", preset="leonardo",
+        name="leonardo",
+        host="login.cluster.example.org",
+        user="researcher",
+        auth="agent",
+        hostkey_policy="insecure",
+        remote_crab="~/CRAB",
+        preset="leonardo",
     )
 
 
@@ -62,7 +72,7 @@ def test_profile_store_crud_and_persistence(tmp_path: Path):
 
     store.add(_leonardo())
     assert [p.name for p in store.list()] == ["leonardo"]
-    assert store.get("leonardo").host == "login.leonardo.cineca.it"
+    assert store.get("leonardo").host == "login.cluster.example.org"
 
     with pytest.raises(ConflictError):
         store.add(_leonardo())

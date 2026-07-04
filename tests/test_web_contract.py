@@ -9,8 +9,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from crab.cli import contract
 
 
@@ -59,13 +57,29 @@ def _write_registry(system_dir: Path, rows: list[dict]) -> None:
 def test_gather_history_scans_all_systems(tmp_path: Path):
     _write_registry(
         tmp_path / "leonardo",
-        [{"job_name": "j1", "experiment_name": "e1", "timestamp": "2026-01-01_00-00-00",
-          "status": "COMPLETED", "apps_list": "blink", "numnodes": "2", "ppn": "4"}],
+        [
+            {
+                "job_name": "j1",
+                "experiment_name": "e1",
+                "timestamp": "2026-01-01_00-00-00",
+                "status": "COMPLETED",
+                "apps_list": "blink",
+                "numnodes": "2",
+                "ppn": "4",
+            }
+        ],
     )
     _write_registry(
         tmp_path / "local",
-        [{"job_name": "j2", "experiment_name": "e2", "timestamp": "2026-02-02_00-00-00",
-          "status": "FAILED", "apps_list": "g500"}],
+        [
+            {
+                "job_name": "j2",
+                "experiment_name": "e2",
+                "timestamp": "2026-02-02_00-00-00",
+                "status": "FAILED",
+                "apps_list": "g500",
+            }
+        ],
     )
     data = contract.gather_history(data_root=tmp_path)
     assert data["schema"] == contract.CONTRACT_SCHEMA
@@ -87,7 +101,7 @@ def test_gather_history_system_filter_and_empty(tmp_path: Path):
 # --------------------------------------------------------------------------- #
 # benchmarks + wrappers
 # --------------------------------------------------------------------------- #
-_GOOD_WRAPPER = '''
+_GOOD_WRAPPER = """
 class app:
     metadata = [
         {"name": "duration", "unit": "s", "conv": True},
@@ -100,7 +114,7 @@ class app:
         return "demo"
     def get_bench_name(self):
         return "Demo Bench"
-'''
+"""
 
 _BROKEN_WRAPPER = "import a_module_that_does_not_exist_xyz\n"
 
@@ -110,8 +124,13 @@ def test_gather_benchmarks_receipts_and_wrappers(tmp_path: Path):
     env.mkdir()
     (env / "blink.json").write_text(
         json.dumps(
-            {"id": "blink", "type": "source", "binary_path": "/x/bin",
-             "launcher_override": "", "hooks": {"pre_run": ["module load gcc"]}}
+            {
+                "id": "blink",
+                "type": "source",
+                "binary_path": "/x/bin",
+                "launcher_override": "",
+                "hooks": {"pre_run": ["module load gcc"]},
+            }
         )
     )
 
