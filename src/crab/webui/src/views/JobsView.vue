@@ -40,7 +40,6 @@ function stateClass(state: string): string {
 
 const jobs = useJobsStore();
 const showSubmit = ref(false);
-const expandedLogs = ref<string | null>(null);
 const cancelTarget = ref<{ id: string; label: string } | null>(null);
 
 const POLL_INTERVAL_OPTIONS = [5_000, 10_000, 30_000, 60_000];
@@ -75,23 +74,25 @@ function togglePolling() {
   else jobs.startPolling();
 }
 
-async function manualRefresh() {
-  // jobs.refresh() only updates the list/state; an open Logs panel needs its
-  // own refetch too, or Refresh looks like it does nothing while logs are open.
-  await jobs.refresh();
-  if (expandedLogs.value) await jobs.fetchLogs(expandedLogs.value);
+function toggleLogs(id: string) {
+  if (jobs.openLogId === id) jobs.closeLogs();
+  else jobs.openLogs(id);
 }
 
-async function toggleLogs(id: string) {
-  if (expandedLogs.value === id) {
-    expandedLogs.value = null;
-    return;
-  }
-  expandedLogs.value = id;
-  // Always fetch fresh: a cached result from before the job finished writing
-  // its output would otherwise stick forever (only a page reload cleared it).
-  await jobs.fetchLogs(id);
-}
+// Keep the log tail in view: jump to the bottom on first open, and stay
+// there across refreshes only if the reader hasn't scrolled up to look at
+// something earlier (mirrors a `tail -f` follow).
+const vStickBottom = {
+  mounted(el: HTMLElement) {
+    el.scrollTop = el.scrollHeight;
+  },
+  beforeUpdate(el: HTMLElement & { __wasAtBottom?: boolean }) {
+    el.__wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  },
+  updated(el: HTMLElement & { __wasAtBottom?: boolean }) {
+    if (el.__wasAtBottom) el.scrollTop = el.scrollHeight;
+  },
+};
 
 function requestCancel(id: string, label: string) {
   cancelTarget.value = { id, label };
@@ -109,7 +110,7 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
     <header class="head">
       <h1>Jobs</h1>
       <div class="actions">
-        <button class="btn" :disabled="jobs.loading" @click="manualRefresh">
+        <button class="btn" :disabled="jobs.loading" @click="jobs.refresh">
           <span :class="{ spinning: jobs.refreshing }">↻</span> Refresh
         </button>
         <span class="meta refreshed-at">refreshed {{ lastRefreshedLabel }}</span>
@@ -156,7 +157,7 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
               j.last_known_state
             }}</span>
             <button class="btn" @click="toggleLogs(j.id)">
-              {{ expandedLogs === j.id ? "Hide logs" : "Logs" }}
+              {{ jobs.openLogId === j.id ? "Hide logs" : "Logs" }}
             </button>
             <button
               v-if="!isTerminal(j.last_known_state)"
@@ -172,8 +173,8 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
         <p class="meta">submitted {{ new Date(j.submitted_at).toLocaleString() }}</p>
         <p v-if="jobs.cancelError[j.id]" class="banner err small">{{ jobs.cancelError[j.id] }}</p>
 
-        <div v-if="expandedLogs === j.id" class="logs">
-          <p v-if="jobs.logsBusy[j.id]" class="meta">Loading…</p>
+        <div v-if="jobs.openLogId === j.id" class="logs">
+          <p v-if="jobs.logsBusy[j.id] && !jobs.logs[j.id]" class="meta">Loading…</p>
           <p v-else-if="jobs.logsError[j.id]" class="banner err small">
             {{ jobs.logsError[j.id] }}
           </p>
@@ -185,6 +186,7 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
               </p>
               <pre
                 v-if="jobs.logs[j.id].stdout.exists && jobs.logs[j.id].stdout.content.trim()"
+                v-stick-bottom
                 v-html="ansiToHtml(jobs.logs[j.id].stdout.content)"
               ></pre>
               <p v-else-if="jobs.logs[j.id].stdout.exists" class="meta empty">(no output yet)</p>
@@ -197,6 +199,7 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
               </p>
               <pre
                 v-if="jobs.logs[j.id].stderr.exists && jobs.logs[j.id].stderr.content.trim()"
+                v-stick-bottom
                 v-html="ansiToHtml(jobs.logs[j.id].stderr.content)"
               ></pre>
               <p v-else-if="jobs.logs[j.id].stderr.exists" class="meta empty">(no output yet)</p>

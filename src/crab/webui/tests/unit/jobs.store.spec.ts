@@ -19,10 +19,19 @@ import { useJobsStore } from "@/stores/jobs";
 
 const listMock = vi.mocked(api.jobs.list);
 const submitMock = vi.mocked(api.jobs.submit);
+const logsMock = vi.mocked(api.jobs.logs);
+
+const SAMPLE_LOGS = {
+  schema: 1,
+  data_dir: "/d",
+  stdout: { path: "/d/slurm_output.log", exists: true, content: "out", truncated: false },
+  stderr: { path: "/d/slurm_error.log", exists: false, content: "", truncated: false },
+};
 
 beforeEach(() => {
   setActivePinia(createPinia());
   listMock.mockReset();
+  logsMock.mockReset();
   submitMock.mockReset();
   vi.useFakeTimers();
 });
@@ -108,6 +117,74 @@ describe("jobs store refresh metadata", () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await store.refresh();
     expect(store.lastRefreshedAt).toBe(first);
+  });
+});
+
+describe("jobs store open logs stay live", () => {
+  it("openLogs fetches immediately and records which job is open", async () => {
+    logsMock.mockResolvedValue(SAMPLE_LOGS);
+    const store = useJobsStore();
+
+    await store.openLogs("job-1");
+    expect(logsMock).toHaveBeenCalledTimes(1);
+    expect(store.openLogId).toBe("job-1");
+  });
+
+  it("refresh() also refetches the currently open job's logs", async () => {
+    listMock.mockResolvedValue([]);
+    logsMock.mockResolvedValue(SAMPLE_LOGS);
+    const store = useJobsStore();
+    await store.openLogs("job-1");
+
+    await store.refresh();
+    expect(logsMock).toHaveBeenCalledTimes(2);
+    expect(logsMock).toHaveBeenLastCalledWith("job-1");
+  });
+
+  it("auto-poll keeps an open log panel updated, not just the job list", async () => {
+    listMock.mockResolvedValue([]);
+    logsMock.mockResolvedValue(SAMPLE_LOGS);
+    const store = useJobsStore();
+    await store.openLogs("job-1");
+
+    store.startPolling();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(logsMock).toHaveBeenCalledTimes(2);
+
+    store.stopPolling();
+  });
+
+  it("closeLogs stops refresh() from refetching it", async () => {
+    listMock.mockResolvedValue([]);
+    logsMock.mockResolvedValue(SAMPLE_LOGS);
+    const store = useJobsStore();
+    await store.openLogs("job-1");
+
+    store.closeLogs();
+    await store.refresh();
+    expect(logsMock).toHaveBeenCalledTimes(1); // no second call after closing
+  });
+
+  it("does not flip logsBusy on a refetch once content already exists (avoids the flicker)", async () => {
+    listMock.mockResolvedValue([]);
+    logsMock.mockResolvedValue(SAMPLE_LOGS);
+    const store = useJobsStore();
+    await store.openLogs("job-1");
+    expect(store.logsBusy["job-1"]).toBe(false);
+
+    let resolveSecond: (v: typeof SAMPLE_LOGS) => void = () => {};
+    logsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        }),
+    );
+    const refreshPromise = store.refresh();
+    await Promise.resolve(); // let refresh() reach the in-flight logs fetch
+    expect(store.logsBusy["job-1"]).toBe(false); // stays false: content already exists
+
+    resolveSecond(SAMPLE_LOGS);
+    await refreshPromise;
   });
 });
 

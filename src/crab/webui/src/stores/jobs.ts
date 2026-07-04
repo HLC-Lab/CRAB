@@ -43,6 +43,35 @@ export const useJobsStore = defineStore("jobs", () => {
   const logs = ref<Record<string, JobLogs>>({});
   const logsBusy = ref<Record<string, boolean>>({});
   const logsError = ref<Record<string, string>>({});
+  // The one log panel a user can have open at a time. Owned here (not by the
+  // view) so both manual refresh AND the poll timer keep it live — a job
+  // watched while it's still running needs its tail to actually update.
+  const openLogId = ref<string | null>(null);
+
+  async function fetchLogs(id: string) {
+    // Only flip logsBusy to show a loading state on the FIRST fetch: once
+    // content exists, a background refresh should update it in place, not
+    // blank the panel out and back in (destroys/recreates the DOM for no
+    // reason, and loses the reader's scroll position).
+    if (!logs.value[id]) logsBusy.value[id] = true;
+    delete logsError.value[id];
+    try {
+      logs.value[id] = await api.jobs.logs(id);
+    } catch (e) {
+      logsError.value[id] = msg(e);
+    } finally {
+      logsBusy.value[id] = false;
+    }
+  }
+
+  function openLogs(id: string) {
+    openLogId.value = id;
+    return fetchLogs(id);
+  }
+
+  function closeLogs() {
+    openLogId.value = null;
+  }
 
   async function refresh() {
     if (refreshing.value) return;
@@ -52,6 +81,7 @@ export const useJobsStore = defineStore("jobs", () => {
     try {
       items.value = await api.jobs.list();
       lastRefreshedAt.value = Date.now();
+      if (openLogId.value) await fetchLogs(openLogId.value);
     } catch (e) {
       error.value = msg(e);
     } finally {
@@ -118,18 +148,6 @@ export const useJobsStore = defineStore("jobs", () => {
     }
   }
 
-  async function fetchLogs(id: string) {
-    logsBusy.value[id] = true;
-    delete logsError.value[id];
-    try {
-      logs.value[id] = await api.jobs.logs(id);
-    } catch (e) {
-      logsError.value[id] = msg(e);
-    } finally {
-      logsBusy.value[id] = false;
-    }
-  }
-
   return {
     items,
     loading,
@@ -145,6 +163,7 @@ export const useJobsStore = defineStore("jobs", () => {
     logs,
     logsBusy,
     logsError,
+    openLogId,
     refresh,
     startPolling,
     stopPolling,
@@ -152,5 +171,7 @@ export const useJobsStore = defineStore("jobs", () => {
     submit,
     cancel,
     fetchLogs,
+    openLogs,
+    closeLogs,
   };
 });
