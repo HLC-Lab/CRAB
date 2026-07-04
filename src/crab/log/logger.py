@@ -9,7 +9,7 @@ pluggable handlers.
 import datetime
 import threading
 from enum import IntEnum
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .handlers import BaseHandler
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 class LogLevel(IntEnum):
     """Standard log levels, ordered by severity."""
+
     DEBUG = 10
     INFO = 20
     WARNING = 30
@@ -26,6 +27,7 @@ class LogLevel(IntEnum):
 
 class LogSource:
     """Identifies the origin of a log message."""
+
     CRAB = "CRAB"
     APP = "APP"
 
@@ -35,8 +37,9 @@ class LogRecord:
 
     __slots__ = ("level", "source", "message", "context_stack", "timestamp")
 
-    def __init__(self, level: LogLevel, source: str, message: str,
-                 context_stack: List[str], timestamp: str):
+    def __init__(
+        self, level: LogLevel, source: str, message: str, context_stack: list[str], timestamp: str
+    ):
         self.level = level
         self.source = source
         self.message = message
@@ -53,13 +56,16 @@ class CrabLogger:
     so output from concurrent apps never interleaves mid-line.
     """
 
-    def __init__(self, level: LogLevel = LogLevel.INFO,
-                 handlers: Optional[List["BaseHandler"]] = None,
-                 _context: Optional[List[str]] = None,
-                 _lock: Optional[threading.Lock] = None):
+    def __init__(
+        self,
+        level: LogLevel = LogLevel.INFO,
+        handlers: list["BaseHandler"] | None = None,
+        _context: list[str] | None = None,
+        _lock: threading.Lock | None = None,
+    ):
         self.level = level
-        self._handlers: List["BaseHandler"] = handlers or []
-        self._context: List[str] = _context or []
+        self._handlers: list[BaseHandler] = handlers or []
+        self._context: list[str] = _context or []
         self._lock = _lock or threading.Lock()
 
     # -- Context management --

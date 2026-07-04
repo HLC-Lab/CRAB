@@ -24,9 +24,11 @@ import importlib.util
 import json
 import os
 import sys
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from collections.abc import Callable, Iterable
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any
 
 # Bump on any breaking change to the shapes below. Reported by `crab info` so
 # the backend can detect laptop<->cluster skew (ContractError).
@@ -89,9 +91,7 @@ _HISTORY_COLUMNS = (
 )
 
 
-def gather_history(
-    data_root: Path | None = None, system: str | None = None
-) -> dict[str, Any]:
+def gather_history(data_root: Path | None = None, system: str | None = None) -> dict[str, Any]:
     """Past experiments parsed from per-system ``metadata.csv`` files.
 
     Args:
@@ -244,8 +244,10 @@ def gather_benchmarks(
 ) -> dict[str, Any]:
     """Installed benchmarks (receipts) + discovered wrapper files."""
     env = Path(env_dir) if env_dir else _CRAB_ROOT / "config" / "environments"
-    wdir = Path(wrappers_dir) if wrappers_dir else Path(
-        os.environ.get("CRAB_PATH_WRAPPERS", _CRAB_ROOT / "wrappers")
+    wdir = (
+        Path(wrappers_dir)
+        if wrappers_dir
+        else Path(os.environ.get("CRAB_PATH_WRAPPERS", _CRAB_ROOT / "wrappers"))
     )
 
     benchmarks = _gather_receipts(env) if env.is_dir() else []
@@ -337,7 +339,7 @@ def gather_nodes(runner: CommandRunner | None = None) -> dict[str, Any]:
         if name in seen:
             continue
         seen.add(name)
-        entry = {"name": name}
+        entry: dict[str, str | int] = {"name": name}
         if len(parts) > 1:
             entry["avail"] = parts[1].strip()
         if len(parts) > 2:
@@ -363,9 +365,7 @@ def gather_nodes(runner: CommandRunner | None = None) -> dict[str, Any]:
 # --------------------------------------------------------------------------- #
 # status (squeue → sacct fallback)
 # --------------------------------------------------------------------------- #
-def gather_status(
-    job_ids: list[str], runner: CommandRunner | None = None
-) -> dict[str, Any]:
+def gather_status(job_ids: list[str], runner: CommandRunner | None = None) -> dict[str, Any]:
     """Current state of the given Slurm job ids.
 
     Tries ``squeue`` first (active/pending jobs); for ids not in the queue,
@@ -383,8 +383,7 @@ def gather_status(
             for line in out.splitlines():
                 jid, _, state = line.strip().partition("|")
                 if jid:
-                    states[jid] = {"job_id": jid, "state": state or "UNKNOWN",
-                                   "source": "squeue"}
+                    states[jid] = {"job_id": jid, "state": state or "UNKNOWN", "source": "squeue"}
         except (FileNotFoundError, subprocess.CalledProcessError):
             pass
 

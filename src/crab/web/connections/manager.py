@@ -8,7 +8,7 @@ channels, so one auth covers everything). A dropped connection is detected via
 from __future__ import annotations
 
 import asyncio
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from crab.web.connections.transport import (
     LocalTransport,
@@ -37,9 +37,7 @@ class ConnectionManager:
                 self._conns.pop(profile.name, None)
 
             transport = (
-                LocalTransport()
-                if profile.is_local()
-                else await self._connector(profile, password)
+                LocalTransport() if profile.is_local() else await self._connector(profile, password)
             )
             self._conns[profile.name] = transport
             return transport

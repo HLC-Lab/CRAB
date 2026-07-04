@@ -12,6 +12,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from crab.web.connections.manager import ConnectionManager
+from crab.web.connections.transport import Transport
 from crab.web.errors import RemoteConnectionError
 from crab.web.remoteops.bootstrap import detect
 from crab.web.remoteops.crab_cli import run_crab_json
@@ -28,7 +30,7 @@ def _store(request: Request) -> ProfileStore:
     return ProfileStore(request.app.state.settings)
 
 
-def _manager(request: Request):
+def _manager(request: Request) -> ConnectionManager:
     manager = getattr(request.app.state, "manager", None)
     if manager is None:
         raise RemoteConnectionError("Connection manager is not initialised.")
@@ -65,13 +67,9 @@ async def remove_remote(name: str, request: Request) -> None:
 
 
 @router.post("/{name}/connect")
-async def connect_remote(
-    name: str, request: Request, body: ConnectRequest | None = None
-) -> dict:
+async def connect_remote(name: str, request: Request, body: ConnectRequest | None = None) -> dict:
     profile = _store(request).get(name)
-    transport = await _manager(request).connect(
-        profile, password=(body.password if body else None)
-    )
+    transport = await _manager(request).connect(profile, password=(body.password if body else None))
     # `detect` returns gracefully when CRAB is absent (no exception, no warning
     # log); a real connection drop/timeout still raises.
     result = await detect(transport, profile)
@@ -90,7 +88,7 @@ async def disconnect_remote(name: str, request: Request) -> None:
         await manager.disconnect(name)
 
 
-def _live_transport(name: str, request: Request):
+def _live_transport(name: str, request: Request) -> Transport:
     """The remote's existing live transport, or a clean error if not connected.
 
     Uses the already-open connection (no implicit reconnect) so introspection

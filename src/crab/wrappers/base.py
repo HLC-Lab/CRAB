@@ -1,11 +1,13 @@
 import crab.setup.memory as memory
 
-def sizeof_fmt(num, suffix='B'):
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+
+def sizeof_fmt(num, suffix="B"):
+    for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
         if abs(num) < 1024.0:
-            return "%.0f%s%s" % (num, unit, suffix)
+            return f"{num:.0f}{unit}{suffix}"
         num /= 1024.0
-    return "%f%s%s" % (num, 'Yi', suffix)
+    return f"{num:f}Yi{suffix}"
+
 
 class base:
     def __init__(self, id_num, collect_flag, args):
@@ -48,8 +50,8 @@ class base:
         self.process = process
 
     def set_output(self, stdout, stderr):
-        self.stdout = stdout.decode('utf-8')
-        self.stderr = stderr.decode('utf-8')
+        self.stdout = stdout.decode("utf-8")
+        self.stderr = stderr.decode("utf-8")
 
     def set_nodes(self, node_list):
         self.node_list = node_list
@@ -57,16 +59,16 @@ class base:
 
     def read_data(self):
         return []
-    
+
     def get_bench_name(self):
         return ""
-    
+
     def get_bench_input(self):
         return ""
 
     def run_app(self):
         path = self.get_binary_path()
         if path is not None:
-            return path + ' ' + self.args
+            return path + " " + self.args
         else:
             return ""

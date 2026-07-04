@@ -1,11 +1,11 @@
-from textual import work
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Button
 
-from .benchmark_tab_selector import BenchmarkTabSelector
 from .application_form import ApplicationForm
+from .benchmark_tab_selector import BenchmarkTabSelector
 from .local_options_form import LocalOptionsForm
+
 
 class ApplicationSetup(Container):
     def __init__(self, app_ref, id: str | None = None) -> None:
@@ -19,10 +19,7 @@ class ApplicationSetup(Container):
         self.forms_list = [ApplicationForm(app_ref=self.app_ref, benchmark_id=0)]
 
         self.tab_selector = BenchmarkTabSelector(benchmark_count=1)
-        self.forms_container = Container(
-            *self.forms_list,
-            id="benchmark-forms-container"
-        )
+        self.forms_container = Container(*self.forms_list, id="benchmark-forms-container")
         self.local_options_form = LocalOptionsForm()
 
     def compose(self) -> ComposeResult:
@@ -56,28 +53,33 @@ class ApplicationSetup(Container):
 
         # Iterate through all forms and display only the one with the correct index
         for i, form in enumerate(self.forms_list):
-            form.display = (i == index)
+            form.display = i == index
 
         self.tab_selector.update_benchmark_tabs(index)
 
     # MODIFICATO: Logica per aggiungere un nuovo benchmark
     def add_benchmark(self):
         self.save_current_form_state()
-        
+
         new_index = len(self.benchmark_states)
         self.benchmark_states[new_index] = {
-            "path": "", "args": "", "collect": False, "start": "", "end": "", "partition": ""
+            "path": "",
+            "args": "",
+            "collect": False,
+            "start": "",
+            "end": "",
+            "partition": "",
         }
-        
+
         # NUOVO: Crea la nuova istanza del form
         new_form = ApplicationForm(self.app_ref, benchmark_id=new_index)
-        
+
         # NUOVO: Aggiungi il nuovo form alla lista e montalo nel container
         self.forms_list.append(new_form)
         self.forms_container.mount(new_form)
-        
+
         self.tab_selector.add_benchmark()
-        self.show_benchmark(new_index) # Questo lo renderà visibile e nasconderà gli altri
+        self.show_benchmark(new_index)  # Questo lo renderà visibile e nasconderà gli altri
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id and event.button.id.startswith("benchmark-"):
@@ -140,4 +142,3 @@ class ApplicationSetup(Container):
 
         self.current_benchmark = -1
         self.show_benchmark(0)
-

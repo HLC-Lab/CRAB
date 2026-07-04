@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING
 from crab.web.errors import AuthError, RemoteConnectionError
 
 if TYPE_CHECKING:  # pragma: no cover
+    import asyncssh
+
     from crab.web.store.profiles import Profile
 
 DEFAULT_TIMEOUT = 30.0
@@ -56,7 +58,7 @@ class SSHTransport(Transport):
 
     is_local = False
 
-    def __init__(self, conn) -> None:
+    def __init__(self, conn: asyncssh.SSHClientConnection) -> None:
         self._conn = conn
         self._closed = False
 
@@ -68,11 +70,9 @@ class SSHTransport(Transport):
 
     async def run(self, command: str, timeout: float | None = DEFAULT_TIMEOUT) -> CmdResult:
         try:
-            result = await asyncio.wait_for(
-                self._conn.run(command, check=False), timeout=timeout
-            )
+            result = await asyncio.wait_for(self._conn.run(command, check=False), timeout=timeout)
         except asyncio.TimeoutError:
-            raise RemoteConnectionError(
+            raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
                 f"Remote command timed out after {timeout:g}s.",
                 detail=command,
             )
@@ -81,11 +81,12 @@ class SSHTransport(Transport):
             raise RemoteConnectionError(
                 "The SSH connection dropped while running a command.",
                 detail=f"{type(exc).__name__}: {exc}",
-            )
+            ) from exc
+        out, err = result.stdout or "", result.stderr or ""
         return CmdResult(
             rc=result.exit_status if result.exit_status is not None else -1,
-            stdout=result.stdout or "",
-            stderr=result.stderr or "",
+            stdout=out.decode("utf-8", "replace") if isinstance(out, bytes) else out,
+            stderr=err.decode("utf-8", "replace") if isinstance(err, bytes) else err,
         )
 
     async def close(self) -> None:
@@ -97,7 +98,7 @@ class SSHTransport(Transport):
             pass
 
 
-async def connect_ssh(profile: "Profile", password: str | None = None) -> SSHTransport:
+async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTransport:
     """Open an asyncssh connection for ``profile``, mapping failures to our errors.
 
     Auth:
@@ -153,19 +154,19 @@ async def connect_ssh(profile: "Profile", password: str | None = None) -> SSHTra
             "certificate may have expired — re-run `step-cli ssh login …` into "
             "the same ssh-agent, then reconnect.",
             detail=str(exc),
-        )
+        ) from exc
     except (asyncssh.HostKeyNotVerifiable, asyncssh.KeyExchangeFailed) as exc:
         raise RemoteConnectionError(
             "Host key verification failed. If this cluster rotates login-node "
             "host keys (e.g. Leonardo), set the profile's host-key policy to "
             "'insecure'.",
             detail=str(exc),
-        )
+        ) from exc
     except (OSError, asyncssh.Error) as exc:
         raise RemoteConnectionError(
             f"Could not connect to {profile.host}:{profile.port}.",
             detail=f"{type(exc).__name__}: {exc}",
-        )
+        ) from exc
 
     return SSHTransport(conn)
 
@@ -188,7 +189,9 @@ class LocalTransport(Transport):
             )
             out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
-            raise RemoteConnectionError(f"Local command timed out after {timeout:g}s.")
+            raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
+                f"Local command timed out after {timeout:g}s."
+            )
         return CmdResult(
             rc=proc.returncode if proc.returncode is not None else -1,
             stdout=out.decode("utf-8", "replace"),

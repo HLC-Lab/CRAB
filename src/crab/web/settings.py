@@ -94,9 +94,7 @@ def get_settings() -> Settings:
     config_dir = _resolve_dir(
         "CRAB_WEB_CONFIG_DIR", platformdirs.user_config_dir(APP_NAME, APP_AUTHOR)
     )
-    data_dir = _resolve_dir(
-        "CRAB_WEB_DATA_DIR", platformdirs.user_data_dir(APP_NAME, APP_AUTHOR)
-    )
+    data_dir = _resolve_dir("CRAB_WEB_DATA_DIR", platformdirs.user_data_dir(APP_NAME, APP_AUTHOR))
     port_raw = os.environ.get("CRAB_WEB_PORT")
     try:
         port = int(port_raw) if port_raw else DEFAULT_PORT

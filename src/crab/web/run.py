@@ -88,6 +88,6 @@ def run_server(
             f"        Another instance may be running, or the port is taken. "
             f"Try: crab web --port <other>"
         )
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     except KeyboardInterrupt:
         print("\n[*] CRAB web dashboard stopped.")

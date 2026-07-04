@@ -150,10 +150,6 @@ class TestExpandvarsIsolation(unittest.TestCase):
 
         captured = {}
 
-        original_update = (
-            os.environ.update.__func__ if hasattr(os.environ.update, "__func__") else None
-        )
-
         with patch.dict(os.environ, env_without_my_new, clear=True):
             try:
                 engine._run_worker(config, environment, "/tmp")

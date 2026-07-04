@@ -39,11 +39,17 @@ web = [
     "uvicorn[standard]>=0.30.0",
     "asyncssh>=2.18.0"
 ]
-# Developer / CI tooling for the web dashboard (not needed by end users).
-web-dev = [
+# Developer tooling (not needed by end users). Run everything via `make verify`.
+dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
-    "httpx>=0.27.0"
+    "httpx>=0.27.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0"
+]
+# Back-compat alias for the old extra name.
+web-dev = [
+    "crab[dev]"
 ]
 
 [project.scripts]
@@ -59,3 +65,28 @@ crab = ["crab_dashboard.html", "web/static/**/*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/F/W core, I import order, UP modernize, B bugbear.
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # long lines: the formatter handles code; prose/URLs in strings stay readable
+]
+
+[tool.mypy]
+# Scoped to the fully type-hinted web layer and its CLI seam; widen over time.
+files = ["src/crab/web", "src/crab/cli/contract.py"]
+python_version = "3.10"
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["asyncssh", "asyncssh.*", "uvicorn", "uvicorn.*", "platformdirs"]
+ignore_missing_imports = true

@@ -59,7 +59,7 @@ class LibraryStore:
         try:
             return LibraryEntry.model_validate_json(path.read_text())
         except (OSError, ValueError) as exc:
-            raise InputError(f"Could not read config file {path.name}.", detail=str(exc))
+            raise InputError(f"Could not read config file {path.name}.", detail=str(exc)) from exc
 
     def _write(self, entry: LibraryEntry) -> None:
         self._settings.ensure_dirs()

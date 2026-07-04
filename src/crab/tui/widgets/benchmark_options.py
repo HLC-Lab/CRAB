@@ -1,8 +1,8 @@
-from textual.containers import Container, VerticalScroll, Horizontal
-from textual.widgets import Button, Checkbox, Collapsible, DataTable, Input, Label, Select, TextArea
-from textual import on
-
 import subprocess
+
+from textual import on
+from textual.containers import Container, Horizontal, VerticalScroll
+from textual.widgets import Checkbox, Collapsible, DataTable, Input, Label, Select, TextArea
 
 
 def _split_nodelist(s: str) -> list[str]:
@@ -39,7 +39,7 @@ def _expand_nodelist_token(token: str) -> list[str]:
     if bracket_start == -1 or bracket_end == -1 or bracket_end < bracket_start:
         return [token]
     prefix = token[:bracket_start]
-    inner = token[bracket_start + 1:bracket_end]
+    inner = token[bracket_start + 1 : bracket_end]
     return [f"{prefix}[{r}]" for r in inner.split(",") if r]
 
 
@@ -78,7 +78,6 @@ class BenchmarkOptions(VerticalScroll):
     def on_resize(self) -> None:
         self.call_after_refresh(self._fit_node_col)
 
-
     def compose(self):
         """Crea i widget figli per il form delle opzioni."""
 
@@ -86,13 +85,20 @@ class BenchmarkOptions(VerticalScroll):
         with Horizontal(classes="node-row"):
             with Container(classes="node-controls"):
                 yield Label("Nodes:", classes="option-label")
-                yield Select([
-                    ("All Nodes", "auto"),
-                    ("Mixed Nodes", "mixed"),
-                    ("Idle Nodes", "idle"),
-                    ("From File", "file")
-                ], value="auto", id="nodes", classes="node-select")
-                yield Input(placeholder="Path to node list file", id="node_file", classes="node-select")
+                yield Select(
+                    [
+                        ("All Nodes", "auto"),
+                        ("Mixed Nodes", "mixed"),
+                        ("Idle Nodes", "idle"),
+                        ("From File", "file"),
+                    ],
+                    value="auto",
+                    id="nodes",
+                    classes="node-select",
+                )
+                yield Input(
+                    placeholder="Path to node list file", id="node_file", classes="node-select"
+                )
             with Container(classes="node-table-area"):
                 yield DataTable(id="node_table", classes="datatable")
 
@@ -101,14 +107,20 @@ class BenchmarkOptions(VerticalScroll):
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
                     yield Label("Number of Nodes:", classes="option-label")
-                    yield Input(placeholder="e.g., 4", id="numnodes", type="integer", classes="option-input")
+                    yield Input(
+                        placeholder="e.g., 4", id="numnodes", type="integer", classes="option-input"
+                    )
                 with Container(classes="option-group"):
                     yield Label("Processes Per Node:", classes="option-label")
                     yield Input(value="1", id="ppn", type="integer", classes="option-input")
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
                     yield Label("Job Name:", classes="option-label")
-                    yield Input(placeholder="Optional name for the output folder", id="name", classes="option-input")
+                    yield Input(
+                        placeholder="Optional name for the output folder",
+                        id="name",
+                        classes="option-input",
+                    )
                 with Container(classes="option-group"):
                     yield Label("Walltime:", classes="option-label")
                     yield Input(value="00:10:00", id="walltime", classes="option-input")
@@ -118,16 +130,23 @@ class BenchmarkOptions(VerticalScroll):
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
                     yield Label("Mode:", classes="option-label")
-                    yield Select([
-                        ("Linear", "linear"),
-                        ("Interleaved", "interleaved"),
-                        ("Random", "random"),
-                    ], value="linear", id="alloc_mode", classes="alloc-input")
+                    yield Select(
+                        [
+                            ("Linear", "linear"),
+                            ("Interleaved", "interleaved"),
+                            ("Random", "random"),
+                        ],
+                        value="linear",
+                        id="alloc_mode",
+                        classes="alloc-input",
+                    )
                 with Container(classes="option-group"):
                     yield Label("Split:", classes="option-label")
                     yield Input(
-                        placeholder='even or [50, 50]', value="even",
-                        id="alloc_split", classes="alloc-input"
+                        placeholder="even or [50, 50]",
+                        value="even",
+                        id="alloc_split",
+                        classes="alloc-input",
                     )
             with Horizontal(classes="options-row", id="alloc_stride_row"):
                 with Container(classes="option-group"):
@@ -136,7 +155,9 @@ class BenchmarkOptions(VerticalScroll):
             with Horizontal(classes="options-row", id="alloc_seed_row"):
                 with Container(classes="option-group"):
                     yield Label("Random Seed:", classes="option-label")
-                    yield Input(placeholder="Optional integer seed", id="alloc_seed", classes="alloc-input")
+                    yield Input(
+                        placeholder="Optional integer seed", id="alloc_seed", classes="alloc-input"
+                    )
             with Container(classes="option-group"):
                 yield Label("Partitions (JSON, optional):", classes="option-label")
                 yield TextArea(id="alloc_partitions", classes="alloc-input")
@@ -170,18 +191,25 @@ class BenchmarkOptions(VerticalScroll):
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
                     yield Label("Output Format:", classes="option-label")
-                    yield Select([
-                        ("CSV", "csv"),
-                        ("HDF5", "hdf")
-                    ], value="csv", id="outformat", classes="option-input")
+                    yield Select(
+                        [("CSV", "csv"), ("HDF5", "hdf")],
+                        value="csv",
+                        id="outformat",
+                        classes="option-input",
+                    )
                 with Container(classes="option-group"):
                     yield Label("Runtime Output:", classes="option-label")
-                    yield Select([
-                        ("Standard Output", "stdout"),
-                        ("None", "none"),
-                        ("File", "file"),
-                        ("Append to File", "+file")
-                    ], value="stdout", id="runtimeout", classes="option-input")
+                    yield Select(
+                        [
+                            ("Standard Output", "stdout"),
+                            ("None", "none"),
+                            ("File", "file"),
+                            ("Append to File", "+file"),
+                        ],
+                        value="stdout",
+                        id="runtimeout",
+                        classes="option-input",
+                    )
             with Horizontal(classes="options-row"):
                 with Container(classes="option-group"):
                     yield Label("Retain Run Files:", classes="option-label")
@@ -195,7 +223,11 @@ class BenchmarkOptions(VerticalScroll):
                     yield Input(value="./data", id="datapath", classes="option-input")
                 with Container(classes="option-group"):
                     yield Label("Extra Info:", classes="option-label")
-                    yield Input(placeholder="Details of this execution", id="extrainfo", classes="option-input")
+                    yield Input(
+                        placeholder="Details of this execution",
+                        id="extrainfo",
+                        classes="option-input",
+                    )
             with Container(classes="option-group"):
                 yield Label("Tags:", classes="option-label")
                 yield Input(placeholder="Space-separated tags", id="tags", classes="option-input")
@@ -204,18 +236,22 @@ class BenchmarkOptions(VerticalScroll):
         with Collapsible(title="Advanced", collapsed=True, classes="bench-section"):
             with Container(classes="option-group"):
                 yield Label("Replace Mix Args:", classes="option-label")
-                yield Input(placeholder="e.g., server:1.2.3.4,client:5.6.7.8", id="replace_mix_args", classes="option-input")
+                yield Input(
+                    placeholder="e.g., server:1.2.3.4,client:5.6.7.8",
+                    id="replace_mix_args",
+                    classes="option-input",
+                )
             with Container(classes="option-group"):
                 yield Label("SBATCH Directives:", classes="option-label")
                 yield TextArea(id="sbatch_directives", classes="option-input")
 
-
     def _update_alloc_visibility(self, mode: str) -> None:
-        self.query_one("#alloc_stride_row").display = (mode == "interleaved")
-        self.query_one("#alloc_seed_row").display = (mode == "random")
+        self.query_one("#alloc_stride_row").display = mode == "interleaved"
+        self.query_one("#alloc_seed_row").display = mode == "random"
 
     def _get_allocation_state(self) -> dict:
         import json
+
         alloc = {}
         mode = self.query_one("#alloc_mode", Select).value
         if mode is Select.BLANK:
@@ -245,6 +281,7 @@ class BenchmarkOptions(VerticalScroll):
 
     def _set_allocation_state(self, alloc: dict) -> None:
         import json
+
         self.query_one("#alloc_mode", Select).value = alloc.get("mode", "linear")
         split = alloc.get("split", "even")
         self.query_one("#alloc_split", Input).value = (
@@ -266,7 +303,9 @@ class BenchmarkOptions(VerticalScroll):
             if not widget.id or widget.id in _UI_ONLY:
                 continue
             if isinstance(widget, TextArea):
-                state[widget.id] = [l.strip() for l in widget.text.splitlines() if l.strip()]
+                state[widget.id] = [
+                    line.strip() for line in widget.text.splitlines() if line.strip()
+                ]
             else:
                 state[widget.id] = widget.value
 
@@ -306,7 +345,6 @@ class BenchmarkOptions(VerticalScroll):
                 self.app.log(f"Could not set state for widget '{widget_id}': {e}")
 
         self._set_allocation_state(state.get("allocation", {}))
-
 
     @on(Select.Changed)
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -351,4 +389,3 @@ class BenchmarkOptions(VerticalScroll):
                 else:
                     data_table.add_row("sinfo unavailable or no nodes found.")
                 self.call_after_refresh(self._fit_node_col)
-

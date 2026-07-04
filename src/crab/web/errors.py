@@ -95,13 +95,13 @@ def register_exception_handlers(app: Any) -> None:
     from fastapi.responses import JSONResponse
 
     @app.exception_handler(CrabWebError)
-    async def _handle_known(_request: "Request", exc: CrabWebError) -> JSONResponse:
+    async def _handle_known(_request: Request, exc: CrabWebError) -> JSONResponse:
         # Expected errors: log at info/warning, return the actionable envelope.
         logger.warning("%s: %s", exc.code, exc.message)
         return JSONResponse(status_code=exc.http_status, content=exc.to_envelope())
 
     @app.exception_handler(Exception)
-    async def _handle_unexpected(_request: "Request", exc: Exception) -> JSONResponse:
+    async def _handle_unexpected(_request: Request, exc: Exception) -> JSONResponse:
         # Unexpected: log the full traceback locally, return a safe generic message.
         logger.exception("Unhandled backend error: %s", exc)
         return JSONResponse(

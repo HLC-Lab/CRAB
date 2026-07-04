@@ -1,8 +1,16 @@
 import os
-from typing import List, Optional
+
 
 class wl_manager:
-    def run_job(self, node_list: List[str], ppn: int, cmd: str, pre_commands: Optional[List[str]] = None, data_path: str = None, launcher: Optional[str] = None) -> str:
+    def run_job(
+        self,
+        node_list: list[str],
+        ppn: int,
+        cmd: str,
+        pre_commands: list[str] | None = None,
+        data_path: str = None,
+        launcher: str | None = None,
+    ) -> str:
         num_nodes = len(node_list)
         total_tasks = ppn * num_nodes
 
@@ -17,8 +25,8 @@ class wl_manager:
             slurm_string = f"{actual_launcher} {additional_flags} {map_by} -np {total_tasks} {cmd}"
         else:
             # Default srun behavior
-            node_list_string = ','.join(node_list)
-            node_list_arg = '--nodelist ' + node_list_string
+            node_list_string = ",".join(node_list)
+            node_list_arg = "--nodelist " + node_list_string
             pinning = os.environ.get("CRAB_PINNING_FLAGS", "")
             slurm_string = f"{actual_launcher} --export=ALL {node_list_arg} {pinning} -n {total_tasks} -N {num_nodes} {cmd}"
 

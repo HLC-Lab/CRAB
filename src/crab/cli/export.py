@@ -3,8 +3,7 @@ import json
 import sys
 from pathlib import Path
 
-
-_SYSTEM_CSVS = frozenset({'metadata.csv', 'description.csv'})
+_SYSTEM_CSVS = frozenset({"metadata.csv", "description.csv"})
 _DASHBOARD_TEMPLATE = Path(__file__).resolve().parents[1] / "crab_dashboard.html"
 
 
@@ -13,9 +12,9 @@ def _clean_csv_name(stem: str) -> str:
 
     'data_app_0' → 'App 0', 'data_app_1' → 'App 1', others → title-cased.
     """
-    if stem.startswith('data_app_') and stem[9:].isdigit():
-        return f'App {stem[9:]}'
-    return stem.replace('_', ' ').replace('-', ' ').title()
+    if stem.startswith("data_app_") and stem[9:].isdigit():
+        return f"App {stem[9:]}"
+    return stem.replace("_", " ").replace("-", " ").title()
 
 
 def _parse_csv(path: Path) -> list[dict]:
@@ -46,8 +45,9 @@ def _parse_csv(path: Path) -> list[dict]:
 def _load_dir_csvs(directory: Path, lab_name: str, labs: dict) -> None:
     """Load every non-system CSV in directory as a separate experiment under lab_name."""
     data_csvs = sorted(
-        f for f in directory.iterdir()
-        if f.is_file() and f.suffix == '.csv' and f.name not in _SYSTEM_CSVS
+        f
+        for f in directory.iterdir()
+        if f.is_file() and f.suffix == ".csv" and f.name not in _SYSTEM_CSVS
     )
     for csv_path in data_csvs:
         rows = _parse_csv(csv_path)
@@ -67,21 +67,21 @@ def _collect_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
 
     entries = sorted(data_dir.iterdir())
     csvs_at_root = [
-        e for e in entries
-        if e.is_file() and e.suffix == '.csv' and e.name not in _SYSTEM_CSVS
+        e for e in entries if e.is_file() and e.suffix == ".csv" and e.name not in _SYSTEM_CSVS
     ]
     dirs_at_root = [e for e in entries if e.is_dir()]
 
     for csv_path in csvs_at_root:
         rows = _parse_csv(csv_path)
         if rows:
-            labs.setdefault('Root Lab', {})[_clean_csv_name(csv_path.stem)] = rows
+            labs.setdefault("Root Lab", {})[_clean_csv_name(csv_path.stem)] = rows
 
     for d in dirs_at_root:
         sub_entries = sorted(d.iterdir())
         sub_csvs = [
-            e for e in sub_entries
-            if e.is_file() and e.suffix == '.csv' and e.name not in _SYSTEM_CSVS
+            e
+            for e in sub_entries
+            if e.is_file() and e.suffix == ".csv" and e.name not in _SYSTEM_CSVS
         ]
         sub_dirs = [e for e in sub_entries if e.is_dir()]
 
@@ -92,8 +92,9 @@ def _collect_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
             # d is a job/lab directory; its subdirs are experiment directories
             for exp_dir in sub_dirs:
                 exp_csvs = [
-                    e for e in sorted(exp_dir.iterdir())
-                    if e.is_file() and e.suffix == '.csv' and e.name not in _SYSTEM_CSVS
+                    e
+                    for e in sorted(exp_dir.iterdir())
+                    if e.is_file() and e.suffix == ".csv" and e.name not in _SYSTEM_CSVS
                 ]
                 if exp_csvs:
                     _load_dir_csvs(exp_dir, exp_dir.name, labs)

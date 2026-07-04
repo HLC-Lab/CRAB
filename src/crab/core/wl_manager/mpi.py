@@ -1,5 +1,3 @@
-import os
-
 # ---------------------------------------------------------------------------
 # UNPORTED / LEGACY workload manager.
 # This module has NOT been ported to the current run_job() interface used by
@@ -7,6 +5,7 @@ import os
 # the ported reference implementation). Until it is ported it raises
 # NotImplementedError if invoked. See fix_plan.md.
 # ---------------------------------------------------------------------------
+
 
 class wl_manager:
     # Returns a string that can be used to run command 'cmd'

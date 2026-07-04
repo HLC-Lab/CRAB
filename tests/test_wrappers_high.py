@@ -142,7 +142,7 @@ class TestNcclCommon(unittest.TestCase):
         )
         instance = self._make_instance(stdout)
         try:
-            result = instance.read_data()
+            instance.read_data()
         except (IndexError, ValueError) as e:
             self.fail(f"read_data crashed on blank line: {e}")
 

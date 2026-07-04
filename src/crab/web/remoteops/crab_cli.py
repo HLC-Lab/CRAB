@@ -83,4 +83,4 @@ async def run_crab_json(
             "path/venv.",
             detail=f"{exc}; stdout[:500]={result.stdout[:500]!r}; "
             f"stderr[:500]={result.stderr[:500]!r}",
-        )
+        ) from exc

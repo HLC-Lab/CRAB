@@ -2,33 +2,40 @@ import os
 import shutil
 import subprocess
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple, Callable, List, Dict, Any
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
+
 
 @dataclass
 class BuildParameter:
     name: str
     description: str
-    choices: Optional[List[str]] = None
+    choices: list[str] | None = None
     default: str = ""
+
 
 @dataclass
 class BuildManifest:
     """Declares what a recipe requires from the user/system to build."""
+
     requires_modules: bool = True
-    parameters: List[BuildParameter] = field(default_factory=list)
+    parameters: list[BuildParameter] = field(default_factory=list)
+
 
 @dataclass
 class BuildResult:
     """Unified return schema for source compilations."""
+
     binary_path: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
 
 class BenchmarkRecipe(ABC):
     """
     The strict contract for all CRAB benchmark installation recipes.
     """
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -52,7 +59,7 @@ class BenchmarkRecipe(ABC):
         return ""
 
     @property
-    def pre_run_hooks(self) -> List[str]:
+    def pre_run_hooks(self) -> list[str]:
         """Commands to run before the benchmark executes (e.g., specific exports)."""
         return []
 
@@ -62,18 +69,18 @@ class BenchmarkRecipe(ABC):
         return BuildManifest()
 
     @abstractmethod
-    def check_dependencies(self, env: Dict[str, str]) -> Tuple[bool, str]:
+    def check_dependencies(self, env: dict[str, str]) -> tuple[bool, str]:
         """Pre-flight check before building, evaluating a modified environment context."""
         pass
 
     @abstractmethod
     def download_and_build(
-        self, 
-        target_dir: str, 
-        params: Dict[str, str], 
-        env: Dict[str, str], 
-        log_callback: Optional[Callable[[str, str], None]] = None
-    ) -> Tuple[bool, Optional[BuildResult], str]:
+        self,
+        target_dir: str,
+        params: dict[str, str],
+        env: dict[str, str],
+        log_callback: Callable[[str, str], None] | None = None,
+    ) -> tuple[bool, BuildResult | None, str]:
         """Logic to clone and compile the benchmark using context-aware environment maps."""
         pass
 
@@ -82,40 +89,44 @@ class BenchmarkRecipe(ABC):
         """Validates if the target path contains the expected executable/directory structure."""
         pass
 
-    def fast_search(self, crab_benchmarks_dir: str) -> Optional[str]:
+    def fast_search(self, crab_benchmarks_dir: str) -> str | None:
         """Tier 1 Auto-Detect."""
         binary_name = self.benchmark_id.lower()
-        
+
         local_target = os.path.join(crab_benchmarks_dir, binary_name)
         if self.verify_existing(local_target):
             return local_target
-            
+
         system_path = shutil.which(binary_name)
         if system_path and self.verify_existing(system_path):
             return system_path
-            
+
         return None
 
     def run_command_streamed(
-        self, 
-        cmd: List[str], 
-        cwd: str, 
-        step_name: str, 
-        env: Optional[Dict[str, str]], 
-        log_callback: Optional[Callable[[str, str], None]]
+        self,
+        cmd: list[str],
+        cwd: str,
+        step_name: str,
+        env: dict[str, str] | None,
+        log_callback: Callable[[str, str], None] | None,
     ) -> bool:
         """Runs a command natively and streams output using an explicit environment map."""
         if log_callback:
             log_callback("step", step_name)
-            
+
         try:
             process = subprocess.Popen(
-                cmd, cwd=cwd, env=env,
-                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
-                text=True, bufsize=1
+                cmd,
+                cwd=cwd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
             )
             if process.stdout:
-                for line in iter(process.stdout.readline, ''):
+                for line in iter(process.stdout.readline, ""):
                     if log_callback and line.strip():
                         log_callback("log", line.strip())
             process.wait()

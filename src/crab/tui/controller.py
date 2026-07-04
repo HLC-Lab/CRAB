@@ -1,9 +1,9 @@
 import os
 import threading
-from typing import Callable, Dict
+from collections.abc import Callable
 
 from ..core.engine import Engine
-from ..log import get_logger, TUIHandler, CrabLogger
+from ..log import TUIHandler, get_logger
 from ..setup import memory
 
 
@@ -14,7 +14,7 @@ class TUIController:
         tui_handler = TUIHandler(callback=log_callback)
         self.logger.add_handler(tui_handler)
 
-    def _prepare_environment(self, tui_settings: Dict, selected_preset: str) -> Dict[str, str]:
+    def _prepare_environment(self, tui_settings: dict, selected_preset: str) -> dict[str, str]:
         env_vars = dict(tui_settings.get("env", {}))
         execution_env = os.environ.copy()
 
@@ -33,7 +33,9 @@ class TUIController:
 
         return execution_env
 
-    def _execute_benchmark_logic(self, benchmark_config: dict, tui_settings: Dict, selected_preset: str):
+    def _execute_benchmark_logic(
+        self, benchmark_config: dict, tui_settings: dict, selected_preset: str
+    ):
         self.logger.info("Preparing to run benchmark...")
 
         try:
@@ -61,8 +63,13 @@ class TUIController:
         except Exception as e:
             self.logger.error(f"Benchmark engine error: {e}")
 
-    def run_in_thread(self, benchmark_config: dict, tui_settings: Dict[str, str],
-                      selected_preset: str, on_complete=None):
+    def run_in_thread(
+        self,
+        benchmark_config: dict,
+        tui_settings: dict[str, str],
+        selected_preset: str,
+        on_complete=None,
+    ):
         def _run():
             try:
                 self._execute_benchmark_logic(benchmark_config, tui_settings, selected_preset)

@@ -13,6 +13,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from crab.web.connections.transport import Transport
 from crab.web.errors import RemoteConnectionError
 from crab.web.remoteops.bootstrap import (
     BootstrapStep,
@@ -43,7 +44,7 @@ def _store(request: Request) -> ProfileStore:
     return ProfileStore(request.app.state.settings)
 
 
-def _connected_transport(request: Request, name: str):
+def _connected_transport(request: Request, name: str) -> Transport:
     manager = getattr(request.app.state, "manager", None)
     transport = manager.get(name) if manager else None
     if transport is None:

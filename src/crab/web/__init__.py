@@ -11,7 +11,7 @@ See ``.crab-web-dev/`` (local-only) for the design, phased plan, and standards.
 __all__ = ["create_app", "get_settings"]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     # Lazy re-exports so importing crab.web stays cheap and dependency-light.
     if name == "create_app":
         from crab.web.server import create_app

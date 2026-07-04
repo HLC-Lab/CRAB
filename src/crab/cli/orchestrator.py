@@ -3,22 +3,26 @@ import os
 import sys
 import time
 from datetime import timedelta
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Any
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+if TYPE_CHECKING:
+    from crab.log import LogLevel
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 # Walk up: cli -> crab -> src -> CRAB_ROOT
-CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-import crab.setup.memory as memory
+import crab.setup.memory as memory  # noqa: E402 -- must follow the sys.path setup above
 
-def load_environment_config(preset_arg: str) -> Dict[str, Any]:
+
+def load_environment_config(preset_arg: str) -> dict[str, Any]:
     presets_filename = os.path.join(CRAB_ROOT, "config", "presets.json")
     try:
-        with open(presets_filename, 'r') as f:
+        with open(presets_filename) as f:
             all_presets = json.load(f)
     except FileNotFoundError:
-        raise FileNotFoundError(f"The presets file '{presets_filename}' was not found.")
+        raise FileNotFoundError(f"The presets file '{presets_filename}' was not found.") from None
 
     if preset_arg not in all_presets:
         raise KeyError(f"The preset '{preset_arg}' was not found in {presets_filename}.")
@@ -43,23 +47,24 @@ def load_environment_config(preset_arg: str) -> Dict[str, Any]:
     final_header = common_preset.get("header", []) + target_preset.get("header", [])
 
     # Restituiamo una struttura configurata completa
-    return {
-        "env": final_env,
-        "sbatch": final_sbatch,
-        "header": final_header
-    }
+    return {"env": final_env, "sbatch": final_sbatch, "header": final_header}
 
-def _parse_log_level(raw: str) -> 'LogLevel':
+
+def _parse_log_level(raw: str) -> "LogLevel":
     """Convert a CLI string to a LogLevel, defaulting to INFO."""
     from crab.log import LogLevel
 
-    mapping = {"DEBUG": LogLevel.DEBUG, "INFO": LogLevel.INFO,
-               "WARNING": LogLevel.WARNING, "ERROR": LogLevel.ERROR,
-               "CRITICAL": LogLevel.CRITICAL}
+    mapping = {
+        "DEBUG": LogLevel.DEBUG,
+        "INFO": LogLevel.INFO,
+        "WARNING": LogLevel.WARNING,
+        "ERROR": LogLevel.ERROR,
+        "CRITICAL": LogLevel.CRITICAL,
+    }
     return mapping.get(raw.upper().strip(), LogLevel.INFO)
 
 
-def prepare_execution_environment(env_dict: Dict[str, Any]) -> Dict[str, str]:
+def prepare_execution_environment(env_dict: dict[str, Any]) -> dict[str, str]:
     """
     Builds a clean dictionary of framework-specific variables.
     Does NOT copy the system environment. Does NOT expand bash variables yet.
@@ -71,30 +76,32 @@ def prepare_execution_environment(env_dict: Dict[str, Any]) -> Dict[str, str]:
         processed_env[key] = str(value)
     return processed_env
 
+
 def execute_worker(work_dir: str, log_level_str: str = None):
     """Executes the worker logic directly from provided arguments."""
     from crab.log import get_logger
-    
+
     level = _parse_log_level(log_level_str) if log_level_str else None
     logger = get_logger(level=level)
 
     try:
-        config_file = os.path.join(work_dir, 'config.json')
-        env_file = os.path.join(work_dir, 'environment.json')
+        config_file = os.path.join(work_dir, "config.json")
+        env_file = os.path.join(work_dir, "environment.json")
 
         logger.info(f"Worker mode detected  workdir={work_dir}")
 
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             benchmark_config = json.load(f)
-        
-        with open(env_file, 'r') as f:
+
+        with open(env_file) as f:
             execution_env = json.load(f)
-        
+
         logger.info("Environment loaded, starting engine")
 
         start = time.time()
 
         from crab.core.engine import Engine
+
         engine = Engine(logger=logger)
         engine.run(
             config=benchmark_config,
@@ -114,11 +121,14 @@ def execute_worker(work_dir: str, log_level_str: str = None):
     except Exception as e:
         logger.critical(f"Worker fatal error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
-def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level_str: str = None,
-                         as_json: bool = False):
+
+def execute_orchestrator(
+    app_config_file: str, preset_arg: str = None, log_level_str: str = None, as_json: bool = False
+):
     """Executes the orchestrator logic directly from provided arguments.
 
     When ``as_json`` is True, all logs are routed to stderr and a single JSON
@@ -133,6 +143,7 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
         from crab.log import CrabLogger, LogLevel
         from crab.log.formatters import PlainFormatter
         from crab.log.handlers import StreamHandler
+
         handler = StreamHandler(PlainFormatter(), stream=sys.stderr)
         logger = CrabLogger(level=level or LogLevel.INFO, handlers=[handler])
     else:
@@ -141,9 +152,9 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
     try:
         selected_preset = preset_arg or os.environ.get("CRAB_PRESET")
         if os.path.exists(".env") and not selected_preset:
-            with open(".env", "r") as f:
+            with open(".env") as f:
                 selected_preset = f.read().strip()
-        
+
         if not selected_preset:
             selected_preset = "local"
 
@@ -152,36 +163,32 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
         preset_config = load_environment_config(selected_preset)
         execution_env = prepare_execution_environment(preset_config["env"])
         all_receipts = memory.get_all_receipts()
-        
+
         for bench_id, receipt in all_receipts.items():
-            # Injecting into the environment for backward compatibility 
+            # Injecting into the environment for backward compatibility
             # with any legacy wrappers that haven't updated to use get_receipt()
             env_key = f"CRAB_PATH_{bench_id.upper()}"
             execution_env[env_key] = receipt.get("binary_path", "")
-        
-        with open(app_config_file, 'r') as f:
-            benchmark_config = json.load(f)
 
+        with open(app_config_file) as f:
+            benchmark_config = json.load(f)
 
         if "global_options" not in benchmark_config:
             benchmark_config["global_options"] = {}
-        
+
         # Only inject the system preset if the user didn't provide their own overrides in the JSON
         if "system_sbatch" not in benchmark_config["global_options"]:
             benchmark_config["global_options"]["system_sbatch"] = preset_config["sbatch"]
-        
+
         if "system_header" not in benchmark_config["global_options"]:
             benchmark_config["global_options"]["system_header"] = preset_config["header"]
 
         logger.info(f"Starting engine with preset '{selected_preset}'")
 
         from crab.core.engine import Engine
+
         engine = Engine(logger=logger)
-        result = engine.run(
-            config=benchmark_config,
-            environment=execution_env,
-            is_worker=False
-        )
+        result = engine.run(config=benchmark_config, environment=execution_env, is_worker=False)
 
         logger.info("Orchestration complete — job submitted to SLURM")
 
@@ -196,5 +203,6 @@ def execute_orchestrator(app_config_file: str, preset_arg: str = None, log_level
     except Exception as e:
         logger.critical(f"Orchestrator fatal error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

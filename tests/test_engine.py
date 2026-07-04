@@ -49,7 +49,7 @@ class TestSlurmNodelistUnset(unittest.TestCase):
                     mock_run.side_effect = __import__("subprocess").CalledProcessError(
                         1, "scontrol"
                     )
-                    with self.assertRaises(Exception):
+                    with self.assertRaises(Exception):  # noqa: B017 -- any failure aborting the worker is the contract
                         engine._run_worker(config, {}, tmpdir)
 
 
@@ -141,7 +141,9 @@ class TestSbatchScriptQuoting(unittest.TestCase):
 
             # The workdir argument must appear quoted (no bare space adjacent to the path)
             # Find the worker command line
-            worker_lines = [l for l in content.splitlines() if "worker" in l and "--workdir" in l]
+            worker_lines = [
+                line for line in content.splitlines() if "worker" in line and "--workdir" in line
+            ]
             self.assertTrue(worker_lines, "No worker --workdir line found in script")
             worker_line = worker_lines[0]
             # A properly quoted path looks like: --workdir '/path/with space' or --workdir "/path/with space"
@@ -241,7 +243,7 @@ class TestNumnodesValidation(unittest.TestCase):
         """When numnodes is set, --nodes=<value> must appear in the header."""
         engine = _make_engine()
         lines = engine._generate_sbatch_header({"numnodes": 4, "ppn": 8}, "/tmp/out")
-        nodes_lines = [l for l in lines if "--nodes=" in l]
+        nodes_lines = [line for line in lines if "--nodes=" in line]
         self.assertEqual(len(nodes_lines), 1)
         self.assertIn("--nodes=4", nodes_lines[0])
 

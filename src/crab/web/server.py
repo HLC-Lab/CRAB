@@ -8,11 +8,19 @@ factory pattern keeps the app importable and testable without launching a server
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from importlib.metadata import PackageNotFoundError, version as _pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+from typing import TYPE_CHECKING
 
 from crab.web.errors import register_exception_handlers
 from crab.web.settings import Settings, get_settings
+
+if TYPE_CHECKING:
+    from fastapi import FastAPI, Response
+
+    from crab.web.connections.manager import ConnectionManager
 
 logger = logging.getLogger("crab.web")
 
@@ -28,7 +36,9 @@ def _crab_version() -> str:
         return "unknown"
 
 
-def create_app(settings: Settings | None = None, manager=None):
+def create_app(
+    settings: Settings | None = None, manager: ConnectionManager | None = None
+) -> FastAPI:
     """Build and return the FastAPI app.
 
     Args:
@@ -42,7 +52,7 @@ def create_app(settings: Settings | None = None, manager=None):
     settings = settings or get_settings()
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.ensure_dirs()
         if getattr(app.state, "manager", None) is None:
             from crab.web.connections.manager import ConnectionManager
@@ -76,10 +86,10 @@ def create_app(settings: Settings | None = None, manager=None):
 
     app.include_router(api)
 
-    from crab.web.api.remotes import router as remotes_router
     from crab.web.api.bootstrap import router as bootstrap_router
     from crab.web.api.experiments import router as experiments_router
     from crab.web.api.local import router as local_router
+    from crab.web.api.remotes import router as remotes_router
 
     app.include_router(remotes_router)
     app.include_router(bootstrap_router)
@@ -90,7 +100,7 @@ def create_app(settings: Settings | None = None, manager=None):
     return app
 
 
-def _mount_frontend(app, settings: Settings) -> None:
+def _mount_frontend(app: FastAPI, settings: Settings) -> None:
     """Serve the built SPA, or a helpful placeholder when it hasn't been built.
 
     Registered after the API router so ``/api/*`` always takes precedence.
@@ -132,15 +142,11 @@ def _mount_frontend(app, settings: Settings) -> None:
     _index_headers = {"Cache-Control": "no-cache"}
 
     @app.get("/{full_path:path}")
-    async def spa(full_path: str):
+    async def spa(full_path: str) -> Response:
         """Serve a real static file if present, else fall back to index.html
         so client-side routes (deep links / reloads) work."""
         candidate = (settings.static_dir / full_path).resolve()
         # Path-traversal guard: never serve outside static_dir.
-        if (
-            full_path
-            and settings.static_dir in candidate.parents
-            and candidate.is_file()
-        ):
+        if full_path and settings.static_dir in candidate.parents and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(index, headers=_index_headers)

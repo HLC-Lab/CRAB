@@ -1,3 +1,5 @@
+import random as _random
+
 import pytest
 
 from crab.core.allocation.allocator import NodeAllocator
@@ -73,9 +75,6 @@ def test_allocate_interleaved_stride_zero_raises():
     apps = [MockApp(), MockApp()]
     with pytest.raises(ValueError, match="stride must be"):
         NodeAllocator.allocate_interleaved(apps, ["n0", "n1"], [1, 1], stride=0)
-
-
-import random as _random
 
 
 def test_allocate_random_deterministic_with_seed():

@@ -11,7 +11,6 @@ Stored as ``{"version": 1, "clusters": [ <Profile>, ... ]}`` in
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Literal
 
@@ -42,7 +41,7 @@ class Profile(BaseModel):
 
     # Host-key verification. 'strict' uses the system known_hosts; 'insecure'
     # disables verification — required for round-robin login nodes that present
-    # different host keys per connection (e.g. login.leonardo.cineca.it).
+    # different host keys per connection (common on large HPC front ends).
     hostkey_policy: Literal["strict", "insecure"] = "strict"
 
     # Base directory on the remote where CRAB lives. CRAB is installed at and
@@ -89,7 +88,7 @@ class ProfileStore:
             raise InputError(
                 f"Could not read profiles file at {self.path}.",
                 detail=str(exc),
-            )
+            ) from exc
 
     def _save(self, store: _Store) -> None:
         self._settings.ensure_dirs()

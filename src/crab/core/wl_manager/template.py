@@ -7,5 +7,3 @@ class wl_manager:
     # on the nodes in 'node_list' with 'ppn' processes per node.
     def run_job(self, node_list, ppn, cmd, pre_commands=None, data_path=None):
         pass
-        
-
