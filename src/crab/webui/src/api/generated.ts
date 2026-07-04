@@ -267,6 +267,83 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/jobs/submit": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Submit Job
+     * @description Stage the config on the cluster and run it (ADR-010: preset chosen here, not in the config).
+     */
+    post: operations["submit_job_api_jobs_submit_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Jobs
+     * @description Registry ⨝ live `crab status`, batched one call per cluster with active jobs.
+     *
+     *     A disconnected cluster's jobs are returned as-is (last known state,
+     *     `connected: false`) rather than failing the whole list.
+     */
+    get: operations["list_jobs_api_jobs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/{record_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel Job */
+    post: operations["cancel_job_api_jobs__record_id__cancel_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/{record_id}/logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Job Logs */
+    get: operations["job_logs_api_jobs__record_id__logs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -282,6 +359,14 @@ export interface components {
       label: string;
       /** Command */
       command: string;
+    };
+    /** CancelResponse */
+    CancelResponse: {
+      job: components["schemas"]["JobRecord"];
+      /** Cancelled */
+      cancelled: boolean;
+      /** Detail */
+      detail?: string | null;
     };
     /** ConfigBody */
     ConfigBody: {
@@ -320,6 +405,66 @@ export interface components {
     InstallRequest: {
       /** Pre Commands */
       pre_commands?: string[];
+    };
+    /**
+     * JobListItem
+     * @description A job record annotated with whether its cluster is currently connected.
+     */
+    JobListItem: {
+      /** Id */
+      id: string;
+      /** Cluster */
+      cluster: string;
+      /** Job Id */
+      job_id: string;
+      /** Data Dir */
+      data_dir: string;
+      /** System */
+      system: string;
+      /** Config Name */
+      config_name: string;
+      /** Config Snapshot */
+      config_snapshot: {
+        [key: string]: unknown;
+      };
+      /** Submitted At */
+      submitted_at: string;
+      /**
+       * Last Known State
+       * @default UNKNOWN
+       */
+      last_known_state: string;
+      /**
+       * Connected
+       * @default false
+       */
+      connected: boolean;
+    };
+    /** JobRecord */
+    JobRecord: {
+      /** Id */
+      id: string;
+      /** Cluster */
+      cluster: string;
+      /** Job Id */
+      job_id: string;
+      /** Data Dir */
+      data_dir: string;
+      /** System */
+      system: string;
+      /** Config Name */
+      config_name: string;
+      /** Config Snapshot */
+      config_snapshot: {
+        [key: string]: unknown;
+      };
+      /** Submitted At */
+      submitted_at: string;
+      /**
+       * Last Known State
+       * @default UNKNOWN
+       */
+      last_known_state: string;
     };
     /** LibraryEntry */
     LibraryEntry: {
@@ -499,6 +644,21 @@ export interface components {
       stdout: string;
       /** Stderr */
       stderr: string;
+    };
+    /** SubmitRequest */
+    SubmitRequest: {
+      /** Profile Name */
+      profile_name: string;
+      /** Config Id */
+      config_id?: string | null;
+      /** Config */
+      config?: {
+        [key: string]: unknown;
+      } | null;
+      /** Name */
+      name?: string | null;
+      /** Preset */
+      preset?: string | null;
     };
     /** ValidationError */
     ValidationError: {
@@ -1087,6 +1247,123 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+    };
+  };
+  submit_job_api_jobs_submit_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SubmitRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["JobRecord"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_jobs_api_jobs_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["JobListItem"][];
+        };
+      };
+    };
+  };
+  cancel_job_api_jobs__record_id__cancel_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CancelResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  job_logs_api_jobs__record_id__logs_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };
