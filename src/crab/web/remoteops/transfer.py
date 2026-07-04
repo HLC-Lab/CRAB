@@ -45,23 +45,29 @@ async def stage_config(
     settings: Settings | None = None,
     timeout: float = 30.0,
 ) -> str:
-    """Write ``config`` to a JSON file in the staging dir; return its path.
+    """Write ``config`` to a JSON file in the staging dir; return its absolute path.
 
-    The returned path is raw (may contain a literal ``~`` for SSH profiles):
-    it's passed straight to ``Transport.write_file`` (SFTP, which expands
-    ``~`` itself) and is what a later ``crab run`` command should quote via
-    ``remote_path_expr`` — never ``shlex.quote``, which would break the
-    expansion (see ``remote_path_expr``'s docstring).
+    ``staging_dir`` may contain a literal ``~`` for SSH profiles. Only a shell
+    can expand that (``mkdir -p "$HOME/..."`` via ``remote_path_expr``), but
+    the write goes over SFTP, which has no shell and does no expansion of its
+    own — so mkdir and the write could target different trees if each handled
+    ``~`` separately. Instead, one shell round-trip resolves the directory to
+    an absolute path (``cd ... && pwd``) that mkdir, the SFTP write, and the
+    returned path (used later as a ``crab run`` arg) all share.
     """
     remote_dir = staging_dir(profile, settings)
-    mkdir_cmd = f"mkdir -p {remote_path_expr(remote_dir)}"
-    result = await transport.run(mkdir_cmd, timeout=timeout)
+    quoted_dir = remote_path_expr(remote_dir)
+    resolve_cmd = f"mkdir -p {quoted_dir} && cd {quoted_dir} && pwd"
+    result = await transport.run(resolve_cmd, timeout=timeout)
     if not result.ok:
         raise RemoteCommandError(
             f"Could not create the staging directory {remote_dir}.",
             detail=(result.stderr or result.stdout or "").strip()[:2000],
         )
+    absolute_dir = result.stdout.strip()
+    if not absolute_dir:
+        raise RemoteCommandError(f"Could not resolve the staging directory {remote_dir}.")
 
-    remote_path = f"{remote_dir}/{_slug(name)}.json"
+    remote_path = f"{absolute_dir}/{_slug(name)}.json"
     await transport.write_file(remote_path, json.dumps(config, indent=2), timeout=timeout)
     return remote_path

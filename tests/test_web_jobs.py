@@ -144,7 +144,9 @@ class ScriptedTransport(Transport):
         if "crab info --json" in command:
             return CmdResult(0, _INFO_JSON, "")
         if "mkdir -p" in command:
-            return CmdResult(0, "", "")
+            # stage_config resolves the (possibly `~`-relative) staging dir to
+            # an absolute path via `cd ... && pwd` in the same command.
+            return CmdResult(0, "/data/staging/.web_staging\n", "")
         if "crab run" in command:
             return CmdResult(0, _RUN_JSON, "")
         if "crab status" in command:
