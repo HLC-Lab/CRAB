@@ -350,6 +350,81 @@ def test_list_jobs_sacct_purge_resolves_via_history(tmp_path: Path):
         assert resp.json()[0]["last_known_state"] == "FAILED"
 
 
+def test_list_jobs_completed_with_failed_experiment_downgrades_to_failed(tmp_path: Path):
+    """A Slurm job can exit 0 (COMPLETED) while one experiment inside it fails
+    (engine.py's `_run_worker` logs and continues rather than aborting the
+    allocation) — the worst-first history cross-check must catch this the
+    first time squeue reports COMPLETED, same as it already does for a
+    purged/UNKNOWN job."""
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026-01-01")
+    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "1", "state": "COMPLETED"}]})
+    history_json = json.dumps(
+        {
+            "schema": 1,
+            "experiments": [
+                {"relative_path": "./demo_2026-01-01/exp_a", "status": "COMPLETED"},
+                {"relative_path": "./demo_2026-01-01/exp_b", "status": "FAILED"},
+            ],
+        }
+    )
+
+    def factory():
+        return ScriptedTransport(status_json=status_json, history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        assert resp.json()[0]["last_known_state"] == "FAILED"
+
+        transport = client.app.state.manager.get("leonardo")
+        assert any("crab history" in c for c in transport.calls)
+
+
+def test_list_jobs_completed_with_no_history_match_stays_completed(tmp_path: Path):
+    """No matching history rows (e.g. metadata not written yet) must not
+    downgrade a clean COMPLETED to anything else — never guess."""
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026-01-01")
+    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "1", "state": "COMPLETED"}]})
+    history_json = json.dumps({"schema": 1, "experiments": []})
+
+    def factory():
+        return ScriptedTransport(status_json=status_json, history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        assert resp.json()[0]["last_known_state"] == "COMPLETED"
+
+
+def test_list_jobs_already_completed_job_is_never_repolled(tmp_path: Path):
+    """Once stored as a terminal state, a job drops out of active polling
+    entirely — the history cross-check for COMPLETED only ever runs once,
+    at the moment of the transition, not on every subsequent poll."""
+    _seed_job(
+        tmp_path,
+        job_id="1",
+        data_dir="/data/leonardo/demo_2026-01-01",
+        last_known_state="COMPLETED",
+    )
+
+    def factory():
+        return ScriptedTransport()
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        assert resp.json()[0]["last_known_state"] == "COMPLETED"
+
+        transport = client.app.state.manager.get("leonardo")
+        assert not any("crab status" in c or "crab history" in c for c in transport.calls)
+
+
 def test_list_jobs_sacct_purge_no_match_stays_unknown(tmp_path: Path):
     _seed_job(tmp_path, job_id="99", data_dir="/data/leonardo/demo_2026-01-01")
     status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "99", "state": "UNKNOWN"}]})

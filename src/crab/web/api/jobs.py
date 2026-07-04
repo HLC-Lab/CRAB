@@ -129,14 +129,18 @@ class JobListItem(JobRecord):
 async def _resolve_via_history(
     transport: Transport, profile: Profile, record: JobRecord, timeout: float
 ) -> str | None:
-    """Cross-check `crab history` for a job squeue/sacct no longer know about.
+    """Cross-check `crab history` against a job's actual per-experiment outcomes.
 
-    A job's data_dir can hold several experiments (one `crab run` submission
-    runs every key in the config's `experiments` dict); their metadata.csv
-    rows all share `./<basename(data_dir)>/` as their relative_path prefix
-    (`core/experiment/runner.py::_write_to_registry`). Returns the worst
-    matching status, or None if nothing matches (still genuinely unknown —
-    never guessed).
+    Used two ways: (1) squeue/sacct report UNKNOWN (accounting purged), or
+    (2) squeue/sacct report a fresh COMPLETED — engine.py's `_run_worker`
+    catches each experiment's exception and keeps going, so the Slurm job can
+    exit 0 while an experiment inside it genuinely failed. Both cases need the
+    same worst-first read: a job's data_dir can hold several experiments (one
+    `crab run` submission runs every key in the config's `experiments` dict);
+    their metadata.csv rows all share `./<basename(data_dir)>/` as their
+    relative_path prefix (`core/experiment/runner.py::_write_to_registry`).
+    Returns the worst matching status, or None if nothing matches (still
+    genuinely unknown/clean — never guessed).
     """
     history = await run_crab_json(
         transport, profile, ["history", "-s", record.system, "--json"], timeout=timeout
@@ -186,7 +190,11 @@ async def list_jobs(request: Request) -> list[JobListItem]:
         by_job_id = {j["job_id"]: j["state"] for j in status["jobs"]}
         for rec in recs:
             state = by_job_id.get(rec.job_id, "UNKNOWN")
-            if state == "UNKNOWN":
+            # `recs` only ever holds jobs whose stored state isn't terminal yet
+            # (see the filter above), so a fresh COMPLETED here is the one and
+            # only moment to catch a failed experiment before this job is
+            # never polled again.
+            if state in ("UNKNOWN", "COMPLETED"):
                 via_history = await _resolve_via_history(transport, profile, rec, timeout=30.0)
                 if via_history is not None:
                     state = via_history
