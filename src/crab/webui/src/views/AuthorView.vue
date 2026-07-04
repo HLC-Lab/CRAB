@@ -23,6 +23,7 @@ import ConfirmModal from "@/components/ConfirmModal.vue";
 import LibraryBar from "@/components/author/LibraryBar.vue";
 import AuthorRail from "@/components/author/AuthorRail.vue";
 import BasicsPane from "@/components/author/BasicsPane.vue";
+import AllocationPane from "@/components/author/AllocationPane.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
@@ -344,8 +345,7 @@ async function copyJson() {
 
         <!-- GLOBAL · Node allocation -->
         <template v-else-if="view.kind === 'global' && view.id === 'alloc'">
-          <h2 class="pane-title">Node allocation</h2>
-          <AllocationEditor :alloc="d.allocation" :numnodes="d.numnodes" />
+          <AllocationPane />
         </template>
 
         <!-- GLOBAL · Run settings (convergence, output & advanced, slurm) -->
