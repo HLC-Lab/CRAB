@@ -177,6 +177,7 @@ input:focus {
 }
 .hint.err {
   color: var(--danger);
+  white-space: pre-wrap;
 }
 .modal-actions {
   display: flex;

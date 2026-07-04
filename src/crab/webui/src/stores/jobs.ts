@@ -6,7 +6,11 @@ import type { CancelResponse, CrabConfig, JobListItem, JobLogs, JobRecord } from
 const POLL_INTERVAL_MS = 10_000;
 
 function msg(e: unknown): string {
-  return e instanceof ApiError ? e.message : "Unexpected error";
+  if (!(e instanceof ApiError)) return "Unexpected error";
+  // `detail` usually carries the remote stderr/stdout snippet (e.g. why a
+  // `crab run` failed on the cluster) — without it the message alone
+  // ("failed on the cluster (exit 1)") gives no way to diagnose anything.
+  return e.detail ? `${e.message}\n${e.detail}` : e.message;
 }
 
 export interface SubmitBody {

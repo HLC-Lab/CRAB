@@ -215,6 +215,7 @@ h1 {
   background: rgba(245, 101, 101, 0.12);
   color: var(--danger);
   border: 1px solid var(--danger);
+  white-space: pre-wrap;
 }
 .banner.small {
   margin-top: 0.5rem;

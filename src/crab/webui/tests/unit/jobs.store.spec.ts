@@ -9,17 +9,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/api/client", () => ({
   api: { jobs: { list: vi.fn(), submit: vi.fn(), cancel: vi.fn(), logs: vi.fn() } },
-  ApiError: class ApiError extends Error {},
+  ApiError: class ApiError extends Error {
+    detail?: string;
+  },
 }));
 
-import { api } from "@/api/client";
+import { ApiError, api } from "@/api/client";
 import { useJobsStore } from "@/stores/jobs";
 
 const listMock = vi.mocked(api.jobs.list);
+const submitMock = vi.mocked(api.jobs.submit);
 
 beforeEach(() => {
   setActivePinia(createPinia());
   listMock.mockReset();
+  submitMock.mockReset();
   vi.useFakeTimers();
 });
 
@@ -81,5 +85,23 @@ describe("jobs store polling", () => {
     expect(listMock).toHaveBeenCalledTimes(1);
 
     store.stopPolling();
+  });
+});
+
+describe("jobs store error surfacing", () => {
+  it("submit includes the remote detail (e.g. stderr) alongside the message", async () => {
+    const err = new ApiError("");
+    Object.assign(err, {
+      message: "`crab run staged.json -p leonardo --json` failed on the cluster (exit 1).",
+      detail: "ModuleNotFoundError: No module named 'crab'",
+    });
+    submitMock.mockRejectedValueOnce(err);
+
+    const store = useJobsStore();
+    const result = await store.submit({ profile_name: "leonardo", config_id: "cfg" });
+
+    expect(result).toBeNull();
+    expect(store.submitError).toContain("failed on the cluster");
+    expect(store.submitError).toContain("ModuleNotFoundError");
   });
 });
