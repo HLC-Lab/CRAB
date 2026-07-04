@@ -304,7 +304,6 @@ function chooseWrapper(relpath: string) {
 }
 
 const showJson = ref(false);
-const showImport = ref(false);
 const importText = ref("");
 const copied = ref(false);
 const showNamePrompt = ref(false);
@@ -384,7 +383,6 @@ function duplicateExperiment(i: number): void {
 
 function doImport() {
   if (store.importJson(importText.value)) {
-    showImport.value = false;
     importText.value = "";
     selectAfterLoad();
   }
@@ -413,8 +411,6 @@ async function copyJson() {
         </button>
       </div>
       <div class="grp">
-        <button class="btn" @click="showImport = true">Import JSON</button>
-        <button class="btn" @click="copyJson">{{ copied ? "Copied ✓" : "Copy JSON" }}</button>
         <button class="btn" :class="{ on: showJson }" @click="showJson = !showJson">{ } JSON</button>
       </div>
     </header>
@@ -698,10 +694,20 @@ async function copyJson() {
         <p v-else class="empty pad">Select a section or experiment to edit.</p>
       </main>
 
-      <!-- JSON view -->
+      <!-- JSON view: current config (read-only, with Copy) plus paste-to-import,
+           replacing what used to be two separate toolbar buttons and a modal. -->
       <aside v-if="showJson" class="jsonpane">
-        <header>config.json</header>
+        <header>
+          <span>config.json</span>
+          <button class="link-btn" @click="copyJson">{{ copied ? "Copied ✓" : "Copy" }}</button>
+        </header>
         <pre>{{ store.configJson }}</pre>
+        <div class="jsonpane-import">
+          <h3>Import JSON</h3>
+          <p class="hint">Paste a config (or an example) to load it into the editor as a new draft.</p>
+          <textarea v-model="importText" rows="8" placeholder='{ "global_options": { … }, "experiments": { … } }' />
+          <button class="btn primary" @click="doImport">Load</button>
+        </div>
       </aside>
     </div>
 
@@ -858,19 +864,6 @@ async function copyJson() {
         <div class="modal-actions">
           <button class="btn" @click="showNamePrompt = false">Cancel</button>
           <button class="btn primary" :disabled="!namePromptValue.trim()" @click="confirmNamePrompt">Save</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Import modal -->
-    <div v-if="showImport" class="modal-bg" @click.self="showImport = false">
-      <div class="modal card">
-        <h2>Import config JSON</h2>
-        <p class="hint">Paste a config (or an example) to load it into the editor as a new draft.</p>
-        <textarea v-model="importText" rows="14" placeholder='{ "global_options": { … }, "experiments": { … } }' />
-        <div class="modal-actions">
-          <button class="btn" @click="showImport = false">Cancel</button>
-          <button class="btn primary" @click="doImport">Load</button>
         </div>
       </div>
     </div>
@@ -1076,10 +1069,18 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .ov-body .hint { color: var(--text3); font-size: var(--t-sm); }
 .ov-body .hint em { color: var(--text2); font-style: normal; }
 
-.jsonpane { width: 26rem; max-height: 40rem; overflow: auto; }
+.jsonpane { width: 26rem; max-height: 40rem; overflow: auto; display: flex; flex-direction: column; }
 .jsonpane header { position: sticky; top: 0; background: var(--bg2); color: var(--text2);
-  padding: 0.4rem 0.75rem; font-size: var(--t-sm); border-bottom: 1px solid var(--border); }
-.jsonpane pre { padding: 0.75rem; font-size: var(--t-sm); white-space: pre-wrap; color: var(--text2); }
+  padding: 0.4rem 0.75rem; font-size: var(--t-sm); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; z-index: 1; }
+.jsonpane pre { padding: 0.75rem; font-size: var(--t-sm); white-space: pre-wrap; color: var(--text2);
+  margin: 0; }
+.jsonpane-import { padding: 0.75rem; border-top: 1px solid var(--border); display: flex;
+  flex-direction: column; gap: 0.4rem; }
+.jsonpane-import h3 { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text3); }
+.jsonpane-import .hint { color: var(--text3); font-size: var(--t-xs); margin: 0; }
+.jsonpane-import textarea { font-size: var(--t-sm); resize: vertical; width: 100%; }
 
 .banner { padding: 0.5rem 0.75rem; border-radius: var(--r); margin-bottom: 1rem; }
 .banner.err { background: rgba(245, 101, 101, 0.12); color: var(--danger); border: 1px solid var(--danger); }
