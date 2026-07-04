@@ -68,6 +68,9 @@ def run_server(
 
     _configure_logging(verbose)
     app = __import__("crab.web.server", fromlist=["create_app"]).create_app(settings)
+    # The Vite dev server serves its own index (no token meta tag), so dev
+    # setups need the token once: store it as localStorage.CRAB_DEV_TOKEN.
+    logger.info("API session token (for Vite dev via localStorage): %s", app.state.api_token)
 
     print(f"[*] CRAB web dashboard → {url}  (Ctrl-C to stop)", flush=True)
     if open_browser:

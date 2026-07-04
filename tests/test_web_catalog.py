@@ -10,6 +10,8 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from conftest import auth_client  # noqa: E402
+
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import CmdResult, Transport
 from crab.web.server import create_app
@@ -71,7 +73,7 @@ def _client(tmp_path: Path) -> TestClient:
         return CmdAwareTransport()
 
     app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
-    return TestClient(app)
+    return auth_client(app)
 
 
 def test_benchmarks_and_nodes_require_connection_then_return_payloads(tmp_path: Path):

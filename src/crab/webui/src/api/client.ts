@@ -31,11 +31,21 @@ export class ApiError extends Error {
   }
 }
 
+// Per-session API token: the backend injects it into the served index.html as
+// a meta tag; every /api request must echo it (X-Crab-Token) or gets a 401.
+// Dev fallback: Vite's dev server serves its own index (no meta), so a token
+// logged by `crab web -v` can be stored once as localStorage.CRAB_DEV_TOKEN.
+function sessionToken(): string {
+  const meta = document.querySelector('meta[name="crab-token"]');
+  return meta?.getAttribute("content") || localStorage.getItem("CRAB_DEV_TOKEN") || "";
+}
+const API_TOKEN = sessionToken();
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let resp: Response;
   try {
     resp = await fetch(path, {
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Crab-Token": API_TOKEN },
       ...init,
     });
   } catch {

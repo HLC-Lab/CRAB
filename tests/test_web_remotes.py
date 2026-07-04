@@ -13,6 +13,8 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 from fastapi.testclient import TestClient  # noqa: E402
 
+from conftest import auth_client  # noqa: E402
+
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, LocalTransport, Transport  # noqa: E402
 from crab.web.errors import (  # noqa: E402
@@ -173,7 +175,7 @@ def _client(tmp_path: Path):
 
     mgr = ConnectionManager(connector=connector)
     app = create_app(_settings(tmp_path), manager=mgr)
-    return TestClient(app)
+    return auth_client(app)
 
 
 def test_remotes_api_full_flow(tmp_path: Path):

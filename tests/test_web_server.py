@@ -20,6 +20,8 @@ pytest.importorskip("fastapi", reason="web extra not installed")
 from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from conftest import auth_client  # noqa: E402
+
 from crab.web.errors import (  # noqa: E402
     AuthError,
     CrabWebError,
@@ -59,7 +61,7 @@ def test_settings_paths_and_ensure_dirs(tmp_path: Path):
 # Health
 # --------------------------------------------------------------------------- #
 def test_health_handshake(tmp_path: Path):
-    client = TestClient(create_app(_settings(tmp_path)))
+    client = auth_client(create_app(_settings(tmp_path)))
     resp = client.get("/api/health")
     assert resp.status_code == 200
     body = resp.json()
@@ -87,7 +89,7 @@ def test_spa_serving_and_fallback(tmp_path: Path):
     (static / "index.html").write_text("<!doctype html><title>app</title>")
     (static / "assets" / "app.js").write_text("console.log('hi')")
 
-    client = TestClient(create_app(_settings(tmp_path, static=static)))
+    client = auth_client(create_app(_settings(tmp_path, static=static)))
 
     # Root serves index.
     assert client.get("/").status_code == 200

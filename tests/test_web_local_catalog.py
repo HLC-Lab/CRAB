@@ -12,13 +12,15 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from conftest import auth_client  # noqa: E402
+
 from crab.web.server import create_app
 from crab.web.settings import Settings
 
 
 def _client(tmp_path: Path) -> TestClient:
     settings = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
-    return TestClient(create_app(settings))
+    return auth_client(create_app(settings))
 
 
 def test_local_benchmarks_runs_the_real_cli(tmp_path: Path):

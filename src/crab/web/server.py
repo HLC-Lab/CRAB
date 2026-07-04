@@ -8,6 +8,7 @@ factory pattern keeps the app importable and testable without launching a server
 from __future__ import annotations
 
 import logging
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from importlib.metadata import PackageNotFoundError
@@ -71,7 +72,12 @@ def create_app(
     # Shared state for routes (settings drive the per-request stores).
     app.state.settings = settings
     app.state.manager = manager
+    # Per-process API secret: the SPA receives it via a meta tag in the served
+    # index.html and echoes it as X-Crab-Token. This app runs SSH commands, so
+    # its localhost API must not be drivable by a hostile web page.
+    app.state.api_token = secrets.token_urlsafe(32)
     register_exception_handlers(app)
+    _install_api_guard(app)
 
     api = APIRouter(prefix="/api")
 
@@ -98,6 +104,56 @@ def create_app(
 
     _mount_frontend(app, settings)
     return app
+
+
+# Hosts a browser may legitimately use to reach this server. Anything else on
+# /api/* is treated as DNS rebinding (attacker.com resolving to 127.0.0.1) and
+# rejected before the token is even considered.
+_LOCAL_HOSTNAMES = {"127.0.0.1", "localhost", "::1"}
+
+
+def _hostname(host_header: str) -> str:
+    """The bare hostname from a Host/Origin-style value ('[::1]:8765' -> '::1')."""
+    host = host_header.strip()
+    if host.startswith("["):
+        return host[1 : host.find("]")]
+    return host.split(":")[0]
+
+
+def _install_api_guard(app: FastAPI) -> None:
+    """Reject /api/* requests that lack the session token or come from a
+    non-local host/origin. Static assets and the SPA shell stay open — the
+    shell is how the browser obtains the token in the first place."""
+    from fastapi import Request
+    from fastapi.responses import JSONResponse
+
+    def _deny(status: int, code: str, message: str) -> JSONResponse:
+        return JSONResponse(status_code=status, content={"code": code, "message": message})
+
+    @app.middleware("http")
+    async def api_guard(request: Request, call_next):  # type: ignore[no-untyped-def]
+        if not request.url.path.startswith("/api"):
+            return await call_next(request)
+
+        host = request.headers.get("host", "")
+        if _hostname(host) not in _LOCAL_HOSTNAMES:
+            return _deny(403, "forbidden_host", "This API only serves local requests.")
+
+        origin = request.headers.get("origin")
+        if origin is not None:
+            origin_host = origin.split("://", 1)[-1]
+            if _hostname(origin_host) not in _LOCAL_HOSTNAMES:
+                return _deny(403, "forbidden_origin", "Cross-site requests are not allowed.")
+
+        token = request.headers.get("x-crab-token", "")
+        if not secrets.compare_digest(token, app.state.api_token):
+            return _deny(
+                401,
+                "auth_required",
+                "Missing or wrong session token. Reload the dashboard tab to pick up "
+                "the current session.",
+            )
+        return await call_next(request)
 
 
 def _mount_frontend(app: FastAPI, settings: Settings) -> None:
@@ -141,12 +197,20 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
     # rebuild. The hashed assets themselves are immutable and cache freely.
     _index_headers = {"Cache-Control": "no-cache"}
 
+    def _shell() -> HTMLResponse:
+        """index.html with the session token injected as a meta tag — the SPA
+        reads it and sends X-Crab-Token on every API call (see api_guard)."""
+        html = index.read_text(encoding="utf-8")
+        meta = f'<meta name="crab-token" content="{app.state.api_token}">'
+        html = html.replace("</head>", f"{meta}</head>", 1)
+        return HTMLResponse(html, headers=_index_headers)
+
     @app.get("/{full_path:path}")
     async def spa(full_path: str) -> Response:
-        """Serve a real static file if present, else fall back to index.html
-        so client-side routes (deep links / reloads) work."""
+        """Serve a real static file if present, else fall back to the token-
+        injected index.html so client-side routes (deep links / reloads) work."""
         candidate = (settings.static_dir / full_path).resolve()
         # Path-traversal guard: never serve outside static_dir.
         if full_path and settings.static_dir in candidate.parents and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(index, headers=_index_headers)
+        return _shell()

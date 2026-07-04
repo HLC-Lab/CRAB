@@ -9,6 +9,8 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 from fastapi.testclient import TestClient  # noqa: E402
 
+from conftest import auth_client  # noqa: E402
+
 from crab.web.errors import InputError, NotFoundError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
@@ -61,7 +63,7 @@ def test_invalid_id_rejected(tmp_path: Path):
 
 
 def _client(tmp_path: Path) -> TestClient:
-    return TestClient(create_app(_settings(tmp_path)))
+    return auth_client(create_app(_settings(tmp_path)))
 
 
 def test_experiments_api_flow(tmp_path: Path):
