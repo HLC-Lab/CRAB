@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
 
 const props = defineProps<{
   showJson: boolean;
@@ -102,6 +103,10 @@ async function confirmNamePrompt() {
   showNamePrompt.value = false;
   await store.save();
 }
+
+// Submit runs the config as it currently stands in the editor (no save
+// required first — Save and Submit are independent actions).
+const showSubmit = ref(false);
 </script>
 
 <template>
@@ -113,11 +118,26 @@ async function confirmNamePrompt() {
       <button class="btn primary" :disabled="store.busy" @click="requestSave">
         {{ store.busy ? "Saving…" : "Save" }}
       </button>
+      <button
+        class="btn"
+        :disabled="!d.name.trim()"
+        :title="d.name.trim() ? '' : 'Name this config first'"
+        @click="showSubmit = true"
+      >
+        Submit…
+      </button>
     </div>
     <div class="grp">
       <button class="btn" :class="{ on: showJson }" @click="toggleJson">{ } JSON</button>
     </div>
   </header>
+
+  <SubmitJobModal
+    v-if="showSubmit"
+    :initial-config="{ config: store.config, name: d.name.trim() }"
+    @close="showSubmit = false"
+    @submitted="showSubmit = false"
+  />
 
   <!-- Discard-unsaved-changes confirm, for New/Open when the draft is dirty -->
   <ConfirmModal
