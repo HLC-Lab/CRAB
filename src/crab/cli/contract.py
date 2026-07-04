@@ -442,6 +442,50 @@ def gather_cancel(job_id: str, runner: CommandRunner | None = None) -> dict[str,
 
 
 # --------------------------------------------------------------------------- #
+# logs (slurm_output.log / slurm_error.log in a job's data_dir)
+# --------------------------------------------------------------------------- #
+_LOG_FILENAMES = {"stdout": "slurm_output.log", "stderr": "slurm_error.log"}
+_DEFAULT_LOG_MAX_BYTES = 200_000
+
+
+def _read_log_tail(path: Path, max_bytes: int) -> dict[str, Any]:
+    if not path.is_file():
+        return {"path": str(path), "exists": False, "content": "", "truncated": False}
+    size = path.stat().st_size
+    truncated = size > max_bytes
+    with open(path, "rb") as fh:
+        if truncated:
+            fh.seek(size - max_bytes)
+        raw = fh.read()
+    return {
+        "path": str(path),
+        "exists": True,
+        "content": raw.decode("utf-8", "replace"),
+        "truncated": truncated,
+    }
+
+
+def gather_logs(data_dir: str | Path, max_bytes: int = _DEFAULT_LOG_MAX_BYTES) -> dict[str, Any]:
+    """Read a job's captured stdout/stderr from its data directory.
+
+    The engine writes ``slurm_output.log``/``slurm_error.log`` directly into a
+    job's data_dir (``core/engine.py``'s sbatch header sets ``--output``/
+    ``--error`` to those exact paths), so this reads them by fixed name rather
+    than deriving a naming convention. Each side is capped to its last
+    ``max_bytes`` so a runaway log can't hang the request. A file that hasn't
+    been written yet (job not started, or no stderr produced) reports
+    ``exists: false`` rather than raising.
+    """
+    base = Path(data_dir)
+    return {
+        "schema": CONTRACT_SCHEMA,
+        "data_dir": str(base),
+        "stdout": _read_log_tail(base / _LOG_FILENAMES["stdout"], max_bytes),
+        "stderr": _read_log_tail(base / _LOG_FILENAMES["stderr"], max_bytes),
+    }
+
+
+# --------------------------------------------------------------------------- #
 # output helper
 # --------------------------------------------------------------------------- #
 def emit(data: Any, as_json: bool, human: Callable[[Any], None]) -> None:

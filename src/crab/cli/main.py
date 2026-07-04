@@ -124,6 +124,24 @@ def handle_cancel(args):
     contract.emit(data, args.json, human)
 
 
+def handle_logs(args):
+    from crab.cli import contract
+
+    data = contract.gather_logs(args.data_dir)
+
+    def human(d):
+        for stream in ("stdout", "stderr"):
+            s = d[stream]
+            if not s["exists"]:
+                print(f"[{stream}] {s['path']}: not written yet")
+                continue
+            note = " (truncated to last bytes)" if s["truncated"] else ""
+            print(f"[{stream}] {s['path']}{note}:")
+            print(s["content"])
+
+    contract.emit(data, args.json, human)
+
+
 def handle_setup(args):
     from crab.setup.wizard import run as run_wizard
 
@@ -227,7 +245,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel}",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs}",
     )
     subparsers.required = True
 
@@ -301,6 +319,12 @@ def cli_router():
     parser_cancel = subparsers.add_parser("cancel", help="Cancel a Slurm job")
     parser_cancel.add_argument("job_id", help="Slurm job id to cancel.")
     _add_json_flag(parser_cancel).set_defaults(func=handle_cancel)
+
+    parser_logs = subparsers.add_parser(
+        "logs", help="Read a job's captured stdout/stderr from its data directory"
+    )
+    parser_logs.add_argument("--data-dir", required=True, help="Job's data directory.")
+    _add_json_flag(parser_logs).set_defaults(func=handle_logs)
 
     # 6. Export Command
     parser_export = subparsers.add_parser(

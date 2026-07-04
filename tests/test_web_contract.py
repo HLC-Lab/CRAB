@@ -259,6 +259,45 @@ def test_gather_cancel_no_scancel_binary():
 
 
 # --------------------------------------------------------------------------- #
+# logs (slurm_output.log / slurm_error.log in a job's data_dir)
+# --------------------------------------------------------------------------- #
+def test_gather_logs_reads_both_files(tmp_path: Path):
+    (tmp_path / "slurm_output.log").write_text("stdout line 1\nstdout line 2\n")
+    (tmp_path / "slurm_error.log").write_text("stderr line 1\n")
+
+    data = contract.gather_logs(tmp_path)
+
+    assert data["schema"] == contract.CONTRACT_SCHEMA
+    assert data["stdout"]["exists"] is True
+    assert data["stdout"]["content"] == "stdout line 1\nstdout line 2\n"
+    assert data["stdout"]["truncated"] is False
+    assert data["stderr"]["exists"] is True
+    assert data["stderr"]["content"] == "stderr line 1\n"
+
+
+def test_gather_logs_missing_files_are_graceful(tmp_path: Path):
+    data = contract.gather_logs(tmp_path)
+
+    assert data["stdout"] == {
+        "path": str(tmp_path / "slurm_output.log"),
+        "exists": False,
+        "content": "",
+        "truncated": False,
+    }
+    assert data["stderr"]["exists"] is False
+
+
+def test_gather_logs_caps_to_last_max_bytes(tmp_path: Path):
+    (tmp_path / "slurm_output.log").write_text("a" * 50 + "b" * 50)
+    (tmp_path / "slurm_error.log").write_text("")
+
+    data = contract.gather_logs(tmp_path, max_bytes=50)
+
+    assert data["stdout"]["truncated"] is True
+    assert data["stdout"]["content"] == "b" * 50
+
+
+# --------------------------------------------------------------------------- #
 # emit
 # --------------------------------------------------------------------------- #
 def test_emit_json_vs_human(capsys):
