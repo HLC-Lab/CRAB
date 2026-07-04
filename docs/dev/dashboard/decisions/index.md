@@ -21,3 +21,4 @@ marked superseded, never deleted.
 | [012](adr-012-ui-copy-style.md) | UI copy: plain language, real defaults, no long dashes | accepted |
 | [013](adr-013-localhost-api-auth.md) | Localhost API requires a per-session token plus host checks | accepted |
 | [014](adr-014-library-dir.md) | The experiment library lives in a user-chosen folder | accepted |
+| [015](adr-015-config-validation.md) | Config shape described in Python; saves warn, never reject | accepted |
