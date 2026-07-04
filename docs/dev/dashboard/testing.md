@@ -49,6 +49,13 @@ then open `http://127.0.0.1:8899` (or take a screenshot with
 `npx playwright screenshot ...`). Confirm the specific behavior that changed, including that
 the bug being fixed is actually gone.
 
+Note on the API token: the served page authenticates automatically (the token rides the
+HTML). For raw `curl` calls, grab it first —
+`TOKEN=$(curl -s http://127.0.0.1:8899/ | grep -o 'crab-token" content="[^"]*' | cut -d'"' -f3)`
+— and send `-H "X-Crab-Token: $TOKEN"`. When using the Vite dev server (`npm run dev`), run
+`crab web -v` once, copy the logged token, and store it in the browser as
+`localStorage.CRAB_DEV_TOKEN`.
+
 ## Ground rules
 
 - Never report work as done without having run the relevant gate and seen it pass.

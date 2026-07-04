@@ -62,6 +62,11 @@ an `errors.py` class — the process must never crash on a remote or user error.
 Auth is agent / key / password (in-memory only); host-key checking is `strict` or, for
 round-robin login nodes, `insecure` per profile. No secrets are ever persisted or logged.
 
+**API protection:** every `/api/*` request must carry the per-process session token
+(`X-Crab-Token`, delivered to the SPA via a meta tag in the served `index.html`) and arrive
+with a local `Host`/`Origin` — middleware rejects anything else, closing the CSRF and
+DNS-rebinding attack class on an API that can execute SSH commands (see ADR-013).
+
 ## The CLI JSON seam — `src/crab/cli/contract.py`
 
 The backend talks to a cluster **only** by running `crab <cmd> --json` there and parsing

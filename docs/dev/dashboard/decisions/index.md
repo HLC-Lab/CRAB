@@ -19,3 +19,4 @@ marked superseded, never deleted.
 | [010](adr-010-preset-at-submit-time.md) | Presets are chosen at submit time, not stored in configs | accepted |
 | [011](adr-011-legacy-applications-import.md) | Legacy `applications` configs import cleanly | accepted |
 | [012](adr-012-ui-copy-style.md) | UI copy: plain language, real defaults, no long dashes | accepted |
+| [013](adr-013-localhost-api-auth.md) | Localhost API requires a per-session token plus host checks | accepted |
