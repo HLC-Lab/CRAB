@@ -751,34 +751,36 @@ async function copyJson() {
             :class="{ current: e.id === store.entryId }"
             @click="openEntry(e.id)"
           >
-            <span class="open-name">{{ e.name }}</span>
-            <span class="open-meta">
-              <b class="open-count">{{ Object.keys(e.config.experiments || {}).length }} exp</b>
-              <span class="open-date">{{ e.updated_at.slice(0, 10) }}</span>
-            </span>
-            <span class="open-actions">
-              <button
-                type="button"
-                class="icon-btn"
-                title="Duplicate use case"
-                @click.stop="duplicateLibraryEntry(e.id)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn danger"
-                title="Delete use case"
-                @click.stop="requestRemoveLibraryEntry(e.id, e.name)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
-                </svg>
-              </button>
-            </span>
+            <div class="open-main">
+              <span class="open-name">{{ e.name }}</span>
+              <span class="open-actions">
+                <button
+                  type="button"
+                  class="icon-btn"
+                  title="Duplicate use case"
+                  @click.stop="duplicateLibraryEntry(e.id)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  class="icon-btn danger"
+                  title="Delete use case"
+                  @click.stop="requestRemoveLibraryEntry(e.id, e.name)"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                  </svg>
+                </button>
+              </span>
+            </div>
+            <div class="open-sub">
+              <span class="open-count">{{ Object.keys(e.config.experiments || {}).length }} experiment{{ Object.keys(e.config.experiments || {}).length === 1 ? "" : "s" }}</span>
+              <span class="open-date">Updated {{ e.updated_at.slice(0, 10) }}</span>
+            </div>
           </li>
           <li v-if="!filteredLibrary.length" class="empty">
             {{ store.library.length ? "No matching use cases." : "No saved use cases yet." }}
@@ -1110,21 +1112,25 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .search { width: 100%; margin-bottom: 0.6rem; font-size: var(--t-md); padding: 0.5rem 0.6rem; }
 .open-list { list-style: none; max-height: 24rem; overflow-y: auto; display: flex;
   flex-direction: column; gap: 0.2rem; }
-.open-list li { display: flex; justify-content: space-between; align-items: center;
-  padding: 0.45rem 0.55rem; border: 1px solid transparent; border-radius: var(--r); cursor: pointer; }
+.open-list li { display: flex; flex-direction: column; gap: 0.2rem;
+  padding: 0.55rem 0.65rem; border: 1px solid transparent; border-radius: var(--r); cursor: pointer; }
 .open-list li:hover { background: var(--bg2); }
 .open-list li.current { border-color: var(--accent); }
-.open-list li { position: relative; padding-right: 4.6rem; }
-.open-name { color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; }
-.open-meta { position: absolute; right: 0.55rem; top: 50%; transform: translateY(-50%);
-  display: flex; align-items: center; gap: 0.5rem; }
-.open-count { color: var(--text2); font-size: var(--t-sm); font-weight: 600; }
-.open-date { color: var(--text3); font-size: var(--t-xs); }
-.open-actions { position: absolute; right: 0.55rem; top: 50%; transform: translateY(-50%);
-  display: inline-flex; align-items: center; gap: 0.15rem; opacity: 0; }
+/* Name + hover actions share the top line; actions are absolutely positioned
+   in a gutter sized for exactly the 2 icon buttons they hold (not shared with
+   any text, unlike the previous single-line layout), so they never reserve
+   dead space and never fight the name for width. */
+.open-main { position: relative; display: flex; align-items: center; padding-right: 3.6rem; }
+.open-name { color: var(--text); font-weight: 600; flex: 1; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.open-actions { position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; gap: 0.15rem; opacity: 0; transition: opacity 0.1s ease; }
 .open-list li:hover .open-actions { opacity: 1; }
-.open-list li:hover .open-meta { opacity: 0; }
+/* Count/date sit on their own quieter line below, entirely clear of the name
+   and the hover actions, so nothing can ever overlap. */
+.open-sub { display: flex; align-items: center; gap: 0.6rem; }
+.open-count { color: var(--text2); font-size: var(--t-sm); font-weight: 500; }
+.open-date { color: var(--text3); font-size: var(--t-xs); }
 
 /* Wrapper picker overlay */
 .wrapper-modal { width: min(44rem, 94vw); padding: 0.75rem; display: flex; flex-direction: column; }
