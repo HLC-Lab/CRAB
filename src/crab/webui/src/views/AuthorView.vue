@@ -16,7 +16,6 @@ import {
 import { equalShares, sliceColor, sliceName } from "@/lib/slices";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
-import SbatchEditor from "@/components/SbatchEditor.vue";
 import FlowChain from "@/components/FlowChain.vue";
 import ConfirmButton from "@/components/ConfirmButton.vue";
 import ConfirmModal from "@/components/ConfirmModal.vue";
@@ -24,6 +23,7 @@ import LibraryBar from "@/components/author/LibraryBar.vue";
 import AuthorRail from "@/components/author/AuthorRail.vue";
 import BasicsPane from "@/components/author/BasicsPane.vue";
 import AllocationPane from "@/components/author/AllocationPane.vue";
+import RunSettingsPane from "@/components/author/RunSettingsPane.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
@@ -350,10 +350,7 @@ async function copyJson() {
 
         <!-- GLOBAL · Run settings (convergence, output & advanced, slurm) -->
         <template v-else-if="view.kind === 'global' && view.id === 'run'">
-          <h2 class="pane-title">Run settings</h2>
-          <OptionsFields :options="d.options" />
-          <h3 class="section-title">Slurm directives</h3>
-          <SbatchEditor :sbatch="d.sbatch" />
+          <RunSettingsPane />
         </template>
 
         <!-- EXPERIMENT -->
@@ -785,19 +782,6 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
-}
-.pane-title {
-  font-family: var(--sans);
-  font-size: var(--t-lg);
-  color: var(--text);
-}
-.section-title {
-  font-family: var(--sans);
-  font-size: var(--t-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text3);
-  margin-top: -0.3rem;
 }
 .empty {
   color: var(--text3);
