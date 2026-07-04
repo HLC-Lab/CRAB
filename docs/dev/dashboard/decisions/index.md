@@ -22,3 +22,4 @@ marked superseded, never deleted.
 | [013](adr-013-localhost-api-auth.md) | Localhost API requires a per-session token plus host checks | accepted |
 | [014](adr-014-library-dir.md) | The experiment library lives in a user-chosen folder | accepted |
 | [015](adr-015-config-validation.md) | Config shape described in Python; saves warn, never reject | accepted |
+| [016](adr-016-job-submit-monitor.md) | Job submit/monitor: staging, polling, and the sacct-purge fallback | accepted |
