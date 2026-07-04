@@ -99,6 +99,7 @@ def create_app(
 
     from crab.web.api.bootstrap import router as bootstrap_router
     from crab.web.api.experiments import router as experiments_router
+    from crab.web.api.jobs import router as jobs_router
     from crab.web.api.local import router as local_router
     from crab.web.api.remotes import router as remotes_router
 
@@ -106,6 +107,7 @@ def create_app(
     app.include_router(bootstrap_router)
     app.include_router(experiments_router)
     app.include_router(local_router)
+    app.include_router(jobs_router)
 
     _mount_frontend(app, settings)
     return app
