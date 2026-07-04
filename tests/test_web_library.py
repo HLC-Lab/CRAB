@@ -86,3 +86,45 @@ def test_experiments_api_flow(tmp_path: Path):
 
         assert client.delete(f"/api/experiments/{eid}").status_code == 204
         assert client.get(f"/api/experiments/{eid}").status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# Custom library location (plan 040 / ADR-014)
+# --------------------------------------------------------------------------- #
+def test_custom_library_dir_is_used(tmp_path: Path):
+    lib = tmp_path / "my-configs"
+    settings = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data", library_dir=lib)
+    settings.ensure_dirs()
+    store = LibraryStore(settings)
+    entry = store.create("In Custom Dir", _CFG)
+    assert (lib / f"{entry.id}.json").is_file()
+    assert not (tmp_path / "data" / "experiments" / f"{entry.id}.json").exists()
+
+
+def test_default_library_migrates_into_a_fresh_custom_dir(tmp_path: Path):
+    # Entries saved before library_dir was configured...
+    plain = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
+    plain.ensure_dirs()
+    LibraryStore(plain).create("Old Entry", _CFG)
+
+    # ...appear after pointing library_dir at an empty folder (one-time copy).
+    lib = tmp_path / "my-configs"
+    custom = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data", library_dir=lib)
+    app = create_app(custom)
+    with auth_client(app) as client:
+        names = [e["name"] for e in client.get("/api/experiments").json()]
+        assert "Old Entry" in names
+    assert (lib / "old-entry.json").is_file()
+    # The original stays put (copy, not move) so nothing is lost on rollback.
+    assert (tmp_path / "data" / "experiments" / "old-entry.json").is_file()
+
+
+def test_env_var_sets_library_dir(tmp_path: Path, monkeypatch):
+    from crab.web.settings import get_settings
+
+    monkeypatch.setenv("CRAB_WEB_LIBRARY_DIR", str(tmp_path / "envlib"))
+    get_settings.cache_clear()
+    try:
+        assert get_settings().experiments_dir == tmp_path / "envlib"
+    finally:
+        get_settings.cache_clear()

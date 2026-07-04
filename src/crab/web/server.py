@@ -55,6 +55,11 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.ensure_dirs()
+        from crab.web.store.library import migrate_default_library
+
+        moved = migrate_default_library(settings)
+        if moved:
+            logger.info("Copied %d library entries into %s", moved, settings.experiments_dir)
         if getattr(app.state, "manager", None) is None:
             from crab.web.connections.manager import ConnectionManager
 

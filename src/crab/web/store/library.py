@@ -1,15 +1,18 @@
-"""Local library of authored experiment configs (Phase 3, decision I3).
+"""Local library of authored experiment configs.
 
-Each saved config is one JSON file under ``<data_dir>/experiments/<id>.json``
-holding ``{id, name, updated_at, config}``. ``config`` is the engine-shaped
+Each saved config is one JSON file ``<library>/<id>.json`` holding
+``{id, name, updated_at, config}``. ``config`` is the engine-shaped
 ``{global_options, experiments}`` document the dashboard authors and later
 submits; the store persists it verbatim (shape validation lives at the author
-layer, not here). The library is laptop-local and non-secret.
+layer, not here). The library lives in the data dir by default, or in a
+user-chosen ``library_dir`` — e.g. a git repo — per ADR-014; plain JSON files
+either way, so entries stay hand-shareable.
 """
 
 from __future__ import annotations
 
 import re
+import shutil
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +21,25 @@ from pydantic import BaseModel
 
 from crab.web.errors import InputError, NotFoundError
 from crab.web.settings import Settings, get_settings
+
+
+def migrate_default_library(settings: Settings) -> int:
+    """One-time copy of the default library into a freshly configured
+    ``library_dir``. Copies (never moves) so unsetting the override rolls back
+    cleanly; a non-empty target is left untouched. Returns entries copied."""
+    if settings.library_dir is None:
+        return 0
+    default = settings.data_dir / "experiments"
+    target = settings.experiments_dir
+    if target == default or not default.is_dir() or any(target.glob("*.json")):
+        return 0
+    target.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    for f in sorted(default.glob("*.json")):
+        shutil.copy2(f, target / f.name)
+        copied += 1
+    return copied
+
 
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
 # Ids are our own slugs; this guards path-traversal when an id comes from a URL.

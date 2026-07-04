@@ -4,8 +4,12 @@ All persistent laptop state lives under platform-standard config/data dirs
 (via ``platformdirs``, already a core dependency). Locations can be overridden
 with environment variables — primarily for tests and power users:
 
-* ``CRAB_WEB_CONFIG_DIR`` — overrides the config dir (holds ``clusters.json``).
-* ``CRAB_WEB_DATA_DIR``   — overrides the data dir (library, jobs, cache, logs).
+* ``CRAB_WEB_CONFIG_DIR``  — overrides the config dir (holds ``clusters.json``).
+* ``CRAB_WEB_DATA_DIR``    — overrides the data dir (library, jobs, cache, logs).
+* ``CRAB_WEB_LIBRARY_DIR`` — puts the experiment-config library in a directory of
+  the user's choosing (e.g. a git repo or synced folder) instead of the data dir
+  (see docs/dev/dashboard/decisions/ ADR-014). Existing entries are copied over
+  on first run.
 
 Nothing secret is stored here (see ``.crab-web-dev/05-instructions.md`` §7);
 ``clusters.json`` holds only non-secret connection profile fields.
@@ -38,6 +42,8 @@ class Settings:
     port: int = DEFAULT_PORT
     # Optional override for the built-frontend location (tests / custom builds).
     static_override: Path | None = None
+    # Optional user-chosen home for the experiment library (ADR-014).
+    library_dir: Path | None = None
 
     # ---- derived locations -------------------------------------------------
     @property
@@ -47,8 +53,8 @@ class Settings:
 
     @property
     def experiments_dir(self) -> Path:
-        """Laptop-local library of authored experiment configs."""
-        return self.data_dir / "experiments"
+        """Library of authored experiment configs (user-chosen dir, else data dir)."""
+        return self.library_dir if self.library_dir is not None else self.data_dir / "experiments"
 
     @property
     def jobs_file(self) -> Path:
@@ -95,9 +101,11 @@ def get_settings() -> Settings:
         "CRAB_WEB_CONFIG_DIR", platformdirs.user_config_dir(APP_NAME, APP_AUTHOR)
     )
     data_dir = _resolve_dir("CRAB_WEB_DATA_DIR", platformdirs.user_data_dir(APP_NAME, APP_AUTHOR))
+    library_raw = os.environ.get("CRAB_WEB_LIBRARY_DIR")
+    library_dir = Path(library_raw).expanduser() if library_raw else None
     port_raw = os.environ.get("CRAB_WEB_PORT")
     try:
         port = int(port_raw) if port_raw else DEFAULT_PORT
     except ValueError:
         port = DEFAULT_PORT
-    return Settings(config_dir=config_dir, data_dir=data_dir, port=port)
+    return Settings(config_dir=config_dir, data_dir=data_dir, port=port, library_dir=library_dir)

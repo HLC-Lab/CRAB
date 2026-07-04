@@ -1,8 +1,7 @@
 # ADR-009 · Experiment library stored on the laptop
 
 - **Date:** 2026-06-19
-- **Status:** under review (2026-07-03 — storage model being reconsidered before the
-  submit/monitor phase; see the roadmap)
+- **Status:** superseded by [ADR-014](adr-014-library-dir.md) (2026-07-04)
 
 ## Context
 

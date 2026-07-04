@@ -25,7 +25,7 @@ crab web → uvicorn (127.0.0.1) → browser SPA        researcher's CRAB checko
 |---|---|
 | `server.py` | App factory, `/api/health`, router wiring, SPA serving (traversal-guarded, `no-cache` shell) |
 | `run.py` | `crab web` entry: uvicorn on localhost, opens the browser |
-| `settings.py` | `platformdirs` paths; env overrides `CRAB_WEB_CONFIG_DIR` / `CRAB_WEB_DATA_DIR` / `CRAB_WEB_PORT` |
+| `settings.py` | `platformdirs` paths; env overrides `CRAB_WEB_CONFIG_DIR` / `CRAB_WEB_DATA_DIR` / `CRAB_WEB_LIBRARY_DIR` / `CRAB_WEB_PORT` |
 | `errors.py` | Error taxonomy; every API error is the stable envelope `{code, message, detail?}` |
 | `api/` | Routes only — no business logic: `remotes.py`, `bootstrap.py`, `experiments.py`, `local.py` |
 | `connections/` | `transport.py` (`Transport` ABC; `SSHTransport` via asyncssh, `LocalTransport` via subprocess), `manager.py` (one reused live connection per remote, liveness eviction) |
@@ -56,7 +56,8 @@ an `errors.py` class — the process must never crash on a remote or user error.
 
 ```
 <user_config_dir>/crab/clusters.json      cluster profiles (never secrets)
-<user_data_dir>/crab/experiments/*.json   authored experiment configs (library)
+<user_data_dir>/crab/experiments/*.json   authored experiment configs (library);
+                                          relocatable via CRAB_WEB_LIBRARY_DIR (ADR-014)
 ```
 
 Auth is agent / key / password (in-memory only); host-key checking is `strict` or, for
