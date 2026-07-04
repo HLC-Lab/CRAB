@@ -1,0 +1,1 @@
+import{P as e}from"./PagePlaceholder-gPdBwvC2.js";import{d as o,a,C as n}from"./index-DokXU-GP.js";const l=o({__name:"JobsView",setup(t){return(r,s)=>(a(),n(e,{title:"Jobs",phase:"Phase 4",blurb:"Submit experiments and monitor active jobs. Manual refresh plus a 10s auto-poll over the live SSH connection, with cancel and on-demand log viewing."}))}});export{l as default};
