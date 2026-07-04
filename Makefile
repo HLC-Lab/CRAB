@@ -23,7 +23,7 @@ _verify_py:
 	$(PY) -m pytest -q
 
 _verify_fe:
-	cd $(WEBUI) && npx prettier --check src tests/unit
+	cd $(WEBUI) && npx prettier --check src tests
 	cd $(WEBUI) && npx eslint src tests/unit
 	cd $(WEBUI) && npm run --silent type-check
 	cd $(WEBUI) && npx vitest run --silent
@@ -48,7 +48,7 @@ _static_sync:
 fmt:
 	$(VENV_DIR)/bin/ruff check --fix src tests
 	$(VENV_DIR)/bin/ruff format src tests
-	cd $(WEBUI) && npx prettier --write src tests/unit
+	cd $(WEBUI) && npx prettier --write src tests
 
 # 0. The Guardrail (Fails instantly if Python is too old)
 _check_python:
