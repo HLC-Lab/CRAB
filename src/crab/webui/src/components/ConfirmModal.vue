@@ -22,8 +22,12 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
 </template>
 
 <style scoped>
+/* !important: this component's root div also carries its host's own scope-id
+   attribute (Vue scoped-CSS lets a parent style a child's root element), so a
+   plain z-index here ties in specificity with the host's own ".modal-bg" rule
+   and loses on source order. This must win regardless of where it's mounted. */
 .modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5);
-  display: flex; align-items: center; justify-content: center; z-index: 50; }
+  display: flex; align-items: center; justify-content: center; z-index: 60 !important; }
 .modal { width: min(28rem, 92vw); padding: 1.25rem; background: var(--bg1);
   border: 1px solid var(--border); border-radius: var(--r2); }
 .modal h2 { font-family: var(--sans); font-size: var(--t-lg); margin-bottom: 0.3rem; }

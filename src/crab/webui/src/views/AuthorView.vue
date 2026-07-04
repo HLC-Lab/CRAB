@@ -131,7 +131,7 @@ const overridesActive = computed(() => {
   return Object.values(e.options).some((v) => v !== "");
 });
 
-// Open overlay (searchable library picker)
+// Browse overlay (searchable library picker)
 const showOpen = ref(false);
 const openQuery = ref("");
 const filteredLibrary = computed(() => {
@@ -146,7 +146,22 @@ async function openEntry(id: string) {
   openQuery.value = "";
 }
 
-// Discard-unsaved-changes guard for "+ New" and "Open…", gated on real
+function duplicateLibraryEntry(id: string): void {
+  store.duplicate(id);
+  showOpen.value = false;
+  openQuery.value = "";
+}
+
+const removeLibraryTarget = ref<{ id: string; name: string } | null>(null);
+function requestRemoveLibraryEntry(id: string, name: string): void {
+  removeLibraryTarget.value = { id, name };
+}
+async function confirmRemoveLibraryEntry(): Promise<void> {
+  if (removeLibraryTarget.value) await store.remove(removeLibraryTarget.value.id);
+  removeLibraryTarget.value = null;
+}
+
+// Discard-unsaved-changes guard for "+ New" and "Browse…", gated on real
 // dirtiness (store.isDirty) rather than the old "draft is non-empty" heuristic.
 const showDiscardConfirm = ref(false);
 const pendingAction = ref<"new" | "open" | null>(null);
@@ -159,7 +174,7 @@ function requestNew(): void {
     newConfig();
   }
 }
-function requestOpen(): void {
+function requestBrowse(): void {
   if (store.isDirty) {
     pendingAction.value = "open";
     showDiscardConfirm.value = true;
@@ -391,17 +406,11 @@ async function copyJson() {
     <header class="bar">
       <div class="grp">
         <button class="btn" @click="requestNew">+ New</button>
-        <button class="btn" @click="requestOpen">Open…</button>
+        <button class="btn" @click="requestBrowse">Browse…</button>
 
         <button class="btn primary" :disabled="store.busy" @click="requestSave">
           {{ store.busy ? "Saving…" : "Save" }}
         </button>
-        <button class="btn" :disabled="!store.entryId" @click="store.duplicate(store.entryId!)">
-          Duplicate
-        </button>
-        <ConfirmButton v-slot="{ trigger }" :label="d.name.trim() || 'this use case'" @confirm="store.remove(store.entryId!)">
-          <button class="btn danger" :disabled="!store.entryId" @click="trigger">Delete</button>
-        </ConfirmButton>
       </div>
       <div class="grp">
         <button class="btn" @click="showImport = true">Import JSON</button>
@@ -716,7 +725,7 @@ async function copyJson() {
       @cancel="removeExperimentTarget = null"
     />
 
-    <!-- Open overlay: searchable library picker -->
+    <!-- Browse overlay: searchable library picker with hover duplicate/delete -->
     <div v-if="showOpen" class="modal-bg" @click.self="showOpen = false">
       <div class="modal card open-modal">
         <input
@@ -726,6 +735,10 @@ async function copyJson() {
           autofocus
         />
         <ul class="open-list">
+          <!-- Each row is a distinct, self-contained block so a future "view
+               results for this use case" action (once the results dashboard
+               phase lands) can be added as one more item in .open-actions
+               without restructuring this list. Not implemented yet. -->
           <li
             v-for="e in filteredLibrary"
             :key="e.id"
@@ -734,8 +747,31 @@ async function copyJson() {
           >
             <span class="open-name">{{ e.name }}</span>
             <span class="open-meta">
-              {{ Object.keys(e.config.experiments || {}).length }} exp ·
-              {{ e.updated_at.slice(0, 10) }}
+              <b class="open-count">{{ Object.keys(e.config.experiments || {}).length }} exp</b>
+              <span class="open-date">{{ e.updated_at.slice(0, 10) }}</span>
+            </span>
+            <span class="open-actions">
+              <button
+                type="button"
+                class="icon-btn"
+                title="Duplicate use case"
+                @click.stop="duplicateLibraryEntry(e.id)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="9" y="9" width="11" height="11" rx="2" />
+                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn danger"
+                title="Delete use case"
+                @click.stop="requestRemoveLibraryEntry(e.id, e.name)"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 7h14" /><path d="M9 7V5h6v2" /><path d="M7 7l1 13h8l1-13" />
+                </svg>
+              </button>
             </span>
           </li>
           <li v-if="!filteredLibrary.length" class="empty">
@@ -744,6 +780,15 @@ async function copyJson() {
         </ul>
       </div>
     </div>
+
+    <ConfirmModal
+      v-if="removeLibraryTarget"
+      title="Delete this use case?"
+      :message="`Delete “${removeLibraryTarget.name}”? This cannot be undone.`"
+      confirm-label="Delete"
+      @confirm="confirmRemoveLibraryEntry"
+      @cancel="removeLibraryTarget = null"
+    />
 
     <!-- Wrapper picker overlay: searchable catalog from the source cluster -->
     <div v-if="showWrapper" class="modal-bg" @click.self="showWrapper = false">
@@ -1067,8 +1112,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
   padding: 0.45rem 0.55rem; border: 1px solid transparent; border-radius: var(--r); cursor: pointer; }
 .open-list li:hover { background: var(--bg2); }
 .open-list li.current { border-color: var(--accent); }
-.open-name { color: var(--text); }
-.open-meta { color: var(--text3); font-size: var(--t-sm); }
+.open-list li { position: relative; padding-right: 4.6rem; }
+.open-name { color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.open-meta { position: absolute; right: 0.55rem; top: 50%; transform: translateY(-50%);
+  display: flex; align-items: center; gap: 0.5rem; }
+.open-count { color: var(--text2); font-size: var(--t-sm); font-weight: 600; }
+.open-date { color: var(--text3); font-size: var(--t-xs); }
+.open-actions { position: absolute; right: 0.55rem; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; gap: 0.15rem; opacity: 0; }
+.open-list li:hover .open-actions { opacity: 1; }
+.open-list li:hover .open-meta { opacity: 0; }
 
 /* Wrapper picker overlay */
 .wrapper-modal { width: min(44rem, 94vw); padding: 0.75rem; display: flex; flex-direction: column; }
