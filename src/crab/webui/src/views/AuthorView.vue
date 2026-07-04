@@ -304,7 +304,6 @@ function chooseWrapper(relpath: string) {
 }
 
 const showJson = ref(false);
-const importText = ref("");
 const copied = ref(false);
 const showNamePrompt = ref(false);
 const namePromptValue = ref("");
@@ -381,9 +380,15 @@ function duplicateExperiment(i: number): void {
   selectExp(i + 1);
 }
 
-function doImport() {
-  if (store.importJson(importText.value)) {
-    importText.value = "";
+const importFileInput = ref<HTMLInputElement | null>(null);
+
+async function onImportFileChosen(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ""; // reset so choosing the same file again still fires @change
+  if (!file) return;
+  const text = await file.text();
+  if (store.importJson(text)) {
     selectAfterLoad();
   }
 }
@@ -694,7 +699,7 @@ async function copyJson() {
         <p v-else class="empty pad">Select a section or experiment to edit.</p>
       </main>
 
-      <!-- JSON view: current config (read-only, with Copy) plus paste-to-import,
+      <!-- JSON view: current config (read-only, with Copy) plus load-from-file import,
            replacing what used to be two separate toolbar buttons and a modal. -->
       <aside v-if="showJson" class="jsonpane">
         <header>
@@ -704,9 +709,15 @@ async function copyJson() {
         <pre>{{ store.configJson }}</pre>
         <div class="jsonpane-import">
           <h3>Import JSON</h3>
-          <p class="hint">Paste a config (or an example) to load it into the editor as a new draft.</p>
-          <textarea v-model="importText" rows="8" placeholder='{ "global_options": { … }, "experiments": { … } }' />
-          <button class="btn primary" @click="doImport">Load</button>
+          <p class="hint">Load a config file from your computer into the editor as a new draft.</p>
+          <input
+            ref="importFileInput"
+            type="file"
+            accept="application/json,.json"
+            class="visually-hidden"
+            @change="onImportFileChosen"
+          />
+          <button class="btn primary" @click="importFileInput?.click()">Load from file…</button>
         </div>
       </aside>
     </div>
@@ -873,7 +884,7 @@ async function copyJson() {
 </template>
 
 <style scoped>
-.author { padding: 1.25rem 1.5rem; max-width: 80rem; overflow-x: auto; }
+.author { padding: 1.25rem 1.5rem; max-width: 92rem; overflow-x: auto; }
 .bar { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; margin-bottom: 1rem; }
 .grp { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
 .btn {
@@ -1083,7 +1094,9 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .jsonpane-import h3 { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text3); }
 .jsonpane-import .hint { color: var(--text3); font-size: var(--t-xs); margin: 0; }
-.jsonpane-import textarea { font-size: var(--t-sm); resize: vertical; width: 100%; }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .banner { padding: 0.5rem 0.75rem; border-radius: var(--r); margin-bottom: 1rem; }
 .banner.err { background: rgba(245, 101, 101, 0.12); color: var(--danger); border: 1px solid var(--danger); }
