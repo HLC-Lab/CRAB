@@ -43,17 +43,43 @@ const showSubmit = ref(false);
 const expandedLogs = ref<string | null>(null);
 const cancelTarget = ref<{ id: string; label: string } | null>(null);
 
+const POLL_INTERVAL_OPTIONS = [5_000, 10_000, 30_000, 60_000];
+
+// Drives the "Ns ago" label below — ticks once a second so it stays live
+// without needing a fresh refresh.
+const now = ref(Date.now());
+let nowTimer: ReturnType<typeof setInterval> | null = null;
+
+const lastRefreshedLabel = computed(() => {
+  if (jobs.lastRefreshedAt === null) return "never";
+  const secs = Math.max(0, Math.round((now.value - jobs.lastRefreshedAt) / 1000));
+  if (secs < 1) return "just now";
+  if (secs < 60) return `${secs}s ago`;
+  return `${Math.round(secs / 60)}m ago`;
+});
+
 onMounted(() => {
   jobs.refresh();
   jobs.startPolling();
+  nowTimer = setInterval(() => {
+    now.value = Date.now();
+  }, 1000);
 });
 onUnmounted(() => {
   jobs.stopPolling();
+  if (nowTimer) clearInterval(nowTimer);
 });
 
 function togglePolling() {
   if (jobs.polling) jobs.stopPolling();
   else jobs.startPolling();
+}
+
+async function manualRefresh() {
+  // jobs.refresh() only updates the list/state; an open Logs panel needs its
+  // own refetch too, or Refresh looks like it does nothing while logs are open.
+  await jobs.refresh();
+  if (expandedLogs.value) await jobs.fetchLogs(expandedLogs.value);
 }
 
 async function toggleLogs(id: string) {
@@ -83,10 +109,22 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
     <header class="head">
       <h1>Jobs</h1>
       <div class="actions">
-        <button class="btn" :disabled="jobs.loading" @click="jobs.refresh()">↻ Refresh</button>
+        <button class="btn" :disabled="jobs.loading" @click="manualRefresh">
+          <span :class="{ spinning: jobs.refreshing }">↻</span> Refresh
+        </button>
+        <span class="meta refreshed-at">refreshed {{ lastRefreshedLabel }}</span>
         <button class="btn" :class="{ on: jobs.polling }" @click="togglePolling">
           {{ jobs.polling ? "Auto-refresh: on" : "Auto-refresh: off" }}
         </button>
+        <select
+          class="poll-interval"
+          :value="jobs.pollIntervalMs"
+          @change="jobs.setPollInterval(Number(($event.target as HTMLSelectElement).value))"
+        >
+          <option v-for="ms in POLL_INTERVAL_OPTIONS" :key="ms" :value="ms">
+            every {{ ms / 1000 }}s
+          </option>
+        </select>
         <button class="btn primary" @click="showSubmit = true">+ New submission</button>
       </div>
     </header>
@@ -142,18 +180,26 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
           <template v-else-if="jobs.logs[j.id]">
             <div class="stream">
               <span class="stream-label">{{ filename(jobs.logs[j.id].stdout.path) }}</span>
+              <p v-if="jobs.logs[j.id].stdout.truncated" class="meta truncated">
+                Showing only the most recent portion — this log is larger than the display limit.
+              </p>
               <pre
-                v-if="jobs.logs[j.id].stdout.exists"
+                v-if="jobs.logs[j.id].stdout.exists && jobs.logs[j.id].stdout.content.trim()"
                 v-html="ansiToHtml(jobs.logs[j.id].stdout.content)"
               ></pre>
+              <p v-else-if="jobs.logs[j.id].stdout.exists" class="meta empty">(no output yet)</p>
               <p v-else class="meta">not written yet</p>
             </div>
             <div class="stream">
               <span class="stream-label">{{ filename(jobs.logs[j.id].stderr.path) }}</span>
+              <p v-if="jobs.logs[j.id].stderr.truncated" class="meta truncated">
+                Showing only the most recent portion — this log is larger than the display limit.
+              </p>
               <pre
-                v-if="jobs.logs[j.id].stderr.exists"
+                v-if="jobs.logs[j.id].stderr.exists && jobs.logs[j.id].stderr.content.trim()"
                 v-html="ansiToHtml(jobs.logs[j.id].stderr.content)"
               ></pre>
+              <p v-else-if="jobs.logs[j.id].stderr.exists" class="meta empty">(no output yet)</p>
               <p v-else class="meta">not written yet</p>
             </div>
           </template>
@@ -192,7 +238,33 @@ h1 {
 }
 .actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+.refreshed-at {
+  margin: 0;
+  white-space: nowrap;
+}
+.poll-interval {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+}
+.spinning {
+  display: inline-block;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 .btn {
   background: var(--bg2);
@@ -312,6 +384,17 @@ h1 {
   margin-top: 0.4rem;
   color: var(--text3);
   font-size: var(--t-sm);
+}
+.meta.empty {
+  font-style: italic;
+  padding: 0.5rem;
+  background: var(--bg2);
+  border: 1px dashed var(--border);
+  border-radius: var(--r);
+}
+.meta.truncated {
+  margin-bottom: 0.3rem;
+  color: var(--warn);
 }
 .logs {
   margin-top: 0.75rem;

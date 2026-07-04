@@ -88,6 +88,54 @@ describe("jobs store polling", () => {
   });
 });
 
+describe("jobs store refresh metadata", () => {
+  it("records lastRefreshedAt after a successful refresh, not before", async () => {
+    listMock.mockResolvedValue([]);
+    const store = useJobsStore();
+    expect(store.lastRefreshedAt).toBeNull();
+
+    await store.refresh();
+    expect(store.lastRefreshedAt).toBe(Date.now());
+  });
+
+  it("leaves lastRefreshedAt untouched when a refresh fails", async () => {
+    listMock.mockResolvedValueOnce([]);
+    const store = useJobsStore();
+    await store.refresh();
+    const first = store.lastRefreshedAt;
+
+    listMock.mockRejectedValueOnce(new ApiError("boom"));
+    await vi.advanceTimersByTimeAsync(1_000);
+    await store.refresh();
+    expect(store.lastRefreshedAt).toBe(first);
+  });
+});
+
+describe("jobs store poll interval", () => {
+  it("defaults to 10s", () => {
+    const store = useJobsStore();
+    expect(store.pollIntervalMs).toBe(10_000);
+  });
+
+  it("setPollInterval takes effect immediately while already polling", async () => {
+    listMock.mockResolvedValue([]);
+    const store = useJobsStore();
+    store.startPolling();
+
+    store.setPollInterval(5_000);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(listMock).toHaveBeenCalledTimes(1);
+
+    store.stopPolling();
+  });
+
+  it("setPollInterval before polling starts just updates the stored value", () => {
+    const store = useJobsStore();
+    store.setPollInterval(30_000);
+    expect(store.pollIntervalMs).toBe(30_000);
+  });
+});
+
 describe("jobs store error surfacing", () => {
   it("submit includes the remote detail (e.g. stderr) alongside the message", async () => {
     const err = new ApiError("");

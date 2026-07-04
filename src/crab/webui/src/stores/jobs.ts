@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
 import type { CancelResponse, CrabConfig, JobListItem, JobLogs, JobRecord } from "@/api/types";
 
-const POLL_INTERVAL_MS = 10_000;
+const DEFAULT_POLL_INTERVAL_MS = 10_000;
 
 function msg(e: unknown): string {
   if (!(e instanceof ApiError)) return "Unexpected error";
@@ -30,6 +30,8 @@ export const useJobsStore = defineStore("jobs", () => {
   const refreshing = ref(false);
 
   const polling = ref(false);
+  const lastRefreshedAt = ref<number | null>(null);
+  const pollIntervalMs = ref(DEFAULT_POLL_INTERVAL_MS);
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const submitBusy = ref(false);
@@ -49,6 +51,7 @@ export const useJobsStore = defineStore("jobs", () => {
     error.value = null;
     try {
       items.value = await api.jobs.list();
+      lastRefreshedAt.value = Date.now();
     } catch (e) {
       error.value = msg(e);
     } finally {
@@ -60,7 +63,7 @@ export const useJobsStore = defineStore("jobs", () => {
   function startPolling() {
     if (timer !== null) return;
     polling.value = true;
-    timer = setInterval(refresh, POLL_INTERVAL_MS);
+    timer = setInterval(refresh, pollIntervalMs.value);
   }
 
   function stopPolling() {
@@ -69,6 +72,14 @@ export const useJobsStore = defineStore("jobs", () => {
       timer = null;
     }
     polling.value = false;
+  }
+
+  function setPollInterval(ms: number) {
+    pollIntervalMs.value = ms;
+    if (timer !== null) {
+      clearInterval(timer);
+      timer = setInterval(refresh, ms);
+    }
   }
 
   async function submit(body: SubmitBody): Promise<JobRecord | null> {
@@ -123,7 +134,10 @@ export const useJobsStore = defineStore("jobs", () => {
     items,
     loading,
     error,
+    refreshing,
     polling,
+    lastRefreshedAt,
+    pollIntervalMs,
     submitBusy,
     submitError,
     cancelBusy,
@@ -134,6 +148,7 @@ export const useJobsStore = defineStore("jobs", () => {
     refresh,
     startPolling,
     stopPolling,
+    setPollInterval,
     submit,
     cancel,
     fetchLogs,
