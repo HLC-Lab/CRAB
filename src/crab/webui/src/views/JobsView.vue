@@ -6,6 +6,11 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
+import { ansiToHtml } from "@/lib/ansi";
+
+function filename(path: string): string {
+  return path.split("/").pop() || path;
+}
 
 // Never re-polled once reached (mirrors api/jobs.py's _TERMINAL_STATES) —
 // used here only to decide whether Cancel makes sense to offer.
@@ -57,7 +62,9 @@ async function toggleLogs(id: string) {
     return;
   }
   expandedLogs.value = id;
-  if (!jobs.logs[id]) await jobs.fetchLogs(id);
+  // Always fetch fresh: a cached result from before the job finished writing
+  // its output would otherwise stick forever (only a page reload cleared it).
+  await jobs.fetchLogs(id);
 }
 
 function requestCancel(id: string, label: string) {
@@ -134,13 +141,19 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
           </p>
           <template v-else-if="jobs.logs[j.id]">
             <div class="stream">
-              <span class="stream-label">stdout</span>
-              <pre v-if="jobs.logs[j.id].stdout.exists">{{ jobs.logs[j.id].stdout.content }}</pre>
+              <span class="stream-label">{{ filename(jobs.logs[j.id].stdout.path) }}</span>
+              <pre
+                v-if="jobs.logs[j.id].stdout.exists"
+                v-html="ansiToHtml(jobs.logs[j.id].stdout.content)"
+              ></pre>
               <p v-else class="meta">not written yet</p>
             </div>
             <div class="stream">
-              <span class="stream-label">stderr</span>
-              <pre v-if="jobs.logs[j.id].stderr.exists">{{ jobs.logs[j.id].stderr.content }}</pre>
+              <span class="stream-label">{{ filename(jobs.logs[j.id].stderr.path) }}</span>
+              <pre
+                v-if="jobs.logs[j.id].stderr.exists"
+                v-html="ansiToHtml(jobs.logs[j.id].stderr.content)"
+              ></pre>
               <p v-else class="meta">not written yet</p>
             </div>
           </template>
@@ -323,5 +336,34 @@ h1 {
   font-size: var(--t-sm);
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* Matches the SGR codes crab.log.formatters.RichFormatter emits (see lib/ansi.ts). */
+.stream pre :deep(.ansi-bold) {
+  font-weight: 700;
+}
+.stream pre :deep(.ansi-dim) {
+  color: var(--text3);
+}
+.stream pre :deep(.ansi-red) {
+  color: var(--danger);
+}
+.stream pre :deep(.ansi-green) {
+  color: var(--ok);
+}
+.stream pre :deep(.ansi-yellow) {
+  color: var(--warn);
+}
+.stream pre :deep(.ansi-blue) {
+  color: var(--ansi-blue);
+}
+.stream pre :deep(.ansi-magenta) {
+  color: var(--ansi-magenta);
+}
+.stream pre :deep(.ansi-cyan) {
+  color: var(--ansi-cyan);
+}
+.stream pre :deep(.ansi-black),
+.stream pre :deep(.ansi-white) {
+  color: var(--text);
 }
 </style>
