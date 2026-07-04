@@ -156,6 +156,15 @@ def test_build_crab_command_local_uses_interpreter():
     assert "bash -lc" not in cmd
 
 
+def test_build_crab_command_preserves_tilde_in_args():
+    # A staged config path (transfer.stage_config) may itself start with `~`;
+    # shlex.quote on such an arg would break expansion the same way it would
+    # for crab_dir/venv (see remote_path_expr's docstring).
+    cmd = build_crab_command(_leonardo(), ["run", "~/CRAB/.web_staging/demo.json", "--json"])
+    assert "$HOME/CRAB/.web_staging/demo.json" in cmd
+    assert "'~/CRAB/.web_staging/demo.json'" not in cmd
+
+
 async def test_run_crab_json_parses_and_maps_errors():
     p = _leonardo()
     ok = await run_crab_json(FakeTransport(), p, ["info", "--json"])

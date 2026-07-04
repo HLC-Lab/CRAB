@@ -43,8 +43,15 @@ def crab_dir(profile: Profile) -> str:
 
 
 def build_crab_command(profile: Profile, args: list[str]) -> str:
-    """Return the shell command that runs ``crab <args>`` for this profile."""
-    crab_args = " ".join(shlex.quote(a) for a in args)
+    """Return the shell command that runs ``crab <args>`` for this profile.
+
+    Args are quoted with ``remote_path_expr`` (not plain ``shlex.quote``): a
+    staged config path (``remoteops/transfer.py``) may itself start with
+    ``~``, and quoting a leading ``~`` would break its expansion the same way
+    it would for ``crab_dir``/``venv`` below. ``remote_path_expr`` behaves
+    exactly like ``shlex.quote`` for any arg that isn't a tilde path.
+    """
+    crab_args = " ".join(remote_path_expr(a) for a in args)
 
     if profile.is_local():
         # The backend already runs inside CRAB's environment.
