@@ -14,9 +14,10 @@ from __future__ import annotations
 import asyncio
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from crab.web.errors import AuthError, RemoteConnectionError
+from crab.web.errors import AuthError, RemoteCommandError, RemoteConnectionError
 
 if TYPE_CHECKING:  # pragma: no cover
     import asyncssh
@@ -47,6 +48,11 @@ class Transport:
         raise NotImplementedError
 
     async def run(self, command: str, timeout: float | None = DEFAULT_TIMEOUT) -> CmdResult:
+        raise NotImplementedError
+
+    async def write_file(
+        self, path: str, content: str, timeout: float | None = DEFAULT_TIMEOUT
+    ) -> None:
         raise NotImplementedError
 
     async def close(self) -> None:  # pragma: no cover - trivial
@@ -88,6 +94,34 @@ class SSHTransport(Transport):
             stdout=out.decode("utf-8", "replace") if isinstance(out, bytes) else out,
             stderr=err.decode("utf-8", "replace") if isinstance(err, bytes) else err,
         )
+
+    async def write_file(
+        self, path: str, content: str, timeout: float | None = DEFAULT_TIMEOUT
+    ) -> None:
+        import asyncssh
+
+        async def _write() -> None:
+            async with self._conn.start_sftp_client() as sftp:
+                async with sftp.open(path, "w") as f:
+                    await f.write(content)
+
+        try:
+            await asyncio.wait_for(_write(), timeout=timeout)
+        except asyncio.TimeoutError:
+            raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
+                f"Writing {path} timed out after {timeout:g}s.",
+                detail=path,
+            )
+        except asyncssh.SFTPError as exc:
+            # A file/permission error, not a dropped connection (e.g. the
+            # parent directory doesn't exist yet) — the connection stays alive.
+            raise RemoteCommandError(f"Could not write {path} over SFTP.", detail=str(exc)) from exc
+        except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
+            self._closed = True  # treat any other SFTP/channel error as a drop
+            raise RemoteConnectionError(
+                "The SSH connection dropped while writing a file.",
+                detail=f"{type(exc).__name__}: {exc}",
+            ) from exc
 
     async def close(self) -> None:
         self._closed = True
@@ -197,6 +231,18 @@ class LocalTransport(Transport):
             stdout=out.decode("utf-8", "replace"),
             stderr=err.decode("utf-8", "replace"),
         )
+
+    async def write_file(
+        self, path: str, content: str, timeout: float | None = DEFAULT_TIMEOUT
+    ) -> None:
+        try:
+            await asyncio.wait_for(asyncio.to_thread(Path(path).write_text, content), timeout)
+        except asyncio.TimeoutError:
+            raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
+                f"Writing {path} timed out after {timeout:g}s."
+            )
+        except OSError as exc:
+            raise RemoteCommandError(f"Could not write {path}.", detail=str(exc)) from exc
 
     async def close(self) -> None:
         pass

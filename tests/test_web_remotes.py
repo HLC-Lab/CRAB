@@ -38,6 +38,7 @@ class FakeTransport(Transport):
         self._stdout, self._rc, self._stderr = stdout, rc, stderr
         self._alive = True
         self.calls: list[str] = []
+        self.written_files: dict[str, str] = {}
 
     @property
     def alive(self) -> bool:
@@ -46,6 +47,9 @@ class FakeTransport(Transport):
     async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
         self.calls.append(command)
         return CmdResult(self._rc, self._stdout, self._stderr)
+
+    async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
+        self.written_files[path] = content
 
     async def close(self) -> None:
         self._alive = False
