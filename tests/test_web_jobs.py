@@ -128,12 +128,20 @@ class ScriptedTransport(Transport):
         self,
         status_json: str = '{"schema":1,"jobs":[]}',
         history_json: str = '{"schema":1,"experiments":[]}',
+        cancel_json: str = '{"schema":1,"job_id":"1","cancelled":true,"detail":null}',
+        logs_json: str = (
+            '{"schema":1,"data_dir":"/d","'
+            'stdout":{"path":"/d/slurm_output.log","exists":true,"content":"out","truncated":false},'
+            '"stderr":{"path":"/d/slurm_error.log","exists":false,"content":"","truncated":false}}'
+        ),
     ):
         self._alive = True
         self.calls: list[str] = []
         self.written_files: dict[str, str] = {}
         self._status_json = status_json
         self._history_json = history_json
+        self._cancel_json = cancel_json
+        self._logs_json = logs_json
 
     @property
     def alive(self) -> bool:
@@ -153,6 +161,10 @@ class ScriptedTransport(Transport):
             return CmdResult(0, self._status_json, "")
         if "crab history" in command:
             return CmdResult(0, self._history_json, "")
+        if "crab cancel" in command:
+            return CmdResult(0, self._cancel_json, "")
+        if "crab logs" in command:
+            return CmdResult(0, self._logs_json, "")
         raise AssertionError(f"unexpected command: {command}")
 
     async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
@@ -380,3 +392,79 @@ def test_list_jobs_skips_already_terminal_jobs(tmp_path: Path):
 
         transport = client.app.state.manager.get("leonardo")
         assert not any("crab status" in c for c in transport.calls)
+
+
+# --------------------------------------------------------------------------- #
+# POST /api/jobs/{id}/cancel, GET /api/jobs/{id}/logs
+# --------------------------------------------------------------------------- #
+def test_cancel_job_updates_state(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1")
+    cancel_json = '{"schema":1,"job_id":"1","cancelled":true,"detail":null}'
+
+    def factory():
+        return ScriptedTransport(cancel_json=cancel_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.post("/api/jobs/leonardo:1/cancel")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["cancelled"] is True
+        assert body["job"]["last_known_state"] == "CANCELLED"
+
+        transport = client.app.state.manager.get("leonardo")
+        assert any("crab cancel 1 --json" in c for c in transport.calls)
+
+
+def test_cancel_already_gone_job_leaves_state_unchanged(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", last_known_state="RUNNING")
+    cancel_json = '{"schema":1,"job_id":"1","cancelled":false,"detail":"already gone"}'
+
+    def factory():
+        return ScriptedTransport(cancel_json=cancel_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.post("/api/jobs/leonardo:1/cancel")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["cancelled"] is False
+        assert body["detail"] == "already gone"
+        assert body["job"]["last_known_state"] == "RUNNING"
+
+
+def test_cancel_unknown_job_returns_404(tmp_path: Path):
+    with _client(tmp_path) as client:
+        resp = client.post("/api/jobs/nope/cancel")
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
+
+
+def test_job_logs_returns_contract_shape(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026")
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/leonardo:1/logs")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["stdout"]["content"] == "out"
+        assert body["stderr"]["exists"] is False
+
+        transport = client.app.state.manager.get("leonardo")
+        assert any(
+            "crab logs --data-dir /data/leonardo/demo_2026 --json" in c for c in transport.calls
+        )
+
+
+def test_job_logs_unknown_job_returns_404(tmp_path: Path):
+    with _client(tmp_path) as client:
+        resp = client.get("/api/jobs/nope/logs")
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"

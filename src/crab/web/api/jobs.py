@@ -200,3 +200,32 @@ async def list_jobs(request: Request) -> list[JobListItem]:
         JobListItem(**rec.model_dump(), connected=manager.get(rec.cluster) is not None)
         for rec in store.list()
     ]
+
+
+class CancelResponse(BaseModel):
+    job: JobRecord
+    cancelled: bool
+    detail: str | None = None
+
+
+@router.post("/{record_id}/cancel")
+async def cancel_job(record_id: str, request: Request) -> CancelResponse:
+    store = _jobs_store(request)
+    rec = store.get(record_id)
+    profile = _profiles(request).get(rec.cluster)
+    transport = _live_transport(rec.cluster, request)
+
+    result = await run_crab_json(transport, profile, ["cancel", rec.job_id, "--json"], timeout=30.0)
+    if result["cancelled"]:
+        rec = store.update(record_id, last_known_state="CANCELLED")
+    return CancelResponse(job=rec, cancelled=result["cancelled"], detail=result.get("detail"))
+
+
+@router.get("/{record_id}/logs")
+async def job_logs(record_id: str, request: Request) -> dict:
+    rec = _jobs_store(request).get(record_id)
+    profile = _profiles(request).get(rec.cluster)
+    transport = _live_transport(rec.cluster, request)
+    return await run_crab_json(
+        transport, profile, ["logs", "--data-dir", rec.data_dir, "--json"], timeout=30.0
+    )
