@@ -117,12 +117,23 @@ def test_atomic_write_survives_partial_write(tmp_path: Path):
 # /api/jobs/submit (fake transport, no real SSH)
 # --------------------------------------------------------------------------- #
 class ScriptedTransport(Transport):
-    """Returns canned `crab ... --json` output keyed by which command ran."""
+    """Returns canned `crab ... --json` output keyed by which command ran.
 
-    def __init__(self):
+    `status_json`/`history_json` default to "nothing to report" shapes so
+    tests that don't care about polling (e.g. submit-only tests) still work;
+    override either to script the /api/jobs GET behavior.
+    """
+
+    def __init__(
+        self,
+        status_json: str = '{"schema":1,"jobs":[]}',
+        history_json: str = '{"schema":1,"experiments":[]}',
+    ):
         self._alive = True
         self.calls: list[str] = []
         self.written_files: dict[str, str] = {}
+        self._status_json = status_json
+        self._history_json = history_json
 
     @property
     def alive(self) -> bool:
@@ -136,6 +147,10 @@ class ScriptedTransport(Transport):
             return CmdResult(0, "", "")
         if "crab run" in command:
             return CmdResult(0, _RUN_JSON, "")
+        if "crab status" in command:
+            return CmdResult(0, self._status_json, "")
+        if "crab history" in command:
+            return CmdResult(0, self._history_json, "")
         raise AssertionError(f"unexpected command: {command}")
 
     async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
@@ -157,9 +172,9 @@ def _leonardo_profile() -> dict:
     }
 
 
-def _client(tmp_path: Path):
+def _client(tmp_path: Path, transport_factory=ScriptedTransport):
     async def connector(profile, password):
-        return ScriptedTransport()
+        return transport_factory()
 
     mgr = ConnectionManager(connector=connector)
     app = create_app(_settings(tmp_path), manager=mgr)
@@ -241,3 +256,125 @@ def test_submit_no_preset_available_fails(tmp_path: Path):
         )
         assert resp.status_code == 422
         assert resp.json()["code"] == "input_error"
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/jobs (batched status polling + sacct-purge history fallback)
+# --------------------------------------------------------------------------- #
+def _seed_job(tmp_path: Path, last_known_state: str | None = None, **overrides) -> None:
+    store = JobsStore(_settings(tmp_path))
+    fields = {
+        "cluster": "leonardo",
+        "job_id": "1",
+        "data_dir": "/data/leonardo/demo_2026-01-01",
+        "system": "leonardo",
+        "config_name": "demo",
+        "config_snapshot": {},
+    }
+    fields.update(overrides)
+    rec = store.create(**fields)
+    if last_known_state is not None:
+        store.update(rec.id, last_known_state=last_known_state)
+
+
+def test_list_jobs_batches_status_per_cluster(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1")
+    _seed_job(tmp_path, job_id="2")
+    status_json = json.dumps(
+        {
+            "schema": 1,
+            "jobs": [
+                {"job_id": "1", "state": "RUNNING", "source": "squeue"},
+                {"job_id": "2", "state": "COMPLETED", "source": "sacct"},
+            ],
+        }
+    )
+
+    def factory():
+        return ScriptedTransport(status_json=status_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        assert resp.status_code == 200
+        by_id = {r["job_id"]: r for r in resp.json()}
+        assert by_id["1"]["last_known_state"] == "RUNNING"
+        assert by_id["2"]["last_known_state"] == "COMPLETED"
+        assert all(r["connected"] for r in resp.json())
+
+        transport = client.app.state.manager.get("leonardo")
+        status_calls = [c for c in transport.calls if "crab status" in c]
+        assert len(status_calls) == 1
+        assert "1" in status_calls[0] and "2" in status_calls[0]
+
+
+def test_list_jobs_sacct_purge_resolves_via_history(tmp_path: Path):
+    _seed_job(tmp_path, job_id="99", data_dir="/data/leonardo/demo_2026-01-01")
+    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "99", "state": "UNKNOWN"}]})
+    history_json = json.dumps(
+        {
+            "schema": 1,
+            "experiments": [
+                {"relative_path": "./demo_2026-01-01/exp_a", "status": "COMPLETED"},
+                {"relative_path": "./demo_2026-01-01/exp_b", "status": "FAILED"},
+                {"relative_path": "./other_job/exp_c", "status": "COMPLETED"},
+            ],
+        }
+    )
+
+    def factory():
+        return ScriptedTransport(status_json=status_json, history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        # Two rows share this job's data_dir; FAILED wins over COMPLETED (fail-safe).
+        assert resp.json()[0]["last_known_state"] == "FAILED"
+
+
+def test_list_jobs_sacct_purge_no_match_stays_unknown(tmp_path: Path):
+    _seed_job(tmp_path, job_id="99", data_dir="/data/leonardo/demo_2026-01-01")
+    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "99", "state": "UNKNOWN"}]})
+    history_json = json.dumps({"schema": 1, "experiments": []})
+
+    def factory():
+        return ScriptedTransport(status_json=status_json, history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        assert resp.json()[0]["last_known_state"] == "UNKNOWN"
+
+
+def test_list_jobs_disconnected_cluster_returns_stale_no_error(tmp_path: Path):
+    _seed_job(tmp_path, last_known_state="RUNNING")
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        # Never connected.
+
+        resp = client.get("/api/jobs")
+        assert resp.status_code == 200
+        rec = resp.json()[0]
+        assert rec["connected"] is False
+        assert rec["last_known_state"] == "RUNNING"  # unchanged, not guessed
+
+
+def test_list_jobs_skips_already_terminal_jobs(tmp_path: Path):
+    _seed_job(tmp_path, last_known_state="COMPLETED")
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        assert resp.json()[0]["last_known_state"] == "COMPLETED"
+
+        transport = client.app.state.manager.get("leonardo")
+        assert not any("crab status" in c for c in transport.calls)

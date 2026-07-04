@@ -9,19 +9,39 @@ this module never assumes a job's state without asking the cluster.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
-from crab.web.errors import InputError, RemoteConnectionError
+from crab.web.errors import InputError, NotFoundError, RemoteConnectionError
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.remoteops.transfer import stage_config
 from crab.web.store.jobs import JobRecord, JobsStore
 from crab.web.store.library import LibraryStore
-from crab.web.store.profiles import ProfileStore
+from crab.web.store.profiles import Profile, ProfileStore
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+
+# Slurm states that will never change again — jobs in one of these are never
+# re-polled. Anything else (including our own "UNKNOWN") is treated as active.
+_TERMINAL_STATES = {
+    "COMPLETED",
+    "FAILED",
+    "CANCELLED",
+    "TIMEOUT",
+    "OUT_OF_MEMORY",
+    "NODE_FAIL",
+    "PREEMPTED",
+    "BOOT_FAIL",
+    "DEADLINE",
+    "REVOKED",
+}
+# Worst-first: a purged job's data_dir can hold several experiments' metadata.csv
+# rows (one crab run submission runs many); the job resolves to the worst one.
+_HISTORY_STATUS_PRIORITY = ("FAILED", "TIMEOUT", "COMPLETED")
 
 
 class SubmitRequest(BaseModel):
@@ -98,3 +118,85 @@ async def submit_job(body: SubmitRequest, request: Request) -> JobRecord:
         config_name=name,
         config_snapshot=config,
     )
+
+
+class JobListItem(JobRecord):
+    """A job record annotated with whether its cluster is currently connected."""
+
+    connected: bool = False
+
+
+async def _resolve_via_history(
+    transport: Transport, profile: Profile, record: JobRecord, timeout: float
+) -> str | None:
+    """Cross-check `crab history` for a job squeue/sacct no longer know about.
+
+    A job's data_dir can hold several experiments (one `crab run` submission
+    runs every key in the config's `experiments` dict); their metadata.csv
+    rows all share `./<basename(data_dir)>/` as their relative_path prefix
+    (`core/experiment/runner.py::_write_to_registry`). Returns the worst
+    matching status, or None if nothing matches (still genuinely unknown —
+    never guessed).
+    """
+    history = await run_crab_json(
+        transport, profile, ["history", "-s", record.system, "--json"], timeout=timeout
+    )
+    prefix = f"./{Path(record.data_dir).name}/"
+    statuses = {
+        e["status"] for e in history["experiments"] if e.get("relative_path", "").startswith(prefix)
+    }
+    if not statuses:
+        return None
+    for candidate in _HISTORY_STATUS_PRIORITY:
+        if candidate in statuses:
+            return candidate
+    return next(iter(statuses))
+
+
+@router.get("")
+async def list_jobs(request: Request) -> list[JobListItem]:
+    """Registry ⨝ live `crab status`, batched one call per cluster with active jobs.
+
+    A disconnected cluster's jobs are returned as-is (last known state,
+    `connected: false`) rather than failing the whole list.
+    """
+    store = _jobs_store(request)
+    manager = _manager(request)
+    profiles = _profiles(request)
+    records = store.list()
+
+    active_by_cluster: dict[str, list[JobRecord]] = {}
+    for rec in records:
+        if rec.last_known_state not in _TERMINAL_STATES:
+            active_by_cluster.setdefault(rec.cluster, []).append(rec)
+
+    resolved_states: dict[str, str] = {}
+    for cluster, recs in active_by_cluster.items():
+        transport = manager.get(cluster)
+        if transport is None:
+            continue  # not connected: leave last_known_state as-is
+        try:
+            profile = profiles.get(cluster)
+        except NotFoundError:
+            continue  # profile removed after the job was recorded
+
+        status = await run_crab_json(
+            transport, profile, ["status", *(r.job_id for r in recs), "--json"], timeout=30.0
+        )
+        by_job_id = {j["job_id"]: j["state"] for j in status["jobs"]}
+        for rec in recs:
+            state = by_job_id.get(rec.job_id, "UNKNOWN")
+            if state == "UNKNOWN":
+                via_history = await _resolve_via_history(transport, profile, rec, timeout=30.0)
+                if via_history is not None:
+                    state = via_history
+            if state != rec.last_known_state:
+                resolved_states[rec.id] = state
+
+    for record_id, state in resolved_states.items():
+        store.update(record_id, last_known_state=state)
+
+    return [
+        JobListItem(**rec.model_dump(), connected=manager.get(rec.cluster) is not None)
+        for rec in store.list()
+    ]
