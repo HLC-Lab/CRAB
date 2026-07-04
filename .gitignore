@@ -25,3 +25,5 @@ crab_export.html
 /src/crab/webui/.vite/
 
 /src/crab/webui/*.tsbuildinfo
+/src/crab/webui/test-results/
+/src/crab/webui/playwright-report/
