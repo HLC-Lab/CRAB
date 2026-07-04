@@ -497,7 +497,7 @@ async function copyJson() {
         <template v-if="view.kind === 'global' && view.id === 'job'">
           <h2 class="pane-title">Basics</h2>
           <div class="job-grid">
-            <label>Name <input v-model="d.name" />
+            <label class="wide">Name <input v-model="d.name" />
               <small>Names the run and prefixes the output folder.</small>
             </label>
             <label>Nodes <input v-model="d.numnodes" />
@@ -945,7 +945,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .pane-title { font-family: var(--sans); font-size: var(--t-lg); color: var(--text); }
 .section-title { font-family: var(--sans); font-size: var(--t-sm); text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text3); margin-top: -0.3rem; }
-.job-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0.9rem; max-width: 38rem; }
+.job-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; max-width: 38rem; }
+.job-grid label.wide { grid-column: 1 / -1; }
 .job-grid label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: var(--t-md); }
 .job-grid small { color: var(--text3); font-size: var(--t-xs); line-height: 1.3; }
 .empty { color: var(--text3); font-size: var(--t-md); }
@@ -968,7 +969,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--a
 .pmeta { color: var(--text3); white-space: nowrap; }
 
 /* Experiment editor */
-.exp-edit { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+.exp-edit { display: flex; flex-direction: column; gap: 0.9rem; max-width: 38rem; }
 .exp-edit label { display: flex; flex-direction: column; gap: 0.25rem; color: var(--text2); font-size: var(--t-md); }
 
 /* App flow diagram (nodes + edges live in FlowChain.vue) */
