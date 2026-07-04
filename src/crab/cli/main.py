@@ -110,6 +110,20 @@ def handle_history(args):
     contract.emit(data, args.json, human)
 
 
+def handle_cancel(args):
+    from crab.cli import contract
+
+    data = contract.gather_cancel(args.job_id)
+
+    def human(d):
+        if d["cancelled"]:
+            print(f"Cancelled job {d['job_id']}.")
+        else:
+            print(f"Could not cancel job {d['job_id']}: {d['detail']}")
+
+    contract.emit(data, args.json, human)
+
+
 def handle_setup(args):
     from crab.setup.wizard import run as run_wizard
 
@@ -213,7 +227,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history}",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel}",
     )
     subparsers.required = True
 
@@ -283,6 +297,10 @@ def cli_router():
     )
     parser_history.add_argument("-s", "--system", default=None, help="Limit to one system.")
     _add_json_flag(parser_history).set_defaults(func=handle_history)
+
+    parser_cancel = subparsers.add_parser("cancel", help="Cancel a Slurm job")
+    parser_cancel.add_argument("job_id", help="Slurm job id to cancel.")
+    _add_json_flag(parser_cancel).set_defaults(func=handle_cancel)
 
     # 6. Export Command
     parser_export = subparsers.add_parser(

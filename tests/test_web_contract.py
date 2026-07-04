@@ -218,6 +218,47 @@ def test_gather_status_squeue_then_sacct():
 
 
 # --------------------------------------------------------------------------- #
+# cancel (fake scancel)
+# --------------------------------------------------------------------------- #
+def test_gather_cancel_success():
+    calls = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        calls.append(cmd)
+        return ""
+
+    data = contract.gather_cancel("123", runner=fake_runner)
+    assert calls == [["scancel", "123"]]
+    assert data == {
+        "schema": contract.CONTRACT_SCHEMA,
+        "job_id": "123",
+        "cancelled": True,
+        "detail": None,
+    }
+
+
+def test_gather_cancel_already_gone():
+    import subprocess
+
+    def fake_runner(cmd: list[str]) -> str:
+        raise subprocess.CalledProcessError(1, cmd, output="scancel: error: Invalid job id")
+
+    data = contract.gather_cancel("999", runner=fake_runner)
+    assert data["cancelled"] is False
+    assert data["job_id"] == "999"
+    assert data["detail"]  # a human-readable hint, not parsed by callers
+
+
+def test_gather_cancel_no_scancel_binary():
+    def fake_runner(cmd: list[str]) -> str:
+        raise FileNotFoundError("scancel")
+
+    data = contract.gather_cancel("123", runner=fake_runner)
+    assert data["cancelled"] is False
+    assert "scancel" in data["detail"]
+
+
+# --------------------------------------------------------------------------- #
 # emit
 # --------------------------------------------------------------------------- #
 def test_emit_json_vs_human(capsys):

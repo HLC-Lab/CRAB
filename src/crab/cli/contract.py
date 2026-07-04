@@ -412,6 +412,35 @@ def gather_status(job_ids: list[str], runner: CommandRunner | None = None) -> di
     return {"schema": CONTRACT_SCHEMA, "jobs": [states[j] for j in job_ids]}
 
 
+def gather_cancel(job_id: str, runner: CommandRunner | None = None) -> dict[str, Any]:
+    """Cancel a Slurm job by id (``scancel``).
+
+    A missing/already-terminal job reports ``cancelled: false`` with a
+    ``detail`` hint rather than raising, so the web backend can show it
+    without treating "nothing to cancel" as a request failure.
+    """
+    import subprocess
+
+    run = runner or _default_runner
+    try:
+        run(["scancel", job_id])
+    except FileNotFoundError:
+        return {
+            "schema": CONTRACT_SCHEMA,
+            "job_id": job_id,
+            "cancelled": False,
+            "detail": "scancel is not available on this host.",
+        }
+    except subprocess.CalledProcessError as exc:
+        return {
+            "schema": CONTRACT_SCHEMA,
+            "job_id": job_id,
+            "cancelled": False,
+            "detail": f"scancel exited {exc.returncode}; the job may already be gone.",
+        }
+    return {"schema": CONTRACT_SCHEMA, "job_id": job_id, "cancelled": True, "detail": None}
+
+
 # --------------------------------------------------------------------------- #
 # output helper
 # --------------------------------------------------------------------------- #
