@@ -128,3 +128,27 @@ def test_env_var_sets_library_dir(tmp_path: Path, monkeypatch):
         assert get_settings().experiments_dir == tmp_path / "envlib"
     finally:
         get_settings.cache_clear()
+
+
+# --------------------------------------------------------------------------- #
+# Save warnings (plan 020 / ADR-015)
+# --------------------------------------------------------------------------- #
+def test_save_reports_shape_warnings_but_still_saves(tmp_path: Path):
+    app = create_app(_settings(tmp_path))
+    with auth_client(app) as client:
+        bad = {"global_options": {"numnodes": ["not", "a", "number"]}, "experiments": {}}
+        resp = client.post("/api/experiments", json={"name": "Odd", "config": bad})
+        assert resp.status_code == 201  # warnings never block a save
+        body = resp.json()
+        assert any("numnodes" in w for w in body["warnings"])
+        # The entry really was stored, verbatim.
+        stored = client.get(f"/api/experiments/{body['id']}").json()
+        assert stored["config"]["global_options"]["numnodes"] == ["not", "a", "number"]
+
+
+def test_save_of_a_clean_config_has_no_warnings(tmp_path: Path):
+    app = create_app(_settings(tmp_path))
+    with auth_client(app) as client:
+        resp = client.post("/api/experiments", json={"name": "Clean", "config": _CFG})
+        assert resp.status_code == 201
+        assert resp.json()["warnings"] == []
