@@ -1,7 +1,5 @@
 import os
-import sys
-sys.path.append(os.path.dirname(__file__))
-from base import base,sizeof_fmt
+from crab.wrappers.base import base, sizeof_fmt
 
 class app(base):  
     metadata = [
