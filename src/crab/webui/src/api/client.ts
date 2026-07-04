@@ -13,6 +13,7 @@ import type {
   NodesResult,
   Profile,
   RemoteListItem,
+  SavedEntry,
   StepResult,
 } from "./types";
 
@@ -127,12 +128,12 @@ export const api = {
     list: () => request<LibraryEntry[]>("/api/experiments"),
     get: (id: string) => request<LibraryEntry>(`/api/experiments/${encodeURIComponent(id)}`),
     create: (name: string, config: CrabConfig) =>
-      request<LibraryEntry>("/api/experiments", {
+      request<SavedEntry>("/api/experiments", {
         method: "POST",
         body: JSON.stringify({ name, config }),
       }),
     update: (id: string, name: string, config: CrabConfig) =>
-      request<LibraryEntry>(`/api/experiments/${encodeURIComponent(id)}`, {
+      request<SavedEntry>(`/api/experiments/${encodeURIComponent(id)}`, {
         method: "PUT",
         body: JSON.stringify({ name, config }),
       }),

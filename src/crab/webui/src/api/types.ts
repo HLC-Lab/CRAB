@@ -2,6 +2,8 @@
 // Hand-kept in sync with src/crab/web/*; consider code-gen later.
 
 /** Stable error envelope returned by the backend (see web/errors.py). */
+import type { components } from "./generated";
+
 export interface ErrorEnvelope {
   code: string;
   message: string;
@@ -16,23 +18,15 @@ export interface Health {
 }
 
 /** A cluster connection profile (mirrors web/store/profiles.py Profile). */
-export interface Profile {
-  name: string;
-  transport: "ssh" | "local";
-  host: string | null;
-  port: number;
-  user: string | null;
-  auth: "agent" | "key" | "password";
-  key_path: string | null;
-  hostkey_policy: "strict" | "insecure";
-  remote_crab: string;
-  venv_activate: string | null;
-  remote_setup: string[];
-  preset: string | null;
-}
+// Backend-owned shapes come from the generated OpenAPI types (npm run gen:api;
+// staleness enforced by make verify-full), so they cannot silently drift from
+// the Pydantic models. Cluster-contract passthrough shapes (benchmarks/nodes)
+// stay hand-written below: the backend forwards them verbatim from `crab
+// ... --json`, so they are not in the OpenAPI schema.
+export type Profile = components["schemas"]["Profile"];
 
 /** GET /api/remotes item = profile + live connection state. */
-export type RemoteListItem = Profile & { connected: boolean };
+export type RemoteListItem = components["schemas"]["RemoteListItem"];
 
 /** crab info --json (subset the UI uses). */
 export interface CrabInfo {
@@ -106,13 +100,14 @@ export interface CrabConfig {
   experiments: Record<string, Experiment>;
 }
 
-/** A saved config in the local library (mirrors web/store/library.py). */
-export interface LibraryEntry {
-  id: string;
-  name: string;
-  updated_at: string;
+/** A saved config in the local library (generated from web/store/library.py). */
+export type LibraryEntry = Omit<components["schemas"]["LibraryEntry"], "config"> & {
   config: CrabConfig;
-}
+};
+
+/** Create/update response: the entry plus shape warnings for the saved config
+ * (advisory only — the save always succeeds). */
+export type SavedEntry = LibraryEntry & { warnings: string[] };
 
 // -- Cluster catalog (Phase 3 pickers; crab list-benchmarks / nodes --json) --
 

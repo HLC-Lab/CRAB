@@ -86,7 +86,13 @@ export const useAuthorStore = defineStore("author", () => {
       entryId.value = entry.id;
       await loadLibrary();
       savedSnapshot.value = configJson.value;
-      flashNotice(`Saved "${name}".`);
+      if (entry.warnings.length) {
+        // Advisory only: the save succeeded, but the engine may not accept
+        // this shape. Show the first problem; the rest repeat the pattern.
+        flashNotice(`Saved "${name}" with a shape warning: ${entry.warnings[0]}`, 6000);
+      } else {
+        flashNotice(`Saved "${name}".`);
+      }
       return true;
     } catch (e) {
       error.value = msg(e);

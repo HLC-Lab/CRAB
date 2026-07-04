@@ -19,7 +19,7 @@ from crab.web.errors import register_exception_handlers
 from crab.web.settings import Settings, get_settings
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI, Response
+    from fastapi import FastAPI
 
     from crab.web.connections.manager import ConnectionManager
 
@@ -166,6 +166,7 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
 
     Registered after the API router so ``/api/*`` always takes precedence.
     """
+    from fastapi import Response
     from fastapi.responses import FileResponse, HTMLResponse
 
     index = settings.static_dir / "index.html"
@@ -173,7 +174,7 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
     if not index.is_file():
         # Dev convenience: the wheel ships built assets, but a source checkout
         # may not have run the Vite build yet. Fail gracefully, not with a 500.
-        @app.get("/", response_class=HTMLResponse)
+        @app.get("/", response_class=HTMLResponse, include_in_schema=False)
         async def _placeholder() -> str:
             return (
                 "<!doctype html><meta charset=utf-8>"
@@ -210,7 +211,7 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
         html = html.replace("</head>", f"{meta}</head>", 1)
         return HTMLResponse(html, headers=_index_headers)
 
-    @app.get("/{full_path:path}")
+    @app.get("/{full_path:path}", include_in_schema=False)
     async def spa(full_path: str) -> Response:
         """Serve a real static file if present, else fall back to the token-
         injected index.html so client-side routes (deep links / reloads) work."""

@@ -31,6 +31,10 @@ _verify_fe:
 verify-full: verify
 	cd $(WEBUI) && npm run --silent build
 	$(MAKE) _static_sync
+	cd $(WEBUI) && npm run --silent gen:api
+	@git diff --quiet -- $(WEBUI)/src/api/generated.ts || \
+	(echo "[!] src/api/generated.ts is stale against the backend's OpenAPI schema."; \
+	 echo "    Commit the regenerated file (npm run gen:api) with the backend change."; exit 1)
 	@if [ -f $(WEBUI)/playwright.config.ts ]; then \
 	    cd $(WEBUI) && npx playwright test; \
 	else \

@@ -37,24 +37,31 @@ def _manager(request: Request) -> ConnectionManager:
     return manager
 
 
+class RemoteListItem(Profile):
+    """A profile annotated with its live connection state."""
+
+    connected: bool = False
+
+
 @router.get("")
-async def list_remotes(request: Request) -> list[dict]:
+async def list_remotes(request: Request) -> list[RemoteListItem]:
     manager = getattr(request.app.state, "manager", None)
-    out: list[dict] = []
-    for profile in _store(request).list():
-        data = profile.model_dump()
-        data["connected"] = bool(manager and manager.is_connected(profile.name))
-        out.append(data)
-    return out
+    return [
+        RemoteListItem(
+            **profile.model_dump(),
+            connected=bool(manager and manager.is_connected(profile.name)),
+        )
+        for profile in _store(request).list()
+    ]
 
 
 @router.post("", status_code=201)
-async def add_remote(profile: Profile, request: Request) -> dict:
-    return _store(request).add(profile).model_dump()
+async def add_remote(profile: Profile, request: Request) -> Profile:
+    return _store(request).add(profile)
 
 
 @router.put("/{name}")
-async def update_remote(name: str, profile: Profile, request: Request) -> dict:
+async def update_remote(name: str, profile: Profile, request: Request) -> Profile:
     store = _store(request)
     if profile.name != name:
         # Renaming: the new name must be free, and any live connection is keyed
@@ -65,8 +72,8 @@ async def update_remote(name: str, profile: Profile, request: Request) -> dict:
         manager = getattr(request.app.state, "manager", None)
         if manager:
             await manager.disconnect(name)
-        return updated.model_dump()
-    return store.update(name, profile).model_dump()
+        return updated
+    return store.update(name, profile)
 
 
 @router.delete("/{name}", status_code=204)
