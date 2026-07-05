@@ -8,7 +8,8 @@ import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
 import { ansiToHtml } from "@/lib/ansi";
-import { isTerminal, stateClass } from "@/lib/jobStatus";
+import { isFailureState, isTerminal, stateClass } from "@/lib/jobStatus";
+import type { CrabConfig, JobListItem } from "@/api/types";
 
 function filename(path: string): string {
   return path.split("/").pop() || path;
@@ -76,6 +77,22 @@ function requestCancel(id: string, label: string) {
 async function confirmCancel() {
   if (cancelTarget.value) await jobs.cancel(cancelTarget.value.id);
   cancelTarget.value = null;
+}
+
+// Rerun resubmits the SAME config_snapshot to the SAME cluster (a fresh
+// sbatch submission — Slurm jobs are immutable once run, so "rerun" always
+// means a new job, not restarting the old one).
+const rerunTarget = ref<{ profile_name: string; config: CrabConfig; name: string } | null>(null);
+function requestRerun(j: JobListItem) {
+  rerunTarget.value = {
+    profile_name: j.cluster,
+    config: j.config_snapshot as unknown as CrabConfig,
+    name: j.config_name,
+  };
+}
+async function confirmRerun() {
+  if (rerunTarget.value) await jobs.submit(rerunTarget.value);
+  rerunTarget.value = null;
 }
 
 const sortedItems = computed(() => jobs.filteredItems); // already newest-first from the backend
@@ -201,6 +218,9 @@ function toggleStatus(name: string) {
             >
               {{ jobs.cancelBusy[j.id] ? "Cancelling…" : "Cancel" }}
             </button>
+            <button v-if="isFailureState(j.last_known_state)" class="btn" @click="requestRerun(j)">
+              Rerun
+            </button>
           </div>
         </div>
 
@@ -255,6 +275,17 @@ function toggleStatus(name: string) {
       @confirm="confirmCancel"
       @cancel="cancelTarget = null"
     />
+
+    <ConfirmModal
+      v-if="rerunTarget"
+      title="Rerun this use case?"
+      :message="`Submit a fresh run of “${rerunTarget.name}” to ${rerunTarget.profile_name}?`"
+      confirm-label="Rerun"
+      cancel-label="Cancel"
+      @confirm="confirmRerun"
+      @cancel="rerunTarget = null"
+    />
+    <p v-if="jobs.submitError" class="banner err small">{{ jobs.submitError }}</p>
   </section>
 </template>
 

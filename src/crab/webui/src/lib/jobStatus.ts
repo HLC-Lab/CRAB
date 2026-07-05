@@ -28,3 +28,12 @@ export function stateClass(state: string): string {
   if (state === "UNKNOWN") return "warn";
   return "active"; // RUNNING, PENDING, and anything else Slurm reports live
 }
+
+// A terminal state worth offering "Rerun" for — the same set stateClass
+// colors "danger". Deliberately excludes CANCELLED/REVOKED: those were
+// stopped on purpose, not a failure to recover from.
+export function isFailureState(state: string): boolean {
+  return ["FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "BOOT_FAIL", "DEADLINE"].includes(
+    state,
+  );
+}
