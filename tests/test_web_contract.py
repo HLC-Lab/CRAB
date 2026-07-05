@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from crab.cli import contract
 
 
@@ -295,6 +297,49 @@ def test_gather_logs_caps_to_last_max_bytes(tmp_path: Path):
 
     assert data["stdout"]["truncated"] is True
     assert data["stdout"]["content"] == "b" * 50
+
+
+# --------------------------------------------------------------------------- #
+# experiment logs (error_app_<id>.log inside one experiment's directory,
+# written by ExperimentRunner.execute on a non-zero app exit — runner.py:344-350)
+# --------------------------------------------------------------------------- #
+def test_gather_experiment_logs_reads_error_app_files(tmp_path: Path):
+    exp_dir = tmp_path / "01_graph500_solo_baseline"
+    exp_dir.mkdir()
+    (exp_dir / "error_app_0.log").write_text("App 0 exit=1\n\n--- STDERR ---\nboom\n")
+    (exp_dir / "error_app_2.log").write_text("App 2 exit=137\n")
+
+    data = contract.gather_experiment_logs(tmp_path, "01_graph500_solo_baseline")
+
+    assert data["schema"] == contract.CONTRACT_SCHEMA
+    assert data["data_dir"] == str(exp_dir)
+    assert [f["app_id"] for f in data["files"]] == ["0", "2"]
+    assert data["files"][0]["content"] == "App 0 exit=1\n\n--- STDERR ---\nboom\n"
+    assert data["files"][0]["exists"] is True
+    assert data["files"][1]["content"] == "App 2 exit=137\n"
+
+
+def test_gather_experiment_logs_no_errors_is_empty_list(tmp_path: Path):
+    exp_dir = tmp_path / "02_qe_pwscf_solo_baseline"
+    exp_dir.mkdir()  # experiment ran, but nothing failed -> no error_app_*.log at all
+
+    data = contract.gather_experiment_logs(tmp_path, "02_qe_pwscf_solo_baseline")
+    assert data["files"] == []
+
+
+def test_gather_experiment_logs_caps_to_last_max_bytes(tmp_path: Path):
+    exp_dir = tmp_path / "e1"
+    exp_dir.mkdir()
+    (exp_dir / "error_app_0.log").write_text("a" * 50 + "b" * 50)
+
+    data = contract.gather_experiment_logs(tmp_path, "e1", max_bytes=50)
+    assert data["files"][0]["truncated"] is True
+    assert data["files"][0]["content"] == "b" * 50
+
+
+def test_gather_experiment_logs_unknown_experiment_raises(tmp_path: Path):
+    with pytest.raises(FileNotFoundError, match="does_not_exist"):
+        contract.gather_experiment_logs(tmp_path, "does_not_exist")
 
 
 # --------------------------------------------------------------------------- #

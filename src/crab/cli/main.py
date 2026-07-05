@@ -127,17 +127,29 @@ def handle_cancel(args):
 def handle_logs(args):
     from crab.cli import contract
 
-    data = contract.gather_logs(args.data_dir)
+    if args.experiment:
+        data = contract.gather_experiment_logs(args.data_dir, args.experiment)
 
-    def human(d):
-        for stream in ("stdout", "stderr"):
-            s = d[stream]
-            if not s["exists"]:
-                print(f"[{stream}] {s['path']}: not written yet")
-                continue
-            note = " (truncated to last bytes)" if s["truncated"] else ""
-            print(f"[{stream}] {s['path']}{note}:")
-            print(s["content"])
+        def human(d):
+            if not d["files"]:
+                print("No per-app error logs (nothing failed in this experiment).")
+            for f in d["files"]:
+                note = " (truncated to last bytes)" if f["truncated"] else ""
+                print(f"[app {f['app_id']}] {f['path']}{note}:")
+                print(f["content"])
+
+    else:
+        data = contract.gather_logs(args.data_dir)
+
+        def human(d):
+            for stream in ("stdout", "stderr"):
+                s = d[stream]
+                if not s["exists"]:
+                    print(f"[{stream}] {s['path']}: not written yet")
+                    continue
+                note = " (truncated to last bytes)" if s["truncated"] else ""
+                print(f"[{stream}] {s['path']}{note}:")
+                print(s["content"])
 
     contract.emit(data, args.json, human)
 
@@ -324,6 +336,11 @@ def cli_router():
         "logs", help="Read a job's captured stdout/stderr from its data directory"
     )
     parser_logs.add_argument("--data-dir", required=True, help="Job's data directory.")
+    parser_logs.add_argument(
+        "--experiment",
+        default=None,
+        help="Read this experiment's per-app error logs instead of the job's slurm logs.",
+    )
     _add_json_flag(parser_logs).set_defaults(func=handle_logs)
 
     # 6. Export Command

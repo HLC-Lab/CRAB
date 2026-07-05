@@ -485,6 +485,32 @@ def gather_logs(data_dir: str | Path, max_bytes: int = _DEFAULT_LOG_MAX_BYTES) -
     }
 
 
+def gather_experiment_logs(
+    data_dir: str | Path, experiment_name: str, max_bytes: int = _DEFAULT_LOG_MAX_BYTES
+) -> dict[str, Any]:
+    """Read one experiment's per-app error logs from its directory.
+
+    ``ExperimentRunner.execute`` writes ``error_app_<id>.log`` directly into the
+    experiment's own directory (``<data_dir>/<experiment_name>``) whenever an
+    app exits non-zero (``runner.py:344-350``) — never on success. Unlike
+    ``gather_logs``, a missing experiment directory raises rather than
+    degrading gracefully: the caller always derives ``experiment_name`` from a
+    real ``crab history`` row, so a missing directory means the wrong
+    data_dir/name was passed, not "no errors yet" — collapsing that into an
+    empty list would silently hide the mistake.
+    """
+    exp_dir = Path(data_dir) / experiment_name
+    if not exp_dir.is_dir():
+        raise FileNotFoundError(
+            f"No experiment directory named {experiment_name!r} under {data_dir}."
+        )
+    files = [
+        {"app_id": p.stem.removeprefix("error_app_"), **_read_log_tail(p, max_bytes)}
+        for p in sorted(exp_dir.glob("error_app_*.log"))
+    ]
+    return {"schema": CONTRACT_SCHEMA, "data_dir": str(exp_dir), "files": files}
+
+
 # --------------------------------------------------------------------------- #
 # output helper
 # --------------------------------------------------------------------------- #
