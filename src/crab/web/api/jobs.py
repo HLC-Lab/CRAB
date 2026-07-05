@@ -230,10 +230,13 @@ async def cancel_job(record_id: str, request: Request) -> CancelResponse:
 
 
 @router.get("/{record_id}/logs")
-async def job_logs(record_id: str, request: Request) -> dict:
+async def job_logs(record_id: str, request: Request, experiment: str | None = None) -> dict:
+    """Job-level slurm logs, or one experiment's per-app error logs if `experiment` is given."""
     rec = _jobs_store(request).get(record_id)
     profile = _profiles(request).get(rec.cluster)
     transport = _live_transport(rec.cluster, request)
-    return await run_crab_json(
-        transport, profile, ["logs", "--data-dir", rec.data_dir, "--json"], timeout=30.0
-    )
+    args = ["logs", "--data-dir", rec.data_dir]
+    if experiment:
+        args += ["--experiment", experiment]
+    args.append("--json")
+    return await run_crab_json(transport, profile, args, timeout=30.0)

@@ -134,6 +134,8 @@ class ScriptedTransport(Transport):
             'stdout":{"path":"/d/slurm_output.log","exists":true,"content":"out","truncated":false},'
             '"stderr":{"path":"/d/slurm_error.log","exists":false,"content":"","truncated":false}}'
         ),
+        experiment_logs_json: str = '{"schema":1,"data_dir":"/d/e1","files":[]}',
+        experiment_logs_rc: int = 0,
     ):
         self._alive = True
         self.calls: list[str] = []
@@ -142,6 +144,8 @@ class ScriptedTransport(Transport):
         self._history_json = history_json
         self._cancel_json = cancel_json
         self._logs_json = logs_json
+        self._experiment_logs_json = experiment_logs_json
+        self._experiment_logs_rc = experiment_logs_rc
 
     @property
     def alive(self) -> bool:
@@ -163,6 +167,8 @@ class ScriptedTransport(Transport):
             return CmdResult(0, self._history_json, "")
         if "crab cancel" in command:
             return CmdResult(0, self._cancel_json, "")
+        if "crab logs" in command and "--experiment" in command:
+            return CmdResult(self._experiment_logs_rc, self._experiment_logs_json, "boom")
         if "crab logs" in command:
             return CmdResult(0, self._logs_json, "")
         raise AssertionError(f"unexpected command: {command}")
@@ -543,3 +549,54 @@ def test_job_logs_unknown_job_returns_404(tmp_path: Path):
         resp = client.get("/api/jobs/nope/logs")
         assert resp.status_code == 404
         assert resp.json()["code"] == "not_found"
+
+
+def test_job_logs_with_experiment_returns_per_app_files(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026")
+
+    def transport_factory():
+        return ScriptedTransport(
+            experiment_logs_json=(
+                '{"schema":1,"data_dir":"/data/leonardo/demo_2026/01_exp","files":['
+                '{"app_id":"0","path":"/x/error_app_0.log","exists":true,'
+                '"content":"boom","truncated":false}]}'
+            )
+        )
+
+    with _client(tmp_path, transport_factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/leonardo:1/logs", params={"experiment": "01_exp"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["files"] == [
+            {
+                "app_id": "0",
+                "path": "/x/error_app_0.log",
+                "exists": True,
+                "content": "boom",
+                "truncated": False,
+            }
+        ]
+
+        transport = client.app.state.manager.get("leonardo")
+        assert any(
+            "crab logs --data-dir /data/leonardo/demo_2026 --experiment 01_exp --json" in c
+            for c in transport.calls
+        )
+
+
+def test_job_logs_with_unknown_experiment_surfaces_remote_error(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026")
+
+    def transport_factory():
+        return ScriptedTransport(experiment_logs_rc=1)
+
+    with _client(tmp_path, transport_factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/leonardo:1/logs", params={"experiment": "ghost"})
+        assert resp.status_code >= 400
+        assert resp.json()["code"] == "remote_command_error"
