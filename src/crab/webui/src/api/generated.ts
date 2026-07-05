@@ -722,6 +722,8 @@ export interface components {
       name?: string | null;
       /** Preset */
       preset?: string | null;
+      /** Only */
+      only?: string[] | null;
     };
     /** UseCaseReport */
     UseCaseReport: {

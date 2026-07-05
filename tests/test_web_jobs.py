@@ -239,6 +239,44 @@ def test_submit_from_library_entry_creates_job_record(tmp_path: Path):
         assert any(f.endswith("/my-run.json") for f in transport.written_files)
 
 
+def test_submit_with_only_passes_the_flag_to_crab_run(tmp_path: Path):
+    """`only` (plan 060 rerun) must reach the remote `crab run --only ...` invocation."""
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.post(
+            "/api/jobs/submit",
+            json={
+                "profile_name": "leonardo",
+                "config": _SNAPSHOT,
+                "name": "My Run",
+                "only": ["ex1", "ex3"],
+            },
+        )
+        assert resp.status_code == 201
+
+        transport = client.app.state.manager.get("leonardo")
+        run_calls = [c for c in transport.calls if "crab run" in c]
+        assert len(run_calls) == 1
+        assert "--only ex1,ex3" in run_calls[0]
+
+
+def test_submit_without_only_has_no_only_flag(tmp_path: Path):
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        client.post(
+            "/api/jobs/submit",
+            json={"profile_name": "leonardo", "config": _SNAPSHOT, "name": "My Run"},
+        )
+
+        transport = client.app.state.manager.get("leonardo")
+        run_calls = [c for c in transport.calls if "crab run" in c]
+        assert "--only" not in run_calls[0]
+
+
 def test_submit_inline_config_requires_name(tmp_path: Path):
     with _client(tmp_path) as client:
         client.post("/api/remotes", json=_leonardo_profile())

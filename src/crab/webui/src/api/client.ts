@@ -159,6 +159,7 @@ export const api = {
       config?: CrabConfig;
       name?: string;
       preset?: string;
+      only?: string[];
     }) =>
       request<JobRecord>("/api/jobs/submit", {
         method: "POST",

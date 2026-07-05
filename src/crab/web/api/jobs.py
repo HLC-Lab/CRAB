@@ -50,6 +50,7 @@ class SubmitRequest(BaseModel):
     config: dict | None = None
     name: str | None = None
     preset: str | None = None
+    only: list[str] | None = None
 
 
 def _jobs_store(request: Request) -> JobsStore:
@@ -106,9 +107,11 @@ async def submit_job(body: SubmitRequest, request: Request) -> JobRecord:
     staged_path = await stage_config(
         transport, profile, config, name, settings=request.app.state.settings
     )
-    result = await run_crab_json(
-        transport, profile, ["run", staged_path, "-p", preset, "--json"], timeout=60.0
-    )
+    run_args = ["run", staged_path, "-p", preset]
+    if body.only:
+        run_args += ["--only", ",".join(body.only)]
+    run_args.append("--json")
+    result = await run_crab_json(transport, profile, run_args, timeout=60.0)
 
     return _jobs_store(request).create(
         cluster=profile.name,

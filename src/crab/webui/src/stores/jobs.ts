@@ -19,6 +19,7 @@ export interface SubmitBody {
   config?: CrabConfig;
   name?: string;
   preset?: string;
+  only?: string[];
 }
 
 export const useJobsStore = defineStore("jobs", () => {
