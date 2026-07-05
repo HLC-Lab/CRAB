@@ -192,6 +192,18 @@ def _leonardo_profile() -> dict:
     }
 
 
+def _alps_profile() -> dict:
+    return {
+        "name": "alps",
+        "host": "login.alps.example.org",
+        "user": "researcher",
+        "auth": "agent",
+        "hostkey_policy": "insecure",
+        "remote_crab": "~/base",
+        "preset": "alps",
+    }
+
+
 def _client(tmp_path: Path, transport_factory=ScriptedTransport):
     async def connector(profile, password):
         return transport_factory()
@@ -600,3 +612,115 @@ def test_job_logs_with_unknown_experiment_surfaces_remote_error(tmp_path: Path):
         resp = client.get("/api/jobs/leonardo:1/logs", params={"experiment": "ghost"})
         assert resp.status_code >= 400
         assert resp.json()["code"] == "remote_command_error"
+
+
+# --------------------------------------------------------------------------- #
+# /api/jobs/report/{config_name} (per-use-case experiment report, plan 060)
+# --------------------------------------------------------------------------- #
+def _history_row(**overrides) -> dict:
+    row = {
+        "job_name": "msgsize_scaling_study",
+        "experiment_name": "01_baseline",
+        "timestamp": "2026-07-04_20-03-37",
+        "numnodes": "4",
+        "ppn": "2",
+        "apps_list": "netgauge",
+        "status": "COMPLETED",
+        "tags": "",
+        "relative_path": "./msgsize_scaling_study_2026-07-04_20-03-37-168111/01_baseline",
+        "system": "leonardo",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Path):
+    # This job's data_dir basename matches the seeded history row's relative_path
+    # prefix, so the report should attach record_id/job_id/submitted_at to it.
+    _seed_job(
+        tmp_path,
+        job_id="48552582",
+        data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
+        config_name="msgsize_scaling_study",
+    )
+    history_json = json.dumps(
+        {
+            "schema": 1,
+            "experiments": [
+                _history_row(),  # matches config_name + a known job record
+                _history_row(
+                    experiment_name="02_unmatched",
+                    status="FAILED",
+                    relative_path="./some_other_job_dir/02_unmatched",
+                ),  # matches config_name, no registry entry
+                _history_row(job_name="a_different_config"),  # filtered out
+            ],
+        }
+    )
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/report/msgsize_scaling_study")
+        assert resp.status_code == 200
+        body = resp.json()
+
+        assert body["config_name"] == "msgsize_scaling_study"
+        assert body["clusters_skipped"] == []
+        assert len(body["experiments"]) == 2  # the "a_different_config" row is excluded
+        by_name = {e["experiment_name"]: e for e in body["experiments"]}
+
+        matched = by_name["01_baseline"]
+        assert matched["cluster"] == "leonardo"
+        assert matched["record_id"] == "leonardo:48552582"
+        assert matched["job_id"] == "48552582"
+
+        unmatched = by_name["02_unmatched"]
+        assert unmatched["status"] == "FAILED"
+        assert unmatched["record_id"] is None
+        assert unmatched["job_id"] is None
+
+
+def test_use_case_report_disconnected_cluster_is_listed_as_skipped(tmp_path: Path):
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())  # registered, never connected
+
+        resp = client.get("/api/jobs/report/anything")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["experiments"] == []
+        assert body["clusters_skipped"] == ["leonardo"]
+
+
+def test_use_case_report_spans_multiple_connected_clusters(tmp_path: Path):
+    leonardo_history = json.dumps({"schema": 1, "experiments": [_history_row(system="leonardo")]})
+    alps_history = json.dumps(
+        {
+            "schema": 1,
+            "experiments": [_history_row(system="alps", status="TIMEOUT")],
+        }
+    )
+
+    async def connector(profile, password):
+        return ScriptedTransport(
+            history_json=leonardo_history if profile.name == "leonardo" else alps_history
+        )
+
+    mgr = ConnectionManager(connector=connector)
+    app = create_app(_settings(tmp_path), manager=mgr)
+    with auth_client(app) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes", json=_alps_profile())
+        client.post("/api/remotes/alps/connect")
+
+        resp = client.get("/api/jobs/report/msgsize_scaling_study")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["clusters_skipped"] == []
+        clusters = sorted(e["cluster"] for e in body["experiments"])
+        assert clusters == ["alps", "leonardo"]

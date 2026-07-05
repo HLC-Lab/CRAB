@@ -240,3 +240,78 @@ async def job_logs(record_id: str, request: Request, experiment: str | None = No
         args += ["--experiment", experiment]
     args.append("--json")
     return await run_crab_json(transport, profile, args, timeout=30.0)
+
+
+class ReportExperiment(BaseModel):
+    """One `crab history` row for a use case, joined with local submit metadata if known."""
+
+    cluster: str
+    system: str
+    job_name: str
+    experiment_name: str
+    timestamp: str
+    numnodes: str
+    ppn: str
+    apps_list: str
+    status: str
+    tags: str
+    relative_path: str
+    record_id: str | None = None
+    job_id: str | None = None
+    submitted_at: str | None = None
+
+
+class UseCaseReport(BaseModel):
+    config_name: str
+    experiments: list[ReportExperiment]
+    clusters_skipped: list[str]
+
+
+def _job_basename(relative_path: str) -> str:
+    """First path component of a history row's ``./<job_basename>/<exp_basename>``."""
+    parts = [p for p in relative_path.split("/") if p and p != "."]
+    return parts[0] if parts else ""
+
+
+@router.get("/report/{config_name}")
+async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
+    """Every experiment ever run under `config_name`, across every connected cluster.
+
+    Sourced from `crab history --json` (authoritative — matches manual runs too,
+    not only ones submitted through this dashboard), then joined against the
+    local job registry just for submit metadata (job id, submitted_at). A
+    disconnected cluster is skipped and named in `clusters_skipped` rather than
+    silently omitted, same convention as `list_jobs`'s `connected` flag.
+    """
+    manager = _manager(request)
+    records_by_cluster: dict[str, dict[str, JobRecord]] = {}
+    for rec in _jobs_store(request).list():
+        records_by_cluster.setdefault(rec.cluster, {})[Path(rec.data_dir).name] = rec
+
+    experiments: list[ReportExperiment] = []
+    clusters_skipped: list[str] = []
+    for profile in _profiles(request).list():
+        transport = manager.get(profile.name)
+        if transport is None:
+            clusters_skipped.append(profile.name)
+            continue
+
+        history = await run_crab_json(transport, profile, ["history", "--json"], timeout=30.0)
+        known_jobs = records_by_cluster.get(profile.name, {})
+        for row in history["experiments"]:
+            if row["job_name"] != config_name:
+                continue
+            known = known_jobs.get(_job_basename(row["relative_path"]))
+            experiments.append(
+                ReportExperiment(
+                    cluster=profile.name,
+                    record_id=known.id if known else None,
+                    job_id=known.job_id if known else None,
+                    submitted_at=known.submitted_at if known else None,
+                    **row,
+                )
+            )
+
+    return UseCaseReport(
+        config_name=config_name, experiments=experiments, clusters_skipped=clusters_skipped
+    )
