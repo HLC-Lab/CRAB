@@ -7,35 +7,10 @@ import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
 import { ansiToHtml } from "@/lib/ansi";
+import { isTerminal, stateClass } from "@/lib/jobStatus";
 
 function filename(path: string): string {
   return path.split("/").pop() || path;
-}
-
-// Never re-polled once reached (mirrors api/jobs.py's _TERMINAL_STATES) —
-// used here only to decide whether Cancel makes sense to offer.
-const TERMINAL_STATES = new Set([
-  "COMPLETED",
-  "FAILED",
-  "CANCELLED",
-  "TIMEOUT",
-  "OUT_OF_MEMORY",
-  "NODE_FAIL",
-  "PREEMPTED",
-  "BOOT_FAIL",
-  "DEADLINE",
-  "REVOKED",
-]);
-function isTerminal(state: string): boolean {
-  return TERMINAL_STATES.has(state);
-}
-function stateClass(state: string): string {
-  if (state === "COMPLETED") return "ok";
-  if (["FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "BOOT_FAIL", "DEADLINE"].includes(state))
-    return "danger";
-  if (state === "CANCELLED" || state === "REVOKED") return "muted";
-  if (state === "UNKNOWN") return "warn";
-  return "active"; // RUNNING, PENDING, and anything else Slurm reports live
 }
 
 const jobs = useJobsStore();
