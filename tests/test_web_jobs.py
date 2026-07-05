@@ -691,7 +691,10 @@ def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Pat
                     status="FAILED",
                     relative_path="./some_other_job_dir/02_unmatched",
                 ),  # matches config_name, no registry entry
-                _history_row(job_name="a_different_config"),  # filtered out
+                _history_row(
+                    job_name="a_different_config",
+                    relative_path="./a_different_config_2026-07-01_00-00-00-000000/01_baseline",
+                ),  # unrelated job dir, no registry entry, job_name mismatch: filtered out
             ],
         }
     )
@@ -721,6 +724,42 @@ def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Pat
         assert unmatched["status"] == "FAILED"
         assert unmatched["record_id"] is None
         assert unmatched["job_id"] is None
+
+
+def test_use_case_report_matches_registry_config_name_over_internal_job_name(tmp_path: Path):
+    # Real-world case: a config authored with an internal `global_options.name`
+    # of "msgsize_scaling_study" but saved in the library under a human display
+    # name. The registry record carries the display name; `crab history`'s
+    # `job_name` column carries the internal name. The report must key off the
+    # display name (what the report route/URL and the Jobs view use), joining
+    # through the registry, not off the internal `job_name` string.
+    _seed_job(
+        tmp_path,
+        job_id="1",
+        data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
+        config_name="Message-size scaling study: 1 KiB to 4 MiB across 16 points",
+    )
+    history_json = json.dumps({"schema": 1, "experiments": [_history_row()]})
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(
+            "/api/jobs/report/Message-size%20scaling%20study%3A%201%20KiB%20to%204%20MiB%20across%2016%20points"
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body["experiments"]) == 1
+        assert body["experiments"][0]["record_id"] == "leonardo:1"
+
+        # And a lookup under the *internal* name (job_name) must NOT match this
+        # row, since it belongs to a different display-named use case.
+        resp2 = client.get("/api/jobs/report/msgsize_scaling_study")
+        assert resp2.json()["experiments"] == []
 
 
 def test_use_case_report_disconnected_cluster_is_listed_as_skipped(tmp_path: Path):

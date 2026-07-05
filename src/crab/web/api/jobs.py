@@ -302,9 +302,19 @@ async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
         history = await run_crab_json(transport, profile, ["history", "--json"], timeout=30.0)
         known_jobs = records_by_cluster.get(profile.name, {})
         for row in history["experiments"]:
-            if row["job_name"] != config_name:
-                continue
             known = known_jobs.get(_job_basename(row["relative_path"]))
+            # A row's `job_name` is the config's internal `global_options.name`,
+            # which can differ from the library display name used as `config_name`
+            # here (e.g. a submitted config named "msgsize_scaling_study" saved in
+            # the library as "Message-size scaling study..."). The local registry
+            # record carries the display name, so prefer that join; only fall back
+            # to matching `job_name` directly for runs with no local record (manual
+            # `crab run` on the cluster, never submitted through this dashboard).
+            if known is not None:
+                if known.config_name != config_name:
+                    continue
+            elif row["job_name"] != config_name:
+                continue
             experiments.append(
                 ReportExperiment(
                     cluster=profile.name,
