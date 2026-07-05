@@ -25,10 +25,8 @@ into [roadmap.md](roadmap.md) (or a work plan) with a date and reason.
 - Results fetched on demand; no background sync; no cache eviction policy yet.
 - Auto-poll interval is user-selectable (5/10/30/60 s, active jobs only) but still a fixed
   choice — no adaptive backoff.
-- Job progress is coarse (state + runs done), not a live convergence curve. Per-experiment and
-  per-app log/result files (`error_app_N.log` and similar, one per app per experiment) exist on
-  disk but are not individually browsable from the dashboard yet — natural fit for the Results
-  per-experiment detail view.
+- Job progress is coarse (state + runs done), not a live convergence curve — per-experiment
+  status and per-app error logs are browsable (ADR-017), but not a live per-run metric feed.
 - Guided bootstrap confirms before running; not fully silent. Its install output is captured
   per step rather than streamed live — live progress streaming should land before v1.0 ships
   (tracked in the roadmap's polish gate).
