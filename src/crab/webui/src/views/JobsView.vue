@@ -3,6 +3,7 @@
 // frontend timer (plan 050 design), default on; the store's in-flight guard
 // keeps ticks from overlapping.
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { RouterLink } from "vue-router";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
@@ -180,7 +181,9 @@ function toggleStatus(name: string) {
                   : 'cluster not connected — showing last known state'
               "
             />
-            <strong>{{ j.config_name }}</strong>
+            <RouterLink :to="`/jobs/report/${encodeURIComponent(j.config_name)}`" class="use-case">
+              {{ j.config_name }}
+            </RouterLink>
             <span class="sub">{{ j.cluster }} · job {{ j.job_id }} · {{ j.system }}</span>
           </div>
           <div class="ctrls">
@@ -408,6 +411,15 @@ h1 {
 .sub {
   color: var(--text3);
   font-size: var(--t-sm);
+}
+.use-case {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+.use-case:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 .ctrls {
   display: flex;

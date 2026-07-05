@@ -9,6 +9,7 @@ import type {
   CrabConfig,
   DetectResult,
   ErrorEnvelope,
+  ExperimentLogs,
   Health,
   JobListItem,
   JobLogs,
@@ -19,6 +20,7 @@ import type {
   RemoteListItem,
   SavedEntry,
   StepResult,
+  UseCaseReport,
 } from "./types";
 
 /** Error thrown for any non-2xx response, carrying the backend envelope. */
@@ -165,5 +167,11 @@ export const api = {
     cancel: (id: string) =>
       request<CancelResponse>(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
     logs: (id: string) => request<JobLogs>(`/api/jobs/${encodeURIComponent(id)}/logs`),
+    experimentLogs: (id: string, experiment: string) =>
+      request<ExperimentLogs>(
+        `/api/jobs/${encodeURIComponent(id)}/logs?experiment=${encodeURIComponent(experiment)}`,
+      ),
+    report: (configName: string) =>
+      request<UseCaseReport>(`/api/jobs/report/${encodeURIComponent(configName)}`),
   },
 };

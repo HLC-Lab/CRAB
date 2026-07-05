@@ -28,6 +28,12 @@ const routes = [
     meta: { title: "Jobs" },
   },
   {
+    path: "/jobs/report/:configName",
+    name: "job-report",
+    component: () => import("@/views/ReportView.vue"),
+    meta: { title: "Use case report" },
+  },
+  {
     path: "/results",
     name: "results",
     component: () => import("@/views/ResultsView.vue"),
