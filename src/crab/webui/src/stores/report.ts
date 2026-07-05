@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { api, ApiError } from "@/api/client";
 import type { ExperimentLogs, UseCaseReport } from "@/api/types";
 
@@ -59,6 +59,24 @@ export const useReportStore = defineStore("report", () => {
     }
   }
 
+  // Per-experiment rerun selection ("Rerun selected" only makes sense within
+  // one job submission at a time, since that's the only thing that carries a
+  // config_snapshot to resubmit — the UI disables the action across a mixed
+  // selection rather than guessing which snapshot to use).
+  const selected = ref<Set<string>>(new Set());
+
+  function toggleSelected(recordId: string, experimentName: string) {
+    const key = experimentKey(recordId, experimentName);
+    if (selected.value.has(key)) selected.value.delete(key);
+    else selected.value.add(key);
+  }
+  function clearSelected() {
+    selected.value.clear();
+  }
+  const selectedRecordIds = computed(
+    () => new Set([...selected.value].map((key) => key.split("/")[0])),
+  );
+
   return {
     report,
     loading,
@@ -70,5 +88,9 @@ export const useReportStore = defineStore("report", () => {
     experimentLogsError,
     toggleExperimentLogs,
     experimentKey,
+    selected,
+    toggleSelected,
+    clearSelected,
+    selectedRecordIds,
   };
 });

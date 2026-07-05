@@ -135,3 +135,31 @@ describe("report store per-experiment logs", () => {
     expect(store.experimentLogsError["leonardo:1/ghost"]).toBe("no experiment directory");
   });
 });
+
+describe("report store per-experiment rerun selection", () => {
+  it("toggleSelected adds then removes a (record, experiment) pair", () => {
+    const store = useReportStore();
+    store.toggleSelected("leonardo:1", "01_baseline");
+    expect(store.selected.has("leonardo:1/01_baseline")).toBe(true);
+
+    store.toggleSelected("leonardo:1", "01_baseline");
+    expect(store.selected.has("leonardo:1/01_baseline")).toBe(false);
+  });
+
+  it("selectedRecordIds reflects the distinct job records among selected rows", () => {
+    const store = useReportStore();
+    store.toggleSelected("leonardo:1", "01_baseline");
+    store.toggleSelected("leonardo:1", "02_variant");
+    expect(store.selectedRecordIds).toEqual(new Set(["leonardo:1"]));
+
+    store.toggleSelected("leonardo:2", "03_other_job");
+    expect(store.selectedRecordIds).toEqual(new Set(["leonardo:1", "leonardo:2"]));
+  });
+
+  it("clearSelected empties the selection", () => {
+    const store = useReportStore();
+    store.toggleSelected("leonardo:1", "01_baseline");
+    store.clearSelected();
+    expect(store.selected.size).toBe(0);
+  });
+});
