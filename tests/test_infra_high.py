@@ -54,6 +54,29 @@ class TestOrchestratorKeyboardInterrupt(unittest.TestCase):
                     mock_exit.assert_called()
 
 
+class TestOrchestratorOnlyFlag(unittest.TestCase):
+    def test_only_is_threaded_through_to_engine_run(self):
+        """--only (plan 060) must reach Engine.run, not get dropped along the way."""
+        from crab.cli.orchestrator import execute_orchestrator
+
+        preset_config = {"env": {}, "sbatch": [], "header": []}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_path = os.path.join(tmpdir, "config.json")
+            with open(config_path, "w") as f:
+                json.dump({"global_options": {"numnodes": "2"}, "experiments": {}}, f)
+
+            with (
+                patch("crab.cli.orchestrator.load_environment_config", return_value=preset_config),
+                patch("crab.setup.memory.get_all_receipts", return_value={}),
+                patch("crab.cli.orchestrator.prepare_execution_environment", return_value={}),
+                patch("crab.core.engine.Engine.run", return_value={}) as mock_run,
+            ):
+                execute_orchestrator(config_path, "local", only=["ex1", "ex3"])
+
+        mock_run.assert_called_once()
+        self.assertEqual(mock_run.call_args.kwargs.get("only"), ["ex1", "ex3"])
+
+
 # ── Logger ────────────────────────────────────────────────────────────────────
 
 

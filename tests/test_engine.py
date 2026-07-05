@@ -3,6 +3,7 @@ Local-only tests for engine.py critical issues.
 These tests do NOT require a real Slurm environment.
 """
 
+import json
 import os
 import tempfile
 import unittest
@@ -246,6 +247,57 @@ class TestNumnodesValidation(unittest.TestCase):
         nodes_lines = [line for line in lines if "--nodes=" in line]
         self.assertEqual(len(nodes_lines), 1)
         self.assertIn("--nodes=4", nodes_lines[0])
+
+
+# ---------------------------------------------------------------------------
+# --only: rerun specific experiment keys from a config (plan 060)
+# ---------------------------------------------------------------------------
+
+
+class TestOnlyExperimentFilter(unittest.TestCase):
+    def _run_and_read_config(self, config, only, tmpdir):
+        config["global_options"]["datapath"] = tmpdir
+        engine = _make_engine()
+        with patch("subprocess.check_output", return_value="Submitted batch job 1"):
+            engine._run_orchestrator(config, {}, only=only)
+        for root, _, files in os.walk(tmpdir):
+            if "config.json" in files:
+                with open(os.path.join(root, "config.json")) as f:
+                    return json.load(f)
+        self.fail("No config.json generated")
+
+    def test_only_filters_the_experiments_dict(self):
+        """Only the requested keys are written to config.json (and so only they run)."""
+        config = {
+            "global_options": {"numnodes": "2", "ppn": 8},
+            "experiments": {"ex1": {"apps": {}}, "ex2": {"apps": {}}, "ex3": {"apps": {}}},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            written = self._run_and_read_config(config, ["ex1", "ex3"], tmpdir)
+        self.assertEqual(set(written["experiments"].keys()), {"ex1", "ex3"})
+
+    def test_only_with_unknown_key_raises_value_error(self):
+        """A typo'd or removed experiment key must fail clearly, not silently no-op."""
+        config = {
+            "global_options": {"numnodes": "2", "ppn": 8},
+            "experiments": {"ex1": {"apps": {}}},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config["global_options"]["datapath"] = tmpdir
+            engine = _make_engine()
+            with self.assertRaises(ValueError) as ctx:
+                engine._run_orchestrator(config, {}, only=["ex1", "ghost"])
+        self.assertIn("ghost", str(ctx.exception))
+
+    def test_no_only_runs_every_experiment_unchanged(self):
+        """Omitting --only (only=None) is a pure no-op: the regression this must not break."""
+        config = {
+            "global_options": {"numnodes": "2", "ppn": 8},
+            "experiments": {"ex1": {"apps": {}}, "ex2": {"apps": {}}},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            written = self._run_and_read_config(config, None, tmpdir)
+        self.assertEqual(set(written["experiments"].keys()), {"ex1", "ex2"})
 
 
 if __name__ == "__main__":

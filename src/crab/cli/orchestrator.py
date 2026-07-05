@@ -127,13 +127,18 @@ def execute_worker(work_dir: str, log_level_str: str = None):
 
 
 def execute_orchestrator(
-    app_config_file: str, preset_arg: str = None, log_level_str: str = None, as_json: bool = False
+    app_config_file: str,
+    preset_arg: str = None,
+    log_level_str: str = None,
+    as_json: bool = False,
+    only: list[str] | None = None,
 ):
     """Executes the orchestrator logic directly from provided arguments.
 
     When ``as_json`` is True, all logs are routed to stderr and a single JSON
     object ``{job_id, data_dir, system}`` is printed to stdout, so the web
-    backend gets a clean, parseable submit result.
+    backend gets a clean, parseable submit result. ``only`` reruns just the
+    given experiment key(s) instead of the whole config (plan 060).
     """
     from crab.log import get_logger
 
@@ -188,7 +193,9 @@ def execute_orchestrator(
         from crab.core.engine import Engine
 
         engine = Engine(logger=logger)
-        result = engine.run(config=benchmark_config, environment=execution_env, is_worker=False)
+        result = engine.run(
+            config=benchmark_config, environment=execution_env, is_worker=False, only=only
+        )
 
         logger.info("Orchestration complete — job submitted to SLURM")
 

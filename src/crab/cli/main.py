@@ -24,8 +24,13 @@ def _preset_completer(prefix, parsed_args, **kwargs):
 def handle_run(args):
     from crab.cli.orchestrator import execute_orchestrator
 
+    only = args.only.split(",") if getattr(args, "only", None) else None
     execute_orchestrator(
-        args.app_config_file, args.preset, args.log_level, as_json=getattr(args, "json", False)
+        args.app_config_file,
+        args.preset,
+        args.log_level,
+        as_json=getattr(args, "json", False),
+        only=only,
     )
 
 
@@ -276,6 +281,11 @@ def cli_router():
     parser_run.add_argument("--log-level", dest="log_level", default=None, help="Log verbosity.")
     parser_run.add_argument(
         "--json", action="store_true", help="Print the submit result as JSON (logs go to stderr)."
+    )
+    parser_run.add_argument(
+        "--only",
+        default=None,
+        help="Comma-separated experiment key(s) to run, skipping the rest of the config.",
     )
     parser_run.set_defaults(func=handle_run)
 

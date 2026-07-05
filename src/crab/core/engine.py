@@ -26,11 +26,12 @@ class Engine:
         environment: dict[str, Any],
         is_worker: bool = False,
         output_dir: str = None,
+        only: list[str] | None = None,
     ):
         if is_worker:
             return self._run_worker(config, environment, output_dir)
         else:
-            return self._run_orchestrator(config, environment)
+            return self._run_orchestrator(config, environment, only=only)
 
     def _generate_sbatch_header(
         self, global_opts: dict[str, Any], data_directory: str
@@ -136,7 +137,9 @@ class Engine:
         # Restituiamo i valori (le stringhe complete)
         return [f"#SBATCH {v}" for v in directives_map.values()]
 
-    def _run_orchestrator(self, config: dict[str, Any], environment: dict[str, Any]):
+    def _run_orchestrator(
+        self, config: dict[str, Any], environment: dict[str, Any], only: list[str] | None = None
+    ):
         self.log.info("Engine running in ORCHESTRATOR mode")
 
         if "experiments" not in config:
@@ -150,6 +153,12 @@ class Engine:
                     config["experiments"] = {"default_ex": {"apps": apps_data}}
             else:
                 raise ValueError("Config must contain 'experiments' or 'applications'.")
+
+        if only is not None:
+            unknown = sorted(set(only) - set(config["experiments"].keys()))
+            if unknown:
+                raise ValueError(f"Unknown experiment key(s) in --only: {unknown}")
+            config["experiments"] = {k: v for k, v in config["experiments"].items() if k in only}
 
         g_opts = config.get("global_options", {})
         data_path = g_opts.get("datapath", os.path.join(CRAB_ROOT, "data"))
