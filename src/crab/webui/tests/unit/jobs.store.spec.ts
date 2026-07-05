@@ -213,6 +213,74 @@ describe("jobs store poll interval", () => {
   });
 });
 
+describe("jobs store filters (cluster/search/status)", () => {
+  const JOB_A = {
+    id: "leonardo:1",
+    cluster: "leonardo",
+    config_name: "msgsize_scaling_study",
+    last_known_state: "FAILED",
+  };
+  const JOB_B = {
+    id: "leonardo:2",
+    cluster: "leonardo",
+    config_name: "msgsize_scaling_study",
+    last_known_state: "COMPLETED",
+  };
+  const JOB_C = {
+    id: "alps:1",
+    cluster: "alps",
+    config_name: "Multi-stage pipeline",
+    last_known_state: "COMPLETED",
+  };
+
+  async function seededStore() {
+    listMock.mockResolvedValue([JOB_A, JOB_B, JOB_C]);
+    const store = useJobsStore();
+    await store.refresh();
+    return store;
+  }
+
+  it("shows every job when no filter is set", async () => {
+    const store = await seededStore();
+    expect(store.filteredItems.map((j) => j.id)).toEqual(["leonardo:1", "leonardo:2", "alps:1"]);
+  });
+
+  it("filters by one or more selected clusters", async () => {
+    const store = await seededStore();
+    store.setClusterFilter(["alps"]);
+    expect(store.filteredItems.map((j) => j.id)).toEqual(["alps:1"]);
+
+    store.setClusterFilter(["alps", "leonardo"]);
+    expect(store.filteredItems).toHaveLength(3);
+
+    store.setClusterFilter([]);
+    expect(store.filteredItems).toHaveLength(3); // empty selection = no filter
+  });
+
+  it("filters by one or more selected statuses", async () => {
+    const store = await seededStore();
+    store.setStatusFilter(["FAILED"]);
+    expect(store.filteredItems.map((j) => j.id)).toEqual(["leonardo:1"]);
+  });
+
+  it("filters by a case-insensitive substring search over config_name", async () => {
+    const store = await seededStore();
+    store.setSearch("MSGSIZE");
+    expect(store.filteredItems.map((j) => j.id)).toEqual(["leonardo:1", "leonardo:2"]);
+
+    store.setSearch("pipeline");
+    expect(store.filteredItems.map((j) => j.id)).toEqual(["alps:1"]);
+  });
+
+  it("combines cluster, status, and search filters (AND, not OR)", async () => {
+    const store = await seededStore();
+    store.setClusterFilter(["leonardo"]);
+    store.setStatusFilter(["COMPLETED"]);
+    store.setSearch("msgsize");
+    expect(store.filteredItems.map((j) => j.id)).toEqual(["leonardo:2"]);
+  });
+});
+
 describe("jobs store error surfacing", () => {
   it("submit includes the remote detail (e.g. stderr) alongside the message", async () => {
     const err = new ApiError("");

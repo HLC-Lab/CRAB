@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { api, ApiError } from "@/api/client";
 import type { CancelResponse, CrabConfig, JobListItem, JobLogs, JobRecord } from "@/api/types";
 
@@ -39,6 +39,33 @@ export const useJobsStore = defineStore("jobs", () => {
 
   const cancelBusy = ref<Record<string, boolean>>({});
   const cancelError = ref<Record<string, string>>({});
+
+  // Jobs view filters (plan 060): all client-side over the already-fetched
+  // list, no extra API calls. An empty selection/string means "no filter".
+  const clusterFilter = ref<string[]>([]);
+  const statusFilter = ref<string[]>([]);
+  const search = ref("");
+
+  const filteredItems = computed(() =>
+    items.value.filter((j) => {
+      if (clusterFilter.value.length && !clusterFilter.value.includes(j.cluster)) return false;
+      if (statusFilter.value.length && !statusFilter.value.includes(j.last_known_state))
+        return false;
+      if (search.value && !j.config_name.toLowerCase().includes(search.value.toLowerCase()))
+        return false;
+      return true;
+    }),
+  );
+
+  function setClusterFilter(clusters: string[]) {
+    clusterFilter.value = clusters;
+  }
+  function setStatusFilter(statuses: string[]) {
+    statusFilter.value = statuses;
+  }
+  function setSearch(query: string) {
+    search.value = query;
+  }
 
   const logs = ref<Record<string, JobLogs>>({});
   const logsBusy = ref<Record<string, boolean>>({});
@@ -153,6 +180,13 @@ export const useJobsStore = defineStore("jobs", () => {
     loading,
     error,
     refreshing,
+    clusterFilter,
+    statusFilter,
+    search,
+    filteredItems,
+    setClusterFilter,
+    setStatusFilter,
+    setSearch,
     polling,
     lastRefreshedAt,
     pollIntervalMs,

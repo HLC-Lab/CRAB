@@ -334,8 +334,37 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Job Logs */
+    /**
+     * Job Logs
+     * @description Job-level slurm logs, or one experiment's per-app error logs if `experiment` is given.
+     */
     get: operations["job_logs_api_jobs__record_id__logs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/report/{config_name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Use Case Report
+     * @description Every experiment ever run under `config_name`, across every connected cluster.
+     *
+     *     Sourced from `crab history --json` (authoritative — matches manual runs too,
+     *     not only ones submitted through this dashboard), then joined against the
+     *     local job registry just for submit metadata (job id, submitted_at). A
+     *     disconnected cluster is skipped and named in `clusters_skipped` rather than
+     *     silently omitted, same convention as `list_jobs`'s `connected` flag.
+     */
+    get: operations["use_case_report_api_jobs_report__config_name__get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -614,6 +643,40 @@ export interface components {
       connected: boolean;
     };
     /**
+     * ReportExperiment
+     * @description One `crab history` row for a use case, joined with local submit metadata if known.
+     */
+    ReportExperiment: {
+      /** Cluster */
+      cluster: string;
+      /** System */
+      system: string;
+      /** Job Name */
+      job_name: string;
+      /** Experiment Name */
+      experiment_name: string;
+      /** Timestamp */
+      timestamp: string;
+      /** Numnodes */
+      numnodes: string;
+      /** Ppn */
+      ppn: string;
+      /** Apps List */
+      apps_list: string;
+      /** Status */
+      status: string;
+      /** Tags */
+      tags: string;
+      /** Relative Path */
+      relative_path: string;
+      /** Record Id */
+      record_id?: string | null;
+      /** Job Id */
+      job_id?: string | null;
+      /** Submitted At */
+      submitted_at?: string | null;
+    };
+    /**
      * SavedEntry
      * @description A stored entry plus any shape warnings for the config just saved.
      */
@@ -659,6 +722,15 @@ export interface components {
       name?: string | null;
       /** Preset */
       preset?: string | null;
+    };
+    /** UseCaseReport */
+    UseCaseReport: {
+      /** Config Name */
+      config_name: string;
+      /** Experiments */
+      experiments: components["schemas"]["ReportExperiment"][];
+      /** Clusters Skipped */
+      clusters_skipped: string[];
     };
     /** ValidationError */
     ValidationError: {
@@ -1337,7 +1409,9 @@ export interface operations {
   };
   job_logs_api_jobs__record_id__logs_get: {
     parameters: {
-      query?: never;
+      query?: {
+        experiment?: string | null;
+      };
       header?: never;
       path: {
         record_id: string;
@@ -1355,6 +1429,37 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  use_case_report_api_jobs_report__config_name__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        config_name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["UseCaseReport"];
         };
       };
       /** @description Validation Error */

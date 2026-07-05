@@ -174,3 +174,19 @@ export interface JobLogs {
   stdout: LogStream;
   stderr: LogStream;
 }
+
+/** One error_app_<id>.log entry (crab logs --experiment --json; cli/contract.py). */
+export interface ExperimentLogFile extends LogStream {
+  app_id: string;
+}
+
+/** GET /api/jobs/{id}/logs?experiment= — cluster-contract passthrough, not in the OpenAPI schema. */
+export interface ExperimentLogs {
+  schema: number;
+  data_dir: string;
+  files: ExperimentLogFile[];
+}
+
+/** GET /api/jobs/report/{config_name} — every experiment ever run under a use case. */
+export type UseCaseReport = components["schemas"]["UseCaseReport"];
+export type ReportExperiment = components["schemas"]["ReportExperiment"];

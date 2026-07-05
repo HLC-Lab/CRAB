@@ -102,7 +102,27 @@ async function confirmCancel() {
   cancelTarget.value = null;
 }
 
-const sortedItems = computed(() => jobs.items); // already newest-first from the backend
+const sortedItems = computed(() => jobs.filteredItems); // already newest-first from the backend
+
+// Filter chip options are drawn from the unfiltered list so a chip never
+// disappears just because its own filter narrowed the results to zero.
+const availableClusters = computed(() => [...new Set(jobs.items.map((j) => j.cluster))].sort());
+const availableStatuses = computed(() =>
+  [...new Set(jobs.items.map((j) => j.last_known_state))].sort(),
+);
+
+function toggleCluster(name: string) {
+  const next = new Set(jobs.clusterFilter);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
+  jobs.setClusterFilter([...next]);
+}
+function toggleStatus(name: string) {
+  const next = new Set(jobs.statusFilter);
+  if (next.has(name)) next.delete(name);
+  else next.add(name);
+  jobs.setStatusFilter([...next]);
+}
 </script>
 
 <template>
@@ -130,10 +150,46 @@ const sortedItems = computed(() => jobs.items); // already newest-first from the
       </div>
     </header>
 
+    <div v-if="jobs.items.length" class="filters">
+      <input
+        class="search"
+        type="search"
+        placeholder="Search use case..."
+        :value="jobs.search"
+        @input="jobs.setSearch(($event.target as HTMLInputElement).value)"
+      />
+      <div class="chips">
+        <button
+          v-for="c in availableClusters"
+          :key="c"
+          class="chip"
+          :class="{ on: jobs.clusterFilter.includes(c) }"
+          @click="toggleCluster(c)"
+        >
+          {{ c }}
+        </button>
+      </div>
+      <div class="chips">
+        <button
+          v-for="s in availableStatuses"
+          :key="s"
+          class="chip"
+          :class="{ on: jobs.statusFilter.includes(s) }"
+          @click="toggleStatus(s)"
+        >
+          {{ s }}
+        </button>
+      </div>
+    </div>
+
     <p v-if="jobs.error" class="banner err">{{ jobs.error }}</p>
 
     <p v-if="!jobs.loading && !sortedItems.length" class="empty">
-      No jobs yet. Submit a config to get started.
+      {{
+        jobs.items.length
+          ? "No jobs match the current filters."
+          : "No jobs yet. Submit a config to get started."
+      }}
     </p>
 
     <ul class="list">
@@ -288,6 +344,45 @@ h1 {
 .btn.on {
   border-color: var(--ok);
   color: var(--ok);
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.search {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.6rem;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  min-width: 14rem;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.chip {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text3);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+.chip:hover {
+  border-color: var(--accent);
+}
+.chip.on {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .btn.primary {
   background: var(--accent);
