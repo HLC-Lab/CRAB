@@ -8,7 +8,15 @@ import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/api/client", () => ({
-  api: { jobs: { list: vi.fn(), submit: vi.fn(), cancel: vi.fn(), logs: vi.fn() } },
+  api: {
+    jobs: {
+      list: vi.fn(),
+      submit: vi.fn(),
+      submissionStatus: vi.fn(),
+      cancel: vi.fn(),
+      logs: vi.fn(),
+    },
+  },
   ApiError: class ApiError extends Error {
     detail?: string;
   },
@@ -19,6 +27,7 @@ import { useJobsStore } from "@/stores/jobs";
 
 const listMock = vi.mocked(api.jobs.list);
 const submitMock = vi.mocked(api.jobs.submit);
+const submissionStatusMock = vi.mocked(api.jobs.submissionStatus);
 const logsMock = vi.mocked(api.jobs.logs);
 
 const SAMPLE_LOGS = {
@@ -33,6 +42,7 @@ beforeEach(() => {
   listMock.mockReset();
   logsMock.mockReset();
   submitMock.mockReset();
+  submissionStatusMock.mockReset();
   vi.useFakeTimers();
 });
 
@@ -293,8 +303,78 @@ describe("jobs store error surfacing", () => {
     const store = useJobsStore();
     const result = await store.submit({ profile_name: "leonardo", config_id: "cfg" });
 
-    expect(result).toBeNull();
+    expect(result).toBe(false);
     expect(store.submitError).toContain("failed on the cluster");
     expect(store.submitError).toContain("ModuleNotFoundError");
+  });
+});
+
+describe("jobs store async submit (plan 075)", () => {
+  it("adds a pending entry immediately, then resolves and refreshes on done", async () => {
+    submitMock.mockResolvedValue({ submission_id: "sub-1" });
+    submissionStatusMock.mockResolvedValueOnce({ status: "pending" });
+    submissionStatusMock.mockResolvedValueOnce({
+      status: "done",
+      record: { id: "leonardo:1", config_name: "My Run" },
+    });
+    listMock.mockResolvedValue([]);
+
+    const store = useJobsStore();
+    const accepted = await store.submit({ profile_name: "leonardo", config_id: "cfg" }, "My Run");
+
+    expect(accepted).toBe(true);
+    expect(store.pendingSubmissionsList).toEqual([
+      { id: "sub-1", label: "My Run", profileName: "leonardo", status: "pending" },
+    ]);
+
+    await vi.advanceTimersByTimeAsync(1_000); // first poll: still pending
+    expect(store.pendingSubmissionsList).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(1_000); // second poll: done
+    expect(store.pendingSubmissionsList).toEqual([]);
+    expect(listMock).toHaveBeenCalled(); // refresh() picks up the real record
+  });
+
+  it("keeps the pending entry visible with message+detail on an error resolution", async () => {
+    submitMock.mockResolvedValue({ submission_id: "sub-1" });
+    submissionStatusMock.mockResolvedValueOnce({
+      status: "error",
+      message: "`crab run ...` failed on the cluster (exit 1).",
+      detail: "TypeError: boom",
+    });
+
+    const store = useJobsStore();
+    await store.submit({ profile_name: "leonardo", config_id: "cfg" }, "My Run");
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(store.pendingSubmissionsList).toEqual([
+      {
+        id: "sub-1",
+        label: "My Run",
+        profileName: "leonardo",
+        status: "error",
+        errorMessage: "`crab run ...` failed on the cluster (exit 1).\nTypeError: boom",
+      },
+    ]);
+  });
+
+  it("dismissPendingSubmission removes an entry regardless of its status", async () => {
+    submitMock.mockResolvedValue({ submission_id: "sub-1" });
+
+    const store = useJobsStore();
+    await store.submit({ profile_name: "leonardo", config_id: "cfg" }, "My Run");
+    expect(store.pendingSubmissionsList).toHaveLength(1);
+
+    store.dismissPendingSubmission("sub-1");
+    expect(store.pendingSubmissionsList).toEqual([]);
+  });
+
+  it("label falls back to the request body when none is given", async () => {
+    submitMock.mockResolvedValue({ submission_id: "sub-1" });
+
+    const store = useJobsStore();
+    await store.submit({ profile_name: "leonardo", config: {} as never, name: "Inline config" });
+
+    expect(store.pendingSubmissionsList[0].label).toBe("Inline config");
   });
 });

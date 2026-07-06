@@ -159,6 +159,11 @@ export type JobListItem = components["schemas"]["JobListItem"];
 /** POST /api/jobs/{id}/cancel — `cancelled` is false when the job was already gone. */
 export type CancelResponse = components["schemas"]["CancelResponse"];
 
+/** POST /api/jobs/submit — accepted immediately, resolved async (plan 075). */
+export type SubmissionAccepted = components["schemas"]["SubmissionAccepted"];
+/** GET /api/jobs/submissions/{id} — poll target for an in-flight submit/rerun. */
+export type SubmissionStatus = components["schemas"]["SubmissionStatus"];
+
 /** One captured stream in a job's logs (crab logs --json; cli/contract.py). */
 export interface LogStream {
   path: string;

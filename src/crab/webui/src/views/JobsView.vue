@@ -206,7 +206,36 @@ function toggleStatus(name: string) {
 
     <p v-if="jobs.error" class="banner err">{{ jobs.error }}</p>
 
-    <p v-if="!jobs.loading && !sortedItems.length" class="empty">
+    <ul v-if="jobs.pendingSubmissionsList.length" class="list">
+      <li
+        v-for="p in jobs.pendingSubmissionsList"
+        :key="p.id"
+        class="card"
+        :class="{ pending: p.status === 'pending' }"
+      >
+        <div class="top">
+          <span class="identity">{{ p.profileName }}</span>
+        </div>
+        <div class="title-row">
+          <span class="use-case">{{ p.label }}</span>
+          <span v-if="p.status === 'pending'" class="state active">
+            <span class="spinning">↻</span> Submitting…
+          </span>
+          <span v-else class="state danger">Failed</span>
+        </div>
+        <template v-if="p.status === 'error'">
+          <p class="banner err small">{{ p.errorMessage }}</p>
+          <div class="toolbar">
+            <button class="btn" @click="jobs.dismissPendingSubmission(p.id)">Dismiss</button>
+          </div>
+        </template>
+      </li>
+    </ul>
+
+    <p
+      v-if="!jobs.loading && !sortedItems.length && !jobs.pendingSubmissionsList.length"
+      class="empty"
+    >
       {{
         jobs.items.length
           ? "No jobs match the current filters."
@@ -496,6 +525,10 @@ h1 {
   border-radius: var(--r2);
   padding: 1rem;
   margin-bottom: 0.75rem;
+}
+.card.pending {
+  border-style: dashed;
+  border-color: var(--accent);
 }
 .card.clickable {
   cursor: pointer;

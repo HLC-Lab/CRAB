@@ -14,13 +14,14 @@ import type {
   JobDetail,
   JobListItem,
   JobLogs,
-  JobRecord,
   LibraryEntry,
   NodesResult,
   Profile,
   RemoteListItem,
   SavedEntry,
   StepResult,
+  SubmissionAccepted,
+  SubmissionStatus,
   UseCaseReport,
 } from "./types";
 
@@ -162,10 +163,12 @@ export const api = {
       preset?: string;
       only?: string[];
     }) =>
-      request<JobRecord>("/api/jobs/submit", {
+      request<SubmissionAccepted>("/api/jobs/submit", {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    submissionStatus: (submissionId: string) =>
+      request<SubmissionStatus>(`/api/jobs/submissions/${encodeURIComponent(submissionId)}`),
     cancel: (id: string) =>
       request<CancelResponse>(`/api/jobs/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
     logs: (id: string) => request<JobLogs>(`/api/jobs/${encodeURIComponent(id)}/logs`),

@@ -1,9 +1,24 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api, ApiError } from "@/api/client";
-import type { CancelResponse, CrabConfig, JobListItem, JobLogs, JobRecord } from "@/api/types";
+import type { CancelResponse, CrabConfig, JobListItem, JobLogs } from "@/api/types";
 
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
+// Status-poll cadence for an in-flight submit/rerun (plan 075) — a genuine
+// poll, not a "wait N seconds then reveal" timer: the pending card resolves
+// the instant the backend does, whether that's the next tick or the 10th.
+const SUBMISSION_POLL_INTERVAL_MS = 1_000;
+
+// A client-only placeholder for a submit/rerun that has been accepted
+// (202) but not yet resolved by the background task. Never mixed into
+// `items` — the real JobRecord only exists once the backend has one.
+export interface PendingSubmission {
+  id: string;
+  label: string;
+  profileName: string;
+  status: "pending" | "error";
+  errorMessage?: string;
+}
 
 function msg(e: unknown): string {
   if (!(e instanceof ApiError)) return "Unexpected error";
@@ -37,6 +52,8 @@ export const useJobsStore = defineStore("jobs", () => {
 
   const submitBusy = ref(false);
   const submitError = ref<string | null>(null);
+  const pendingSubmissions = ref<Record<string, PendingSubmission>>({});
+  const pendingSubmissionsList = computed(() => Object.values(pendingSubmissions.value));
 
   const cancelBusy = ref<Record<string, boolean>>({});
   const cancelError = ref<Record<string, string>>({});
@@ -140,19 +157,67 @@ export const useJobsStore = defineStore("jobs", () => {
     }
   }
 
-  async function submit(body: SubmitBody): Promise<JobRecord | null> {
+  // Polls one pending submission until it resolves. A plain setInterval per
+  // submission (cleared on resolution) rather than one shared timer, since
+  // several submits/reruns can be in flight independently.
+  function pollSubmission(id: string) {
+    const timer = setInterval(async () => {
+      let status;
+      try {
+        status = await api.jobs.submissionStatus(id);
+      } catch (e) {
+        clearInterval(timer);
+        const entry = pendingSubmissions.value[id];
+        if (entry)
+          pendingSubmissions.value[id] = { ...entry, status: "error", errorMessage: msg(e) };
+        return;
+      }
+      if (status.status === "pending") return;
+      clearInterval(timer);
+      if (status.status === "done") {
+        delete pendingSubmissions.value[id];
+        await refresh();
+        return;
+      }
+      const entry = pendingSubmissions.value[id];
+      if (entry) {
+        pendingSubmissions.value[id] = {
+          ...entry,
+          status: "error",
+          errorMessage: status.detail
+            ? `${status.message}\n${status.detail}`
+            : (status.message ?? "Submission failed."),
+        };
+      }
+    }, SUBMISSION_POLL_INTERVAL_MS);
+  }
+
+  // Returns whether the submit/rerun was accepted (202) — not whether it has
+  // finished. The eventual outcome shows up as a pending card (see
+  // pendingSubmissionsList) that resolves itself via polling.
+  async function submit(body: SubmitBody, label?: string): Promise<boolean> {
     submitBusy.value = true;
     submitError.value = null;
     try {
-      const rec = await api.jobs.submit(body);
-      await refresh();
-      return rec;
+      const accepted = await api.jobs.submit(body);
+      pendingSubmissions.value[accepted.submission_id] = {
+        id: accepted.submission_id,
+        label: label ?? body.name ?? body.config_id ?? "submission",
+        profileName: body.profile_name,
+        status: "pending",
+      };
+      pollSubmission(accepted.submission_id);
+      return true;
     } catch (e) {
       submitError.value = msg(e);
-      return null;
+      return false;
     } finally {
       submitBusy.value = false;
     }
+  }
+
+  function dismissPendingSubmission(id: string) {
+    delete pendingSubmissions.value[id];
   }
 
   async function cancel(id: string): Promise<CancelResponse | null> {
@@ -193,6 +258,7 @@ export const useJobsStore = defineStore("jobs", () => {
     pollIntervalMs,
     submitBusy,
     submitError,
+    pendingSubmissionsList,
     cancelBusy,
     cancelError,
     logs,
@@ -204,6 +270,7 @@ export const useJobsStore = defineStore("jobs", () => {
     stopPolling,
     setPollInterval,
     submit,
+    dismissPendingSubmission,
     cancel,
     fetchLogs,
     openLogs,

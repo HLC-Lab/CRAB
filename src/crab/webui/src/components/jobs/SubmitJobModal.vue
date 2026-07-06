@@ -62,8 +62,11 @@ async function doSubmit() {
   const body = props.initialConfig
     ? { ...base, config: props.initialConfig.config, name: props.initialConfig.name }
     : { ...base, config_id: selectedConfigId.value };
-  const rec = await jobs.submit(body);
-  if (rec) emit("submitted");
+  const label =
+    props.initialConfig?.name ??
+    libraryEntries.value.find((e) => e.id === selectedConfigId.value)?.name;
+  const accepted = await jobs.submit(body, label);
+  if (accepted) emit("submitted");
 }
 </script>
 
