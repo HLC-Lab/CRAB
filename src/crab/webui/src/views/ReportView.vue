@@ -9,6 +9,7 @@ import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
 import { groupExperimentsBySubmission } from "@/lib/groupExperimentsBySubmission";
+import { failedExperimentNames } from "@/lib/jobStatus";
 import type { CrabConfig } from "@/api/types";
 
 const route = useRoute();
@@ -43,19 +44,15 @@ const selectedCount = computed(() => report.selected.size);
 const canRerunSelected = computed(
   () => report.selectedRecordIds.size === 1 && selectedCount.value > 0,
 );
-const showRerunConfirm = ref(false);
 const rerunLookupError = ref<string | null>(null);
-async function confirmRerunSelected() {
-  showRerunConfirm.value = false;
+async function submitRerun(targetRecordId: string, experimentNames: string[]) {
   rerunLookupError.value = null;
-  const [recordId] = report.selectedRecordIds;
-  const rec = jobs.items.find((j) => j.id === recordId);
+  const rec = jobs.items.find((j) => j.id === targetRecordId);
   if (!rec) {
     rerunLookupError.value =
       "Could not find this job's details to rerun — try refreshing the Jobs page.";
     return;
   }
-  const experimentNames = [...report.selected].map((key) => key.split("/")[1]);
   await jobs.submit({
     profile_name: rec.cluster,
     config: rec.config_snapshot as unknown as CrabConfig,
@@ -63,7 +60,35 @@ async function confirmRerunSelected() {
     only: experimentNames,
     rerun_of: rec.id,
   });
+}
+
+const showRerunConfirm = ref(false);
+async function confirmRerunSelected() {
+  showRerunConfirm.value = false;
+  const [selectedRecordId] = report.selectedRecordIds;
+  await submitRerun(
+    selectedRecordId,
+    [...report.selected].map((key) => key.split("/")[1]),
+  );
   report.exitSelectionMode();
+}
+
+// One-click rerun for the common case: retry exactly a group's failed
+// experiments, no selection step (plan 076). Only meaningful for a group
+// with a known record_id (a manual run has no config_snapshot to resubmit).
+function failedNamesFor(group: {
+  recordId: string | null;
+  experiments: { status: string; experiment_name: string }[];
+}) {
+  if (!group.recordId) return [];
+  return failedExperimentNames(group.experiments);
+}
+const rerunFailedTarget = ref<{ recordId: string; names: string[] } | null>(null);
+async function confirmRerunFailed() {
+  if (rerunFailedTarget.value) {
+    await submitRerun(rerunFailedTarget.value.recordId, rerunFailedTarget.value.names);
+  }
+  rerunFailedTarget.value = null;
 }
 </script>
 
@@ -115,13 +140,24 @@ async function confirmRerunSelected() {
 
       <ul class="groups">
         <li v-for="g in groups" :key="g.key" class="group">
-          <button class="group-head" @click="toggleGroup(g.key)">
-            <span class="chevron" :class="{ open: expandedKeys.has(g.key) }">&rsaquo;</span>
-            <span class="group-title">
-              {{ g.cluster }} / {{ g.system }} · {{ new Date(g.submittedAt).toLocaleString() }}
-            </span>
-            <span class="meta small">{{ g.experiments.length }} experiment(s)</span>
-          </button>
+          <div class="group-head">
+            <button class="group-toggle" @click="toggleGroup(g.key)">
+              <span class="chevron" :class="{ open: expandedKeys.has(g.key) }">&rsaquo;</span>
+              <span class="group-title">
+                {{ g.cluster }} / {{ g.system }} · {{ new Date(g.submittedAt).toLocaleString() }}
+              </span>
+              <span class="meta small">{{ g.experiments.length }} experiment(s)</span>
+            </button>
+            <button
+              v-if="failedNamesFor(g).length"
+              class="btn small"
+              @click="
+                rerunFailedTarget = { recordId: g.recordId as string, names: failedNamesFor(g) }
+              "
+            >
+              Rerun {{ failedNamesFor(g).length }} failed
+            </button>
+          </div>
           <ul v-if="expandedKeys.has(g.key)" class="list">
             <ExperimentCard
               v-for="e in g.experiments"
@@ -141,6 +177,15 @@ async function confirmRerunSelected() {
       cancel-label="Cancel"
       @confirm="confirmRerunSelected"
       @cancel="showRerunConfirm = false"
+    />
+    <ConfirmModal
+      v-if="rerunFailedTarget"
+      title="Rerun failed experiments?"
+      :message="`Submit a fresh run of ${rerunFailedTarget.names.length} failed experiment(s): ${rerunFailedTarget.names.join(', ')}?`"
+      confirm-label="Rerun"
+      cancel-label="Cancel"
+      @confirm="confirmRerunFailed"
+      @cancel="rerunFailedTarget = null"
     />
   </section>
 </template>
@@ -201,21 +246,33 @@ h1 {
   margin-bottom: 0.75rem;
 }
 .group-head {
-  width: 100%;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   background: var(--bg1);
   border: 1px solid var(--border);
   border-radius: var(--r2);
   padding: 0.6rem 0.85rem;
+}
+.group-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: none;
+  border: none;
   cursor: pointer;
   font-family: var(--sans);
   color: var(--text);
   text-align: left;
+  padding: 0;
 }
 .group-head:hover {
   border-color: var(--accent);
+}
+.btn.small {
+  padding: 0.25rem 0.6rem;
+  font-size: var(--t-sm);
 }
 .chevron {
   display: inline-block;

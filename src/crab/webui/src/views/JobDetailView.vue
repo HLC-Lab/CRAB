@@ -13,6 +13,7 @@ import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
 import RerunSummaryCard from "@/components/jobs/RerunSummaryCard.vue";
+import { failedExperimentNames as computeFailedNames } from "@/lib/jobStatus";
 import type { CrabConfig } from "@/api/types";
 
 const route = useRoute();
@@ -26,23 +27,15 @@ onMounted(() => {
   jobs.refresh(); // needed to look up a config_snapshot when rerunning selected experiments
 });
 
-const selectedCount = computed(() => report.selected.size);
-const canRerunSelected = computed(
-  () => report.selectedRecordIds.size === 1 && selectedCount.value > 0,
-);
-const showRerunConfirm = ref(false);
 const rerunLookupError = ref<string | null>(null);
-async function confirmRerunSelected() {
-  showRerunConfirm.value = false;
+async function submitRerun(targetRecordId: string, experimentNames: string[]) {
   rerunLookupError.value = null;
-  const [selectedRecordId] = report.selectedRecordIds;
-  const rec = jobs.items.find((j) => j.id === selectedRecordId);
+  const rec = jobs.items.find((j) => j.id === targetRecordId);
   if (!rec) {
     rerunLookupError.value =
       "Could not find this job's details to rerun — try refreshing the Jobs page.";
     return;
   }
-  const experimentNames = [...report.selected].map((key) => key.split("/")[1]);
   await jobs.submit({
     profile_name: rec.cluster,
     config: rec.config_snapshot as unknown as CrabConfig,
@@ -50,7 +43,32 @@ async function confirmRerunSelected() {
     only: experimentNames,
     rerun_of: rec.id,
   });
+}
+
+const selectedCount = computed(() => report.selected.size);
+const canRerunSelected = computed(
+  () => report.selectedRecordIds.size === 1 && selectedCount.value > 0,
+);
+const showRerunConfirm = ref(false);
+async function confirmRerunSelected() {
+  showRerunConfirm.value = false;
+  const [selectedRecordId] = report.selectedRecordIds;
+  await submitRerun(
+    selectedRecordId,
+    [...report.selected].map((key) => key.split("/")[1]),
+  );
   report.exitSelectionMode();
+}
+
+// One-click rerun for the common case: retry exactly the failed experiments,
+// no selection step (plan 076).
+const failedExperimentNames = computed(() =>
+  computeFailedNames(detailStore.detail?.experiments ?? []),
+);
+const showRerunFailedConfirm = ref(false);
+async function confirmRerunFailed() {
+  showRerunFailedConfirm.value = false;
+  await submitRerun(recordId.value, failedExperimentNames.value);
 }
 </script>
 
@@ -102,13 +120,18 @@ async function confirmRerunSelected() {
         No experiments found for this submission.
       </p>
 
-      <button
-        v-if="detailStore.detail.experiments.length"
-        class="btn select-toggle"
-        @click="report.toggleSelectionMode"
-      >
-        {{ report.selectionMode ? "Cancel selection" : "Select experiments to rerun…" }}
-      </button>
+      <div v-if="detailStore.detail.experiments.length" class="quick-actions">
+        <button
+          v-if="failedExperimentNames.length"
+          class="btn primary"
+          @click="showRerunFailedConfirm = true"
+        >
+          Rerun {{ failedExperimentNames.length }} failed experiment(s)
+        </button>
+        <button class="btn select-toggle" @click="report.toggleSelectionMode">
+          {{ report.selectionMode ? "Cancel selection" : "Select experiments to rerun…" }}
+        </button>
+      </div>
 
       <div v-if="report.selectionMode" class="rerun-bar">
         <span>{{ selectedCount }} experiment(s) selected</span>
@@ -147,6 +170,15 @@ async function confirmRerunSelected() {
       cancel-label="Cancel"
       @confirm="confirmRerunSelected"
       @cancel="showRerunConfirm = false"
+    />
+    <ConfirmModal
+      v-if="showRerunFailedConfirm"
+      title="Rerun failed experiments?"
+      :message="`Submit a fresh run of ${failedExperimentNames.length} failed experiment(s): ${failedExperimentNames.join(', ')}?`"
+      confirm-label="Rerun"
+      cancel-label="Cancel"
+      @confirm="confirmRerunFailed"
+      @cancel="showRerunFailedConfirm = false"
     />
   </section>
 </template>
@@ -252,8 +284,13 @@ h1 {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.select-toggle {
+.quick-actions {
+  display: flex;
+  gap: 0.5rem;
   margin-bottom: 0.75rem;
+}
+.select-toggle {
+  margin-bottom: 0;
 }
 .rerun-bar {
   display: flex;

@@ -37,3 +37,12 @@ export function isFailureState(state: string): boolean {
     state,
   );
 }
+
+// The experiment names worth offering a one-click "Rerun failed" for (plan
+// 076's quick action) — shared by the per-job detail view and the grouped
+// use-case history view so the two don't drift.
+export function failedExperimentNames(
+  experiments: { status: string; experiment_name: string }[],
+): string[] {
+  return experiments.filter((e) => isFailureState(e.status)).map((e) => e.experiment_name);
+}
