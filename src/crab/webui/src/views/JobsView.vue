@@ -7,6 +7,7 @@ import { RouterLink } from "vue-router";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
+import ConfigSnapshotModal from "@/components/jobs/ConfigSnapshotModal.vue";
 import { ansiToHtml } from "@/lib/ansi";
 import { isFailureState, isTerminal, stateClass } from "@/lib/jobStatus";
 import type { CrabConfig, JobListItem } from "@/api/types";
@@ -93,6 +94,11 @@ function requestRerun(j: JobListItem) {
 async function confirmRerun() {
   if (rerunTarget.value) await jobs.submit(rerunTarget.value);
   rerunTarget.value = null;
+}
+
+const viewConfigTarget = ref<{ configName: string; config: unknown } | null>(null);
+function requestViewConfig(j: JobListItem) {
+  viewConfigTarget.value = { configName: j.config_name, config: j.config_snapshot };
 }
 
 const sortedItems = computed(() => jobs.filteredItems); // already newest-first from the backend
@@ -199,44 +205,47 @@ function toggleStatus(name: string) {
 
     <ul class="list">
       <li v-for="j in sortedItems" :key="j.id" class="card">
-        <div class="row">
-          <div class="ident">
-            <span
-              class="dot"
-              :class="j.connected ? 'on' : 'off'"
-              :title="
-                j.connected
-                  ? 'cluster connected'
-                  : 'cluster not connected — showing last known state'
-              "
-            />
-            <RouterLink :to="`/jobs/report/${encodeURIComponent(j.config_name)}`" class="use-case">
-              {{ j.config_name }}
-            </RouterLink>
-            <span class="sub">{{ j.cluster }} · job {{ j.job_id }} · {{ j.system }}</span>
-          </div>
-          <div class="ctrls">
-            <span class="state" :class="stateClass(j.last_known_state)">{{
-              j.last_known_state
-            }}</span>
-            <button class="btn" @click="toggleLogs(j.id)">
-              {{ jobs.openLogId === j.id ? "Hide logs" : "Logs" }}
-            </button>
-            <button
-              v-if="!isTerminal(j.last_known_state)"
-              class="btn"
-              :disabled="jobs.cancelBusy[j.id]"
-              @click="requestCancel(j.id, j.config_name)"
-            >
-              {{ jobs.cancelBusy[j.id] ? "Cancelling…" : "Cancel" }}
-            </button>
-            <button v-if="isFailureState(j.last_known_state)" class="btn" @click="requestRerun(j)">
-              Rerun
-            </button>
-          </div>
+        <div class="top">
+          <span
+            class="dot"
+            :class="j.connected ? 'on' : 'off'"
+            :title="
+              j.connected ? 'cluster connected' : 'cluster not connected — showing last known state'
+            "
+          />
+          <span class="identity">{{ j.cluster }} / {{ j.system }}</span>
+          <span class="meta submitted-at">
+            submitted {{ new Date(j.submitted_at).toLocaleString() }}
+          </span>
+        </div>
+        <div class="title-row">
+          <RouterLink :to="`/jobs/report/${encodeURIComponent(j.config_name)}`" class="use-case">
+            {{ j.config_name }}
+          </RouterLink>
+          <span class="state" :class="stateClass(j.last_known_state)">{{
+            j.last_known_state
+          }}</span>
+        </div>
+        <p class="meta">job {{ j.job_id }}</p>
+
+        <div class="toolbar">
+          <button class="btn" @click="toggleLogs(j.id)">
+            {{ jobs.openLogId === j.id ? "Hide logs" : "Logs" }}
+          </button>
+          <button class="btn" @click="requestViewConfig(j)">View config</button>
+          <button v-if="isFailureState(j.last_known_state)" class="btn" @click="requestRerun(j)">
+            Rerun
+          </button>
+          <button
+            v-if="!isTerminal(j.last_known_state)"
+            class="btn"
+            :disabled="jobs.cancelBusy[j.id]"
+            @click="requestCancel(j.id, j.config_name)"
+          >
+            {{ jobs.cancelBusy[j.id] ? "Cancelling…" : "Cancel" }}
+          </button>
         </div>
 
-        <p class="meta">submitted {{ new Date(j.submitted_at).toLocaleString() }}</p>
         <p v-if="jobs.cancelError[j.id]" class="banner err small">{{ jobs.cancelError[j.id] }}</p>
 
         <div v-if="jobs.openLogId === j.id" class="logs">
@@ -277,6 +286,13 @@ function toggleStatus(name: string) {
     </ul>
 
     <SubmitJobModal v-if="showSubmit" @close="showSubmit = false" @submitted="showSubmit = false" />
+
+    <ConfigSnapshotModal
+      v-if="viewConfigTarget"
+      :config-name="viewConfigTarget.configName"
+      :config="viewConfigTarget.config"
+      @close="viewConfigTarget = null"
+    />
 
     <ConfirmModal
       v-if="cancelTarget"
@@ -457,36 +473,44 @@ h1 {
   padding: 1rem;
   margin-bottom: 0.75rem;
 }
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-.ident {
+.top {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
 }
-.sub {
+.identity {
   color: var(--text3);
   font-size: var(--t-sm);
+  font-family: var(--mono);
+}
+.meta.submitted-at {
+  margin-top: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.3rem;
 }
 .use-case {
   color: var(--text);
   font-weight: 600;
+  font-size: var(--t-lg);
   text-decoration: none;
 }
 .use-case:hover {
   color: var(--accent);
   text-decoration: underline;
 }
-.ctrls {
+.toolbar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-shrink: 0;
+  margin-top: 0.6rem;
 }
 .dot {
   width: 9px;
