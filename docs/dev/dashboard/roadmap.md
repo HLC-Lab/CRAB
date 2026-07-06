@@ -47,6 +47,13 @@ decisions live in the [decision records](decisions/index.md).
 
 - **Wrappers section** — browse/inspect wrapper sources (metadata, path finder, `read_data`),
   author wrappers locally and sync them to clusters. (Nav stub exists.)
+- **Genericity audit** — the dashboard and its tests grew against one real cluster
+  (Leonardo @ CINECA) as the running example, and it shows in places beyond just docs: test
+  fixtures are literally named and shaped after it (e.g. `tests/test_web_remotes.py`'s
+  `_leonardo()` profile fixture), rather than a neutral placeholder cluster. Before calling the
+  dashboard done, sweep the codebase (tests, fixtures, example data, comments) for this kind of
+  cluster-specific naming and replace it with generic placeholders, so nothing reads as built
+  for one specific HPC center rather than for HPC clusters in general.
 - Deprecations: the Textual TUI once the web UI reaches parity; `crab export` once the
   dashboard's standalone HTML export replaces it.
 - See [deferred.md](deferred.md) for the full intentionally-not-now list.
