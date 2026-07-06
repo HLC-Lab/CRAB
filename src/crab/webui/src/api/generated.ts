@@ -520,6 +520,11 @@ export interface components {
       stale: boolean;
       /** Cached At */
       cached_at?: string | null;
+      rerun_of?: components["schemas"]["JobRecord"] | null;
+      /** Rerun Experiments */
+      rerun_experiments?: string[] | null;
+      /** Reruns */
+      reruns: components["schemas"]["JobRecord"][];
     };
     /**
      * JobListItem
@@ -549,6 +554,10 @@ export interface components {
        * @default UNKNOWN
        */
       last_known_state: string;
+      /** Rerun Of */
+      rerun_of?: string | null;
+      /** Rerun Experiments */
+      rerun_experiments?: string[] | null;
       /**
        * Connected
        * @default false
@@ -580,6 +589,10 @@ export interface components {
        * @default UNKNOWN
        */
       last_known_state: string;
+      /** Rerun Of */
+      rerun_of?: string | null;
+      /** Rerun Experiments */
+      rerun_experiments?: string[] | null;
     };
     /** LibraryEntry */
     LibraryEntry: {
@@ -839,6 +852,8 @@ export interface components {
       preset?: string | null;
       /** Only */
       only?: string[] | null;
+      /** Rerun Of */
+      rerun_of?: string | null;
     };
     /** UseCaseReport */
     UseCaseReport: {

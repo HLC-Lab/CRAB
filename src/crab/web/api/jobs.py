@@ -445,6 +445,9 @@ class JobDetail(BaseModel):
     experiments: list[ReportExperiment]
     stale: bool
     cached_at: str | None = None
+    rerun_of: JobRecord | None = None
+    rerun_experiments: list[str] | None = None
+    reruns: list[JobRecord]
 
 
 @router.get("/{record_id}/experiments")
@@ -455,9 +458,18 @@ async def job_experiments(record_id: str, request: Request) -> JobDetail:
     (a data_dir's basename against a history row's `relative_path` prefix), but
     returns every matching row instead of collapsing to one worst status.
     """
-    rec = _jobs_store(request).get(record_id)
+    jobs_store = _jobs_store(request)
+    rec = jobs_store.get(record_id)
     profile = _profiles(request).get(rec.cluster)
     basename = Path(rec.data_dir).name
+
+    parent = None
+    if rec.rerun_of:
+        try:
+            parent = jobs_store.get(rec.rerun_of)
+        except NotFoundError:
+            parent = None
+    reruns = [r for r in jobs_store.list() if r.rerun_of == rec.id]
 
     async def fetch() -> dict:
         transport = _live_transport(rec.cluster, request)
@@ -491,6 +503,9 @@ async def job_experiments(record_id: str, request: Request) -> JobDetail:
         experiments=experiments,
         stale=stale,
         cached_at=cached_at,
+        rerun_of=parent,
+        rerun_experiments=rec.rerun_experiments,
+        reruns=reruns,
     )
 
 

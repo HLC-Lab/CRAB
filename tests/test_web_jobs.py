@@ -938,9 +938,42 @@ def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: P
         assert body["job_id"] == "48552582"
         assert body["stale"] is False
         assert [e["experiment_name"] for e in body["experiments"]] == ["01_baseline"]
+        assert body["rerun_of"] is None
+        assert body["reruns"] == []
 
         transport = client.app.state.manager.get("leonardo")
         assert any("crab history -s leonardo --json" in c for c in transport.calls)
+
+
+def test_job_experiments_reports_rerun_lineage(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", data_dir="/d/original", config_name="demo")
+    _seed_job(
+        tmp_path,
+        job_id="2",
+        data_dir="/d/rerun",
+        config_name="demo",
+        rerun_of="leonardo:1",
+        rerun_experiments=["01_baseline"],
+    )
+    history_json = json.dumps({"schema": 1, "experiments": []})
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        # The rerun's own detail shows its parent.
+        child = client.get("/api/jobs/leonardo:2/experiments").json()
+        assert child["rerun_of"]["id"] == "leonardo:1"
+        assert child["rerun_experiments"] == ["01_baseline"]
+        assert child["reruns"] == []
+
+        # The original's detail lists the rerun as a child.
+        original = client.get("/api/jobs/leonardo:1/experiments").json()
+        assert original["rerun_of"] is None
+        assert [r["id"] for r in original["reruns"]] == ["leonardo:2"]
 
 
 def test_job_experiments_unknown_record_returns_404(tmp_path: Path):
