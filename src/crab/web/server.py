@@ -77,6 +77,12 @@ def create_app(
     # Shared state for routes (settings drive the per-request stores).
     app.state.settings = settings
     app.state.manager = manager
+    # In-memory async-submit tracker (plan 075): submission_id -> status dict.
+    # Not persisted — lost on a backend restart mid-submit (documented limitation).
+    app.state.submissions = {}
+    # Keeps a strong reference to each submission's background task so it can't
+    # be garbage-collected mid-flight; discarded via its own done-callback.
+    app.state.pending_submission_tasks = set()
     # Per-process API secret: the SPA receives it via a meta tag in the served
     # index.html and echoes it as X-Crab-Token. This app runs SSH commands, so
     # its localhost API must not be drivable by a hostile web page.

@@ -278,9 +278,39 @@ export interface paths {
     put?: never;
     /**
      * Submit Job
-     * @description Stage the config on the cluster and run it (ADR-010: preset chosen here, not in the config).
+     * @description Validate synchronously, then stage/run in the background (plan 075).
+     *
+     *     Everything that can fail instantly (profile exists, connected, config
+     *     resolves, a preset is chosen) still happens before responding, same as
+     *     before — only the SSH round-trip (staging + `crab run`) moves off the
+     *     request cycle, since that's what used to make a submit or rerun feel like
+     *     it hung with no feedback.
      */
     post: operations["submit_job_api_jobs_submit_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/submissions/{submission_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Submission
+     * @description Poll a submission's status; 404 once a terminal result has been fetched.
+     *
+     *     Entries are dropped from the tracker as soon as a terminal status is
+     *     returned so it doesn't grow forever (there's no other cleanup — the
+     *     tracker is in-memory and process-lifetime only).
+     */
+    get: operations["get_submission_api_jobs_submissions__submission_id__get"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -773,6 +803,25 @@ export interface components {
       stdout: string;
       /** Stderr */
       stderr: string;
+    };
+    /** SubmissionAccepted */
+    SubmissionAccepted: {
+      /** Submission Id */
+      submission_id: string;
+    };
+    /**
+     * SubmissionStatus
+     * @description Polled result of an async submit/rerun (plan 075). `status` is one of
+     *     "pending", "done", "error".
+     */
+    SubmissionStatus: {
+      /** Status */
+      status: string;
+      record?: components["schemas"]["JobRecord"] | null;
+      /** Message */
+      message?: string | null;
+      /** Detail */
+      detail?: string | null;
     };
     /** SubmitRequest */
     SubmitRequest: {
@@ -1407,12 +1456,43 @@ export interface operations {
     };
     responses: {
       /** @description Successful Response */
-      201: {
+      202: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["JobRecord"];
+          "application/json": components["schemas"]["SubmissionAccepted"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_submission_api_jobs_submissions__submission_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        submission_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SubmissionStatus"];
         };
       };
       /** @description Validation Error */

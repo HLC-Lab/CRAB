@@ -10,12 +10,14 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
+from crab.web.api.jobs import _run_submission  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import NotFoundError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.jobs import JobsStore  # noqa: E402
+from crab.web.store.profiles import ProfileStore  # noqa: E402
 
 _SNAPSHOT = {"global_options": {"name": "demo"}, "experiments": []}
 _INFO_JSON = json.dumps(
@@ -213,68 +215,196 @@ def _client(tmp_path: Path, transport_factory=ScriptedTransport):
     return auth_client(app)
 
 
-def test_submit_from_library_entry_creates_job_record(tmp_path: Path):
+def _profile(tmp_path: Path):
+    """A persisted profile, read back as a real `Profile` object for `_run_submission`."""
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+    return ProfileStore(_settings(tmp_path)).get("leonardo")
+
+
+# _run_submission is the actual staging/run work, run off the request cycle
+# by /api/jobs/submit's background task — tested directly here (fake
+# transport, no HTTP) since observing it through TestClient would mean racing
+# a real asyncio.Task against the test's own assertions (see the route-level
+# tests below for what IS safe to assert through HTTP: the 202 shape and the
+# validation failures that happen before the task is even created).
+async def test_run_submission_success_creates_a_job_record(tmp_path: Path):
+    profile = _profile(tmp_path)
+    transport = ScriptedTransport()
+    tracker: dict = {}
+
+    await _run_submission(
+        tracker,
+        "sub-1",
+        transport,
+        profile,
+        _SNAPSHOT,
+        "My Run",
+        "leonardo",
+        None,
+        _settings(tmp_path),
+    )
+
+    assert tracker["sub-1"]["status"] == "done"
+    rec = tracker["sub-1"]["record"]
+    assert rec.id == "leonardo:42"
+    assert rec.cluster == "leonardo"
+    assert rec.job_id == "42"
+    assert rec.data_dir == "/data/leonardo/demo_job"
+    assert rec.system == "leonardo"
+    assert rec.config_name == "My Run"
+    assert rec.config_snapshot == _SNAPSHOT
+    assert any("crab run" in c for c in transport.calls)
+    assert any(f.endswith("/my-run.json") for f in transport.written_files)
+
+
+async def test_run_submission_with_only_passes_the_flag_to_crab_run(tmp_path: Path):
+    """`only` (plan 060 rerun) must reach the remote `crab run --only ...` invocation."""
+    profile = _profile(tmp_path)
+    transport = ScriptedTransport()
+    tracker: dict = {}
+
+    await _run_submission(
+        tracker,
+        "sub-1",
+        transport,
+        profile,
+        _SNAPSHOT,
+        "My Run",
+        "leonardo",
+        ["ex1", "ex3"],
+        _settings(tmp_path),
+    )
+
+    run_calls = [c for c in transport.calls if "crab run" in c]
+    assert len(run_calls) == 1
+    assert "--only ex1,ex3" in run_calls[0]
+
+
+async def test_run_submission_without_only_has_no_only_flag(tmp_path: Path):
+    profile = _profile(tmp_path)
+    transport = ScriptedTransport()
+    tracker: dict = {}
+
+    await _run_submission(
+        tracker,
+        "sub-1",
+        transport,
+        profile,
+        _SNAPSHOT,
+        "My Run",
+        "leonardo",
+        None,
+        _settings(tmp_path),
+    )
+
+    run_calls = [c for c in transport.calls if "crab run" in c]
+    assert "--only" not in run_calls[0]
+
+
+async def test_run_submission_failure_preserves_message_and_detail(tmp_path: Path):
+    """A failed `crab run` must keep its stderr/traceback `detail` (commit 0d17605's fix),
+    not just the top-line message, once it travels through the tracker instead of an HTTP
+    error response."""
+    profile = _profile(tmp_path)
+
+    class FailingTransport(ScriptedTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if "crab run" in command:
+                return CmdResult(1, "", "TypeError: unsupported operand type(s)")
+            return await super().run(command, timeout=timeout)
+
+    transport = FailingTransport()
+    tracker: dict = {}
+
+    await _run_submission(
+        tracker,
+        "sub-1",
+        transport,
+        profile,
+        _SNAPSHOT,
+        "My Run",
+        "leonardo",
+        None,
+        _settings(tmp_path),
+    )
+
+    entry = tracker["sub-1"]
+    assert entry["status"] == "error"
+    assert "failed on the cluster" in entry["message"]
+    assert entry["detail"] == "TypeError: unsupported operand type(s)"
+
+
+def test_submit_returns_202_with_a_pending_entry_before_any_work_runs(tmp_path: Path, monkeypatch):
+    """The response must not wait on the SSH round-trip — proven by replacing the
+    background task with a no-op rather than racing a real one (see the module docstring
+    above `_run_submission`'s tests for why timing-based assertions aren't used here)."""
+    import crab.web.api.jobs as jobs_api
+
+    class _DummyTask:
+        def add_done_callback(self, cb):
+            pass
+
+    def fake_create_task(coro):
+        coro.close()  # never actually run the staging/run work
+        return _DummyTask()
+
+    monkeypatch.setattr(jobs_api.asyncio, "create_task", fake_create_task)
+
     with _client(tmp_path) as client:
         client.post("/api/remotes", json=_leonardo_profile())
         client.post("/api/remotes/leonardo/connect")
         entry = client.post("/api/experiments", json={"name": "My Run", "config": _SNAPSHOT}).json()
 
         resp = client.post(
-            "/api/jobs/submit",
-            json={"profile_name": "leonardo", "config_id": entry["id"]},
+            "/api/jobs/submit", json={"profile_name": "leonardo", "config_id": entry["id"]}
         )
 
-        assert resp.status_code == 201
-        rec = resp.json()
-        assert rec["id"] == "leonardo:42"
-        assert rec["cluster"] == "leonardo"
-        assert rec["job_id"] == "42"
-        assert rec["data_dir"] == "/data/leonardo/demo_job"
-        assert rec["system"] == "leonardo"
-        assert rec["config_name"] == "My Run"
-        assert rec["config_snapshot"] == _SNAPSHOT
+        assert resp.status_code == 202
+        submission_id = resp.json()["submission_id"]
+        assert client.app.state.submissions[submission_id] == {"status": "pending"}
 
         transport = client.app.state.manager.get("leonardo")
-        assert any("crab run" in c for c in transport.calls)
-        assert any(f.endswith("/my-run.json") for f in transport.written_files)
+        assert not any("crab run" in c for c in transport.calls)
 
 
-def test_submit_with_only_passes_the_flag_to_crab_run(tmp_path: Path):
-    """`only` (plan 060 rerun) must reach the remote `crab run --only ...` invocation."""
+def test_submit_end_to_end_resolves_via_the_submissions_endpoint(tmp_path: Path):
+    """Wiring proof: a real submit, polled through the public endpoint to its real
+    completion (bounded retries for the background task to finish — not a race, since
+    we only assert on the eventual terminal state, never on "still pending")."""
+    import time
+
     with _client(tmp_path) as client:
         client.post("/api/remotes", json=_leonardo_profile())
         client.post("/api/remotes/leonardo/connect")
+        entry = client.post("/api/experiments", json={"name": "My Run", "config": _SNAPSHOT}).json()
 
         resp = client.post(
-            "/api/jobs/submit",
-            json={
-                "profile_name": "leonardo",
-                "config": _SNAPSHOT,
-                "name": "My Run",
-                "only": ["ex1", "ex3"],
-            },
+            "/api/jobs/submit", json={"profile_name": "leonardo", "config_id": entry["id"]}
         )
-        assert resp.status_code == 201
+        assert resp.status_code == 202
+        submission_id = resp.json()["submission_id"]
 
-        transport = client.app.state.manager.get("leonardo")
-        run_calls = [c for c in transport.calls if "crab run" in c]
-        assert len(run_calls) == 1
-        assert "--only ex1,ex3" in run_calls[0]
+        status = None
+        for _ in range(50):
+            status = client.get(f"/api/jobs/submissions/{submission_id}").json()
+            if status["status"] != "pending":
+                break
+            time.sleep(0.01)
+
+        assert status is not None and status["status"] == "done"
+        assert status["record"]["config_name"] == "My Run"
+
+        # Cleaned up once a terminal status has been fetched.
+        again = client.get(f"/api/jobs/submissions/{submission_id}")
+        assert again.status_code == 404
 
 
-def test_submit_without_only_has_no_only_flag(tmp_path: Path):
+def test_get_submission_unknown_id_returns_404(tmp_path: Path):
     with _client(tmp_path) as client:
-        client.post("/api/remotes", json=_leonardo_profile())
-        client.post("/api/remotes/leonardo/connect")
-
-        client.post(
-            "/api/jobs/submit",
-            json={"profile_name": "leonardo", "config": _SNAPSHOT, "name": "My Run"},
-        )
-
-        transport = client.app.state.manager.get("leonardo")
-        run_calls = [c for c in transport.calls if "crab run" in c]
-        assert "--only" not in run_calls[0]
+        resp = client.get("/api/jobs/submissions/nope")
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
 
 
 def test_submit_inline_config_requires_name(tmp_path: Path):

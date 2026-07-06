@@ -9,17 +9,28 @@ this module never assumes a job's state without asking the cluster.
 
 from __future__ import annotations
 
+import asyncio
+import uuid
 from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
-from crab.web.errors import InputError, NotFoundError, RemoteCommandError, RemoteConnectionError
+from crab.web.errors import (
+    CrabWebError,
+    InputError,
+    NotFoundError,
+    RemoteCommandError,
+    RemoteConnectionError,
+    logger,
+)
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.remoteops.transfer import stage_config
+from crab.web.settings import Settings
 from crab.web.store.cache import LocalCache
 from crab.web.store.jobs import JobRecord, JobsStore
 from crab.web.store.library import LibraryStore
@@ -61,6 +72,10 @@ def _jobs_store(request: Request) -> JobsStore:
 
 def _cache(request: Request) -> LocalCache:
     return LocalCache(request.app.state.settings)
+
+
+def _submissions(request: Request) -> dict[str, dict[str, Any]]:
+    return request.app.state.submissions
 
 
 async def _live_or_cached(
@@ -119,9 +134,72 @@ def _resolve_config(body: SubmitRequest, request: Request) -> tuple[dict, str]:
     raise InputError("Either `config_id` or `config` is required.")
 
 
-@router.post("/submit", status_code=201)
-async def submit_job(body: SubmitRequest, request: Request) -> JobRecord:
-    """Stage the config on the cluster and run it (ADR-010: preset chosen here, not in the config)."""
+class SubmissionAccepted(BaseModel):
+    submission_id: str
+
+
+class SubmissionStatus(BaseModel):
+    """Polled result of an async submit/rerun (plan 075). `status` is one of
+    "pending", "done", "error"."""
+
+    status: str
+    record: JobRecord | None = None
+    message: str | None = None
+    detail: str | None = None
+
+
+async def _run_submission(
+    tracker: dict[str, dict[str, Any]],
+    submission_id: str,
+    transport: Transport,
+    profile: Profile,
+    config: dict,
+    name: str,
+    preset: str,
+    only: list[str] | None,
+    settings: Settings,
+) -> None:
+    """The actual staging/run work, off the request cycle (plan 075's async submit).
+
+    Takes plain values, not the request, since `request` is request-scoped and
+    this keeps running after the response that created it has been sent.
+    Never lets an exception escape uncaught: an unhandled error in a
+    fire-and-forget task is only logged by asyncio's default handler, which
+    would leave the tracker stuck at "pending" forever with no way to notice.
+    """
+    try:
+        staged_path = await stage_config(transport, profile, config, name, settings=settings)
+        run_args = ["run", staged_path, "-p", preset]
+        if only:
+            run_args += ["--only", ",".join(only)]
+        run_args.append("--json")
+        result = await run_crab_json(transport, profile, run_args, timeout=60.0)
+        record = JobsStore(settings).create(
+            cluster=profile.name,
+            job_id=str(result["job_id"]),
+            data_dir=result["data_dir"],
+            system=result["system"],
+            config_name=name,
+            config_snapshot=config,
+        )
+        tracker[submission_id] = {"status": "done", "record": record}
+    except CrabWebError as e:
+        tracker[submission_id] = {"status": "error", "message": e.message, "detail": e.detail}
+    except Exception as e:
+        logger.exception("Unhandled error in background submission %s", submission_id)
+        tracker[submission_id] = {"status": "error", "message": str(e), "detail": None}
+
+
+@router.post("/submit", status_code=202)
+async def submit_job(body: SubmitRequest, request: Request) -> SubmissionAccepted:
+    """Validate synchronously, then stage/run in the background (plan 075).
+
+    Everything that can fail instantly (profile exists, connected, config
+    resolves, a preset is chosen) still happens before responding, same as
+    before — only the SSH round-trip (staging + `crab run`) moves off the
+    request cycle, since that's what used to make a submit or rerun feel like
+    it hung with no feedback.
+    """
     profile = _profiles(request).get(body.profile_name)
     transport = _live_transport(body.profile_name, request)
     config, name = _resolve_config(body, request)
@@ -130,23 +208,51 @@ async def submit_job(body: SubmitRequest, request: Request) -> JobRecord:
     if not preset:
         raise InputError("No preset selected and this remote has no default preset.")
 
-    staged_path = await stage_config(
-        transport, profile, config, name, settings=request.app.state.settings
-    )
-    run_args = ["run", staged_path, "-p", preset]
-    if body.only:
-        run_args += ["--only", ",".join(body.only)]
-    run_args.append("--json")
-    result = await run_crab_json(transport, profile, run_args, timeout=60.0)
+    submission_id = str(uuid.uuid4())
+    tracker = _submissions(request)
+    tracker[submission_id] = {"status": "pending"}
 
-    return _jobs_store(request).create(
-        cluster=profile.name,
-        job_id=str(result["job_id"]),
-        data_dir=result["data_dir"],
-        system=result["system"],
-        config_name=name,
-        config_snapshot=config,
+    task = asyncio.create_task(
+        _run_submission(
+            tracker,
+            submission_id,
+            transport,
+            profile,
+            config,
+            name,
+            preset,
+            body.only,
+            request.app.state.settings,
+        )
     )
+    pending_tasks = request.app.state.pending_submission_tasks
+    pending_tasks.add(task)
+    task.add_done_callback(pending_tasks.discard)
+
+    return SubmissionAccepted(submission_id=submission_id)
+
+
+@router.get("/submissions/{submission_id}")
+async def get_submission(submission_id: str, request: Request) -> SubmissionStatus:
+    """Poll a submission's status; 404 once a terminal result has been fetched.
+
+    Entries are dropped from the tracker as soon as a terminal status is
+    returned so it doesn't grow forever (there's no other cleanup — the
+    tracker is in-memory and process-lifetime only).
+    """
+    tracker = _submissions(request)
+    entry = tracker.get(submission_id)
+    if entry is None:
+        raise NotFoundError(f"No submission with id '{submission_id}'.")
+    response = SubmissionStatus(
+        status=entry["status"],
+        record=entry.get("record"),
+        message=entry.get("message"),
+        detail=entry.get("detail"),
+    )
+    if entry["status"] != "pending":
+        tracker.pop(submission_id, None)
+    return response
 
 
 class JobListItem(JobRecord):
