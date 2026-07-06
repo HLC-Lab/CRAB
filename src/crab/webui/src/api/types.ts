@@ -195,6 +195,9 @@ export interface ExperimentLogs {
   cached_at: string | null;
 }
 
+/** GET /api/jobs/{id}/experiments — every experiment for one exact submission. */
+export type JobDetail = components["schemas"]["JobDetail"];
+
 /** GET /api/jobs/report/{config_name} — every experiment ever run under a use case. */
 export type UseCaseReport = components["schemas"]["UseCaseReport"];
 export type ReportExperiment = components["schemas"]["ReportExperiment"];

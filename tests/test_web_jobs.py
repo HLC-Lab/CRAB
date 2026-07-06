@@ -697,6 +697,85 @@ def test_job_logs_disconnected_with_no_prior_cache_still_errors(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
+# /api/jobs/{record_id}/experiments (per-job detail view, plan 075)
+# --------------------------------------------------------------------------- #
+def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: Path):
+    _seed_job(
+        tmp_path,
+        job_id="48552582",
+        data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
+        config_name="msgsize_scaling_study",
+        system="leonardo",
+    )
+    history_json = json.dumps(
+        {
+            "schema": 1,
+            "experiments": [
+                _history_row(),  # belongs to this job's data_dir
+                _history_row(
+                    experiment_name="02_unrelated",
+                    relative_path="./some_other_job_dir/02_unrelated",
+                ),  # same config_name, different submission: excluded
+            ],
+        }
+    )
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/leonardo:48552582/experiments")
+        assert resp.status_code == 200
+        body = resp.json()
+
+        assert body["record_id"] == "leonardo:48552582"
+        assert body["config_name"] == "msgsize_scaling_study"
+        assert body["job_id"] == "48552582"
+        assert body["stale"] is False
+        assert [e["experiment_name"] for e in body["experiments"]] == ["01_baseline"]
+
+        transport = client.app.state.manager.get("leonardo")
+        assert any("crab history -s leonardo --json" in c for c in transport.calls)
+
+
+def test_job_experiments_unknown_record_returns_404(tmp_path: Path):
+    with _client(tmp_path) as client:
+        resp = client.get("/api/jobs/nope/experiments")
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
+
+
+def test_job_experiments_disconnected_with_prior_cache_returns_stale_copy(tmp_path: Path):
+    _seed_job(
+        tmp_path,
+        job_id="1",
+        data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
+        system="leonardo",
+    )
+    history_json = json.dumps({"schema": 1, "experiments": [_history_row()]})
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        first = client.get("/api/jobs/leonardo:1/experiments").json()
+
+        client.post("/api/remotes/leonardo/disconnect")
+        resp = client.get("/api/jobs/leonardo:1/experiments")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["stale"] is True
+        assert body["cached_at"] is not None
+        assert body["experiments"] == first["experiments"]
+
+
+# --------------------------------------------------------------------------- #
 # /api/jobs/report/{config_name} (per-use-case experiment report, plan 060)
 # --------------------------------------------------------------------------- #
 def _history_row(**overrides) -> dict:

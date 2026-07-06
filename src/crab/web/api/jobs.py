@@ -314,6 +314,67 @@ def _job_basename(relative_path: str) -> str:
     return parts[0] if parts else ""
 
 
+class JobDetail(BaseModel):
+    """Every `crab history` row for one exact submission (plan 075's detail view)."""
+
+    record_id: str
+    config_name: str
+    cluster: str
+    system: str
+    job_id: str
+    submitted_at: str
+    experiments: list[ReportExperiment]
+    stale: bool
+    cached_at: str | None = None
+
+
+@router.get("/{record_id}/experiments")
+async def job_experiments(record_id: str, request: Request) -> JobDetail:
+    """Every `crab history` row for this exact submission, not the whole use case.
+
+    Same worst-first-independent matching as `_resolve_via_history`/`use_case_report`
+    (a data_dir's basename against a history row's `relative_path` prefix), but
+    returns every matching row instead of collapsing to one worst status.
+    """
+    rec = _jobs_store(request).get(record_id)
+    profile = _profiles(request).get(rec.cluster)
+    basename = Path(rec.data_dir).name
+
+    async def fetch() -> dict:
+        transport = _live_transport(rec.cluster, request)
+        return await run_crab_json(
+            transport, profile, ["history", "-s", rec.system, "--json"], timeout=30.0
+        )
+
+    history, stale, cached_at = await _live_or_cached(
+        request, "history", f"system:{rec.system}", fetch
+    )
+
+    experiments = [
+        ReportExperiment(
+            cluster=rec.cluster,
+            record_id=rec.id,
+            job_id=rec.job_id,
+            submitted_at=rec.submitted_at,
+            **row,
+        )
+        for row in history["experiments"]
+        if _job_basename(row.get("relative_path", "")) == basename
+    ]
+
+    return JobDetail(
+        record_id=rec.id,
+        config_name=rec.config_name,
+        cluster=rec.cluster,
+        system=rec.system,
+        job_id=rec.job_id,
+        submitted_at=rec.submitted_at,
+        experiments=experiments,
+        stale=stale,
+        cached_at=cached_at,
+    )
+
+
 @router.get("/report/{config_name}")
 async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
     """Every experiment ever run under `config_name`, across every connected cluster.

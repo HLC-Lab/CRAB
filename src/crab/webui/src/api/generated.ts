@@ -337,8 +337,37 @@ export interface paths {
     /**
      * Job Logs
      * @description Job-level slurm logs, or one experiment's per-app error logs if `experiment` is given.
+     *
+     *     Live-first with a local-cache fallback (plan 075): a disconnected cluster or
+     *     a failed remote command falls back to the last successfully fetched copy
+     *     for this exact key, marked `stale`, instead of blanking the logs panel.
+     *     A key miss (never fetched before) still raises exactly as before.
      */
     get: operations["job_logs_api_jobs__record_id__logs_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/{record_id}/experiments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Job Experiments
+     * @description Every `crab history` row for this exact submission, not the whole use case.
+     *
+     *     Same worst-first-independent matching as `_resolve_via_history`/`use_case_report`
+     *     (a data_dir's basename against a history row's `relative_path` prefix), but
+     *     returns every matching row instead of collapsing to one worst status.
+     */
+    get: operations["job_experiments_api_jobs__record_id__experiments_get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -434,6 +463,30 @@ export interface components {
     InstallRequest: {
       /** Pre Commands */
       pre_commands?: string[];
+    };
+    /**
+     * JobDetail
+     * @description Every `crab history` row for one exact submission (plan 075's detail view).
+     */
+    JobDetail: {
+      /** Record Id */
+      record_id: string;
+      /** Config Name */
+      config_name: string;
+      /** Cluster */
+      cluster: string;
+      /** System */
+      system: string;
+      /** Job Id */
+      job_id: string;
+      /** Submitted At */
+      submitted_at: string;
+      /** Experiments */
+      experiments: components["schemas"]["ReportExperiment"][];
+      /** Stale */
+      stale: boolean;
+      /** Cached At */
+      cached_at?: string | null;
     };
     /**
      * JobListItem
@@ -1431,6 +1484,37 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  job_experiments_api_jobs__record_id__experiments_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["JobDetail"];
         };
       };
       /** @description Validation Error */
