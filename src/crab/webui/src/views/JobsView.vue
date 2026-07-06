@@ -123,22 +123,28 @@ function toggleStatus(name: string) {
     <header class="head">
       <h1>Jobs</h1>
       <div class="actions">
+        <span class="meta refreshed-at">refreshed {{ lastRefreshedLabel }}</span>
+        <div class="auto-refresh">
+          <button
+            class="btn auto-refresh-toggle"
+            :class="{ on: jobs.polling }"
+            @click="togglePolling"
+          >
+            Auto-refresh: {{ jobs.polling ? "on" : "off" }}
+          </button>
+          <select
+            class="poll-interval"
+            :value="jobs.pollIntervalMs"
+            @change="jobs.setPollInterval(Number(($event.target as HTMLSelectElement).value))"
+          >
+            <option v-for="ms in POLL_INTERVAL_OPTIONS" :key="ms" :value="ms">
+              {{ ms / 1000 }}s
+            </option>
+          </select>
+        </div>
         <button class="btn" :disabled="jobs.loading" @click="jobs.refresh">
           <span :class="{ spinning: jobs.refreshing }">↻</span> Refresh
         </button>
-        <span class="meta refreshed-at">refreshed {{ lastRefreshedLabel }}</span>
-        <button class="btn" :class="{ on: jobs.polling }" @click="togglePolling">
-          {{ jobs.polling ? "Auto-refresh: on" : "Auto-refresh: off" }}
-        </button>
-        <select
-          class="poll-interval"
-          :value="jobs.pollIntervalMs"
-          @change="jobs.setPollInterval(Number(($event.target as HTMLSelectElement).value))"
-        >
-          <option v-for="ms in POLL_INTERVAL_OPTIONS" :key="ms" :value="ms">
-            every {{ ms / 1000 }}s
-          </option>
-        </select>
         <button class="btn primary" @click="showSubmit = true">+ New submission</button>
       </div>
     </header>
@@ -151,27 +157,33 @@ function toggleStatus(name: string) {
         :value="jobs.search"
         @input="jobs.setSearch(($event.target as HTMLInputElement).value)"
       />
-      <div class="chips">
-        <button
-          v-for="c in availableClusters"
-          :key="c"
-          class="chip"
-          :class="{ on: jobs.clusterFilter.includes(c) }"
-          @click="toggleCluster(c)"
-        >
-          {{ c }}
-        </button>
+      <div class="chip-row">
+        <span class="chip-label">Cluster:</span>
+        <div class="chips">
+          <button
+            v-for="c in availableClusters"
+            :key="c"
+            class="chip"
+            :class="{ on: jobs.clusterFilter.includes(c) }"
+            @click="toggleCluster(c)"
+          >
+            {{ c }}
+          </button>
+        </div>
       </div>
-      <div class="chips">
-        <button
-          v-for="s in availableStatuses"
-          :key="s"
-          class="chip"
-          :class="{ on: jobs.statusFilter.includes(s) }"
-          @click="toggleStatus(s)"
-        >
-          {{ s }}
-        </button>
+      <div class="chip-row">
+        <span class="chip-label">Status:</span>
+        <div class="chips">
+          <button
+            v-for="s in availableStatuses"
+            :key="s"
+            class="chip"
+            :class="{ on: jobs.statusFilter.includes(s) }"
+            @click="toggleStatus(s)"
+          >
+            {{ s }}
+          </button>
+        </div>
       </div>
     </div>
 
@@ -313,11 +325,19 @@ h1 {
   margin: 0;
   white-space: nowrap;
 }
+.auto-refresh {
+  display: flex;
+  align-items: center;
+}
+.auto-refresh-toggle {
+  border-radius: var(--r) 0 0 var(--r);
+  border-right: none;
+}
 .poll-interval {
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: var(--r);
+  border-radius: 0 var(--r) var(--r) 0;
   padding: 0.35rem 0.5rem;
   font-family: var(--sans);
   font-size: var(--t-sm);
@@ -356,9 +376,9 @@ h1 {
 }
 .filters {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
 .search {
@@ -370,6 +390,16 @@ h1 {
   font-family: var(--sans);
   font-size: var(--t-sm);
   min-width: 14rem;
+}
+.chip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.chip-label {
+  color: var(--text3);
+  font-size: var(--t-sm);
+  min-width: 4rem;
 }
 .chips {
   display: flex;
