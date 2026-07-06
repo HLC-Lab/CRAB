@@ -29,6 +29,11 @@ decisions live in the [decision records](decisions/index.md).
   immediately and resolve through a pending card instead of blocking the request; a redesigned
   Jobs card (clickable, toolbar actions, a read-only config-snapshot viewer) and clearer
   refresh/filter controls.
+- **Rerun lineage and clearer history UX** (ADR-020) — a rerun (whole-job or a subset) links
+  back to its parent job and shows what was included; a job's detail view lists every rerun
+  descended from it; the use-case history view groups experiments by submission instead of one
+  flat list; a one-click "rerun failed experiments" action, with manual multi-select now an
+  explicit opt-in mode instead of always-visible checkboxes.
 
 ## v1.0 gates (remaining)
 
