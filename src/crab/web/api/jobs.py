@@ -64,6 +64,7 @@ class SubmitRequest(BaseModel):
     name: str | None = None
     preset: str | None = None
     only: list[str] | None = None
+    rerun_of: str | None = None
 
 
 def _jobs_store(request: Request) -> JobsStore:
@@ -158,6 +159,7 @@ async def _run_submission(
     preset: str,
     only: list[str] | None,
     settings: Settings,
+    rerun_of: str | None = None,
 ) -> None:
     """The actual staging/run work, off the request cycle (plan 075's async submit).
 
@@ -181,6 +183,8 @@ async def _run_submission(
             system=result["system"],
             config_name=name,
             config_snapshot=config,
+            rerun_of=rerun_of,
+            rerun_experiments=only,
         )
         tracker[submission_id] = {"status": "done", "record": record}
     except CrabWebError as e:
@@ -223,6 +227,7 @@ async def submit_job(body: SubmitRequest, request: Request) -> SubmissionAccepte
             preset,
             body.only,
             request.app.state.settings,
+            body.rerun_of,
         )
     )
     pending_tasks = request.app.state.pending_submission_tasks

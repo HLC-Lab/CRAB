@@ -301,8 +301,33 @@ async def test_run_submission_success_creates_a_job_record(tmp_path: Path):
     assert rec.system == "leonardo"
     assert rec.config_name == "My Run"
     assert rec.config_snapshot == _SNAPSHOT
+    assert rec.rerun_of is None
+    assert rec.rerun_experiments is None
     assert any("crab run" in c for c in transport.calls)
     assert any(f.endswith("/my-run.json") for f in transport.written_files)
+
+
+async def test_run_submission_records_rerun_lineage(tmp_path: Path):
+    profile = _profile(tmp_path)
+    transport = ScriptedTransport()
+    tracker: dict = {}
+
+    await _run_submission(
+        tracker,
+        "sub-1",
+        transport,
+        profile,
+        _SNAPSHOT,
+        "My Run",
+        "leonardo",
+        ["ex1"],
+        _settings(tmp_path),
+        "leonardo:1",
+    )
+
+    rec = tracker["sub-1"]["record"]
+    assert rec.rerun_of == "leonardo:1"
+    assert rec.rerun_experiments == ["ex1"]
 
 
 async def test_run_submission_with_only_passes_the_flag_to_crab_run(tmp_path: Path):
