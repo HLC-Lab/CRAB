@@ -2,12 +2,13 @@
 // Per-use-case experiment report (plan 060): every experiment ever run under
 // one config name, sourced from `crab history --json` (web/api/jobs.py's
 // use_case_report), not just what this dashboard's registry knows about.
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import { useReportStore } from "@/stores/report";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
+import { groupExperimentsBySubmission } from "@/lib/groupExperimentsBySubmission";
 import type { CrabConfig } from "@/api/types";
 
 const route = useRoute();
@@ -19,6 +20,22 @@ onMounted(() => {
   report.fetchReport(configName.value);
   jobs.refresh(); // needed to look up a config_snapshot when rerunning selected experiments
 });
+
+// Grouped by submission (plan 076) instead of one flat list; only the most
+// recent submission starts expanded, since a use case can span many.
+const groups = computed(() =>
+  report.report ? groupExperimentsBySubmission(report.report.experiments) : [],
+);
+const expandedKeys = ref<Set<string>>(new Set());
+watch(groups, (gs) => {
+  if (gs.length) expandedKeys.value = new Set([gs[0].key]);
+});
+function toggleGroup(key: string) {
+  const next = new Set(expandedKeys.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  expandedKeys.value = next;
+}
 
 // "Rerun selected" only makes sense within one job submission at a time: that's
 // the only thing carrying a config_snapshot to resubmit.
@@ -88,12 +105,23 @@ async function confirmRerunSelected() {
       <p v-if="rerunLookupError" class="banner err small">{{ rerunLookupError }}</p>
       <p v-if="jobs.submitError" class="banner err small">{{ jobs.submitError }}</p>
 
-      <ul class="list">
-        <ExperimentCard
-          v-for="e in report.report.experiments"
-          :key="`${e.cluster}/${e.relative_path}`"
-          :experiment="e"
-        />
+      <ul class="groups">
+        <li v-for="g in groups" :key="g.key" class="group">
+          <button class="group-head" @click="toggleGroup(g.key)">
+            <span class="chevron" :class="{ open: expandedKeys.has(g.key) }">&rsaquo;</span>
+            <span class="group-title">
+              {{ g.cluster }} / {{ g.system }} · {{ new Date(g.submittedAt).toLocaleString() }}
+            </span>
+            <span class="meta small">{{ g.experiments.length }} experiment(s)</span>
+          </button>
+          <ul v-if="expandedKeys.has(g.key)" class="list">
+            <ExperimentCard
+              v-for="e in g.experiments"
+              :key="`${e.cluster}/${e.relative_path}`"
+              :experiment="e"
+            />
+          </ul>
+        </li>
       </ul>
     </template>
 
@@ -157,8 +185,45 @@ h1 {
   color: var(--text3);
   padding: 1rem 0;
 }
-.list {
+.list,
+.groups {
   list-style: none;
+}
+.group {
+  margin-bottom: 0.75rem;
+}
+.group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+  font-family: var(--sans);
+  color: var(--text);
+  text-align: left;
+}
+.group-head:hover {
+  border-color: var(--accent);
+}
+.chevron {
+  display: inline-block;
+  transition: transform 0.15s;
+  color: var(--text3);
+}
+.chevron.open {
+  transform: rotate(90deg);
+}
+.group-title {
+  flex: 1;
+  font-weight: 600;
+}
+.group .list {
+  margin-top: 0.5rem;
+  padding-left: 0.5rem;
 }
 .btn {
   background: var(--bg2);
