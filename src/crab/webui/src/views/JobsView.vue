@@ -94,12 +94,18 @@ async function confirmCancel() {
 // Rerun resubmits the SAME config_snapshot to the SAME cluster (a fresh
 // sbatch submission — Slurm jobs are immutable once run, so "rerun" always
 // means a new job, not restarting the old one).
-const rerunTarget = ref<{ profile_name: string; config: CrabConfig; name: string } | null>(null);
+const rerunTarget = ref<{
+  profile_name: string;
+  config: CrabConfig;
+  name: string;
+  rerun_of: string;
+} | null>(null);
 function requestRerun(j: JobListItem) {
   rerunTarget.value = {
     profile_name: j.cluster,
     config: j.config_snapshot as unknown as CrabConfig,
     name: j.config_name,
+    rerun_of: j.id,
   };
 }
 async function confirmRerun() {

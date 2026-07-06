@@ -12,6 +12,7 @@ import { useReportStore } from "@/stores/report";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
+import RerunSummaryCard from "@/components/jobs/RerunSummaryCard.vue";
 import type { CrabConfig } from "@/api/types";
 
 const route = useRoute();
@@ -47,6 +48,7 @@ async function confirmRerunSelected() {
     config: rec.config_snapshot as unknown as CrabConfig,
     name: rec.config_name,
     only: experimentNames,
+    rerun_of: rec.id,
   });
   report.clearSelected();
 }
@@ -73,6 +75,20 @@ async function confirmRerunSelected() {
         Showing cached data from
         {{ new Date(detailStore.detail.cached_at as string).toLocaleString() }},
         {{ detailStore.detail.cluster }} is unreachable.
+      </p>
+
+      <p v-if="detailStore.detail.rerun_of" class="banner rerun-of">
+        Rerun of
+        <RouterLink :to="`/jobs/${detailStore.detail.rerun_of.id}`">{{
+          detailStore.detail.rerun_of.config_name
+        }}</RouterLink>
+        submitted {{ new Date(detailStore.detail.rerun_of.submitted_at).toLocaleString() }}
+        · reran:
+        {{
+          detailStore.detail.rerun_experiments?.length
+            ? detailStore.detail.rerun_experiments.join(", ")
+            : "all experiments"
+        }}
       </p>
 
       <RouterLink
@@ -106,6 +122,13 @@ async function confirmRerunSelected() {
           :experiment="e"
         />
       </ul>
+
+      <section v-if="detailStore.detail.reruns.length" class="reruns">
+        <h2>Reruns ({{ detailStore.detail.reruns.length }})</h2>
+        <ul class="list">
+          <RerunSummaryCard v-for="r in detailStore.detail.reruns" :key="r.id" :job="r" />
+        </ul>
+      </section>
     </template>
 
     <ConfirmModal
@@ -171,6 +194,23 @@ h1 {
   background: rgba(237, 137, 54, 0.12);
   color: var(--warn);
   border: 1px solid var(--warn);
+}
+.banner.rerun-of {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-size: var(--t-sm);
+}
+.banner.rerun-of a {
+  color: var(--accent);
+}
+.reruns {
+  margin-top: 1.5rem;
+}
+.reruns h2 {
+  font-family: var(--sans);
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
 }
 .banner.small {
   margin-top: 0.5rem;

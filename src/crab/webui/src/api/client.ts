@@ -162,6 +162,7 @@ export const api = {
       name?: string;
       preset?: string;
       only?: string[];
+      rerun_of?: string;
     }) =>
       request<SubmissionAccepted>("/api/jobs/submit", {
         method: "POST",

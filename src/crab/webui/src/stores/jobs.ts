@@ -35,6 +35,7 @@ export interface SubmitBody {
   name?: string;
   preset?: string;
   only?: string[];
+  rerun_of?: string;
 }
 
 export const useJobsStore = defineStore("jobs", () => {

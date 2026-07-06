@@ -44,6 +44,7 @@ async function confirmRerunSelected() {
     config: rec.config_snapshot as unknown as CrabConfig,
     name: rec.config_name,
     only: experimentNames,
+    rerun_of: rec.id,
   });
   report.clearSelected();
 }
