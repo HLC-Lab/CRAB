@@ -391,7 +391,10 @@ export interface paths {
      *     not only ones submitted through this dashboard), then joined against the
      *     local job registry just for submit metadata (job id, submitted_at). A
      *     disconnected cluster is skipped and named in `clusters_skipped` rather than
-     *     silently omitted, same convention as `list_jobs`'s `connected` flag.
+     *     silently omitted, same convention as `list_jobs`'s `connected` flag. A
+     *     disconnected cluster with a prior cached fetch falls back to it instead of
+     *     being skipped, named in `clusters_stale` (plan 075) rather than
+     *     `clusters_skipped` — the caller can still tell the two cases apart.
      */
     get: operations["use_case_report_api_jobs_report__config_name__get"];
     put?: never;
@@ -750,6 +753,16 @@ export interface components {
        */
       warnings: string[];
     };
+    /**
+     * StaleCluster
+     * @description One cluster whose history in this report came from the local cache, not live.
+     */
+    StaleCluster: {
+      /** Cluster */
+      cluster: string;
+      /** Cached At */
+      cached_at: string;
+    };
     /** StepResult */
     StepResult: {
       /** Rc */
@@ -786,6 +799,8 @@ export interface components {
       experiments: components["schemas"]["ReportExperiment"][];
       /** Clusters Skipped */
       clusters_skipped: string[];
+      /** Clusters Stale */
+      clusters_stale?: components["schemas"]["StaleCluster"][];
     };
     /** ValidationError */
     ValidationError: {

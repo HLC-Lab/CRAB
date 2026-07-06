@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
@@ -302,10 +302,18 @@ class ReportExperiment(BaseModel):
     submitted_at: str | None = None
 
 
+class StaleCluster(BaseModel):
+    """One cluster whose history in this report came from the local cache, not live."""
+
+    cluster: str
+    cached_at: str
+
+
 class UseCaseReport(BaseModel):
     config_name: str
     experiments: list[ReportExperiment]
     clusters_skipped: list[str]
+    clusters_stale: list[StaleCluster] = Field(default_factory=list)
 
 
 def _job_basename(relative_path: str) -> str:
@@ -383,22 +391,36 @@ async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
     not only ones submitted through this dashboard), then joined against the
     local job registry just for submit metadata (job id, submitted_at). A
     disconnected cluster is skipped and named in `clusters_skipped` rather than
-    silently omitted, same convention as `list_jobs`'s `connected` flag.
+    silently omitted, same convention as `list_jobs`'s `connected` flag. A
+    disconnected cluster with a prior cached fetch falls back to it instead of
+    being skipped, named in `clusters_stale` (plan 075) rather than
+    `clusters_skipped` — the caller can still tell the two cases apart.
     """
-    manager = _manager(request)
     records_by_cluster: dict[str, dict[str, JobRecord]] = {}
     for rec in _jobs_store(request).list():
         records_by_cluster.setdefault(rec.cluster, {})[Path(rec.data_dir).name] = rec
 
     experiments: list[ReportExperiment] = []
     clusters_skipped: list[str] = []
+    clusters_stale: list[StaleCluster] = []
     for profile in _profiles(request).list():
-        transport = manager.get(profile.name)
-        if transport is None:
+
+        async def fetch(profile: Profile = profile) -> dict:
+            transport = _live_transport(profile.name, request)
+            return await run_crab_json(transport, profile, ["history", "--json"], timeout=30.0)
+
+        try:
+            history, stale, cached_at = await _live_or_cached(
+                request, "history", f"cluster:{profile.name}", fetch
+            )
+        except RemoteConnectionError:
             clusters_skipped.append(profile.name)
             continue
 
-        history = await run_crab_json(transport, profile, ["history", "--json"], timeout=30.0)
+        if stale:
+            assert cached_at is not None
+            clusters_stale.append(StaleCluster(cluster=profile.name, cached_at=cached_at))
+
         known_jobs = records_by_cluster.get(profile.name, {})
         for row in history["experiments"]:
             known = known_jobs.get(_job_basename(row["relative_path"]))
@@ -425,5 +447,8 @@ async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
             )
 
     return UseCaseReport(
-        config_name=config_name, experiments=experiments, clusters_skipped=clusters_skipped
+        config_name=config_name,
+        experiments=experiments,
+        clusters_skipped=clusters_skipped,
+        clusters_stale=clusters_stale,
     )

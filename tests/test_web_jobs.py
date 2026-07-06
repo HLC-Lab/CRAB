@@ -894,6 +894,31 @@ def test_use_case_report_disconnected_cluster_is_listed_as_skipped(tmp_path: Pat
         body = resp.json()
         assert body["experiments"] == []
         assert body["clusters_skipped"] == ["leonardo"]
+        assert body["clusters_stale"] == []
+
+
+def test_use_case_report_disconnected_cluster_with_prior_cache_is_stale_not_skipped(
+    tmp_path: Path,
+):
+    history_json = json.dumps({"schema": 1, "experiments": [_history_row()]})
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        first = client.get("/api/jobs/report/msgsize_scaling_study").json()
+
+        client.post("/api/remotes/leonardo/disconnect")
+        resp = client.get("/api/jobs/report/msgsize_scaling_study")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["experiments"] == first["experiments"]
+        assert body["clusters_skipped"] == []
+        assert [s["cluster"] for s in body["clusters_stale"]] == ["leonardo"]
+        assert body["clusters_stale"][0]["cached_at"] is not None
 
 
 def test_use_case_report_spans_multiple_connected_clusters(tmp_path: Path):
