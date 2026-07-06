@@ -7,8 +7,7 @@ import { RouterLink, useRoute } from "vue-router";
 import { useReportStore } from "@/stores/report";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
-import { stateClass } from "@/lib/jobStatus";
-import { ansiToHtml } from "@/lib/ansi";
+import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
 import type { CrabConfig } from "@/api/types";
 
 const route = useRoute();
@@ -20,10 +19,6 @@ onMounted(() => {
   report.fetchReport(configName.value);
   jobs.refresh(); // needed to look up a config_snapshot when rerunning selected experiments
 });
-
-function toggleLogs(recordId: string, experimentName: string) {
-  report.toggleExperimentLogs(recordId, experimentName);
-}
 
 // "Rerun selected" only makes sense within one job submission at a time: that's
 // the only thing carrying a config_snapshot to resubmit.
@@ -87,97 +82,11 @@ async function confirmRerunSelected() {
       <p v-if="jobs.submitError" class="banner err small">{{ jobs.submitError }}</p>
 
       <ul class="list">
-        <li
+        <ExperimentCard
           v-for="e in report.report.experiments"
           :key="`${e.cluster}/${e.relative_path}`"
-          class="card"
-        >
-          <div class="row">
-            <div class="ident">
-              <label class="pick">
-                <input
-                  v-if="e.record_id"
-                  type="checkbox"
-                  :checked="
-                    report.selected.has(report.experimentKey(e.record_id, e.experiment_name))
-                  "
-                  @change="report.toggleSelected(e.record_id, e.experiment_name)"
-                />
-                <strong>{{ e.experiment_name }}</strong>
-              </label>
-              <span class="sub">{{ e.cluster }} / {{ e.system }} · apps: {{ e.apps_list }}</span>
-            </div>
-            <div class="ctrls">
-              <span class="state" :class="stateClass(e.status)">{{ e.status }}</span>
-              <button
-                v-if="e.record_id"
-                class="btn"
-                @click="toggleLogs(e.record_id, e.experiment_name)"
-              >
-                {{
-                  report.openExperimentKey === report.experimentKey(e.record_id, e.experiment_name)
-                    ? "Hide logs"
-                    : "Logs"
-                }}
-              </button>
-              <span v-else class="meta small" title="Not tracked by this dashboard's job registry">
-                logs unavailable
-              </span>
-            </div>
-          </div>
-          <p class="meta">
-            {{ e.timestamp }} · {{ e.numnodes }} node(s) · ppn {{ e.ppn }}
-            <span v-if="e.job_id"> · job {{ e.job_id }}</span>
-          </p>
-
-          <div
-            v-if="
-              e.record_id &&
-              report.openExperimentKey === report.experimentKey(e.record_id, e.experiment_name)
-            "
-            class="logs"
-          >
-            <p
-              v-if="report.experimentLogsBusy[report.experimentKey(e.record_id, e.experiment_name)]"
-              class="meta"
-            >
-              Loading…
-            </p>
-            <p
-              v-else-if="
-                report.experimentLogsError[report.experimentKey(e.record_id, e.experiment_name)]
-              "
-              class="banner err small"
-            >
-              {{ report.experimentLogsError[report.experimentKey(e.record_id, e.experiment_name)] }}
-            </p>
-            <template
-              v-else-if="
-                report.experimentLogs[report.experimentKey(e.record_id, e.experiment_name)]
-              "
-            >
-              <p
-                v-if="
-                  !report.experimentLogs[report.experimentKey(e.record_id, e.experiment_name)].files
-                    .length
-                "
-                class="meta empty"
-              >
-                No per-app error logs (nothing failed in this experiment).
-              </p>
-              <div
-                v-for="f in report.experimentLogs[
-                  report.experimentKey(e.record_id, e.experiment_name)
-                ].files"
-                :key="f.app_id"
-                class="stream"
-              >
-                <span class="stream-label">app {{ f.app_id }}</span>
-                <pre v-html="ansiToHtml(f.content)"></pre>
-              </div>
-            </template>
-          </div>
-        </li>
+          :experiment="e"
+        />
       </ul>
     </template>
 
@@ -239,61 +148,6 @@ h1 {
 .list {
   list-style: none;
 }
-.card {
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: var(--r2);
-  padding: 1rem;
-  margin-bottom: 0.75rem;
-}
-.row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-.ident {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-.sub {
-  color: var(--text3);
-  font-size: var(--t-sm);
-}
-.ctrls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-.state {
-  font-family: var(--mono);
-  font-size: var(--t-sm);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.1rem 0.5rem;
-}
-.state.ok {
-  color: var(--ok);
-  border-color: var(--ok);
-}
-.state.danger {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-.state.warn {
-  color: var(--warn);
-  border-color: var(--warn);
-}
-.state.active {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.state.muted {
-  color: var(--text3);
-}
 .btn {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -315,12 +169,6 @@ h1 {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.pick {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-}
 .rerun-bar {
   display: flex;
   align-items: center;
@@ -338,36 +186,5 @@ h1 {
 }
 .meta.small {
   font-size: 0.75rem;
-}
-.meta.empty {
-  font-style: italic;
-  padding: 0.5rem;
-  background: var(--bg2);
-  border: 1px dashed var(--border);
-  border-radius: var(--r);
-}
-.logs {
-  margin-top: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-.stream-label {
-  display: block;
-  color: var(--text2);
-  font-size: var(--t-sm);
-  margin-bottom: 0.2rem;
-}
-.stream pre {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 0.5rem;
-  max-height: 16rem;
-  overflow: auto;
-  font-family: var(--mono);
-  font-size: var(--t-sm);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 </style>

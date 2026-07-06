@@ -1,1 +1,0 @@
-import{P as e}from"./PagePlaceholder-Zma4zg9_.js";import{d as a,a as t,p as r}from"./index-D3anacQZ.js";const c=a({__name:"ResultsView",setup(o){return(s,n)=>(t(),r(e,{title:"Results",phase:"Phase 5",blurb:"Fetch result data to your laptop and explore it in a Chart.js dashboard: scatter, line, bar, violin, and cross-experiment compare."}))}});export{c as default};
