@@ -10,6 +10,7 @@ simpler and sufficient), atomic write.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +38,8 @@ class JobRecord(BaseModel):
     config_snapshot: dict
     submitted_at: str
     last_known_state: str = "UNKNOWN"
+    rerun_of: str | None = None
+    rerun_experiments: list[str] | None = None
 
 
 class _Store(BaseModel):
@@ -83,6 +86,8 @@ class JobsStore:
         system: str,
         config_name: str,
         config_snapshot: dict,
+        rerun_of: str | None = None,
+        rerun_experiments: Sequence[str] | None = None,
     ) -> JobRecord:
         rec = JobRecord(
             id=f"{cluster}:{job_id}",
@@ -93,6 +98,8 @@ class JobsStore:
             config_name=config_name,
             config_snapshot=config_snapshot,
             submitted_at=_now(),
+            rerun_of=rerun_of,
+            rerun_experiments=list(rerun_experiments) if rerun_experiments is not None else None,
         )
         store = self._read()
         store.jobs.append(rec)

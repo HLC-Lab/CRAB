@@ -52,12 +52,59 @@ def test_store_crud(tmp_path: Path):
     assert rec.id == "leonardo:12345"
     assert rec.last_known_state == "UNKNOWN"
     assert rec.config_snapshot == _SNAPSHOT
+    assert rec.rerun_of is None
+    assert rec.rerun_experiments is None
 
     assert store.get("leonardo:12345").job_id == "12345"
     assert [r.id for r in store.list()] == ["leonardo:12345"]
 
     # Persistence across store instances.
     assert JobsStore(_settings(tmp_path)).get("leonardo:12345").cluster == "leonardo"
+
+
+def test_store_create_records_rerun_lineage(tmp_path: Path):
+    store = JobsStore(_settings(tmp_path))
+    rec = store.create(
+        cluster="leonardo",
+        job_id="2",
+        data_dir="/d",
+        system="leonardo",
+        config_name="demo",
+        config_snapshot=_SNAPSHOT,
+        rerun_of="leonardo:1",
+        rerun_experiments=["01_baseline"],
+    )
+    assert rec.rerun_of == "leonardo:1"
+    assert rec.rerun_experiments == ["01_baseline"]
+    assert JobsStore(_settings(tmp_path)).get("leonardo:2").rerun_of == "leonardo:1"
+
+
+def test_store_loads_an_old_record_missing_rerun_fields(tmp_path: Path):
+    settings = _settings(tmp_path)
+    settings.ensure_dirs()
+    settings.jobs_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "jobs": [
+                    {
+                        "id": "leonardo:1",
+                        "cluster": "leonardo",
+                        "job_id": "1",
+                        "data_dir": "/d",
+                        "system": "leonardo",
+                        "config_name": "demo",
+                        "config_snapshot": {},
+                        "submitted_at": "2026-01-01T00:00:00+00:00",
+                        "last_known_state": "COMPLETED",
+                    }
+                ],
+            }
+        )
+    )
+    rec = JobsStore(settings).get("leonardo:1")
+    assert rec.rerun_of is None
+    assert rec.rerun_experiments is None
 
 
 def test_update_last_known_state(tmp_path: Path):
