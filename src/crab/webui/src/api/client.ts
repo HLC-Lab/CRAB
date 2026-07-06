@@ -11,6 +11,7 @@ import type {
   ErrorEnvelope,
   ExperimentLogs,
   Health,
+  JobDetail,
   JobListItem,
   JobLogs,
   JobRecord,
@@ -174,5 +175,7 @@ export const api = {
       ),
     report: (configName: string) =>
       request<UseCaseReport>(`/api/jobs/report/${encodeURIComponent(configName)}`),
+    experiments: (id: string) =>
+      request<JobDetail>(`/api/jobs/${encodeURIComponent(id)}/experiments`),
   },
 };

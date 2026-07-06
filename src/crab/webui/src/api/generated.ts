@@ -800,7 +800,7 @@ export interface components {
       /** Clusters Skipped */
       clusters_skipped: string[];
       /** Clusters Stale */
-      clusters_stale?: components["schemas"]["StaleCluster"][];
+      clusters_stale: components["schemas"]["StaleCluster"][];
     };
     /** ValidationError */
     ValidationError: {

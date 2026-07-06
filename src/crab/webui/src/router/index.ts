@@ -34,6 +34,12 @@ const routes = [
     meta: { title: "Use case report" },
   },
   {
+    path: "/jobs/:recordId",
+    name: "job-detail",
+    component: () => import("@/views/JobDetailView.vue"),
+    meta: { title: "Job detail" },
+  },
+  {
     path: "/results",
     name: "results",
     component: () => import("@/views/ResultsView.vue"),

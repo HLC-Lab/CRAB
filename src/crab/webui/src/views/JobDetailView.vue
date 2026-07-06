@@ -1,9 +1,13 @@
 <script setup lang="ts">
-// Per-use-case experiment report (plan 060): every experiment ever run under
-// one config name, sourced from `crab history --json` (web/api/jobs.py's
-// use_case_report), not just what this dashboard's registry knows about.
+// Per-job detail view (plan 075): every experiment from this exact
+// submission, sourced from web/api/jobs.py's job_experiments (not the whole
+// use-case history — see ReportView.vue for that secondary view, linked
+// below). Reuses ExperimentCard.vue and useReportStore for the shared
+// per-experiment logs/selection state; useJobsStore only for looking up a
+// config_snapshot when rerunning selected experiments.
 import { computed, onMounted, ref } from "vue";
 import { RouterLink, useRoute } from "vue-router";
+import { useJobDetailStore } from "@/stores/jobDetail";
 import { useReportStore } from "@/stores/report";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
@@ -11,17 +15,16 @@ import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
 import type { CrabConfig } from "@/api/types";
 
 const route = useRoute();
-const configName = computed(() => decodeURIComponent(String(route.params.configName)));
+const recordId = computed(() => String(route.params.recordId));
+const detailStore = useJobDetailStore();
 const report = useReportStore();
 const jobs = useJobsStore();
 
 onMounted(() => {
-  report.fetchReport(configName.value);
+  detailStore.fetchDetail(recordId.value);
   jobs.refresh(); // needed to look up a config_snapshot when rerunning selected experiments
 });
 
-// "Rerun selected" only makes sense within one job submission at a time: that's
-// the only thing carrying a config_snapshot to resubmit.
 const selectedCount = computed(() => report.selected.size);
 const canRerunSelected = computed(
   () => report.selectedRecordIds.size === 1 && selectedCount.value > 0,
@@ -31,8 +34,8 @@ const rerunLookupError = ref<string | null>(null);
 async function confirmRerunSelected() {
   showRerunConfirm.value = false;
   rerunLookupError.value = null;
-  const [recordId] = report.selectedRecordIds;
-  const rec = jobs.items.find((j) => j.id === recordId);
+  const [selectedRecordId] = report.selectedRecordIds;
+  const rec = jobs.items.find((j) => j.id === selectedRecordId);
   if (!rec) {
     rerunLookupError.value =
       "Could not find this job's details to rerun — try refreshing the Jobs page.";
@@ -50,28 +53,37 @@ async function confirmRerunSelected() {
 </script>
 
 <template>
-  <section class="report">
+  <section class="detail">
     <RouterLink to="/jobs" class="back">&larr; Jobs</RouterLink>
-    <h1>{{ configName }}</h1>
-    <p class="intro">Every run of this use case, across every connected cluster and over time.</p>
 
-    <p v-if="report.loading" class="meta">Loading…</p>
-    <p v-else-if="report.error" class="banner err">{{ report.error }}</p>
+    <p v-if="detailStore.loading" class="meta">Loading…</p>
+    <p v-else-if="detailStore.error" class="banner err">{{ detailStore.error }}</p>
 
-    <template v-else-if="report.report">
-      <p v-if="report.report.clusters_skipped.length" class="banner warn">
-        Not connected, so skipped: {{ report.report.clusters_skipped.join(", ") }}. Connect
-        {{ report.report.clusters_skipped.length > 1 ? "these clusters" : "this cluster" }} to see
-        their history too.
+    <template v-else-if="detailStore.detail">
+      <div class="head">
+        <h1>{{ detailStore.detail.config_name }}</h1>
+        <span class="sub">
+          {{ detailStore.detail.cluster }} / {{ detailStore.detail.system }} · job
+          {{ detailStore.detail.job_id }} · submitted
+          {{ new Date(detailStore.detail.submitted_at).toLocaleString() }}
+        </span>
+      </div>
+
+      <p v-if="detailStore.detail.stale" class="banner warn">
+        Showing cached data from
+        {{ new Date(detailStore.detail.cached_at as string).toLocaleString() }},
+        {{ detailStore.detail.cluster }} is unreachable.
       </p>
 
-      <p v-for="s in report.report.clusters_stale" :key="s.cluster" class="banner warn">
-        Showing cached data from {{ new Date(s.cached_at).toLocaleString() }}, {{ s.cluster }} is
-        unreachable.
-      </p>
+      <RouterLink
+        :to="`/jobs/report/${encodeURIComponent(detailStore.detail.config_name)}`"
+        class="history-link"
+      >
+        View full history for this use case &rarr;
+      </RouterLink>
 
-      <p v-if="!report.report.experiments.length" class="empty">
-        No experiments found for this use case on any connected cluster.
+      <p v-if="!detailStore.detail.experiments.length" class="empty">
+        No experiments found for this submission.
       </p>
 
       <div v-if="selectedCount" class="rerun-bar">
@@ -89,7 +101,7 @@ async function confirmRerunSelected() {
 
       <ul class="list">
         <ExperimentCard
-          v-for="e in report.report.experiments"
+          v-for="e in detailStore.detail.experiments"
           :key="`${e.cluster}/${e.relative_path}`"
           :experiment="e"
         />
@@ -99,7 +111,7 @@ async function confirmRerunSelected() {
     <ConfirmModal
       v-if="showRerunConfirm"
       title="Rerun selected experiments?"
-      :message="`Submit a fresh run of ${selectedCount} experiment(s) from “${configName}”?`"
+      :message="`Submit a fresh run of ${selectedCount} experiment(s)?`"
       confirm-label="Rerun"
       cancel-label="Cancel"
       @confirm="confirmRerunSelected"
@@ -109,7 +121,7 @@ async function confirmRerunSelected() {
 </template>
 
 <style scoped>
-.report {
+.detail {
   padding: 1.25rem 1.5rem;
   max-width: 70rem;
 }
@@ -121,16 +133,28 @@ async function confirmRerunSelected() {
 .back:hover {
   color: var(--accent);
 }
+.head {
+  margin: 0.4rem 0 0.6rem;
+}
 h1 {
   font-family: var(--sans);
   font-size: 1.4rem;
-  margin: 0.4rem 0 0.3rem;
+  margin: 0;
   word-break: break-word;
 }
-.intro {
+.sub {
   color: var(--text3);
   font-size: var(--t-sm);
-  margin: 0 0 1rem;
+}
+.history-link {
+  display: inline-block;
+  color: var(--accent);
+  font-size: var(--t-sm);
+  text-decoration: none;
+  margin-bottom: 1rem;
+}
+.history-link:hover {
+  text-decoration: underline;
 }
 .banner {
   padding: 0.5rem 0.75rem;

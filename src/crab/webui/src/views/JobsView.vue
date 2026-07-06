@@ -3,7 +3,7 @@
 // frontend timer (plan 050 design), default on; the store's in-flight guard
 // keeps ticks from overlapping.
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { RouterLink } from "vue-router";
+import { useRouter } from "vue-router";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
@@ -17,8 +17,19 @@ function filename(path: string): string {
 }
 
 const jobs = useJobsStore();
+const router = useRouter();
 const showSubmit = ref(false);
 const cancelTarget = ref<{ id: string; label: string } | null>(null);
+
+// The whole card opens the per-job detail view (plan 075) except clicks that
+// land on one of its own interactive controls (Logs/View config/Rerun/Cancel)
+// or inside the expanded log text (so selecting/copying log output doesn't
+// navigate away).
+function onCardClick(event: MouseEvent, id: string) {
+  const target = event.target as HTMLElement;
+  if (target.closest("button, a, input, select, textarea, .logs")) return;
+  router.push(`/jobs/${id}`);
+}
 
 const POLL_INTERVAL_OPTIONS = [5_000, 10_000, 30_000, 60_000];
 
@@ -204,7 +215,12 @@ function toggleStatus(name: string) {
     </p>
 
     <ul class="list">
-      <li v-for="j in sortedItems" :key="j.id" class="card">
+      <li
+        v-for="j in sortedItems"
+        :key="j.id"
+        class="card clickable"
+        @click="onCardClick($event, j.id)"
+      >
         <div class="top">
           <span
             class="dot"
@@ -219,9 +235,7 @@ function toggleStatus(name: string) {
           </span>
         </div>
         <div class="title-row">
-          <RouterLink :to="`/jobs/report/${encodeURIComponent(j.config_name)}`" class="use-case">
-            {{ j.config_name }}
-          </RouterLink>
+          <span class="use-case">{{ j.config_name }}</span>
           <span class="state" :class="stateClass(j.last_known_state)">{{
             j.last_known_state
           }}</span>
@@ -254,6 +268,11 @@ function toggleStatus(name: string) {
             {{ jobs.logsError[j.id] }}
           </p>
           <template v-else-if="jobs.logs[j.id]">
+            <p v-if="jobs.logs[j.id].stale" class="banner warn small">
+              Showing cached data from
+              {{ new Date(jobs.logs[j.id].cached_at as string).toLocaleString() }},
+              {{ j.cluster }} is unreachable.
+            </p>
             <div class="stream">
               <span class="stream-label">{{ filename(jobs.logs[j.id].stdout.path) }}</span>
               <p v-if="jobs.logs[j.id].stdout.truncated" class="meta truncated">
@@ -455,6 +474,11 @@ h1 {
   border: 1px solid var(--danger);
   white-space: pre-wrap;
 }
+.banner.warn {
+  background: rgba(237, 137, 54, 0.12);
+  color: var(--warn);
+  border: 1px solid var(--warn);
+}
 .banner.small {
   margin-top: 0.5rem;
   font-size: 0.8rem;
@@ -472,6 +496,15 @@ h1 {
   border-radius: var(--r2);
   padding: 1rem;
   margin-bottom: 0.75rem;
+}
+.card.clickable {
+  cursor: pointer;
+}
+.card.clickable:hover {
+  border-color: var(--accent);
+}
+.card.clickable:hover .use-case {
+  color: var(--accent);
 }
 .top {
   display: flex;
@@ -500,11 +533,6 @@ h1 {
   color: var(--text);
   font-weight: 600;
   font-size: var(--t-lg);
-  text-decoration: none;
-}
-.use-case:hover {
-  color: var(--accent);
-  text-decoration: underline;
 }
 .toolbar {
   display: flex;

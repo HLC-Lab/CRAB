@@ -103,6 +103,23 @@ function toggleLogs(recordId: string, experimentName: string) {
       >
         <p
           v-if="
+            report.experimentLogs[
+              report.experimentKey(experiment.record_id, experiment.experiment_name)
+            ].stale
+          "
+          class="banner warn small"
+        >
+          Showing cached data from
+          {{
+            new Date(
+              report.experimentLogs[
+                report.experimentKey(experiment.record_id, experiment.experiment_name)
+              ].cached_at as string,
+            ).toLocaleString()
+          }}, {{ experiment.cluster }} is unreachable.
+        </p>
+        <p
+          v-if="
             !report.experimentLogs[
               report.experimentKey(experiment.record_id, experiment.experiment_name)
             ].files.length
@@ -225,6 +242,11 @@ function toggleLogs(recordId: string, experimentName: string) {
   color: var(--danger);
   border: 1px solid var(--danger);
   white-space: pre-wrap;
+}
+.banner.warn {
+  background: rgba(237, 137, 54, 0.12);
+  color: var(--warn);
+  border: 1px solid var(--warn);
 }
 .banner.small {
   margin-top: 0.5rem;

@@ -13,7 +13,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
@@ -313,7 +313,7 @@ class UseCaseReport(BaseModel):
     config_name: str
     experiments: list[ReportExperiment]
     clusters_skipped: list[str]
-    clusters_stale: list[StaleCluster] = Field(default_factory=list)
+    clusters_stale: list[StaleCluster]
 
 
 def _job_basename(relative_path: str) -> str:
