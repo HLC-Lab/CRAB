@@ -9,6 +9,7 @@ this module never assumes a job's state without asking the cluster.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from fastapi import APIRouter, Request
@@ -60,6 +61,26 @@ def _jobs_store(request: Request) -> JobsStore:
 
 def _cache(request: Request) -> LocalCache:
     return LocalCache(request.app.state.settings)
+
+
+async def _live_or_cached(
+    request: Request, scope: str, key: str, fetch: Callable[[], Awaitable[dict]]
+) -> tuple[dict, bool, str | None]:
+    """Try `fetch()` live; on disconnect/command failure, fall back to the local cache.
+
+    Returns ``(data, stale, cached_at)``. A cache miss re-raises the live error
+    unchanged (no regression for data that was never successfully fetched before).
+    """
+    cache = _cache(request)
+    try:
+        result = await fetch()
+    except (RemoteConnectionError, RemoteCommandError):
+        cached = cache.read(scope, key)
+        if cached is None:
+            raise
+        return cached["data"], True, cached["fetched_at"]
+    cache.write(scope, key, result)
+    return result, False, None
 
 
 def _profiles(request: Request) -> ProfileStore:
@@ -248,24 +269,18 @@ async def job_logs(record_id: str, request: Request, experiment: str | None = No
     """
     rec = _jobs_store(request).get(record_id)
     profile = _profiles(request).get(rec.cluster)
-    cache = _cache(request)
     cache_key = f"{record_id}__{experiment}" if experiment else record_id
 
-    try:
+    async def fetch() -> dict:
         transport = _live_transport(rec.cluster, request)
         args = ["logs", "--data-dir", rec.data_dir]
         if experiment:
             args += ["--experiment", experiment]
         args.append("--json")
-        result = await run_crab_json(transport, profile, args, timeout=30.0)
-    except (RemoteConnectionError, RemoteCommandError):
-        cached = cache.read("logs", cache_key)
-        if cached is None:
-            raise
-        return {**cached["data"], "stale": True, "cached_at": cached["fetched_at"]}
+        return await run_crab_json(transport, profile, args, timeout=30.0)
 
-    cache.write("logs", cache_key, result)
-    return {**result, "stale": False, "cached_at": None}
+    data, stale, cached_at = await _live_or_cached(request, "logs", cache_key, fetch)
+    return {**data, "stale": stale, "cached_at": cached_at}
 
 
 class ReportExperiment(BaseModel):
