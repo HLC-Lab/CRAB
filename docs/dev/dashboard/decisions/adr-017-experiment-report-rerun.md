@@ -70,3 +70,10 @@ still shows up correctly (same history-based read), but a job with genuinely no 
 row (e.g. metadata not written yet) shows nothing until it is. "Rerun selected" across
 experiments that span more than one job submission is intentionally not supported — the UI
 disables it rather than guessing which config snapshot to resubmit.
+
+**Amendment (2026-07-06):** the report described above is now the secondary view. Clicking a
+Jobs card opens a new per-job detail view scoped to that exact submission first; the report
+stays reachable from there as "every run of this use case, across every submission," for when
+someone wants the wider history rather than one job's own experiments. Same data source and
+matching logic in both places, just one collapsed to a single submission and the other spanning
+every submission under the same config name.

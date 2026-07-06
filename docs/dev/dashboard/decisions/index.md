@@ -24,3 +24,5 @@ marked superseded, never deleted.
 | [015](adr-015-config-validation.md) | Config shape described in Python; saves warn, never reject | accepted |
 | [016](adr-016-job-submit-monitor.md) | Job submit/monitor: staging, polling, and the sacct-purge fallback | accepted |
 | [017](adr-017-experiment-report-rerun.md) | Experiment report: history-sourced data, `--only` for partial rerun | accepted |
+| [018](adr-018-local-cache-fallback.md) | Local cache as a fallback, never the source of truth | accepted |
+| [019](adr-019-async-submit.md) | Async submit via an in-memory tracker, not a persisted queue | accepted |

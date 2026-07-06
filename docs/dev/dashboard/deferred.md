@@ -18,6 +18,7 @@ into [roadmap.md](roadmap.md) (or a work plan) with a date and reason.
 | Multi-user / shared server / central instance | Explicitly a personal tool | Not planned |
 | Gantt-style scheduling visualizations, drag-and-drop reordering | Cosmetic | Later |
 | Interactive cluster map of real nodes (pick nodes visually) | Overkill for now; the placement strip is the stepping stone | Later |
+| Per-run (not just per-experiment) failure status | The engine tracks status per experiment, not per individual run within it, so a config with repeated runs can't say which run failed — only that the experiment did. The per-app error log already shipped (ADR-017) explains why an experiment failed, which covers most of the same need | Revisit if per-experiment detail turns out not to be enough in practice |
 
 ## v1 simplifications (smaller versions we do ship)
 
@@ -38,4 +39,5 @@ into [roadmap.md](roadmap.md) (or a work plan) with a date and reason.
   in `src/crab/web/remoteops/bootstrap.py` marks the spot.
 - `webui/src/api/types.ts` is hand-maintained against the backend models until generated
   types land (see the config-validation work).
-- Cache/library growth is unbounded; revisit with the results cache.
+- Cache/library growth is unbounded; revisit with the results cache. The local fallback cache
+  for job logs/history (ADR-018) has the same unbounded-growth trade-off, for the same reason.

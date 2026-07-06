@@ -22,6 +22,13 @@ decisions live in the [decision records](decisions/index.md).
   and status; a per-use-case report sourced from `crab history --json` showing every
   experiment's state across connected clusters; per-app error log browsing
   (`crab logs --experiment`); whole-config and partial (`crab run --only`) rerun.
+- **Per-job detail, cache fallback, async submit** (ADR-018, ADR-019) — a per-job detail view
+  scoped to one exact submission, with the use-case report now reachable from it as the
+  secondary cross-time view; job logs, per-app logs, and history fall back to a local cache
+  with a visible staleness banner when a cluster is unreachable; submit and rerun return
+  immediately and resolve through a pending card instead of blocking the request; a redesigned
+  Jobs card (clickable, toolbar actions, a read-only config-snapshot viewer) and clearer
+  refresh/filter controls.
 
 ## v1.0 gates (remaining)
 
