@@ -23,7 +23,7 @@ function toggleLogs(recordId: string, experimentName: string) {
       <div class="ident">
         <label class="pick">
           <input
-            v-if="experiment.record_id"
+            v-if="experiment.record_id && report.selectionMode"
             type="checkbox"
             :checked="
               report.selected.has(

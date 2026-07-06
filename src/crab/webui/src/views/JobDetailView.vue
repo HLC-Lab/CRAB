@@ -50,7 +50,7 @@ async function confirmRerunSelected() {
     only: experimentNames,
     rerun_of: rec.id,
   });
-  report.clearSelected();
+  report.exitSelectionMode();
 }
 </script>
 
@@ -102,7 +102,15 @@ async function confirmRerunSelected() {
         No experiments found for this submission.
       </p>
 
-      <div v-if="selectedCount" class="rerun-bar">
+      <button
+        v-if="detailStore.detail.experiments.length"
+        class="btn select-toggle"
+        @click="report.toggleSelectionMode"
+      >
+        {{ report.selectionMode ? "Cancel selection" : "Select experiments to rerun…" }}
+      </button>
+
+      <div v-if="report.selectionMode" class="rerun-bar">
         <span>{{ selectedCount }} experiment(s) selected</span>
         <span v-if="!canRerunSelected" class="meta small">
           Select experiments from a single job submission to rerun them together.
@@ -243,6 +251,9 @@ h1 {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+.select-toggle {
+  margin-bottom: 0.75rem;
 }
 .rerun-bar {
   display: flex;

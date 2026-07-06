@@ -163,3 +163,32 @@ describe("report store per-experiment rerun selection", () => {
     expect(store.selected.size).toBe(0);
   });
 });
+
+describe("report store selection mode (plan 076)", () => {
+  it("starts off, and toggling turns it on", () => {
+    const store = useReportStore();
+    expect(store.selectionMode).toBe(false);
+    store.toggleSelectionMode();
+    expect(store.selectionMode).toBe(true);
+  });
+
+  it("toggling off clears any selection made while it was on", () => {
+    const store = useReportStore();
+    store.toggleSelectionMode();
+    store.toggleSelected("leonardo:1", "01_baseline");
+
+    store.toggleSelectionMode();
+    expect(store.selectionMode).toBe(false);
+    expect(store.selected.size).toBe(0);
+  });
+
+  it("exitSelectionMode turns it off and clears selection directly", () => {
+    const store = useReportStore();
+    store.toggleSelectionMode();
+    store.toggleSelected("leonardo:1", "01_baseline");
+
+    store.exitSelectionMode();
+    expect(store.selectionMode).toBe(false);
+    expect(store.selected.size).toBe(0);
+  });
+});
