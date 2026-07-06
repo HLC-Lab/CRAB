@@ -652,6 +652,50 @@ def test_job_logs_with_unknown_experiment_surfaces_remote_error(tmp_path: Path):
         assert resp.json()["code"] == "remote_command_error"
 
 
+def test_job_logs_live_success_caches_and_marks_fresh(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026")
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/leonardo:1/logs")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["stale"] is False
+        assert body["cached_at"] is None
+
+
+def test_job_logs_disconnected_with_prior_cache_returns_stale_copy(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026")
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        first = client.get("/api/jobs/leonardo:1/logs").json()
+
+        client.post("/api/remotes/leonardo/disconnect")
+        resp = client.get("/api/jobs/leonardo:1/logs")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["stale"] is True
+        assert body["cached_at"] is not None
+        assert body["stdout"]["content"] == first["stdout"]["content"]
+
+
+def test_job_logs_disconnected_with_no_prior_cache_still_errors(tmp_path: Path):
+    _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026")
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        # Never connected, never fetched: nothing to fall back to.
+
+        resp = client.get("/api/jobs/leonardo:1/logs")
+        assert resp.status_code >= 400
+        assert resp.json()["code"] == "connection_error"
+
+
 # --------------------------------------------------------------------------- #
 # /api/jobs/report/{config_name} (per-use-case experiment report, plan 060)
 # --------------------------------------------------------------------------- #

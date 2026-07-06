@@ -173,6 +173,10 @@ export interface JobLogs {
   data_dir: string;
   stdout: LogStream;
   stderr: LogStream;
+  /** True when served from the local fallback cache (cluster unreachable), not fetched live. */
+  stale: boolean;
+  /** ISO timestamp of when the cached copy was fetched; null for a live response. */
+  cached_at: string | null;
 }
 
 /** One error_app_<id>.log entry (crab logs --experiment --json; cli/contract.py). */
@@ -185,6 +189,10 @@ export interface ExperimentLogs {
   schema: number;
   data_dir: string;
   files: ExperimentLogFile[];
+  /** True when served from the local fallback cache (cluster unreachable), not fetched live. */
+  stale: boolean;
+  /** ISO timestamp of when the cached copy was fetched; null for a live response. */
+  cached_at: string | null;
 }
 
 /** GET /api/jobs/report/{config_name} — every experiment ever run under a use case. */

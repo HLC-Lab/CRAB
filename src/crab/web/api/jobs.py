@@ -16,9 +16,10 @@ from pydantic import BaseModel
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
-from crab.web.errors import InputError, NotFoundError, RemoteConnectionError
+from crab.web.errors import InputError, NotFoundError, RemoteCommandError, RemoteConnectionError
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.remoteops.transfer import stage_config
+from crab.web.store.cache import LocalCache
 from crab.web.store.jobs import JobRecord, JobsStore
 from crab.web.store.library import LibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
@@ -55,6 +56,10 @@ class SubmitRequest(BaseModel):
 
 def _jobs_store(request: Request) -> JobsStore:
     return JobsStore(request.app.state.settings)
+
+
+def _cache(request: Request) -> LocalCache:
+    return LocalCache(request.app.state.settings)
 
 
 def _profiles(request: Request) -> ProfileStore:
@@ -234,15 +239,33 @@ async def cancel_job(record_id: str, request: Request) -> CancelResponse:
 
 @router.get("/{record_id}/logs")
 async def job_logs(record_id: str, request: Request, experiment: str | None = None) -> dict:
-    """Job-level slurm logs, or one experiment's per-app error logs if `experiment` is given."""
+    """Job-level slurm logs, or one experiment's per-app error logs if `experiment` is given.
+
+    Live-first with a local-cache fallback (plan 075): a disconnected cluster or
+    a failed remote command falls back to the last successfully fetched copy
+    for this exact key, marked `stale`, instead of blanking the logs panel.
+    A key miss (never fetched before) still raises exactly as before.
+    """
     rec = _jobs_store(request).get(record_id)
     profile = _profiles(request).get(rec.cluster)
-    transport = _live_transport(rec.cluster, request)
-    args = ["logs", "--data-dir", rec.data_dir]
-    if experiment:
-        args += ["--experiment", experiment]
-    args.append("--json")
-    return await run_crab_json(transport, profile, args, timeout=30.0)
+    cache = _cache(request)
+    cache_key = f"{record_id}__{experiment}" if experiment else record_id
+
+    try:
+        transport = _live_transport(rec.cluster, request)
+        args = ["logs", "--data-dir", rec.data_dir]
+        if experiment:
+            args += ["--experiment", experiment]
+        args.append("--json")
+        result = await run_crab_json(transport, profile, args, timeout=30.0)
+    except (RemoteConnectionError, RemoteCommandError):
+        cached = cache.read("logs", cache_key)
+        if cached is None:
+            raise
+        return {**cached["data"], "stale": True, "cached_at": cached["fetched_at"]}
+
+    cache.write("logs", cache_key, result)
+    return {**result, "stale": False, "cached_at": None}
 
 
 class ReportExperiment(BaseModel):
