@@ -17,7 +17,7 @@ def _clean_csv_name(stem: str) -> str:
     return stem.replace("_", " ").replace("-", " ").title()
 
 
-def _parse_csv(path: Path) -> list[dict]:
+def parse_csv(path: Path) -> list[dict]:
     rows = []
     with open(path, newline="", encoding="utf-8", errors="replace") as fh:
         reader = csv.DictReader(fh)
@@ -50,12 +50,12 @@ def _load_dir_csvs(directory: Path, lab_name: str, labs: dict) -> None:
         if f.is_file() and f.suffix == ".csv" and f.name not in _SYSTEM_CSVS
     )
     for csv_path in data_csvs:
-        rows = _parse_csv(csv_path)
+        rows = parse_csv(csv_path)
         if rows:
             labs.setdefault(lab_name, {})[_clean_csv_name(csv_path.stem)] = rows
 
 
-def _collect_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
+def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
     """Walk data_dir and return {lab: {experiment: [rows]}}.
 
     Directory → lab/experiment mapping:
@@ -72,7 +72,7 @@ def _collect_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
     dirs_at_root = [e for e in entries if e.is_dir()]
 
     for csv_path in csvs_at_root:
-        rows = _parse_csv(csv_path)
+        rows = parse_csv(csv_path)
         if rows:
             labs.setdefault("Root Lab", {})[_clean_csv_name(csv_path.stem)] = rows
 
@@ -108,7 +108,7 @@ def export_dashboard(data_dir: Path, output: Path) -> None:
         sys.exit(1)
 
     print(f"[*] Scanning {data_dir} …")
-    labs = _collect_data(data_dir)
+    labs = collect_result_data(data_dir)
     total_exps = sum(len(exps) for exps in labs.values())
 
     if total_exps == 0:
