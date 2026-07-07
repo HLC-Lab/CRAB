@@ -41,3 +41,12 @@ into [roadmap.md](roadmap.md) (or a work plan) with a date and reason.
   types land (see the config-validation work).
 - Cache/library growth is unbounded; revisit with the results cache. The local fallback cache
   for job logs/history (ADR-018) has the same unbounded-growth trade-off, for the same reason.
+- A real bug in `Transport.fetch_tree()` (asyncssh not creating the local destination's missing
+  parent directories) shipped past unit tests because `SSHTransport`'s asyncssh boundary only
+  ever had fake-sftp-client coverage, only surfacing on a real cluster fetch (plan 065). Fixed,
+  and a reusable real local loopback SSH+SFTP server (`tests/ssh_server.py`) now backs
+  `SSHTransport.run()`/`write_file()`/`fetch_tree()`/`connect_ssh()` with genuine-connection
+  tests instead of only fakes. Not yet retrofitted onto the higher `remoteops/` layer
+  (`stage_config`, `run_crab_json`) — those currently only have fake-transport coverage too, and
+  the same class of "the fake never touches a real filesystem/socket" bug could in principle hide
+  there. Revisit if another real-cluster-only bug surfaces in that layer.
