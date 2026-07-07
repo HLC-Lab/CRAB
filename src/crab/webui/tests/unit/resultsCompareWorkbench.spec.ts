@@ -30,6 +30,17 @@ describe("resolveCol", () => {
   it("falls back when rows are empty", () => {
     expect(resolveCol([], "msg_size")).toBe("msg_size");
   });
+
+  it("finds a prefixed match when the query itself has no prefix (owner bug report)", () => {
+    // sharedColumns() offers the CANONICAL (unprefixed) name in the axis
+    // picker for a metric that's numbered per-app in the raw CSV
+    // ("1_Avg-Duration_s"). Selecting that canonical name must still resolve
+    // back to the real, prefixed column -- this direction was missing, which
+    // is exactly why the owner could plot msg_size/run_id (never prefixed,
+    // so trivially already correct) but not "real" metrics (always
+    // prefixed): the compare chart silently rendered with zero points.
+    expect(resolveCol([{ "1_Avg-Duration_s": 0.5 }], "Avg-Duration_s")).toBe("1_Avg-Duration_s");
+  });
 });
 
 describe("sharedColumns", () => {

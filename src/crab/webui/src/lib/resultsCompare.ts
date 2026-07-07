@@ -43,12 +43,14 @@ export function seriesId(m: SeriesMeta): string {
 }
 
 /** Strip a numeric prefix ("1_Avg-Duration_s" -> "Avg-Duration_s") and find the
- * matching column in `rows` that may carry a different prefix. Falls back to
- * `col` unchanged when no such column exists. */
+ * matching column in `rows` that may carry a different prefix -- or none at
+ * all, since `sharedColumns()` offers callers the CANONICAL (unprefixed)
+ * name. Matching is always done on the canonical suffix regardless of
+ * whether `col` itself has a prefix; falls back to `col` unchanged when no
+ * such column exists. */
 export function resolveCol(rows: ResultRow[], col: string): string {
   if (!rows.length || col in rows[0]) return col;
   const suffix = col.replace(/^\d+_/, "");
-  if (suffix === col) return col;
   const match = Object.keys(rows[0]).find((c) => c.replace(/^\d+_/, "") === suffix);
   return match ?? col;
 }
