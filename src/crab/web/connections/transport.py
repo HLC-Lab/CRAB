@@ -55,6 +55,11 @@ class Transport:
     ) -> None:
         raise NotImplementedError
 
+    async def fetch_tree(
+        self, remote_dir: str, local_dir: str, timeout: float | None = DEFAULT_TIMEOUT
+    ) -> None:
+        raise NotImplementedError
+
     async def close(self) -> None:  # pragma: no cover - trivial
         raise NotImplementedError
 
@@ -120,6 +125,35 @@ class SSHTransport(Transport):
             self._closed = True  # treat any other SFTP/channel error as a drop
             raise RemoteConnectionError(
                 "The SSH connection dropped while writing a file.",
+                detail=f"{type(exc).__name__}: {exc}",
+            ) from exc
+
+    async def fetch_tree(
+        self, remote_dir: str, local_dir: str, timeout: float | None = DEFAULT_TIMEOUT
+    ) -> None:
+        import asyncssh
+
+        async def _fetch() -> None:
+            async with self._conn.start_sftp_client() as sftp:
+                await sftp.get(remote_dir, local_dir, recurse=True)
+
+        try:
+            await asyncio.wait_for(_fetch(), timeout=timeout)
+        except asyncio.TimeoutError:
+            raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
+                f"Fetching {remote_dir} timed out after {timeout:g}s.",
+                detail=remote_dir,
+            )
+        except asyncssh.SFTPError as exc:
+            # A file/permission error, not a dropped connection (e.g. the
+            # remote directory doesn't exist) — the connection stays alive.
+            raise RemoteCommandError(
+                f"Could not fetch {remote_dir} over SFTP.", detail=str(exc)
+            ) from exc
+        except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
+            self._closed = True  # treat any other SFTP/channel error as a drop
+            raise RemoteConnectionError(
+                "The SSH connection dropped while fetching results.",
                 detail=f"{type(exc).__name__}: {exc}",
             ) from exc
 
@@ -243,6 +277,23 @@ class LocalTransport(Transport):
             )
         except OSError as exc:
             raise RemoteCommandError(f"Could not write {path}.", detail=str(exc)) from exc
+
+    async def fetch_tree(
+        self, remote_dir: str, local_dir: str, timeout: float | None = DEFAULT_TIMEOUT
+    ) -> None:
+        import shutil
+
+        def _copy() -> None:
+            shutil.copytree(remote_dir, local_dir, dirs_exist_ok=True)
+
+        try:
+            await asyncio.wait_for(asyncio.to_thread(_copy), timeout)
+        except asyncio.TimeoutError:
+            raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
+                f"Fetching {remote_dir} timed out after {timeout:g}s."
+            )
+        except OSError as exc:
+            raise RemoteCommandError(f"Could not fetch {remote_dir}.", detail=str(exc)) from exc
 
     async def close(self) -> None:
         pass
