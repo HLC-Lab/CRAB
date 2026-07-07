@@ -63,8 +63,13 @@ class Settings:
 
     @property
     def cache_dir(self) -> Path:
-        """Fetched result trees, namespaced per cluster."""
+        """Fallback cache of small JSON blobs (logs/history) for a disconnected cluster."""
         return self.data_dir / "cache"
+
+    @property
+    def results_cache_dir(self) -> Path:
+        """Fetched result CSV trees, namespaced per cluster (plan 065)."""
+        return self.data_dir / "results_cache"
 
     @property
     def log_file(self) -> Path:
