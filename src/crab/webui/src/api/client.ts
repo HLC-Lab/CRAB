@@ -4,12 +4,15 @@
 import type {
   BenchmarksResult,
   BootstrapPlan,
+  CacheSize,
   CancelResponse,
   ConnectResult,
   CrabConfig,
   DetectResult,
   ErrorEnvelope,
   ExperimentLogs,
+  FetchAccepted,
+  FetchStatus,
   Health,
   JobDetail,
   JobListItem,
@@ -18,6 +21,7 @@ import type {
   NodesResult,
   Profile,
   RemoteListItem,
+  ResultsData,
   SavedEntry,
   StepResult,
   SubmissionAccepted,
@@ -181,5 +185,19 @@ export const api = {
       request<UseCaseReport>(`/api/jobs/report/${encodeURIComponent(configName)}`),
     experiments: (id: string) =>
       request<JobDetail>(`/api/jobs/${encodeURIComponent(id)}/experiments`),
+
+    results: {
+      fetch: (id: string) =>
+        request<FetchAccepted>(`/api/jobs/${encodeURIComponent(id)}/results/fetch`, {
+          method: "POST",
+        }),
+      fetchStatus: (id: string, fetchId: string) =>
+        request<FetchStatus>(
+          `/api/jobs/${encodeURIComponent(id)}/results/fetch/${encodeURIComponent(fetchId)}`,
+        ),
+      get: (id: string) => request<ResultsData>(`/api/jobs/${encodeURIComponent(id)}/results`),
+      cacheSize: () => request<CacheSize>("/api/jobs/results/cache"),
+      clearCache: () => request<void>("/api/jobs/results/cache", { method: "DELETE" }),
+    },
   },
 };

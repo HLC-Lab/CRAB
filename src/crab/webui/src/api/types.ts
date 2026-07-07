@@ -206,3 +206,14 @@ export type JobDetail = components["schemas"]["JobDetail"];
 /** GET /api/jobs/report/{config_name} — every experiment ever run under a use case. */
 export type UseCaseReport = components["schemas"]["UseCaseReport"];
 export type ReportExperiment = components["schemas"]["ReportExperiment"];
+
+// -- Results dashboard (plan 065) -------------------------------------------
+
+/** POST /api/jobs/{id}/results/fetch — accepted immediately, resolved async. */
+export type FetchAccepted = components["schemas"]["FetchAccepted"];
+/** GET /api/jobs/{id}/results/fetch/{fetch_id} — poll target for an in-flight fetch. */
+export type FetchStatus = components["schemas"]["FetchStatus"];
+/** GET /api/jobs/{id}/results — a job's fetched CSV tree, parsed into {lab: {experiment: rows}}. */
+export type ResultsData = components["schemas"]["ResultsData"];
+/** GET /api/jobs/results/cache — total bytes across every cached job's result tree. */
+export type CacheSize = components["schemas"]["CacheSize"];
