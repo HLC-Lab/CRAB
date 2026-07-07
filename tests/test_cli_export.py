@@ -9,6 +9,7 @@ updated to the public names once the rename lands, with assertions left unchange
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from crab.cli.export import collect_result_data, parse_csv
@@ -58,3 +59,53 @@ def test_collect_result_data_skips_empty_csvs(tmp_path: Path):
     labs = collect_result_data(tmp_path)
 
     assert labs == {}
+
+
+def _write_config(directory: Path, experiments: dict) -> None:
+    (directory / "config.json").write_text(
+        json.dumps({"experiments": experiments}), encoding="utf-8"
+    )
+
+
+def test_collect_result_data_resolves_app_names_from_config_json(tmp_path: Path):
+    exp_dir = tmp_path / "exp-1"
+    exp_dir.mkdir()
+    (exp_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    _write_config(tmp_path, {"exp-1": {"apps": {"0": {"path": "/wrappers/blink.py"}}}})
+
+    labs = collect_result_data(tmp_path)
+
+    assert labs == {"exp-1": {"blink": [{"x": 1}]}}
+
+
+def test_collect_result_data_falls_back_to_placeholder_when_config_missing(tmp_path: Path):
+    exp_dir = tmp_path / "exp-1"
+    exp_dir.mkdir()
+    (exp_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    # No config.json written at all.
+
+    labs = collect_result_data(tmp_path)
+
+    assert labs == {"exp-1": {"App 0": [{"x": 1}]}}
+
+
+def test_collect_result_data_falls_back_when_config_json_malformed(tmp_path: Path):
+    exp_dir = tmp_path / "exp-1"
+    exp_dir.mkdir()
+    (exp_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    (tmp_path / "config.json").write_text("{not valid json", encoding="utf-8")
+
+    labs = collect_result_data(tmp_path)
+
+    assert labs == {"exp-1": {"App 0": [{"x": 1}]}}
+
+
+def test_collect_result_data_falls_back_when_experiment_or_app_key_missing(tmp_path: Path):
+    exp_dir = tmp_path / "exp-1"
+    exp_dir.mkdir()
+    (exp_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    _write_config(tmp_path, {"other-exp": {"apps": {"0": {"path": "/wrappers/blink.py"}}}})
+
+    labs = collect_result_data(tmp_path)
+
+    assert labs == {"exp-1": {"App 0": [{"x": 1}]}}

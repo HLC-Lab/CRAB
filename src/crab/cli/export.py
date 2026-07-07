@@ -17,6 +17,33 @@ def _clean_csv_name(stem: str) -> str:
     return stem.replace("_", " ").replace("-", " ").title()
 
 
+def _load_config_json(data_dir: Path) -> dict | None:
+    """Load a job's config.json, tolerant of it being absent or malformed."""
+    config_path = data_dir / "config.json"
+    if not config_path.is_file():
+        return None
+    try:
+        return json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def resolve_app_label(config: dict | None, experiment_name: str, csv_stem: str) -> str:
+    """Resolve a real app name from config.json for a 'data_app_N' stem.
+
+    Falls back to _clean_csv_name for a non-app stem or any lookup failure
+    (missing config, missing experiment/app key).
+    """
+    if config is not None and csv_stem.startswith("data_app_") and csv_stem[9:].isdigit():
+        app_id = csv_stem[9:]
+        try:
+            path = config["experiments"][experiment_name]["apps"][app_id]["path"]
+            return Path(path).stem
+        except (KeyError, TypeError):
+            pass
+    return _clean_csv_name(csv_stem)
+
+
 def parse_csv(path: Path) -> list[dict]:
     rows = []
     with open(path, newline="", encoding="utf-8", errors="replace") as fh:
@@ -42,7 +69,7 @@ def parse_csv(path: Path) -> list[dict]:
     return rows
 
 
-def _load_dir_csvs(directory: Path, lab_name: str, labs: dict) -> None:
+def _load_dir_csvs(directory: Path, lab_name: str, labs: dict, config: dict | None) -> None:
     """Load every non-system CSV in directory as a separate experiment under lab_name."""
     data_csvs = sorted(
         f
@@ -52,7 +79,8 @@ def _load_dir_csvs(directory: Path, lab_name: str, labs: dict) -> None:
     for csv_path in data_csvs:
         rows = parse_csv(csv_path)
         if rows:
-            labs.setdefault(lab_name, {})[_clean_csv_name(csv_path.stem)] = rows
+            label = resolve_app_label(config, lab_name, csv_path.stem)
+            labs.setdefault(lab_name, {})[label] = rows
 
 
 def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
@@ -71,10 +99,13 @@ def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
     ]
     dirs_at_root = [e for e in entries if e.is_dir()]
 
-    for csv_path in csvs_at_root:
-        rows = parse_csv(csv_path)
-        if rows:
-            labs.setdefault("Root Lab", {})[_clean_csv_name(csv_path.stem)] = rows
+    if csvs_at_root:
+        root_config = _load_config_json(data_dir)
+        for csv_path in csvs_at_root:
+            rows = parse_csv(csv_path)
+            if rows:
+                label = resolve_app_label(root_config, "Root Lab", csv_path.stem)
+                labs.setdefault("Root Lab", {})[label] = rows
 
     for d in dirs_at_root:
         sub_entries = sorted(d.iterdir())
@@ -86,10 +117,13 @@ def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
         sub_dirs = [e for e in sub_entries if e.is_dir()]
 
         if sub_csvs or not sub_dirs:
-            # d is an experiment directory (has data CSVs directly)
-            _load_dir_csvs(d, d.name, labs)
+            # d is an experiment directory (has data CSVs directly); config.json,
+            # written by Engine.run() as a sibling of the experiment dir, is in data_dir.
+            _load_dir_csvs(d, d.name, labs, _load_config_json(data_dir))
         else:
-            # d is a job/lab directory; its subdirs are experiment directories
+            # d is a job/lab directory; its subdirs are experiment directories,
+            # and config.json is a sibling of each of them, i.e. inside d.
+            lab_config = _load_config_json(d)
             for exp_dir in sub_dirs:
                 exp_csvs = [
                     e
@@ -97,7 +131,7 @@ def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
                     if e.is_file() and e.suffix == ".csv" and e.name not in _SYSTEM_CSVS
                 ]
                 if exp_csvs:
-                    _load_dir_csvs(exp_dir, exp_dir.name, labs)
+                    _load_dir_csvs(exp_dir, exp_dir.name, labs, lab_config)
 
     return labs
 
