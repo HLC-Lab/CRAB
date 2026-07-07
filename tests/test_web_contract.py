@@ -97,6 +97,28 @@ def test_gather_history_system_filter_and_empty(tmp_path: Path):
     assert len(only["experiments"]) == 1
     # Unknown system / no data dir → empty, no crash.
     assert contract.gather_history(data_root=tmp_path, system="ghost")["experiments"] == []
+
+
+def test_gather_history_reports_absolute_path(tmp_path: Path):
+    # tmp_path stands in for a non-default `datapath` override: the resolved
+    # absolute_path must come from this argument, never a hardcoded crab_root guess.
+    _write_registry(
+        tmp_path / "leonardo",
+        [{"job_name": "j1", "experiment_name": "e1", "relative_path": "./j1/e1"}],
+    )
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["absolute_path"] == str((tmp_path / "leonardo" / "j1" / "e1").resolve())
+
+
+def test_gather_history_absolute_path_falls_back_when_relative_path_missing(tmp_path: Path):
+    _write_registry(
+        tmp_path / "leonardo",
+        [{"job_name": "j1", "experiment_name": "e1", "relative_path": ""}],
+    )
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["absolute_path"] == str((tmp_path / "leonardo").resolve())
     assert contract.gather_history(data_root=tmp_path / "nope")["experiments"] == []
 
 

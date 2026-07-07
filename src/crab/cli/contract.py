@@ -117,6 +117,10 @@ def gather_history(data_root: Path | None = None, system: str | None = None) -> 
                 for row in csv.DictReader(fh):
                     entry = {k: (row.get(k) or "").strip() for k in _HISTORY_COLUMNS}
                     entry["system"] = sys_dir.name
+                    if entry["relative_path"]:
+                        entry["absolute_path"] = str((sys_dir / entry["relative_path"]).resolve())
+                    else:
+                        entry["absolute_path"] = str(sys_dir.resolve())
                     rows.append(entry)
         except OSError:
             continue
