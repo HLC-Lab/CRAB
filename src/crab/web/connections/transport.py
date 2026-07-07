@@ -133,6 +133,17 @@ class SSHTransport(Transport):
     ) -> None:
         import asyncssh
 
+        # asyncssh's recursive get() creates local_dir itself as a copy of
+        # remote_dir, but (unlike shutil.copytree) does not create local_dir's
+        # missing parent directories first — it raises a plain FileNotFoundError
+        # if they don't exist yet (e.g. the first fetch for a cluster/job pair).
+        try:
+            Path(local_dir).parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise RemoteCommandError(
+                f"Could not create {local_dir} locally.", detail=str(exc)
+            ) from exc
+
         async def _fetch() -> None:
             async with self._conn.start_sftp_client() as sftp:
                 await sftp.get(remote_dir, local_dir, recurse=True)
