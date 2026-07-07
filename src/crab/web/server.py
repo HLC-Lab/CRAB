@@ -83,6 +83,10 @@ def create_app(
     # Keeps a strong reference to each submission's background task so it can't
     # be garbage-collected mid-flight; discarded via its own done-callback.
     app.state.pending_submission_tasks = set()
+    # In-memory async results-fetch tracker (plan 065), same shape as
+    # `submissions` above: fetch_id -> status dict, not persisted.
+    app.state.result_fetches = {}
+    app.state.pending_result_fetch_tasks = set()
     # Per-process API secret: the SPA receives it via a meta tag in the served
     # index.html and echoes it as X-Crab-Token. This app runs SSH commands, so
     # its localhost API must not be drivable by a hostile web page.
@@ -108,12 +112,14 @@ def create_app(
     from crab.web.api.jobs import router as jobs_router
     from crab.web.api.local import router as local_router
     from crab.web.api.remotes import router as remotes_router
+    from crab.web.api.results import router as results_router
 
     app.include_router(remotes_router)
     app.include_router(bootstrap_router)
     app.include_router(experiments_router)
     app.include_router(local_router)
     app.include_router(jobs_router)
+    app.include_router(results_router)
 
     _mount_frontend(app, settings)
     return app
