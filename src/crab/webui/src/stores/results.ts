@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
 import { resultsKey } from "@/lib/jobKey";
-import type { ResultsData } from "@/api/types";
+import type { ResultsData, ResultsJobEntry } from "@/api/types";
 
 // Same cadence as jobs.ts's SUBMISSION_POLL_INTERVAL_MS: a genuine poll, not
 // a "wait N seconds then reveal" timer.
@@ -32,6 +32,25 @@ export const useResultsStore = defineStore("results", () => {
   const cacheSizeBusy = ref(false);
   const clearBusy = ref(false);
   const clearError = ref<string | null>(null);
+
+  // The picker's cross-cluster index (plan 077 S6/S13) -- every job any
+  // connected-or-previously-cached cluster reports, replacing S8's temporary
+  // per-job registry loop.
+  const index = ref<ResultsJobEntry[]>([]);
+  const indexBusy = ref(false);
+  const indexError = ref<string | null>(null);
+
+  async function loadIndex() {
+    indexBusy.value = true;
+    indexError.value = null;
+    try {
+      index.value = (await api.results.index()).jobs;
+    } catch (e) {
+      indexError.value = msg(e);
+    } finally {
+      indexBusy.value = false;
+    }
+  }
 
   async function loadResults(cluster: string, system: string, jobBasename: string) {
     const key = resultsKey(cluster, system, jobBasename);
@@ -128,6 +147,10 @@ export const useResultsStore = defineStore("results", () => {
     cacheSizeBusy,
     clearBusy,
     clearError,
+    index,
+    indexBusy,
+    indexError,
+    loadIndex,
     loadResults,
     fetchResults,
     refreshCacheSize,

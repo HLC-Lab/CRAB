@@ -1,55 +1,46 @@
 <script setup lang="ts">
-// Top-level Results picker (plan 065): lists jobs that already have a fetched
-// results cache, linking into each one's detail-view Results tab. There is no
-// backend "list jobs with cached results" endpoint (per-job cache presence is
-// cheap to check locally), so this checks each known job the same way the
-// per-job Results tab does — reusing loadResults, not a new store method.
+// Top-level Results picker (plan 077 S13), consuming S6's cross-cluster
+// index -- shows every job crab history reports (dashboard-submitted or
+// CLI-only alike) with real metadata and a staleness badge, no
+// instructional blurb needed once that's on screen.
 import { computed, onMounted } from "vue";
 import { RouterLink } from "vue-router";
-import { useJobsStore } from "@/stores/jobs";
 import { useResultsStore } from "@/stores/results";
-import { jobBasenameFromDataDir, resultsKey } from "@/lib/jobKey";
+import { formatBytes } from "@/lib/resultsChart";
+import { describeStaleness, sortEntries } from "@/lib/resultsIndex";
 
-const jobs = useJobsStore();
 const results = useResultsStore();
 
-// Temporary: loops the registry the same way the old per-job Results tab did.
-// S13 replaces this with S6's cross-cluster `/api/results` index, which also
-// covers CLI-only jobs this loop can't see.
-onMounted(async () => {
-  if (!jobs.items.length) await jobs.refresh();
-  await Promise.all(
-    jobs.items.map((j) =>
-      results.loadResults(j.cluster, j.system, jobBasenameFromDataDir(j.data_dir)),
-    ),
-  );
+onMounted(() => {
+  results.loadIndex();
 });
 
-const cachedJobs = computed(() =>
-  jobs.items.filter(
-    (j) => results.results[resultsKey(j.cluster, j.system, jobBasenameFromDataDir(j.data_dir))],
-  ),
-);
+const entries = computed(() => sortEntries(results.index));
 </script>
 
 <template>
   <section class="results-view">
     <h1>Results</h1>
-    <p class="blurb">
-      Fetch a job's result data from its cluster to explore scatter/line/bar/violin charts, a
-      sortable table, and a cross-experiment compare — from that job's detail view.
-    </p>
 
-    <p v-if="jobs.loading" class="meta">Loading jobs…</p>
-    <p v-else-if="!cachedJobs.length" class="empty">
-      No jobs have fetched results yet. Open a job's detail view and use its Results tab to fetch
-      one.
-    </p>
+    <p v-if="results.indexBusy" class="meta">Loading…</p>
+    <p v-else-if="results.indexError" class="banner err">{{ results.indexError }}</p>
+    <p v-else-if="!entries.length" class="empty">No jobs found on any connected cluster.</p>
 
     <ul v-else class="list">
-      <li v-for="j in cachedJobs" :key="j.id" class="item">
-        <RouterLink :to="`/jobs/${j.id}`">{{ j.config_name }}</RouterLink>
-        <span class="sub">{{ j.cluster }} / {{ j.system }} · job {{ j.job_id }}</span>
+      <li v-for="e in entries" :key="`${e.cluster}/${e.system}/${e.job_basename}`" class="item">
+        <RouterLink :to="`/results/${e.cluster}/${e.system}/${e.job_basename}`" class="name">
+          {{ e.job_basename }}
+        </RouterLink>
+        <span class="sub">
+          {{ e.cluster }} / {{ e.system }}
+          <template v-if="e.submitted_at">
+            · submitted {{ new Date(e.submitted_at).toLocaleString() }}
+          </template>
+          · {{ e.cached ? formatBytes(e.cached_bytes ?? 0) : "not fetched yet" }}
+        </span>
+        <span class="badge" :class="describeStaleness(e).tone">
+          {{ describeStaleness(e).label }}
+        </span>
       </li>
     </ul>
   </section>
@@ -63,42 +54,69 @@ const cachedJobs = computed(() =>
 h1 {
   font-family: var(--sans);
   font-size: 1.4rem;
-  margin: 0 0 0.4rem;
-}
-.blurb {
-  color: var(--text2);
-  font-size: var(--t-sm);
-  margin-bottom: 1rem;
+  margin: 0 0 0.9rem;
 }
 .meta,
 .empty {
   color: var(--text3);
   font-size: var(--t-sm);
 }
+.banner {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r);
+  background: rgba(245, 101, 101, 0.12);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  white-space: pre-wrap;
+}
 .list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  padding: 0;
+  margin: 0;
 }
 .item {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.6rem;
   padding: 0.6rem 0.8rem;
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--bg1);
 }
-.item a {
+.name {
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
+  font-family: var(--mono);
 }
-.item a:hover {
+.name:hover {
   text-decoration: underline;
 }
 .sub {
   color: var(--text3);
   font-size: var(--t-sm);
+  flex: 1;
+}
+.badge {
+  font-size: var(--t-sm);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge.muted {
+  color: var(--text3);
+  background: var(--bg3);
+}
+.badge.warn {
+  color: var(--warn);
+  background: rgba(237, 137, 54, 0.12);
+}
+.badge.ok {
+  color: var(--ok);
+  background: rgba(72, 187, 120, 0.12);
 }
 </style>

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/api/client", () => ({
   api: {
     results: {
+      index: vi.fn(),
       fetch: vi.fn(),
       fetchStatus: vi.fn(),
       get: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("@/api/client", () => ({
 import { ApiError, api } from "@/api/client";
 import { useResultsStore } from "@/stores/results";
 
+const indexMock = vi.mocked(api.results.index);
 const fetchMock = vi.mocked(api.results.fetch);
 const fetchStatusMock = vi.mocked(api.results.fetchStatus);
 const getMock = vi.mocked(api.results.get);
@@ -45,6 +47,7 @@ const SAMPLE_DATA = { experiments: { Root: { "App 0": [{ x: 1 }] } } };
 
 beforeEach(() => {
   setActivePinia(createPinia());
+  indexMock.mockReset();
   fetchMock.mockReset();
   fetchStatusMock.mockReset();
   getMock.mockReset();
@@ -136,6 +139,61 @@ describe("results store: fetch + poll", () => {
 
     expect(store.fetchBusy[KEY]).toBe(false);
     expect(store.fetchError[KEY]).toBe("'leonardo' is not connected.");
+  });
+});
+
+describe("results store: index", () => {
+  it("loadIndex populates the jobs list on success", async () => {
+    const jobs = [
+      {
+        cluster: CLUSTER,
+        system: SYSTEM,
+        job_basename: JOB_BASENAME,
+        connected: true,
+        status: "COMPLETED",
+        record_id: null,
+        job_id: null,
+        submitted_at: null,
+        cached: true,
+        cached_bytes: 4096,
+        possibly_stale: false,
+      },
+    ];
+    indexMock.mockResolvedValueOnce({ jobs });
+
+    const store = useResultsStore();
+    await store.loadIndex();
+
+    expect(store.index).toEqual(jobs);
+    expect(store.indexBusy).toBe(false);
+    expect(store.indexError).toBeNull();
+  });
+
+  it("loadIndex surfaces a failure and keeps a prior successful load intact", async () => {
+    const jobs = [
+      {
+        cluster: CLUSTER,
+        system: SYSTEM,
+        job_basename: JOB_BASENAME,
+        connected: true,
+        status: "COMPLETED",
+        record_id: null,
+        job_id: null,
+        submitted_at: null,
+        cached: true,
+        cached_bytes: 4096,
+        possibly_stale: false,
+      },
+    ];
+    indexMock.mockResolvedValueOnce({ jobs });
+    const store = useResultsStore();
+    await store.loadIndex();
+
+    indexMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
+    await store.loadIndex();
+
+    expect(store.indexError).toBe("Cannot reach the dashboard backend.");
+    expect(store.index).toEqual(jobs);
   });
 });
 

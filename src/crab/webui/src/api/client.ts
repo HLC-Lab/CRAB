@@ -22,6 +22,7 @@ import type {
   Profile,
   RemoteListItem,
   ResultsData,
+  ResultsIndex,
   SavedEntry,
   StepResult,
   SubmissionAccepted,
@@ -192,6 +193,7 @@ export const api = {
   },
 
   results: {
+    index: () => request<ResultsIndex>("/api/results"),
     fetch: (cluster: string, system: string, jobBasename: string) =>
       request<FetchAccepted>(`${resultsPath(cluster, system, jobBasename)}/fetch`, {
         method: "POST",

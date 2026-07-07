@@ -207,13 +207,16 @@ export type JobDetail = components["schemas"]["JobDetail"];
 export type UseCaseReport = components["schemas"]["UseCaseReport"];
 export type ReportExperiment = components["schemas"]["ReportExperiment"];
 
-// -- Results dashboard (plan 065) -------------------------------------------
+// -- Results dashboard (plan 065, re-keyed off the registry in plan 077) ----
 
-/** POST /api/jobs/{id}/results/fetch — accepted immediately, resolved async. */
+/** POST /api/results/{cluster}/{system}/{jobBasename}/fetch — accepted immediately, resolved async. */
 export type FetchAccepted = components["schemas"]["FetchAccepted"];
-/** GET /api/jobs/{id}/results/fetch/{fetch_id} — poll target for an in-flight fetch. */
+/** GET .../fetch/{fetch_id} — poll target for an in-flight fetch. */
 export type FetchStatus = components["schemas"]["FetchStatus"];
-/** GET /api/jobs/{id}/results — a job's fetched CSV tree, parsed into {lab: {experiment: rows}}. */
+/** GET /api/results/{cluster}/{system}/{jobBasename} — a job's fetched CSV tree, parsed into {experiment: {app: rows}}. */
 export type ResultsData = components["schemas"]["ResultsData"];
-/** GET /api/jobs/results/cache — total bytes across every cached job's result tree. */
+/** GET /api/results/cache — total bytes across every cached job's result tree. */
 export type CacheSize = components["schemas"]["CacheSize"];
+/** GET /api/results — every (cluster, system, job_basename) the picker can show. */
+export type ResultsIndex = components["schemas"]["ResultsIndex"];
+export type ResultsJobEntry = components["schemas"]["ResultsJobEntry"];
