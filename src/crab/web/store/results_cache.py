@@ -28,7 +28,18 @@ class ResultsCache:
         return self._settings.results_cache_dir / cluster / system / data_dir_basename
 
     def list_cached(self) -> list[tuple[str, str, str]]:
-        """Every cached (cluster, system, job_basename) triple, ignoring stray entries."""
+        """Every cached (cluster, system, job_basename) triple, ignoring stray
+        entries and leftover directories from plan 065's 2-level
+        (``<cluster>/<job_basename>``) cache layout, superseded by plan 077 S4's
+        3-level one. Walking a leftover 065 tree with the 3-level assumption
+        misreads its job_basename as a "system" and one of its experiment
+        subfolders as the "job_basename". A genuine job_basename leaf always
+        contains experiment SUBFOLDERS (mirroring the fetched tree, which is
+        never CSVs directly at the job level); a misread experiment leaf
+        contains CSV files directly, with no subdirectories -- that's the
+        signal used to tell them apart, rather than deleting/migrating old
+        cache state.
+        """
         root = self._settings.results_cache_dir
         if not root.is_dir():
             return []
@@ -36,7 +47,8 @@ class ResultsCache:
         for cluster_dir in sorted(p for p in root.iterdir() if p.is_dir()):
             for system_dir in sorted(p for p in cluster_dir.iterdir() if p.is_dir()):
                 for job_dir in sorted(p for p in system_dir.iterdir() if p.is_dir()):
-                    triples.append((cluster_dir.name, system_dir.name, job_dir.name))
+                    if any(child.is_dir() for child in job_dir.iterdir()):
+                        triples.append((cluster_dir.name, system_dir.name, job_dir.name))
         return triples
 
     def total_size(self) -> int:

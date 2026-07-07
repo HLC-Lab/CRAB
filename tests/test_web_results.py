@@ -262,10 +262,15 @@ def test_fetch_results_without_connection_fails(tmp_path: Path):
 # --------------------------------------------------------------------------- #
 def _cache_a_result_tree(tmp_path: Path) -> Path:
     """Simulate a completed fetch by writing CSVs straight into the cache path
-    (the fetch itself is covered above; this seams past it to test the get/cache routes)."""
+    (the fetch itself is covered above; this seams past it to test the
+    get/cache routes). Nested under an experiment subfolder, matching what a
+    real fetch always produces (never CSVs directly at the job level) --
+    `ResultsCache.list_cached()` relies on that shape to tell a real job dir
+    apart from a stale pre-077 layout leftover (see test_web_results_cache.py)."""
     job_dir = ResultsCache(_settings(tmp_path)).path_for(CLUSTER, SYSTEM, JOB_BASENAME)
-    job_dir.mkdir(parents=True)
-    (job_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    exp_dir = job_dir / "e1"
+    exp_dir.mkdir(parents=True)
+    (exp_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
     return job_dir
 
 
@@ -282,7 +287,7 @@ def test_get_results_returns_parsed_data_after_a_fetch(tmp_path: Path):
     with _client(tmp_path) as client:
         resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}")
         assert resp.status_code == 200
-        assert resp.json() == {"experiments": {"Root": {"App 0": [{"x": 1}]}}}
+        assert resp.json() == {"experiments": {"e1": {"App 0": [{"x": 1}]}}}
 
 
 def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):
@@ -298,14 +303,16 @@ def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):
 # --------------------------------------------------------------------------- #
 # GET /api/results — cross-cluster index (plan 077 S6)
 # --------------------------------------------------------------------------- #
-def _history_row(job_basename: str, status: str, system: str = SYSTEM) -> dict:
+def _history_row(
+    job_basename: str, status: str, system: str = SYSTEM, experiment_name: str = "e1"
+) -> dict:
     return {
         "job_name": job_basename,
-        "experiment_name": "e1",
+        "experiment_name": experiment_name,
         "status": status,
         "system": system,
-        "relative_path": f"./{job_basename}/e1",
-        "absolute_path": f"/remote/data/{system}/{job_basename}/e1",
+        "relative_path": f"./{job_basename}/{experiment_name}",
+        "absolute_path": f"/remote/data/{system}/{job_basename}/{experiment_name}",
     }
 
 
@@ -343,6 +350,35 @@ def test_results_index_includes_registry_known_and_cli_only_jobs(tmp_path: Path)
         cli_entry = by_key[(CLUSTER, SYSTEM, "cli_job_1")]
         assert cli_entry["record_id"] is None
         assert cli_entry["status"] == "FAILED"
+
+
+def test_results_index_collapses_multiple_experiments_into_one_job_entry(tmp_path: Path):
+    """A job submission's experiments (crab experiment keys) must never
+    surface as their own top-level entries -- only genuinely no test fixture
+    exercised more than one experiment per job before this, which is exactly
+    the kind of gap that let a real grouping regression go unnoticed."""
+    history = _history_json(
+        [
+            _history_row(JOB_BASENAME, "COMPLETED", experiment_name="01_baseline_msgsize"),
+            _history_row(JOB_BASENAME, "FAILED", experiment_name="02_scaling_nodes"),
+            _history_row(JOB_BASENAME, "COMPLETED", experiment_name="03_scaling_nodes"),
+        ]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/results")
+        assert resp.status_code == 200
+        entries = _entries_by_key(resp.json())
+
+        # Exactly one entry for the whole job, not one per experiment.
+        assert list(entries.keys()) == [(CLUSTER, SYSTEM, JOB_BASENAME)]
+        # worst_status across the three experiments (COMPLETED/FAILED/COMPLETED).
+        assert entries[(CLUSTER, SYSTEM, JOB_BASENAME)]["status"] == "FAILED"
 
 
 def test_results_index_marks_never_fetched_as_stale(tmp_path: Path):
