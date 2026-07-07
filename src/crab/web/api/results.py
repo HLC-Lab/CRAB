@@ -144,8 +144,8 @@ async def get_results(record_id: str, request: Request) -> ResultsData:
     local_dir = _results_cache(request).path_for(rec.cluster, Path(rec.data_dir).name)
     if not local_dir.is_dir():
         raise NotFoundError(f"No results cached yet for job '{record_id}'. Fetch them first.")
-    labs = await asyncio.to_thread(collect_result_data, local_dir)
-    return ResultsData(labs=labs)
+    experiments = await asyncio.to_thread(collect_result_data, local_dir)
+    return ResultsData(experiments=experiments)
 
 
 class CacheSize(BaseModel):

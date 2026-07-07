@@ -69,8 +69,10 @@ def parse_csv(path: Path) -> list[dict]:
     return rows
 
 
-def _load_dir_csvs(directory: Path, lab_name: str, labs: dict, config: dict | None) -> None:
-    """Load every non-system CSV in directory as a separate experiment under lab_name."""
+def _load_dir_csvs(
+    directory: Path, experiment_name: str, experiments: dict, config: dict | None
+) -> None:
+    """Load every non-system CSV in directory as a separate app under experiment_name."""
     data_csvs = sorted(
         f
         for f in directory.iterdir()
@@ -79,19 +81,19 @@ def _load_dir_csvs(directory: Path, lab_name: str, labs: dict, config: dict | No
     for csv_path in data_csvs:
         rows = parse_csv(csv_path)
         if rows:
-            label = resolve_app_label(config, lab_name, csv_path.stem)
-            labs.setdefault(lab_name, {})[label] = rows
+            label = resolve_app_label(config, experiment_name, csv_path.stem)
+            experiments.setdefault(experiment_name, {})[label] = rows
 
 
 def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
-    """Walk data_dir and return {lab: {experiment: [rows]}}.
+    """Walk data_dir and return {experiment: {app: [rows]}}.
 
-    Directory → lab/experiment mapping:
-      root/file.csv          → Root Lab / file
-      root/exp_dir/          → exp_dir / App N   (dir contains data CSVs directly)
-      root/lab_dir/exp_dir/  → exp_dir / App N   (nested: lab_dir's subdirs have CSVs)
+    Directory → experiment/app mapping:
+      root/file.csv                  → Root / file
+      root/exp_dir/                  → exp_dir / App N   (dir contains data CSVs directly)
+      root/exp_group_dir/exp_dir/    → exp_dir / App N   (nested: subdirs have CSVs)
     """
-    labs: dict[str, dict[str, list[dict]]] = {}
+    experiments: dict[str, dict[str, list[dict]]] = {}
 
     entries = sorted(data_dir.iterdir())
     csvs_at_root = [
@@ -104,8 +106,8 @@ def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
         for csv_path in csvs_at_root:
             rows = parse_csv(csv_path)
             if rows:
-                label = resolve_app_label(root_config, "Root Lab", csv_path.stem)
-                labs.setdefault("Root Lab", {})[label] = rows
+                label = resolve_app_label(root_config, "Root", csv_path.stem)
+                experiments.setdefault("Root", {})[label] = rows
 
     for d in dirs_at_root:
         sub_entries = sorted(d.iterdir())
@@ -119,11 +121,11 @@ def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
         if sub_csvs or not sub_dirs:
             # d is an experiment directory (has data CSVs directly); config.json,
             # written by Engine.run() as a sibling of the experiment dir, is in data_dir.
-            _load_dir_csvs(d, d.name, labs, _load_config_json(data_dir))
+            _load_dir_csvs(d, d.name, experiments, _load_config_json(data_dir))
         else:
-            # d is a job/lab directory; its subdirs are experiment directories,
-            # and config.json is a sibling of each of them, i.e. inside d.
-            lab_config = _load_config_json(d)
+            # d is a job/experiment-group directory; its subdirs are experiment
+            # directories, and config.json is a sibling of each of them, i.e. inside d.
+            group_config = _load_config_json(d)
             for exp_dir in sub_dirs:
                 exp_csvs = [
                     e
@@ -131,9 +133,9 @@ def collect_result_data(data_dir: Path) -> dict[str, dict[str, list[dict]]]:
                     if e.is_file() and e.suffix == ".csv" and e.name not in _SYSTEM_CSVS
                 ]
                 if exp_csvs:
-                    _load_dir_csvs(exp_dir, exp_dir.name, labs, lab_config)
+                    _load_dir_csvs(exp_dir, exp_dir.name, experiments, group_config)
 
-    return labs
+    return experiments
 
 
 def export_dashboard(data_dir: Path, output: Path) -> None:
@@ -142,20 +144,21 @@ def export_dashboard(data_dir: Path, output: Path) -> None:
         sys.exit(1)
 
     print(f"[*] Scanning {data_dir} …")
-    labs = collect_result_data(data_dir)
-    total_exps = sum(len(exps) for exps in labs.values())
+    experiments = collect_result_data(data_dir)
+    total_apps = sum(len(apps) for apps in experiments.values())
 
-    if total_exps == 0:
+    if total_apps == 0:
         print(f"[ERROR] No CSV data found in {data_dir}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[*] Found {total_exps} experiment(s) across {len(labs)} lab(s)")
-    for lab, exps in labs.items():
-        for exp in exps:
-            print(f"    {lab} / {exp}")
+    print(f"[*] Found {total_apps} app(s) across {len(experiments)} experiment(s)")
+    for experiment, apps in experiments.items():
+        for app in apps:
+            print(f"    {experiment} / {app}")
 
     html = _DASHBOARD_TEMPLATE.read_text(encoding="utf-8")
-    data_json = json.dumps({"labs": labs}, separators=(",", ":"))
+    # crab_dashboard.html's own JS reads `.labs` — legacy embedding key, out of this plan's scope.
+    data_json = json.dumps({"labs": experiments}, separators=(",", ":"))
 
     inject = (
         "<style>.tbox{display:none!important}</style>\n"

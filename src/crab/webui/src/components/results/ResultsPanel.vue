@@ -19,7 +19,7 @@ onMounted(() => {
 });
 
 const data = computed(() => results.results[props.recordId]);
-const labs = computed(() => (data.value ? Object.keys(data.value.labs) : []));
+const labs = computed(() => (data.value ? Object.keys(data.value.experiments) : []));
 const activeLab = ref("");
 watch(
   labs,
@@ -30,7 +30,7 @@ watch(
 );
 
 const experimentNames = computed(() =>
-  activeLab.value && data.value ? Object.keys(data.value.labs[activeLab.value]) : [],
+  activeLab.value && data.value ? Object.keys(data.value.experiments[activeLab.value]) : [],
 );
 const activeExperiment = ref("");
 watch(
@@ -44,7 +44,7 @@ watch(
 const colors = computed(() => assignColors(experimentNames.value));
 const activeRows = computed(() =>
   activeLab.value && activeExperiment.value && data.value
-    ? data.value.labs[activeLab.value][activeExperiment.value]
+    ? data.value.experiments[activeLab.value][activeExperiment.value]
     : [],
 );
 const compareExperiments = computed(() =>
@@ -53,7 +53,7 @@ const compareExperiments = computed(() =>
     : experimentNames.value.map((name) => ({
         name,
         color: colors.value[name],
-        rows: data.value!.labs[activeLab.value][name],
+        rows: data.value!.experiments[activeLab.value][name],
       })),
 );
 

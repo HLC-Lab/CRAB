@@ -206,7 +206,7 @@ def test_get_results_returns_parsed_data_after_a_fetch(tmp_path: Path):
     with _client(tmp_path) as client:
         resp = client.get(f"/api/jobs/{record_id}/results")
         assert resp.status_code == 200
-        assert resp.json() == {"labs": {"Root Lab": {"App 0": [{"x": 1}]}}}
+        assert resp.json() == {"experiments": {"Root": {"App 0": [{"x": 1}]}}}
 
 
 def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):

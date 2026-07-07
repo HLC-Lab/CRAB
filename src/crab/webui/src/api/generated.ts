@@ -882,8 +882,8 @@ export interface components {
     };
     /** ResultsData */
     ResultsData: {
-      /** Labs */
-      labs: {
+      /** Experiments */
+      experiments: {
         [key: string]: {
           [key: string]: {
             [key: string]: unknown;
