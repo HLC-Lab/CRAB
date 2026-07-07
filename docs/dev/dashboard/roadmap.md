@@ -37,10 +37,12 @@ decisions live in the [decision records](decisions/index.md).
 
 ## v1.0 gates (remaining)
 
-1. **Results dashboard** — fetch result CSVs to a local cache, a Chart.js results dashboard
-   (port of the `crab export` charts), **and a standalone self-contained HTML export** (data
-   embedded, shareable offline). History-across-clusters and per-experiment detail already
-   shipped (see Done).
+1. **Results dashboard** — fetch result CSVs to a local cache; a top-level Results section
+   (Plotly charts with a print/paper look, a sortable table, and a cross-job/cross-cluster
+   Compare workbench) covering every job `crab history` reports, whether submitted through the
+   dashboard or run directly on the cluster — **and a standalone self-contained HTML export**
+   (data embedded, shareable offline) still outstanding. History-across-clusters and
+   per-experiment detail already shipped (see Done).
 2. **Hardening before submit ships**: localhost API authentication (session token + origin
    checks) and server-side config shape validation.
 3. **Polish & packaging** — first-run onboarding, empty/error states, version-skew warning,

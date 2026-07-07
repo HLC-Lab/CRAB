@@ -3,6 +3,13 @@
 Recorded so nothing is silently dropped or silently added. To pull an item into scope, move it
 into [roadmap.md](roadmap.md) (or a work plan) with a date and reason.
 
+## Closed: cross-cluster compare
+
+ADR-021 deferred overlaying the same use case across clusters and said it would be tracked here
+as a deferred feature — it never actually landed as a row below. Noted here only to close that
+loop, not because anything is still outstanding: plan 077 built the cross-cluster/cross-job
+Compare workbench (ADR-022), so this item is done, not deferred.
+
 ## Deferred features
 
 | Feature | Why deferred | Revisit |
