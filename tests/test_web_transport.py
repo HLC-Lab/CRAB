@@ -23,8 +23,17 @@ import pytest
 
 pytest.importorskip("fastapi", reason="web extra not installed")
 
-from crab.web.connections.transport import LocalTransport, SSHTransport  # noqa: E402
-from crab.web.errors import RemoteCommandError, RemoteConnectionError  # noqa: E402
+from crab.web.connections.transport import (  # noqa: E402
+    LocalTransport,
+    SSHTransport,
+    connect_ssh,
+)
+from crab.web.errors import (  # noqa: E402
+    AuthError,
+    RemoteCommandError,
+    RemoteConnectionError,
+)
+from crab.web.store.profiles import Profile  # noqa: E402
 from ssh_server import connect_local, local_ssh_server  # noqa: E402
 
 
@@ -163,3 +172,101 @@ async def test_ssh_transport_fetch_tree_real_server_missing_remote_raises(tmp_pa
             assert transport.alive
         finally:
             await transport.close()
+
+
+async def test_ssh_transport_run_executes_a_real_command():
+    async with local_ssh_server(run_real_commands=True) as port:
+        conn = await connect_local(port)
+        transport = SSHTransport(conn)
+        try:
+            result = await transport.run("echo hello")
+            assert result.ok
+            assert result.stdout.strip() == "hello"
+        finally:
+            await transport.close()
+
+
+async def test_ssh_transport_run_reports_a_real_nonzero_exit():
+    async with local_ssh_server(run_real_commands=True) as port:
+        conn = await connect_local(port)
+        transport = SSHTransport(conn)
+        try:
+            result = await transport.run("exit 3")
+            assert result.rc == 3
+            assert not result.ok
+        finally:
+            await transport.close()
+
+
+async def test_ssh_transport_write_file_real_server_round_trip(tmp_path: Path):
+    remote_path = tmp_path / "config.json"
+
+    async with local_ssh_server() as port:
+        conn = await connect_local(port)
+        transport = SSHTransport(conn)
+        try:
+            await transport.write_file(str(remote_path), '{"a": 1}')
+        finally:
+            await transport.close()
+
+    assert remote_path.read_text() == '{"a": 1}'
+
+
+async def test_connect_ssh_real_server_accepts_the_authorized_key(tmp_path: Path):
+    client_key = asyncssh.generate_private_key("ssh-rsa")
+    key_path = tmp_path / "id_test"
+    client_key.write_private_key(str(key_path))
+
+    async with local_ssh_server(authorized_key=client_key) as port:
+        profile = Profile(
+            name="test",
+            host="127.0.0.1",
+            port=port,
+            user="test",
+            auth="key",
+            key_path=str(key_path),
+            hostkey_policy="insecure",
+        )
+        transport = await connect_ssh(profile)
+        try:
+            assert transport.alive
+        finally:
+            await transport.close()
+
+
+async def test_connect_ssh_real_server_rejects_the_wrong_key(tmp_path: Path):
+    authorized_key = asyncssh.generate_private_key("ssh-rsa")
+    wrong_key = asyncssh.generate_private_key("ssh-rsa")
+    key_path = tmp_path / "id_wrong"
+    wrong_key.write_private_key(str(key_path))
+
+    async with local_ssh_server(authorized_key=authorized_key) as port:
+        profile = Profile(
+            name="test",
+            host="127.0.0.1",
+            port=port,
+            user="test",
+            auth="key",
+            key_path=str(key_path),
+            hostkey_policy="insecure",
+        )
+        with pytest.raises(AuthError):
+            await connect_ssh(profile)
+
+
+async def test_connect_ssh_real_server_connection_refused_maps_cleanly(
+    tmp_path: Path, unused_tcp_port: int
+):
+    key_path = tmp_path / "id_test"
+    asyncssh.generate_private_key("ssh-rsa").write_private_key(str(key_path))
+    profile = Profile(
+        name="test",
+        host="127.0.0.1",
+        port=unused_tcp_port,
+        user="test",
+        auth="key",
+        key_path=str(key_path),
+        hostkey_policy="insecure",
+    )
+    with pytest.raises(RemoteConnectionError):
+        await connect_ssh(profile)
