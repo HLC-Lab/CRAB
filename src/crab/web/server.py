@@ -93,6 +93,7 @@ def create_app(
     app.state.api_token = secrets.token_urlsafe(32)
     register_exception_handlers(app)
     _install_api_guard(app)
+    _install_asset_cache_headers(app)
 
     api = APIRouter(prefix="/api")
 
@@ -173,6 +174,21 @@ def _install_api_guard(app: FastAPI) -> None:
                 "the current session.",
             )
         return await call_next(request)
+
+
+def _install_asset_cache_headers(app: FastAPI) -> None:
+    """Cache `/assets/*` responses for a year (plan 079): Vite content-hashes
+    every filename under that directory, so a changed file is always a new
+    URL — a long cache lifetime is safe, unlike the SPA shell (`index.html`),
+    which names the current hashed bundle and must stay `no-cache`."""
+    from fastapi import Request
+
+    @app.middleware("http")
+    async def asset_cache_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        if request.url.path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
 
 
 def _mount_frontend(app: FastAPI, settings: Settings) -> None:

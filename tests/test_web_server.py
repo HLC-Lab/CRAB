@@ -108,6 +108,24 @@ def test_spa_serving_and_fallback(tmp_path: Path):
     assert client.get("/api/health").status_code == 200
 
 
+def test_hashed_assets_get_a_long_lived_cache_header(tmp_path: Path):
+    """Plan 079: Vite content-hashes every filename under assets/, so a
+    changed file is always a new URL -- safe to cache for a long time."""
+    static = tmp_path / "static"
+    (static / "assets").mkdir(parents=True)
+    (static / "index.html").write_text("<!doctype html><title>app</title>")
+    (static / "assets" / "app.js").write_text("console.log('hi')")
+
+    client = auth_client(create_app(_settings(tmp_path, static=static)))
+
+    asset = client.get("/assets/app.js")
+    assert asset.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+    # The SPA shell must never be cached (it names the current asset bundle).
+    shell = client.get("/")
+    assert shell.headers["cache-control"] == "no-cache"
+
+
 def test_spa_path_traversal_blocked(tmp_path: Path):
     static = tmp_path / "static"
     static.mkdir()
