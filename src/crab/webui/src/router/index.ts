@@ -45,6 +45,12 @@ const routes = [
     component: () => import("@/views/ResultsView.vue"),
     meta: { title: "Results" },
   },
+  {
+    path: "/results/:cluster/:system/:jobBasename",
+    name: "results-job",
+    component: () => import("@/views/ResultsJobView.vue"),
+    meta: { title: "Results" },
+  },
 ];
 
 export const router = createRouter({

@@ -1,0 +1,1 @@
+function r(e){const t=e.split("/").filter(Boolean);return t.length?t[t.length-1]:""}function a(e){const t=e.split("/").filter(n=>n&&n!==".");return t.length?t[0]:""}function s(e,t,n){return`${e}/${t}/${n}`}export{r as a,a as j,s as r};
