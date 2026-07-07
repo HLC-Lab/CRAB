@@ -27,3 +27,4 @@ marked superseded, never deleted.
 | [018](adr-018-local-cache-fallback.md) | Local cache as a fallback, never the source of truth | accepted |
 | [019](adr-019-async-submit.md) | Async submit via an in-memory tracker, not a persisted queue | accepted |
 | [020](adr-020-rerun-lineage.md) | Track rerun lineage as additive fields, not a new entity | accepted |
+| [021](adr-021-results-dashboard.md) | Results dashboard: recursive SFTP, per-job cache, one chart implementation | accepted |
