@@ -8,12 +8,13 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import Plotly from "plotly.js-cartesian-dist-min";
 import { useResultsStore } from "@/stores/results";
 import { resultsKey } from "@/lib/jobKey";
-import { assignColors, numericCols, type ChartKind, type ScaleKind } from "@/lib/resultsChart";
+import { assignColors, type ChartKind, type ScaleKind } from "@/lib/resultsChart";
 import { makePlotlyLayout } from "@/lib/resultsPlot";
 import {
   makeOverlayTraces,
   makeSmallMultipleTraces,
   seriesId,
+  sharedColumns,
   sharedUnit,
   type CompareSeries,
   type SeriesMeta,
@@ -49,11 +50,7 @@ const selectedSeries = computed<CompareSeries[]>(() => {
   });
 });
 
-const columns = computed(() => {
-  const cols = new Set<string>();
-  selectedSeries.value.forEach((s) => numericCols(s.rows).forEach((c) => cols.add(c)));
-  return [...cols];
-});
+const columns = computed(() => sharedColumns(selectedSeries.value));
 const xCol = ref("");
 const yCol = ref("");
 watch(
@@ -209,6 +206,9 @@ onUnmounted(() => {
       <div class="content">
         <p v-if="!selectedSeries.length" class="empty">
           Select an app from any job on the left to add it to the comparison.
+        </p>
+        <p v-else-if="!columns.length" class="empty">
+          The selected series have no numeric column in common, pick a different combination.
         </p>
         <template v-else>
           <div class="toolbar">

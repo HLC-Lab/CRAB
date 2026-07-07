@@ -9,6 +9,7 @@ import {
   makeOverlayTraces,
   makeSmallMultipleTraces,
   resolveCol,
+  sharedColumns,
   sharedUnit,
   type CompareSeries,
 } from "@/lib/resultsCompare";
@@ -28,6 +29,55 @@ describe("resolveCol", () => {
 
   it("falls back when rows are empty", () => {
     expect(resolveCol([], "msg_size")).toBe("msg_size");
+  });
+});
+
+describe("sharedColumns", () => {
+  it("returns only columns present in every series, not a union (S17 regression)", () => {
+    // Series A only has msg_size; series B only has n. A union would let a
+    // caller pick msg_size as an axis and silently render series B with no
+    // data at all -- the intersection must exclude both msg_size and n.
+    const seriesA: CompareSeries = {
+      id: "a",
+      label: "A",
+      color: "#111",
+      rows: [{ msg_size: 1024, avg_duration_s: 0.5 }],
+    };
+    const seriesB: CompareSeries = {
+      id: "b",
+      label: "B",
+      color: "#222",
+      rows: [{ n: 1, avg_duration_s: 5e-8 }],
+    };
+
+    expect(sharedColumns([seriesA, seriesB])).toEqual(["avg_duration_s"]);
+  });
+
+  it("matches numeric-prefixed columns by their canonical suffix", () => {
+    const seriesA: CompareSeries = {
+      id: "a",
+      label: "A",
+      color: "#111",
+      rows: [{ "1_bw": 5000, "1_lat": 1 }],
+    };
+    const seriesB: CompareSeries = {
+      id: "b",
+      label: "B",
+      color: "#222",
+      rows: [{ "2_bw": 9000 }],
+    };
+
+    expect(sharedColumns([seriesA, seriesB])).toEqual(["bw"]);
+  });
+
+  it("returns an empty list when nothing is selected", () => {
+    expect(sharedColumns([])).toEqual([]);
+  });
+
+  it("returns an empty list when series share no numeric column", () => {
+    const seriesA: CompareSeries = { id: "a", label: "A", color: "#111", rows: [{ x: 1 }] };
+    const seriesB: CompareSeries = { id: "b", label: "B", color: "#222", rows: [{ y: 2 }] };
+    expect(sharedColumns([seriesA, seriesB])).toEqual([]);
   });
 });
 

@@ -10,7 +10,13 @@
 // small-multiples mode picked each card's unit independently, so two cards
 // could silently show "the same" axis in different units/scales -- this
 // computes ONE unit across every selected series up front instead.
-import { unitForCol, type ChartKind, type ResultRow, type Unit } from "@/lib/resultsChart";
+import {
+  numericCols,
+  unitForCol,
+  type ChartKind,
+  type ResultRow,
+  type Unit,
+} from "@/lib/resultsChart";
 import { makePlotlyTraces } from "@/lib/resultsPlot";
 import type { Data } from "plotly.js";
 
@@ -45,6 +51,20 @@ export function resolveCol(rows: ResultRow[], col: string): string {
   if (suffix === col) return col;
   const match = Object.keys(rows[0]).find((c) => c.replace(/^\d+_/, "") === suffix);
   return match ?? col;
+}
+
+/** The axis-pickable columns: numeric columns present in EVERY selected
+ * series, matched by canonical (numeric-prefix-stripped) name -- never a
+ * union. A union would let a user pick an axis only some series have,
+ * silently rendering the others with no data (found during this plan's own
+ * S17 render-verify pass: a series with no matching X column contributed an
+ * empty, invisible trace instead of an error). */
+export function sharedColumns(series: CompareSeries[]): string[] {
+  if (!series.length) return [];
+  const canonical = (rows: ResultRow[]) =>
+    new Set(numericCols(rows).map((c) => c.replace(/^\d+_/, "")));
+  const [first, ...rest] = series.map((s) => canonical(s.rows));
+  return [...first].filter((c) => rest.every((set) => set.has(c)));
 }
 
 /** One unit for `col`, computed across every selected series' values at once
