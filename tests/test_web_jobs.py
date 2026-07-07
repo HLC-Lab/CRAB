@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
-from crab.web.api.jobs import _run_submission  # noqa: E402
+from crab.web.api.jobs import _run_submission, worst_status  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import NotFoundError  # noqa: E402
@@ -1184,3 +1184,22 @@ def test_use_case_report_spans_multiple_connected_clusters(tmp_path: Path):
         assert body["clusters_skipped"] == []
         clusters = sorted(e["cluster"] for e in body["experiments"])
         assert clusters == ["alps", "leonardo"]
+
+
+# --------------------------------------------------------------------------- #
+# worst_status (plan 077 S5 extraction of _resolve_via_history's status walk)
+# --------------------------------------------------------------------------- #
+def test_worst_status_prefers_failed_over_completed():
+    assert worst_status(["COMPLETED", "FAILED"]) == "FAILED"
+
+
+def test_worst_status_prefers_timeout_over_completed():
+    assert worst_status(["COMPLETED", "TIMEOUT"]) == "TIMEOUT"
+
+
+def test_worst_status_empty_is_none():
+    assert worst_status([]) is None
+
+
+def test_worst_status_falls_back_to_the_only_status_present():
+    assert worst_status(["UNKNOWN"]) == "UNKNOWN"

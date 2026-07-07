@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -266,6 +266,22 @@ class JobListItem(JobRecord):
     connected: bool = False
 
 
+def worst_status(statuses: Iterable[str]) -> str | None:
+    """Worst-first reduction of a set of `crab history` statuses.
+
+    A job's data_dir can hold several experiments (one `crab run` submission
+    runs every key in the config's `experiments` dict); this collapses their
+    statuses to the single worst one, or None if there's nothing to reduce.
+    """
+    statuses = set(statuses)
+    if not statuses:
+        return None
+    for candidate in _HISTORY_STATUS_PRIORITY:
+        if candidate in statuses:
+            return candidate
+    return next(iter(statuses))
+
+
 async def _resolve_via_history(
     transport: Transport, profile: Profile, record: JobRecord, timeout: float
 ) -> str | None:
@@ -275,9 +291,8 @@ async def _resolve_via_history(
     (2) squeue/sacct report a fresh COMPLETED — engine.py's `_run_worker`
     catches each experiment's exception and keeps going, so the Slurm job can
     exit 0 while an experiment inside it genuinely failed. Both cases need the
-    same worst-first read: a job's data_dir can hold several experiments (one
-    `crab run` submission runs every key in the config's `experiments` dict);
-    their metadata.csv rows all share `./<basename(data_dir)>/` as their
+    same worst-first read: a job's data_dir can hold several experiments; their
+    metadata.csv rows all share `./<basename(data_dir)>/` as their
     relative_path prefix (`core/experiment/runner.py::_write_to_registry`).
     Returns the worst matching status, or None if nothing matches (still
     genuinely unknown/clean — never guessed).
@@ -289,12 +304,7 @@ async def _resolve_via_history(
     statuses = {
         e["status"] for e in history["experiments"] if e.get("relative_path", "").startswith(prefix)
     }
-    if not statuses:
-        return None
-    for candidate in _HISTORY_STATUS_PRIORITY:
-        if candidate in statuses:
-            return candidate
-    return next(iter(statuses))
+    return worst_status(statuses)
 
 
 @router.get("")
