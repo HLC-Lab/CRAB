@@ -176,3 +176,59 @@ def test_fetch_results_without_connection_fails(tmp_path: Path):
         resp = client.post(f"/api/jobs/{record_id}/results/fetch")
         assert resp.status_code == 502
         assert resp.json()["code"] == "connection_error"
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/jobs/{record_id}/results, GET/DELETE /api/jobs/results/cache
+# --------------------------------------------------------------------------- #
+def _cache_a_result_tree(tmp_path: Path, record_id: str) -> Path:
+    """Simulate a completed fetch by writing CSVs straight into the cache path
+    (the fetch itself, S4, is covered above; this seams past it to test S5)."""
+    rec = JobsStore(_settings(tmp_path)).get(record_id)
+    job_dir = ResultsCache(_settings(tmp_path)).path_for(rec.cluster, Path(rec.data_dir).name)
+    job_dir.mkdir(parents=True)
+    (job_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    return job_dir
+
+
+def test_get_results_404_when_never_fetched(tmp_path: Path):
+    record_id = _seed_job(tmp_path)
+    with _client(tmp_path) as client:
+        resp = client.get(f"/api/jobs/{record_id}/results")
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
+
+
+def test_get_results_returns_parsed_data_after_a_fetch(tmp_path: Path):
+    record_id = _seed_job(tmp_path)
+    _cache_a_result_tree(tmp_path, record_id)
+
+    with _client(tmp_path) as client:
+        resp = client.get(f"/api/jobs/{record_id}/results")
+        assert resp.status_code == 200
+        assert resp.json() == {"labs": {"Root Lab": {"App 0": [{"x": 1}]}}}
+
+
+def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):
+    record_id = _seed_job(tmp_path)
+
+    with _client(tmp_path) as client:
+        assert client.get("/api/jobs/results/cache").json() == {"total_bytes": 0}
+
+        _cache_a_result_tree(tmp_path, record_id)
+
+        size = client.get("/api/jobs/results/cache").json()["total_bytes"]
+        assert size > 0
+
+
+def test_clear_results_cache_removes_everything(tmp_path: Path):
+    record_id = _seed_job(tmp_path)
+    _cache_a_result_tree(tmp_path, record_id)
+
+    with _client(tmp_path) as client:
+        resp = client.delete("/api/jobs/results/cache")
+        assert resp.status_code == 204
+
+        assert client.get("/api/jobs/results/cache").json() == {"total_bytes": 0}
+        again = client.get(f"/api/jobs/{record_id}/results")
+        assert again.status_code == 404

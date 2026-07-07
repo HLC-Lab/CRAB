@@ -17,9 +17,11 @@ from typing import Any
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from crab.cli.export import collect_result_data
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import CrabWebError, NotFoundError, RemoteConnectionError, logger
+from crab.web.models.results import ResultsData
 from crab.web.store.jobs import JobsStore
 from crab.web.store.results_cache import ResultsCache
 
@@ -133,3 +135,28 @@ async def get_fetch_status(record_id: str, fetch_id: str, request: Request) -> F
     if entry["status"] != "pending":
         tracker.pop(fetch_id, None)
     return response
+
+
+@router.get("/{record_id}/results")
+async def get_results(record_id: str, request: Request) -> ResultsData:
+    """The cached CSV tree for this job, parsed. 404 if it was never fetched."""
+    rec = _jobs_store(request).get(record_id)
+    local_dir = _results_cache(request).path_for(rec.cluster, Path(rec.data_dir).name)
+    if not local_dir.is_dir():
+        raise NotFoundError(f"No results cached yet for job '{record_id}'. Fetch them first.")
+    labs = await asyncio.to_thread(collect_result_data, local_dir)
+    return ResultsData(labs=labs)
+
+
+class CacheSize(BaseModel):
+    total_bytes: int
+
+
+@router.get("/results/cache")
+async def get_results_cache_size(request: Request) -> CacheSize:
+    return CacheSize(total_bytes=_results_cache(request).total_size())
+
+
+@router.delete("/results/cache", status_code=204)
+async def clear_results_cache(request: Request) -> None:
+    _results_cache(request).clear()

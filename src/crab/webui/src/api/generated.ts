@@ -435,6 +435,88 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/jobs/{record_id}/results/fetch": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Fetch Results
+     * @description Validate synchronously (job exists, cluster connected), then fetch in the background.
+     */
+    post: operations["fetch_results_api_jobs__record_id__results_fetch_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/{record_id}/results/fetch/{fetch_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Fetch Status
+     * @description Poll a fetch's status; 404 once a terminal result has been fetched.
+     *
+     *     Entries are dropped from the tracker as soon as a terminal status is
+     *     returned so it doesn't grow forever (there's no other cleanup — the
+     *     tracker is in-memory and process-lifetime only, same as jobs.py's).
+     */
+    get: operations["get_fetch_status_api_jobs__record_id__results_fetch__fetch_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/{record_id}/results": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Results
+     * @description The cached CSV tree for this job, parsed. 404 if it was never fetched.
+     */
+    get: operations["get_results_api_jobs__record_id__results_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/jobs/results/cache": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Results Cache Size */
+    get: operations["get_results_cache_size_api_jobs_results_cache_get"];
+    put?: never;
+    post?: never;
+    /** Clear Results Cache */
+    delete: operations["clear_results_cache_api_jobs_results_cache_delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -450,6 +532,11 @@ export interface components {
       label: string;
       /** Command */
       command: string;
+    };
+    /** CacheSize */
+    CacheSize: {
+      /** Total Bytes */
+      total_bytes: number;
     };
     /** CancelResponse */
     CancelResponse: {
@@ -486,6 +573,24 @@ export interface components {
       } | null;
       /** Reason */
       reason?: string | null;
+    };
+    /** FetchAccepted */
+    FetchAccepted: {
+      /** Fetch Id */
+      fetch_id: string;
+    };
+    /**
+     * FetchStatus
+     * @description Polled result of an async results fetch. `status` is one of
+     *     "pending", "done", "error".
+     */
+    FetchStatus: {
+      /** Status */
+      status: string;
+      /** Message */
+      message?: string | null;
+      /** Detail */
+      detail?: string | null;
     };
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -774,6 +879,17 @@ export interface components {
       job_id?: string | null;
       /** Submitted At */
       submitted_at?: string | null;
+    };
+    /** ResultsData */
+    ResultsData: {
+      /** Labs */
+      labs: {
+        [key: string]: {
+          [key: string]: {
+            [key: string]: unknown;
+          }[];
+        };
+      };
     };
     /**
      * SavedEntry
@@ -1666,6 +1782,138 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
         };
+      };
+    };
+  };
+  fetch_results_api_jobs__record_id__results_fetch_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FetchAccepted"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_fetch_status_api_jobs__record_id__results_fetch__fetch_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        record_id: string;
+        fetch_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FetchStatus"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_results_api_jobs__record_id__results_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        record_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResultsData"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_results_cache_size_api_jobs_results_cache_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CacheSize"];
+        };
+      };
+    };
+  };
+  clear_results_cache_api_jobs_results_cache_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };
