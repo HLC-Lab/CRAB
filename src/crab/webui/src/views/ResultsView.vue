@@ -8,6 +8,7 @@ import { RouterLink } from "vue-router";
 import { useResultsStore } from "@/stores/results";
 import { formatBytes } from "@/lib/resultsChart";
 import { describeStaleness, sortEntries } from "@/lib/resultsIndex";
+import ResultsTabs from "@/components/results/ResultsTabs.vue";
 
 const results = useResultsStore();
 
@@ -21,6 +22,8 @@ const entries = computed(() => sortEntries(results.index));
 <template>
   <section class="results-view">
     <h1>Results</h1>
+
+    <ResultsTabs />
 
     <p v-if="results.indexBusy" class="meta">Loading…</p>
     <p v-else-if="results.indexError" class="banner err">{{ results.indexError }}</p>

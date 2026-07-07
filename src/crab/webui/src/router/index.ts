@@ -46,6 +46,12 @@ const routes = [
     meta: { title: "Results" },
   },
   {
+    path: "/results/compare",
+    name: "results-compare",
+    component: () => import("@/views/ResultsCompareView.vue"),
+    meta: { title: "Compare results" },
+  },
+  {
     path: "/results/:cluster/:system/:jobBasename",
     name: "results-job",
     component: () => import("@/views/ResultsJobView.vue"),

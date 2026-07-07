@@ -21,6 +21,21 @@ export interface CompareSeries {
   rows: ResultRow[];
 }
 
+/** Identifies one (job, experiment, app) row-set a caller can add to the
+ * canvas -- shared between the tree browser and the workbench page so both
+ * agree on the same id for the same selection. */
+export interface SeriesMeta {
+  cluster: string;
+  system: string;
+  jobBasename: string;
+  experiment: string;
+  app: string;
+}
+
+export function seriesId(m: SeriesMeta): string {
+  return `${m.cluster}|${m.system}|${m.jobBasename}|${m.experiment}|${m.app}`;
+}
+
 /** Strip a numeric prefix ("1_Avg-Duration_s" -> "Avg-Duration_s") and find the
  * matching column in `rows` that may carry a different prefix. Falls back to
  * `col` unchanged when no such column exists. */
