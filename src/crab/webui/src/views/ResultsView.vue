@@ -8,16 +8,28 @@ import { computed, onMounted } from "vue";
 import { RouterLink } from "vue-router";
 import { useJobsStore } from "@/stores/jobs";
 import { useResultsStore } from "@/stores/results";
+import { jobBasenameFromDataDir, resultsKey } from "@/lib/jobKey";
 
 const jobs = useJobsStore();
 const results = useResultsStore();
 
+// Temporary: loops the registry the same way the old per-job Results tab did.
+// S13 replaces this with S6's cross-cluster `/api/results` index, which also
+// covers CLI-only jobs this loop can't see.
 onMounted(async () => {
   if (!jobs.items.length) await jobs.refresh();
-  await Promise.all(jobs.items.map((j) => results.loadResults(j.id)));
+  await Promise.all(
+    jobs.items.map((j) =>
+      results.loadResults(j.cluster, j.system, jobBasenameFromDataDir(j.data_dir)),
+    ),
+  );
 });
 
-const cachedJobs = computed(() => jobs.items.filter((j) => results.results[j.id]));
+const cachedJobs = computed(() =>
+  jobs.items.filter(
+    (j) => results.results[resultsKey(j.cluster, j.system, jobBasenameFromDataDir(j.data_dir))],
+  ),
+);
 </script>
 
 <template>

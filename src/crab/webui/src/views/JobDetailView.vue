@@ -15,6 +15,7 @@ import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
 import RerunSummaryCard from "@/components/jobs/RerunSummaryCard.vue";
 import ResultsPanel from "@/components/results/ResultsPanel.vue";
 import { failedExperimentNames as computeFailedNames } from "@/lib/jobStatus";
+import { jobBasenameFromRelativePath } from "@/lib/jobKey";
 import type { CrabConfig } from "@/api/types";
 
 const route = useRoute();
@@ -25,6 +26,18 @@ const jobs = useJobsStore();
 
 type DetailTab = "experiments" | "results";
 const activeTab = ref<DetailTab>("experiments");
+
+// A job_basename (and so Results) only exists once at least one experiment
+// row has been seen -- a job resolved but with no history yet has nothing to key on.
+const resultsKey = computed(() => {
+  const detail = detailStore.detail;
+  if (!detail || !detail.experiments.length) return null;
+  return {
+    cluster: detail.cluster,
+    system: detail.system,
+    jobBasename: jobBasenameFromRelativePath(detail.experiments[0].relative_path),
+  };
+});
 
 onMounted(() => {
   detailStore.fetchDetail(recordId.value);
@@ -126,6 +139,7 @@ async function confirmRerunFailed() {
           type="button"
           class="tab-btn"
           :class="{ active: activeTab === 'results' }"
+          :disabled="!resultsKey"
           @click="activeTab = 'results'"
         >
           Results
@@ -190,7 +204,12 @@ async function confirmRerunFailed() {
         </section>
       </template>
 
-      <ResultsPanel v-else :record-id="recordId" />
+      <ResultsPanel
+        v-else-if="resultsKey"
+        :cluster="resultsKey.cluster"
+        :system="resultsKey.system"
+        :job-basename="resultsKey.jobBasename"
+      />
     </template>
 
     <ConfirmModal

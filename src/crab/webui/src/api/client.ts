@@ -83,6 +83,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await resp.json()) as T;
 }
 
+function resultsPath(cluster: string, system: string, jobBasename: string): string {
+  return `/api/results/${encodeURIComponent(cluster)}/${encodeURIComponent(system)}/${encodeURIComponent(jobBasename)}`;
+}
+
 export const api = {
   health: () => request<Health>("/api/health"),
 
@@ -185,19 +189,20 @@ export const api = {
       request<UseCaseReport>(`/api/jobs/report/${encodeURIComponent(configName)}`),
     experiments: (id: string) =>
       request<JobDetail>(`/api/jobs/${encodeURIComponent(id)}/experiments`),
+  },
 
-    results: {
-      fetch: (id: string) =>
-        request<FetchAccepted>(`/api/jobs/${encodeURIComponent(id)}/results/fetch`, {
-          method: "POST",
-        }),
-      fetchStatus: (id: string, fetchId: string) =>
-        request<FetchStatus>(
-          `/api/jobs/${encodeURIComponent(id)}/results/fetch/${encodeURIComponent(fetchId)}`,
-        ),
-      get: (id: string) => request<ResultsData>(`/api/jobs/${encodeURIComponent(id)}/results`),
-      cacheSize: () => request<CacheSize>("/api/jobs/results/cache"),
-      clearCache: () => request<void>("/api/jobs/results/cache", { method: "DELETE" }),
-    },
+  results: {
+    fetch: (cluster: string, system: string, jobBasename: string) =>
+      request<FetchAccepted>(`${resultsPath(cluster, system, jobBasename)}/fetch`, {
+        method: "POST",
+      }),
+    fetchStatus: (cluster: string, system: string, jobBasename: string, fetchId: string) =>
+      request<FetchStatus>(
+        `${resultsPath(cluster, system, jobBasename)}/fetch/${encodeURIComponent(fetchId)}`,
+      ),
+    get: (cluster: string, system: string, jobBasename: string) =>
+      request<ResultsData>(resultsPath(cluster, system, jobBasename)),
+    cacheSize: () => request<CacheSize>("/api/results/cache"),
+    clearCache: () => request<void>("/api/results/cache", { method: "DELETE" }),
   },
 };

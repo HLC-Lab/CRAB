@@ -1,5 +1,6 @@
 /**
- * Fetch/poll/cache-size/clear behavior for the results store (plan 065), mirroring
+ * Fetch/poll/cache-size/clear behavior for the results store (plan 077 re-key:
+ * (cluster, system, jobBasename) instead of a registry record id), mirroring
  * jobs.store.spec.ts's async-submit fake-timer technique. Mocks the API client, the
  * true I/O boundary, not store internals.
  */
@@ -8,14 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/api/client", () => ({
   api: {
-    jobs: {
-      results: {
-        fetch: vi.fn(),
-        fetchStatus: vi.fn(),
-        get: vi.fn(),
-        cacheSize: vi.fn(),
-        clearCache: vi.fn(),
-      },
+    results: {
+      fetch: vi.fn(),
+      fetchStatus: vi.fn(),
+      get: vi.fn(),
+      cacheSize: vi.fn(),
+      clearCache: vi.fn(),
     },
   },
   ApiError: class ApiError extends Error {
@@ -31,13 +30,18 @@ vi.mock("@/api/client", () => ({
 import { ApiError, api } from "@/api/client";
 import { useResultsStore } from "@/stores/results";
 
-const fetchMock = vi.mocked(api.jobs.results.fetch);
-const fetchStatusMock = vi.mocked(api.jobs.results.fetchStatus);
-const getMock = vi.mocked(api.jobs.results.get);
-const cacheSizeMock = vi.mocked(api.jobs.results.cacheSize);
-const clearCacheMock = vi.mocked(api.jobs.results.clearCache);
+const fetchMock = vi.mocked(api.results.fetch);
+const fetchStatusMock = vi.mocked(api.results.fetchStatus);
+const getMock = vi.mocked(api.results.get);
+const cacheSizeMock = vi.mocked(api.results.cacheSize);
+const clearCacheMock = vi.mocked(api.results.clearCache);
 
-const SAMPLE_DATA = { labs: { "Root Lab": { "App 0": [{ x: 1 }] } } };
+const CLUSTER = "leonardo";
+const SYSTEM = "leonardo";
+const JOB_BASENAME = "demo_job";
+const KEY = `${CLUSTER}/${SYSTEM}/${JOB_BASENAME}`;
+
+const SAMPLE_DATA = { experiments: { Root: { "App 0": [{ x: 1 }] } } };
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -58,31 +62,31 @@ describe("results store: loading cached data", () => {
     getMock.mockRejectedValueOnce(new ApiError("No results cached yet.", 404));
 
     const store = useResultsStore();
-    await store.loadResults("leonardo:1");
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
 
-    expect(store.notFetched["leonardo:1"]).toBe(true);
-    expect(store.results["leonardo:1"]).toBeUndefined();
-    expect(store.loadError["leonardo:1"]).toBeUndefined();
+    expect(store.notFetched[KEY]).toBe(true);
+    expect(store.results[KEY]).toBeUndefined();
+    expect(store.loadError[KEY]).toBeUndefined();
   });
 
   it("stores the parsed data on success", async () => {
     getMock.mockResolvedValueOnce(SAMPLE_DATA);
 
     const store = useResultsStore();
-    await store.loadResults("leonardo:1");
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
 
-    expect(store.results["leonardo:1"]).toEqual(SAMPLE_DATA);
-    expect(store.notFetched["leonardo:1"]).toBeUndefined();
+    expect(store.results[KEY]).toEqual(SAMPLE_DATA);
+    expect(store.notFetched[KEY]).toBeUndefined();
   });
 
   it("surfaces a non-404 failure as a load error, not not-fetched", async () => {
     getMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
 
     const store = useResultsStore();
-    await store.loadResults("leonardo:1");
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
 
-    expect(store.notFetched["leonardo:1"]).toBeUndefined();
-    expect(store.loadError["leonardo:1"]).toBe("Cannot reach the dashboard backend.");
+    expect(store.notFetched[KEY]).toBeUndefined();
+    expect(store.loadError[KEY]).toBe("Cannot reach the dashboard backend.");
   });
 });
 
@@ -95,16 +99,16 @@ describe("results store: fetch + poll", () => {
     cacheSizeMock.mockResolvedValue({ total_bytes: 42 });
 
     const store = useResultsStore();
-    await store.fetchResults("leonardo:1");
+    await store.fetchResults(CLUSTER, SYSTEM, JOB_BASENAME);
 
-    expect(store.fetchBusy["leonardo:1"]).toBe(true);
+    expect(store.fetchBusy[KEY]).toBe(true);
 
     await vi.advanceTimersByTimeAsync(1_000); // first poll: still pending
-    expect(store.fetchBusy["leonardo:1"]).toBe(true);
+    expect(store.fetchBusy[KEY]).toBe(true);
 
     await vi.advanceTimersByTimeAsync(1_000); // second poll: done
-    expect(store.fetchBusy["leonardo:1"]).toBe(false);
-    expect(store.results["leonardo:1"]).toEqual(SAMPLE_DATA);
+    expect(store.fetchBusy[KEY]).toBe(false);
+    expect(store.results[KEY]).toEqual(SAMPLE_DATA);
     expect(store.cacheSize).toBe(42);
   });
 
@@ -117,21 +121,21 @@ describe("results store: fetch + poll", () => {
     });
 
     const store = useResultsStore();
-    await store.fetchResults("leonardo:1");
+    await store.fetchResults(CLUSTER, SYSTEM, JOB_BASENAME);
     await vi.advanceTimersByTimeAsync(1_000);
 
-    expect(store.fetchBusy["leonardo:1"]).toBe(false);
-    expect(store.fetchError["leonardo:1"]).toBe("Could not fetch results.\nboom");
+    expect(store.fetchBusy[KEY]).toBe(false);
+    expect(store.fetchError[KEY]).toBe("Could not fetch results.\nboom");
   });
 
   it("surfaces a failure to even start the fetch (e.g. not connected)", async () => {
     fetchMock.mockRejectedValueOnce(new ApiError("'leonardo' is not connected.", 502));
 
     const store = useResultsStore();
-    await store.fetchResults("leonardo:1");
+    await store.fetchResults(CLUSTER, SYSTEM, JOB_BASENAME);
 
-    expect(store.fetchBusy["leonardo:1"]).toBe(false);
-    expect(store.fetchError["leonardo:1"]).toBe("'leonardo' is not connected.");
+    expect(store.fetchBusy[KEY]).toBe(false);
+    expect(store.fetchError[KEY]).toBe("'leonardo' is not connected.");
   });
 });
 
@@ -150,8 +154,8 @@ describe("results store: cache size + clear", () => {
     cacheSizeMock.mockResolvedValueOnce({ total_bytes: 0 });
 
     const store = useResultsStore();
-    await store.loadResults("leonardo:1");
-    expect(store.results["leonardo:1"]).toEqual(SAMPLE_DATA);
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+    expect(store.results[KEY]).toEqual(SAMPLE_DATA);
 
     await store.clearCache();
 

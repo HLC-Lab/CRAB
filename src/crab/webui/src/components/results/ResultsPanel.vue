@@ -6,19 +6,21 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useResultsStore } from "@/stores/results";
 import { assignColors, formatBytes } from "@/lib/resultsChart";
+import { resultsKey } from "@/lib/jobKey";
 import ResultsChart from "@/components/results/ResultsChart.vue";
 import ResultsTable from "@/components/results/ResultsTable.vue";
 import CompareView from "@/components/results/CompareView.vue";
 
-const props = defineProps<{ recordId: string }>();
+const props = defineProps<{ cluster: string; system: string; jobBasename: string }>();
 const results = useResultsStore();
+const key = computed(() => resultsKey(props.cluster, props.system, props.jobBasename));
 
 onMounted(() => {
-  results.loadResults(props.recordId);
+  results.loadResults(props.cluster, props.system, props.jobBasename);
   results.refreshCacheSize();
 });
 
-const data = computed(() => results.results[props.recordId]);
+const data = computed(() => results.results[key.value]);
 const labs = computed(() => (data.value ? Object.keys(data.value.experiments) : []));
 const activeLab = ref("");
 watch(
@@ -66,7 +68,7 @@ const SUB_VIEWS: { value: SubView; label: string }[] = [
 const subView = ref<SubView>("chart");
 
 async function fetchNow() {
-  await results.fetchResults(props.recordId);
+  await results.fetchResults(props.cluster, props.system, props.jobBasename);
 }
 
 async function clearCache() {
@@ -84,18 +86,18 @@ async function clearCache() {
     </div>
     <p v-if="results.clearError" class="banner err small">{{ results.clearError }}</p>
 
-    <p v-if="results.loadBusy[recordId]" class="meta">Checking for cached results…</p>
-    <p v-else-if="results.loadError[recordId]" class="banner err">
-      {{ results.loadError[recordId] }}
+    <p v-if="results.loadBusy[key]" class="meta">Checking for cached results…</p>
+    <p v-else-if="results.loadError[key]" class="banner err">
+      {{ results.loadError[key] }}
     </p>
 
     <div v-else-if="!data" class="fetch-prompt">
       <p class="meta">No results fetched yet for this job.</p>
-      <button class="btn primary" :disabled="results.fetchBusy[recordId]" @click="fetchNow">
-        {{ results.fetchBusy[recordId] ? "Fetching…" : "Fetch results" }}
+      <button class="btn primary" :disabled="results.fetchBusy[key]" @click="fetchNow">
+        {{ results.fetchBusy[key] ? "Fetching…" : "Fetch results" }}
       </button>
-      <p v-if="results.fetchError[recordId]" class="banner err small">
-        {{ results.fetchError[recordId] }}
+      <p v-if="results.fetchError[key]" class="banner err small">
+        {{ results.fetchError[key] }}
       </p>
     </div>
 
@@ -125,12 +127,12 @@ async function clearCache() {
             {{ sv.label }}
           </button>
         </div>
-        <button class="btn" :disabled="results.fetchBusy[recordId]" @click="fetchNow">
-          {{ results.fetchBusy[recordId] ? "Refetching…" : "Refetch" }}
+        <button class="btn" :disabled="results.fetchBusy[key]" @click="fetchNow">
+          {{ results.fetchBusy[key] ? "Refetching…" : "Refetch" }}
         </button>
       </div>
-      <p v-if="results.fetchError[recordId]" class="banner err small">
-        {{ results.fetchError[recordId] }}
+      <p v-if="results.fetchError[key]" class="banner err small">
+        {{ results.fetchError[key] }}
       </p>
 
       <ResultsChart
