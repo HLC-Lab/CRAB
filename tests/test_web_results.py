@@ -23,6 +23,7 @@ from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import RemoteCommandError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
+from crab.web.store.cache import LocalCache  # noqa: E402
 from crab.web.store.jobs import JobsStore  # noqa: E402
 from crab.web.store.results_cache import ResultsCache  # noqa: E402
 
@@ -291,6 +292,119 @@ def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):
 
         size = client.get("/api/results/cache").json()["total_bytes"]
         assert size > 0
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/results — cross-cluster index (plan 077 S6)
+# --------------------------------------------------------------------------- #
+def _history_row(job_basename: str, status: str, system: str = SYSTEM) -> dict:
+    return {
+        "job_name": job_basename,
+        "experiment_name": "e1",
+        "status": status,
+        "system": system,
+        "relative_path": f"./{job_basename}/e1",
+        "absolute_path": f"/remote/data/{system}/{job_basename}/e1",
+    }
+
+
+def _write_fetch_status(tmp_path: Path, cluster: str, system: str, job_basename: str, status: str):
+    LocalCache(_settings(tmp_path)).write(
+        "results_fetch_status", f"{cluster}:{system}:{job_basename}", {"status": status}
+    )
+
+
+def _entries_by_key(body: dict) -> dict[tuple[str, str, str], dict]:
+    return {(e["cluster"], e["system"], e["job_basename"]): e for e in body["jobs"]}
+
+
+def test_results_index_includes_registry_known_and_cli_only_jobs(tmp_path: Path):
+    _seed_job(tmp_path)
+    history = _history_json(
+        [_history_row(JOB_BASENAME, "COMPLETED"), _history_row("cli_job_1", "FAILED")]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/results")
+        assert resp.status_code == 200
+        by_key = _entries_by_key(resp.json())
+
+        registry_entry = by_key[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert registry_entry["record_id"] is not None
+        assert registry_entry["status"] == "COMPLETED"
+        assert registry_entry["connected"] is True
+
+        cli_entry = by_key[(CLUSTER, SYSTEM, "cli_job_1")]
+        assert cli_entry["record_id"] is None
+        assert cli_entry["status"] == "FAILED"
+
+
+def test_results_index_marks_never_fetched_as_stale(tmp_path: Path):
+    _seed_job(tmp_path)
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["cached"] is False
+        assert entry["cached_bytes"] is None
+        assert entry["possibly_stale"] is True
+
+
+def test_results_index_fetched_then_unchanged_is_not_stale(tmp_path: Path):
+    _seed_job(tmp_path)
+    _cache_a_result_tree(tmp_path)
+    _write_fetch_status(tmp_path, CLUSTER, SYSTEM, JOB_BASENAME, "COMPLETED")
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["cached"] is True
+        assert entry["cached_bytes"] is not None and entry["cached_bytes"] > 0
+        assert entry["possibly_stale"] is False
+
+
+def test_results_index_fetched_then_status_changed_is_stale(tmp_path: Path):
+    _seed_job(tmp_path)
+    _cache_a_result_tree(tmp_path)
+    _write_fetch_status(tmp_path, CLUSTER, SYSTEM, JOB_BASENAME, "COMPLETED")
+    history = _history_json([_history_row(JOB_BASENAME, "FAILED")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["status"] == "FAILED"
+        assert entry["possibly_stale"] is True
+
+
+def test_results_index_disconnected_cluster_with_prior_cache_still_lists_its_jobs(tmp_path: Path):
+    # No profile ever added or connected -- purely a leftover on-disk cache.
+    _cache_a_result_tree(tmp_path)
+
+    with _client(tmp_path) as client:
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["connected"] is False
+        assert entry["possibly_stale"] is True
+        assert entry["cached"] is True
+        assert entry["status"] is None
 
 
 def test_clear_results_cache_removes_everything(tmp_path: Path):

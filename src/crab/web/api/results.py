@@ -24,7 +24,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from crab.cli.export import collect_result_data
-from crab.web.api.jobs import worst_status
+from crab.web.api.jobs import _live_or_cached, worst_status
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import CrabWebError, NotFoundError, RemoteConnectionError, logger
@@ -32,7 +32,7 @@ from crab.web.models.results import ResultsData
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.settings import Settings
 from crab.web.store.cache import LocalCache
-from crab.web.store.jobs import JobsStore
+from crab.web.store.jobs import JobRecord, JobsStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.store.results_cache import ResultsCache
 
@@ -110,6 +110,116 @@ async def _resolve_remote_dir(
             return str(Path(row["absolute_path"]).parent)
 
     raise NotFoundError(f"No job '{job_basename}' found on {cluster}/{system}.")
+
+
+def _cached_bytes(path: Path) -> int:
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
+class ResultsJobEntry(BaseModel):
+    """One (cluster, system, job_basename) the Results picker can show."""
+
+    cluster: str
+    system: str
+    job_basename: str
+    connected: bool
+    status: str | None = None
+    record_id: str | None = None
+    job_id: str | None = None
+    submitted_at: str | None = None
+    cached: bool
+    cached_bytes: int | None = None
+    possibly_stale: bool
+
+
+class ResultsIndex(BaseModel):
+    jobs: list[ResultsJobEntry]
+
+
+@router.get("")
+async def get_results_index(request: Request) -> ResultsIndex:
+    """Every job any connected-or-previously-cached cluster's `crab history` reports.
+
+    Joined against the local registry (optional -- a CLI-only job has none) and
+    the on-disk results cache. A cluster with no live connection and no prior
+    cached history at all still contributes anything it has cached to disk
+    (`ResultsCache.list_cached()`), marked `connected: false, possibly_stale:
+    true`, so fetched work never disappears from the picker just because the
+    cluster isn't reachable right now.
+    """
+    manager = _manager(request)
+    cache = _results_cache(request)
+    local_cache = LocalCache(request.app.state.settings)
+
+    registry_by_triple: dict[tuple[str, str, str], JobRecord] = {
+        (rec.cluster, rec.system, Path(rec.data_dir).name): rec
+        for rec in _jobs_store(request).list()
+    }
+    cached_triples = set(cache.list_cached())
+    entries: dict[tuple[str, str, str], ResultsJobEntry] = {}
+
+    for profile in _profiles(request).list():
+
+        async def fetch(profile: Profile = profile) -> dict:
+            transport = _live_transport(profile.name, request)
+            return await run_crab_json(transport, profile, ["history", "--json"], timeout=30.0)
+
+        try:
+            history, _stale, _cached_at = await _live_or_cached(
+                request, "history", f"cluster:{profile.name}", fetch
+            )
+        except RemoteConnectionError:
+            continue  # nothing live or cached for this cluster's history at all
+
+        connected = manager.get(profile.name) is not None
+        by_group: dict[tuple[str, str], set[str]] = {}
+        for row in history["experiments"]:
+            basename = _job_basename(row.get("relative_path", ""))
+            if not basename:
+                continue
+            by_group.setdefault((row["system"], basename), set()).add(row["status"])
+
+        for (system, basename), statuses in by_group.items():
+            triple = (profile.name, system, basename)
+            status = worst_status(statuses)
+            known = registry_by_triple.get(triple)
+            is_cached = triple in cached_triples
+            snapshot = local_cache.read(
+                "results_fetch_status", f"{profile.name}:{system}:{basename}"
+            )
+            fetch_status = snapshot["data"]["status"] if snapshot else None
+            entries[triple] = ResultsJobEntry(
+                cluster=profile.name,
+                system=system,
+                job_basename=basename,
+                connected=connected,
+                status=status,
+                record_id=known.id if known else None,
+                job_id=known.job_id if known else None,
+                submitted_at=known.submitted_at if known else None,
+                cached=is_cached,
+                cached_bytes=_cached_bytes(cache.path_for(*triple)) if is_cached else None,
+                possibly_stale=not is_cached or fetch_status != status,
+            )
+
+    for triple in cached_triples - entries.keys():
+        cluster, system, basename = triple
+        known = registry_by_triple.get(triple)
+        entries[triple] = ResultsJobEntry(
+            cluster=cluster,
+            system=system,
+            job_basename=basename,
+            connected=manager.get(cluster) is not None,
+            status=None,
+            record_id=known.id if known else None,
+            job_id=known.job_id if known else None,
+            submitted_at=known.submitted_at if known else None,
+            cached=True,
+            cached_bytes=_cached_bytes(cache.path_for(*triple)),
+            possibly_stale=True,
+        )
+
+    return ResultsIndex(jobs=list(entries.values()))
 
 
 class FetchAccepted(BaseModel):

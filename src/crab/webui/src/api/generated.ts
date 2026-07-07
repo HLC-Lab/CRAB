@@ -435,7 +435,34 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/jobs/{record_id}/results/fetch": {
+  "/api/results": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Results Index
+     * @description Every job any connected-or-previously-cached cluster's `crab history` reports.
+     *
+     *     Joined against the local registry (optional -- a CLI-only job has none) and
+     *     the on-disk results cache. A cluster with no live connection and no prior
+     *     cached history at all still contributes anything it has cached to disk
+     *     (`ResultsCache.list_cached()`), marked `connected: false, possibly_stale:
+     *     true`, so fetched work never disappears from the picker just because the
+     *     cluster isn't reachable right now.
+     */
+    get: operations["get_results_index_api_results_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/results/{cluster}/{system}/{job_basename}/fetch": {
     parameters: {
       query?: never;
       header?: never;
@@ -446,16 +473,16 @@ export interface paths {
     put?: never;
     /**
      * Fetch Results
-     * @description Validate synchronously (job exists, cluster connected), then fetch in the background.
+     * @description Validate synchronously (job resolves, cluster connected), then fetch in the background.
      */
-    post: operations["fetch_results_api_jobs__record_id__results_fetch_post"];
+    post: operations["fetch_results_api_results__cluster___system___job_basename__fetch_post"];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/api/jobs/{record_id}/results/fetch/{fetch_id}": {
+  "/api/results/{cluster}/{system}/{job_basename}/fetch/{fetch_id}": {
     parameters: {
       query?: never;
       header?: never;
@@ -470,7 +497,7 @@ export interface paths {
      *     returned so it doesn't grow forever (there's no other cleanup — the
      *     tracker is in-memory and process-lifetime only, same as jobs.py's).
      */
-    get: operations["get_fetch_status_api_jobs__record_id__results_fetch__fetch_id__get"];
+    get: operations["get_fetch_status_api_results__cluster___system___job_basename__fetch__fetch_id__get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -479,7 +506,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/jobs/{record_id}/results": {
+  "/api/results/{cluster}/{system}/{job_basename}": {
     parameters: {
       query?: never;
       header?: never;
@@ -490,7 +517,7 @@ export interface paths {
      * Get Results
      * @description The cached CSV tree for this job, parsed. 404 if it was never fetched.
      */
-    get: operations["get_results_api_jobs__record_id__results_get"];
+    get: operations["get_results_api_results__cluster___system___job_basename__get"];
     put?: never;
     post?: never;
     delete?: never;
@@ -499,7 +526,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/jobs/results/cache": {
+  "/api/results/cache": {
     parameters: {
       query?: never;
       header?: never;
@@ -507,11 +534,11 @@ export interface paths {
       cookie?: never;
     };
     /** Get Results Cache Size */
-    get: operations["get_results_cache_size_api_jobs_results_cache_get"];
+    get: operations["get_results_cache_size_api_results_cache_get"];
     put?: never;
     post?: never;
     /** Clear Results Cache */
-    delete: operations["clear_results_cache_api_jobs_results_cache_delete"];
+    delete: operations["clear_results_cache_api_results_cache_delete"];
     options?: never;
     head?: never;
     patch?: never;
@@ -890,6 +917,39 @@ export interface components {
           }[];
         };
       };
+    };
+    /** ResultsIndex */
+    ResultsIndex: {
+      /** Jobs */
+      jobs: components["schemas"]["ResultsJobEntry"][];
+    };
+    /**
+     * ResultsJobEntry
+     * @description One (cluster, system, job_basename) the Results picker can show.
+     */
+    ResultsJobEntry: {
+      /** Cluster */
+      cluster: string;
+      /** System */
+      system: string;
+      /** Job Basename */
+      job_basename: string;
+      /** Connected */
+      connected: boolean;
+      /** Status */
+      status?: string | null;
+      /** Record Id */
+      record_id?: string | null;
+      /** Job Id */
+      job_id?: string | null;
+      /** Submitted At */
+      submitted_at?: string | null;
+      /** Cached */
+      cached: boolean;
+      /** Cached Bytes */
+      cached_bytes?: number | null;
+      /** Possibly Stale */
+      possibly_stale: boolean;
     };
     /**
      * SavedEntry
@@ -1785,12 +1845,34 @@ export interface operations {
       };
     };
   };
-  fetch_results_api_jobs__record_id__results_fetch_post: {
+  get_results_index_api_results_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResultsIndex"];
+        };
+      };
+    };
+  };
+  fetch_results_api_results__cluster___system___job_basename__fetch_post: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        record_id: string;
+        cluster: string;
+        system: string;
+        job_basename: string;
       };
       cookie?: never;
     };
@@ -1816,12 +1898,14 @@ export interface operations {
       };
     };
   };
-  get_fetch_status_api_jobs__record_id__results_fetch__fetch_id__get: {
+  get_fetch_status_api_results__cluster___system___job_basename__fetch__fetch_id__get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        record_id: string;
+        cluster: string;
+        system: string;
+        job_basename: string;
         fetch_id: string;
       };
       cookie?: never;
@@ -1848,12 +1932,14 @@ export interface operations {
       };
     };
   };
-  get_results_api_jobs__record_id__results_get: {
+  get_results_api_results__cluster___system___job_basename__get: {
     parameters: {
       query?: never;
       header?: never;
       path: {
-        record_id: string;
+        cluster: string;
+        system: string;
+        job_basename: string;
       };
       cookie?: never;
     };
@@ -1879,7 +1965,7 @@ export interface operations {
       };
     };
   };
-  get_results_cache_size_api_jobs_results_cache_get: {
+  get_results_cache_size_api_results_cache_get: {
     parameters: {
       query?: never;
       header?: never;
@@ -1899,7 +1985,7 @@ export interface operations {
       };
     };
   };
-  clear_results_cache_api_jobs_results_cache_delete: {
+  clear_results_cache_api_results_cache_delete: {
     parameters: {
       query?: never;
       header?: never;
