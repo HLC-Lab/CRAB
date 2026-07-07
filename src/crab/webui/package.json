@@ -21,12 +21,14 @@
     "@sgratzl/chartjs-chart-boxplot": "^4.4.5",
     "chart.js": "^4.5.1",
     "pinia": "^2.2.0",
+    "plotly.js-cartesian-dist-min": "^3.7.0",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.19.21",
+    "@types/plotly.js": "^3.0.10",
     "@vitejs/plugin-vue": "^5.1.0",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.9.0",

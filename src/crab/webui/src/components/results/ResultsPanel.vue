@@ -1,15 +1,15 @@
 <script setup lang="ts">
 // The Results tab body for one job (plan 065): fetch-on-demand, then a
-// lab/experiment picker over Chart/Table/Compare. `data`'s absence covers
-// both "never fetched" and "cache just cleared" uniformly — no need to
-// distinguish them in the UI, both just show the fetch prompt.
+// lab/experiment picker over Chart/Table. `data`'s absence covers both "never
+// fetched" and "cache just cleared" uniformly — no need to distinguish them
+// in the UI, both just show the fetch prompt. Compare is temporarily absent
+// (plan 077 S9-S15): the generalized cross-job workbench replaces it.
 import { computed, onMounted, ref, watch } from "vue";
 import { useResultsStore } from "@/stores/results";
 import { assignColors, formatBytes } from "@/lib/resultsChart";
 import { resultsKey } from "@/lib/jobKey";
 import ResultsChart from "@/components/results/ResultsChart.vue";
 import ResultsTable from "@/components/results/ResultsTable.vue";
-import CompareView from "@/components/results/CompareView.vue";
 
 const props = defineProps<{ cluster: string; system: string; jobBasename: string }>();
 const results = useResultsStore();
@@ -49,21 +49,10 @@ const activeRows = computed(() =>
     ? data.value.experiments[activeLab.value][activeExperiment.value]
     : [],
 );
-const compareExperiments = computed(() =>
-  !activeLab.value || !data.value
-    ? []
-    : experimentNames.value.map((name) => ({
-        name,
-        color: colors.value[name],
-        rows: data.value!.experiments[activeLab.value][name],
-      })),
-);
-
-type SubView = "chart" | "table" | "compare";
+type SubView = "chart" | "table";
 const SUB_VIEWS: { value: SubView; label: string }[] = [
   { value: "chart", label: "Chart" },
   { value: "table", label: "Table" },
-  { value: "compare", label: "Compare" },
 ];
 const subView = ref<SubView>("chart");
 
@@ -141,8 +130,7 @@ async function clearCache() {
         :label="activeExperiment"
         :color="colors[activeExperiment] ?? '#4e79a7'"
       />
-      <ResultsTable v-else-if="subView === 'table'" :rows="activeRows" />
-      <CompareView v-else :experiments="compareExperiments" />
+      <ResultsTable v-else :rows="activeRows" />
     </template>
   </div>
 </template>
