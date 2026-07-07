@@ -1,10 +1,13 @@
 <script setup lang="ts">
-// The Results tab body for one job (plan 065): fetch-on-demand, then a
-// lab/experiment picker over Chart/Table. `data`'s absence covers both "never
-// fetched" and "cache just cleared" uniformly — no need to distinguish them
-// in the UI, both just show the fetch prompt. Compare is temporarily absent
-// (plan 077 S9-S15): the generalized cross-job workbench replaces it.
-import { computed, onMounted, ref, watch } from "vue";
+// The Results body for one job (plan 065, terminology/layout fixed in plan
+// 077 S12): fetch-on-demand, then a two-column layout -- a left sidebar
+// listing Experiments (the config's experiment key, expandable to the Apps
+// run within it) and a right-hand Chart/Table area for whichever App is
+// selected. `data`'s absence covers both "never fetched" and "cache just
+// cleared" uniformly -- no need to distinguish them in the UI, both just show
+// the fetch prompt. Compare is temporarily absent (plan 077 S9-S15): the
+// generalized cross-job workbench replaces it.
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useResultsStore } from "@/stores/results";
 import { assignColors, formatBytes } from "@/lib/resultsChart";
 import { resultsKey } from "@/lib/jobKey";
@@ -21,34 +24,49 @@ onMounted(() => {
 });
 
 const data = computed(() => results.results[key.value]);
-const labs = computed(() => (data.value ? Object.keys(data.value.experiments) : []));
-const activeLab = ref("");
-watch(
-  labs,
-  (ls) => {
-    if (!ls.includes(activeLab.value)) activeLab.value = ls[0] ?? "";
-  },
-  { immediate: true },
-);
-
-const experimentNames = computed(() =>
-  activeLab.value && data.value ? Object.keys(data.value.experiments[activeLab.value]) : [],
-);
+const experimentNames = computed(() => (data.value ? Object.keys(data.value.experiments) : []));
 const activeExperiment = ref("");
+const expanded = reactive<Record<string, boolean>>({});
 watch(
   experimentNames,
   (names) => {
     if (!names.includes(activeExperiment.value)) activeExperiment.value = names[0] ?? "";
+    if (activeExperiment.value) expanded[activeExperiment.value] = true;
   },
   { immediate: true },
 );
 
-const colors = computed(() => assignColors(experimentNames.value));
+function appNamesFor(experiment: string): string[] {
+  return data.value ? Object.keys(data.value.experiments[experiment] ?? {}) : [];
+}
+
+const appNames = computed(() => appNamesFor(activeExperiment.value));
+const activeApp = ref("");
+watch(
+  appNames,
+  (names) => {
+    if (!names.includes(activeApp.value)) activeApp.value = names[0] ?? "";
+  },
+  { immediate: true },
+);
+
+const colors = computed(() => assignColors(appNames.value));
 const activeRows = computed(() =>
-  activeLab.value && activeExperiment.value && data.value
-    ? data.value.experiments[activeLab.value][activeExperiment.value]
+  activeExperiment.value && activeApp.value && data.value
+    ? data.value.experiments[activeExperiment.value][activeApp.value]
     : [],
 );
+
+function selectApp(experiment: string, app: string) {
+  activeExperiment.value = experiment;
+  activeApp.value = app;
+  expanded[experiment] = true;
+}
+
+function toggleExpand(experiment: string) {
+  expanded[experiment] = !expanded[experiment];
+}
+
 type SubView = "chart" | "table";
 const SUB_VIEWS: { value: SubView; label: string }[] = [
   { value: "chart", label: "Chart" },
@@ -90,48 +108,64 @@ async function clearCache() {
       </p>
     </div>
 
-    <template v-else>
-      <div class="toolbar">
-        <label v-if="labs.length > 1" class="picker">
-          Lab
-          <select v-model="activeLab">
-            <option v-for="l in labs" :key="l" :value="l">{{ l }}</option>
-          </select>
-        </label>
-        <label class="picker">
-          Experiment
-          <select v-model="activeExperiment">
-            <option v-for="n in experimentNames" :key="n" :value="n">{{ n }}</option>
-          </select>
-        </label>
-        <div class="subview-picker">
+    <div v-else class="layout">
+      <nav class="sidebar">
+        <div v-for="exp in experimentNames" :key="exp" class="exp-group">
           <button
-            v-for="sv in SUB_VIEWS"
-            :key="sv.value"
             type="button"
-            class="sv-btn"
-            :class="{ active: subView === sv.value }"
-            @click="subView = sv.value"
+            class="exp-header"
+            :class="{ active: exp === activeExperiment }"
+            @click="toggleExpand(exp)"
           >
-            {{ sv.label }}
+            <span class="chevron" :class="{ open: expanded[exp] }">&rsaquo;</span>
+            {{ exp }}
+          </button>
+          <ul v-if="expanded[exp]" class="app-list">
+            <li v-for="app in appNamesFor(exp)" :key="app">
+              <button
+                type="button"
+                class="app-item"
+                :class="{ active: exp === activeExperiment && app === activeApp }"
+                @click="selectApp(exp, app)"
+              >
+                {{ app }}
+              </button>
+            </li>
+          </ul>
+        </div>
+      </nav>
+
+      <div class="content">
+        <div class="toolbar">
+          <div class="subview-picker">
+            <button
+              v-for="sv in SUB_VIEWS"
+              :key="sv.value"
+              type="button"
+              class="sv-btn"
+              :class="{ active: subView === sv.value }"
+              @click="subView = sv.value"
+            >
+              {{ sv.label }}
+            </button>
+          </div>
+          <button class="btn" :disabled="results.fetchBusy[key]" @click="fetchNow">
+            {{ results.fetchBusy[key] ? "Refetching…" : "Refetch" }}
           </button>
         </div>
-        <button class="btn" :disabled="results.fetchBusy[key]" @click="fetchNow">
-          {{ results.fetchBusy[key] ? "Refetching…" : "Refetch" }}
-        </button>
-      </div>
-      <p v-if="results.fetchError[key]" class="banner err small">
-        {{ results.fetchError[key] }}
-      </p>
+        <p v-if="results.fetchError[key]" class="banner err small">
+          {{ results.fetchError[key] }}
+        </p>
 
-      <ResultsChart
-        v-if="subView === 'chart'"
-        :rows="activeRows"
-        :label="activeExperiment"
-        :color="colors[activeExperiment] ?? '#4e79a7'"
-      />
-      <ResultsTable v-else :rows="activeRows" />
-    </template>
+        <ResultsChart
+          v-if="subView === 'chart'"
+          :rows="activeRows"
+          :label="activeApp"
+          :color="colors[activeApp] ?? '#4e79a7'"
+        />
+        <ResultsTable v-else :rows="activeRows" />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -159,27 +193,96 @@ async function clearCache() {
   border: 1px dashed var(--border2);
   border-radius: var(--r2);
 }
+.layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  min-height: 480px;
+}
+.sidebar {
+  flex: 0 0 15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 0.4rem;
+  background: var(--bg1);
+}
+.exp-group {
+  display: flex;
+  flex-direction: column;
+}
+.exp-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  color: var(--text2);
+  word-break: break-all;
+}
+.exp-header:hover {
+  background: var(--bg2);
+}
+.exp-header.active {
+  color: var(--accent);
+}
+.chevron {
+  display: inline-block;
+  transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.chevron.open {
+  transform: rotate(90deg);
+}
+.app-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.app-item {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  color: var(--text3);
+}
+.app-item:hover {
+  background: var(--bg2);
+  color: var(--text);
+}
+.app-item.active {
+  background: var(--bg2);
+  color: var(--accent);
+}
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
-}
-.picker {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: var(--t-sm);
-  color: var(--text2);
-}
-.picker select {
-  background: var(--bg2);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 0.2rem 0.4rem;
-  font-family: var(--mono);
-  font-size: var(--t-sm);
 }
 .subview-picker {
   display: flex;
