@@ -158,9 +158,8 @@ async def get_results_index(request: Request) -> ResultsIndex:
     cached_triples = set(cache.list_cached())
     entries: dict[tuple[str, str, str], ResultsJobEntry] = {}
 
-    for profile in _profiles(request).list():
-
-        async def fetch(profile: Profile = profile) -> dict:
+    async def entries_for_profile(profile: Profile) -> list[ResultsJobEntry]:
+        async def fetch() -> dict:
             transport = _live_transport(profile.name, request)
             return await run_crab_json(transport, profile, ["history", "--json"], timeout=30.0)
 
@@ -169,7 +168,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
                 request, "history", f"cluster:{profile.name}", fetch
             )
         except RemoteConnectionError:
-            continue  # nothing live or cached for this cluster's history at all
+            return []  # nothing live or cached for this cluster's history at all
 
         connected = manager.get(profile.name) is not None
         by_group: dict[tuple[str, str], set[str]] = {}
@@ -179,6 +178,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
                 continue
             by_group.setdefault((row["system"], basename), set()).add(row["status"])
 
+        profile_entries: list[ResultsJobEntry] = []
         for (system, basename), statuses in by_group.items():
             triple = (profile.name, system, basename)
             status = worst_status(statuses)
@@ -188,19 +188,37 @@ async def get_results_index(request: Request) -> ResultsIndex:
                 "results_fetch_status", f"{profile.name}:{system}:{basename}"
             )
             fetch_status = snapshot["data"]["status"] if snapshot else None
-            entries[triple] = ResultsJobEntry(
-                cluster=profile.name,
-                system=system,
-                job_basename=basename,
-                connected=connected,
-                status=status,
-                record_id=known.id if known else None,
-                job_id=known.job_id if known else None,
-                submitted_at=known.submitted_at if known else None,
-                cached=is_cached,
-                cached_bytes=_cached_bytes(cache.path_for(*triple)) if is_cached else None,
-                possibly_stale=not is_cached or fetch_status != status,
+            profile_entries.append(
+                ResultsJobEntry(
+                    cluster=profile.name,
+                    system=system,
+                    job_basename=basename,
+                    connected=connected,
+                    status=status,
+                    record_id=known.id if known else None,
+                    job_id=known.job_id if known else None,
+                    submitted_at=known.submitted_at if known else None,
+                    cached=is_cached,
+                    cached_bytes=_cached_bytes(cache.path_for(*triple)) if is_cached else None,
+                    possibly_stale=not is_cached or fetch_status != status,
+                )
             )
+        return profile_entries
+
+    # Every connected cluster's `crab history` in flight at once -- with N
+    # clusters this was N sequential SSH round-trips before (plan 079).
+    # `RemoteConnectionError` is already handled per-profile above (returns
+    # []); any OTHER exception must still surface, not be swallowed by
+    # `gather`, so it's re-raised here after every task has settled.
+    fanned_out = await asyncio.gather(
+        *(entries_for_profile(profile) for profile in _profiles(request).list()),
+        return_exceptions=True,
+    )
+    for result in fanned_out:
+        if isinstance(result, BaseException):
+            raise result
+        for entry in result:
+            entries[(entry.cluster, entry.system, entry.job_basename)] = entry
 
     for triple in cached_triples - entries.keys():
         cluster, system, basename = triple

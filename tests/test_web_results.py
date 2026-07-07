@@ -9,6 +9,7 @@ CLI-only job (never submitted through this dashboard) falls back to a live
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from pathlib import Path
@@ -405,6 +406,65 @@ def test_results_index_disconnected_cluster_with_prior_cache_still_lists_its_job
         assert entry["possibly_stale"] is True
         assert entry["cached"] is True
         assert entry["status"] is None
+
+
+def test_results_index_queries_clusters_in_parallel_not_sequentially(tmp_path: Path):
+    """Plan 079: two connected clusters, each slow to answer `crab history`,
+    must be queried concurrently -- wall time should track the SLOWEST one
+    cluster, not the sum of both."""
+    delay = 0.2
+
+    class SlowHistoryTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if "crab history" in command:
+                await asyncio.sleep(delay)
+            return await super().run(command, timeout)
+
+    async def connector(profile, password):
+        return SlowHistoryTransport()
+
+    mgr = ConnectionManager(connector=connector)
+    app = create_app(_settings(tmp_path), manager=mgr)
+    with auth_client(app) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes", json={**_leonardo_profile(), "name": "m100"})
+        client.post("/api/remotes/m100/connect")
+
+        start = time.monotonic()
+        resp = client.get("/api/results")
+        elapsed = time.monotonic() - start
+
+    assert resp.status_code == 200
+    # Sequential would take >= 2 * delay; parallel should stay well under
+    # that even with test-machine scheduling slack.
+    assert elapsed < delay * 1.7
+
+
+def test_results_index_reraises_an_unexpected_error_instead_of_swallowing_it(tmp_path: Path):
+    """A non-RemoteConnectionError failure from one cluster must still surface
+    as a real error, not be silently treated like an unreachable cluster."""
+
+    class BuggyTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if "crab history" in command:
+                raise ValueError("boom, not a RemoteConnectionError")
+            return await super().run(command, timeout)
+
+    async def connector(profile, password):
+        return BuggyTransport()
+
+    mgr = ConnectionManager(connector=connector)
+    app = create_app(_settings(tmp_path), manager=mgr)
+    # raise_server_exceptions=False so the handler (not the test client) responds.
+    with auth_client(app, raise_server_exceptions=False) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/results")
+
+    assert resp.status_code == 500
+    assert resp.json()["code"] == "internal_error"
 
 
 def test_clear_results_cache_removes_everything(tmp_path: Path):
