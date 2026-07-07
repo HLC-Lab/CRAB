@@ -123,7 +123,9 @@ def test_fetch_results_returns_202_and_eventually_done(tmp_path: Path):
         assert status["status"] == "done"
 
         transport = client.app.state.manager.get("leonardo")
-        expected_local_dir = str(ResultsCache(_settings(tmp_path)).path_for("leonardo", "demo_job"))
+        expected_local_dir = str(
+            ResultsCache(_settings(tmp_path)).path_for("leonardo", "leonardo", "demo_job")
+        )
         assert transport.calls == [("/remote/data/demo_job", expected_local_dir)]
 
         # Cleaned up once a terminal status has been fetched.
@@ -185,7 +187,9 @@ def _cache_a_result_tree(tmp_path: Path, record_id: str) -> Path:
     """Simulate a completed fetch by writing CSVs straight into the cache path
     (the fetch itself, S4, is covered above; this seams past it to test S5)."""
     rec = JobsStore(_settings(tmp_path)).get(record_id)
-    job_dir = ResultsCache(_settings(tmp_path)).path_for(rec.cluster, Path(rec.data_dir).name)
+    job_dir = ResultsCache(_settings(tmp_path)).path_for(
+        rec.cluster, rec.system, Path(rec.data_dir).name
+    )
     job_dir.mkdir(parents=True)
     (job_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
     return job_dir

@@ -101,7 +101,7 @@ async def fetch_results(record_id: str, request: Request) -> FetchAccepted:
     """Validate synchronously (job exists, cluster connected), then fetch in the background."""
     rec = _jobs_store(request).get(record_id)
     transport = _live_transport(rec.cluster, request)
-    local_dir = _results_cache(request).path_for(rec.cluster, Path(rec.data_dir).name)
+    local_dir = _results_cache(request).path_for(rec.cluster, rec.system, Path(rec.data_dir).name)
 
     fetch_id = str(uuid.uuid4())
     tracker = _fetches(request)
@@ -141,7 +141,7 @@ async def get_fetch_status(record_id: str, fetch_id: str, request: Request) -> F
 async def get_results(record_id: str, request: Request) -> ResultsData:
     """The cached CSV tree for this job, parsed. 404 if it was never fetched."""
     rec = _jobs_store(request).get(record_id)
-    local_dir = _results_cache(request).path_for(rec.cluster, Path(rec.data_dir).name)
+    local_dir = _results_cache(request).path_for(rec.cluster, rec.system, Path(rec.data_dir).name)
     if not local_dir.is_dir():
         raise NotFoundError(f"No results cached yet for job '{record_id}'. Fetch them first.")
     experiments = await asyncio.to_thread(collect_result_data, local_dir)
