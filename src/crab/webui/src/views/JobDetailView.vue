@@ -13,6 +13,7 @@ import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import ExperimentCard from "@/components/jobs/ExperimentCard.vue";
 import RerunSummaryCard from "@/components/jobs/RerunSummaryCard.vue";
+import ResultsPanel from "@/components/results/ResultsPanel.vue";
 import { failedExperimentNames as computeFailedNames } from "@/lib/jobStatus";
 import type { CrabConfig } from "@/api/types";
 
@@ -21,6 +22,9 @@ const recordId = computed(() => String(route.params.recordId));
 const detailStore = useJobDetailStore();
 const report = useReportStore();
 const jobs = useJobsStore();
+
+type DetailTab = "experiments" | "results";
+const activeTab = ref<DetailTab>("experiments");
 
 onMounted(() => {
   detailStore.fetchDetail(recordId.value);
@@ -109,57 +113,84 @@ async function confirmRerunFailed() {
         }}
       </p>
 
-      <RouterLink
-        :to="`/jobs/report/${encodeURIComponent(detailStore.detail.config_name)}`"
-        class="history-link"
-      >
-        View full history for this use case &rarr;
-      </RouterLink>
-
-      <p v-if="!detailStore.detail.experiments.length" class="empty">
-        No experiments found for this submission.
-      </p>
-
-      <div v-if="detailStore.detail.experiments.length" class="quick-actions">
+      <div class="tabs">
         <button
-          v-if="failedExperimentNames.length"
-          class="btn primary"
-          @click="showRerunFailedConfirm = true"
+          type="button"
+          class="tab-btn"
+          :class="{ active: activeTab === 'experiments' }"
+          @click="activeTab = 'experiments'"
         >
-          Rerun {{ failedExperimentNames.length }} failed experiment(s)
+          Experiments
         </button>
-        <button class="btn select-toggle" @click="report.toggleSelectionMode">
-          {{ report.selectionMode ? "Cancel selection" : "Select experiments to rerun…" }}
-        </button>
-      </div>
-
-      <div v-if="report.selectionMode" class="rerun-bar">
-        <span>{{ selectedCount }} experiment(s) selected</span>
-        <span v-if="!canRerunSelected" class="meta small">
-          Select experiments from a single job submission to rerun them together.
-        </span>
-        <button class="btn" @click="report.clearSelected">Clear</button>
-        <button class="btn primary" :disabled="!canRerunSelected" @click="showRerunConfirm = true">
-          Rerun selected
+        <button
+          type="button"
+          class="tab-btn"
+          :class="{ active: activeTab === 'results' }"
+          @click="activeTab = 'results'"
+        >
+          Results
         </button>
       </div>
-      <p v-if="rerunLookupError" class="banner err small">{{ rerunLookupError }}</p>
-      <p v-if="jobs.submitError" class="banner err small">{{ jobs.submitError }}</p>
 
-      <ul class="list">
-        <ExperimentCard
-          v-for="e in detailStore.detail.experiments"
-          :key="`${e.cluster}/${e.relative_path}`"
-          :experiment="e"
-        />
-      </ul>
+      <template v-if="activeTab === 'experiments'">
+        <RouterLink
+          :to="`/jobs/report/${encodeURIComponent(detailStore.detail.config_name)}`"
+          class="history-link"
+        >
+          View full history for this use case &rarr;
+        </RouterLink>
 
-      <section v-if="detailStore.detail.reruns.length" class="reruns">
-        <h2>Reruns ({{ detailStore.detail.reruns.length }})</h2>
+        <p v-if="!detailStore.detail.experiments.length" class="empty">
+          No experiments found for this submission.
+        </p>
+
+        <div v-if="detailStore.detail.experiments.length" class="quick-actions">
+          <button
+            v-if="failedExperimentNames.length"
+            class="btn primary"
+            @click="showRerunFailedConfirm = true"
+          >
+            Rerun {{ failedExperimentNames.length }} failed experiment(s)
+          </button>
+          <button class="btn select-toggle" @click="report.toggleSelectionMode">
+            {{ report.selectionMode ? "Cancel selection" : "Select experiments to rerun…" }}
+          </button>
+        </div>
+
+        <div v-if="report.selectionMode" class="rerun-bar">
+          <span>{{ selectedCount }} experiment(s) selected</span>
+          <span v-if="!canRerunSelected" class="meta small">
+            Select experiments from a single job submission to rerun them together.
+          </span>
+          <button class="btn" @click="report.clearSelected">Clear</button>
+          <button
+            class="btn primary"
+            :disabled="!canRerunSelected"
+            @click="showRerunConfirm = true"
+          >
+            Rerun selected
+          </button>
+        </div>
+        <p v-if="rerunLookupError" class="banner err small">{{ rerunLookupError }}</p>
+        <p v-if="jobs.submitError" class="banner err small">{{ jobs.submitError }}</p>
+
         <ul class="list">
-          <RerunSummaryCard v-for="r in detailStore.detail.reruns" :key="r.id" :job="r" />
+          <ExperimentCard
+            v-for="e in detailStore.detail.experiments"
+            :key="`${e.cluster}/${e.relative_path}`"
+            :experiment="e"
+          />
         </ul>
-      </section>
+
+        <section v-if="detailStore.detail.reruns.length" class="reruns">
+          <h2>Reruns ({{ detailStore.detail.reruns.length }})</h2>
+          <ul class="list">
+            <RerunSummaryCard v-for="r in detailStore.detail.reruns" :key="r.id" :job="r" />
+          </ul>
+        </section>
+      </template>
+
+      <ResultsPanel v-else :record-id="recordId" />
     </template>
 
     <ConfirmModal
@@ -208,6 +239,30 @@ h1 {
 .sub {
   color: var(--text3);
   font-size: var(--t-sm);
+}
+.tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 2px;
+  width: fit-content;
+  margin-bottom: 1rem;
+}
+.tab-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.3rem 0.9rem;
+  border-radius: 4px;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  color: var(--text2);
+}
+.tab-btn.active {
+  background: var(--bg1);
+  color: var(--accent);
 }
 .history-link {
   display: inline-block;
