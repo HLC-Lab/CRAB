@@ -39,12 +39,23 @@ export const useResultsStore = defineStore("results", () => {
   const index = ref<ResultsJobEntry[]>([]);
   const indexBusy = ref(false);
   const indexError = ref<string | null>(null);
+  // Tracks "has a load ever succeeded", independent of `index.value.length`
+  // -- an empty jobs list is still a conclusive, cacheable answer.
+  const indexLoaded = ref(false);
 
-  async function loadIndex() {
+  // `force=false` (the default) is a no-op once a conclusive answer already
+  // exists -- loaded data, or (for loadResults) a confirmed 404 -- so every
+  // `onMounted` call site can call these unconditionally without re-hitting
+  // the network on a revisit within the same session (plan 079). A prior
+  // ERROR is never conclusive: it doesn't block a retry, since staying
+  // broken forever after a transient blip would be worse than the extra call.
+  async function loadIndex(force = false) {
+    if (!force && indexLoaded.value) return;
     indexBusy.value = true;
     indexError.value = null;
     try {
       index.value = (await api.results.index()).jobs;
+      indexLoaded.value = true;
     } catch (e) {
       indexError.value = msg(e);
     } finally {
@@ -52,8 +63,9 @@ export const useResultsStore = defineStore("results", () => {
     }
   }
 
-  async function loadResults(cluster: string, system: string, jobBasename: string) {
+  async function loadResults(cluster: string, system: string, jobBasename: string, force = false) {
     const key = resultsKey(cluster, system, jobBasename);
+    if (!force && (key in results.value || notFetched.value[key])) return;
     loadBusy.value[key] = true;
     delete loadError.value[key];
     try {
@@ -98,7 +110,7 @@ export const useResultsStore = defineStore("results", () => {
       clearInterval(timer);
       fetchBusy.value[key] = false;
       if (status.status === "done") {
-        await loadResults(cluster, system, jobBasename);
+        await loadResults(cluster, system, jobBasename, true); // just fetched -- always reload
         await refreshCacheSize();
         return;
       }

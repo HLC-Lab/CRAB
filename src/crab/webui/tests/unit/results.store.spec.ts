@@ -91,6 +91,49 @@ describe("results store: loading cached data", () => {
     expect(store.notFetched[KEY]).toBeUndefined();
     expect(store.loadError[KEY]).toBe("Cannot reach the dashboard backend.");
   });
+
+  it("skips a second unforced call once the data is already loaded (plan 079)", async () => {
+    getMock.mockResolvedValueOnce(SAMPLE_DATA);
+    const store = useResultsStore();
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    expect(getMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips a second unforced call once a 404 is already confirmed (plan 079)", async () => {
+    getMock.mockRejectedValueOnce(new ApiError("No results cached yet.", 404));
+    const store = useResultsStore();
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    expect(getMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("force=true always calls through even when already loaded (plan 079)", async () => {
+    getMock.mockResolvedValue(SAMPLE_DATA);
+    const store = useResultsStore();
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME, true);
+
+    expect(getMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a prior load error still allows an unforced retry (plan 079)", async () => {
+    getMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
+    const store = useResultsStore();
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+    expect(store.loadError[KEY]).toBeDefined();
+
+    getMock.mockResolvedValueOnce(SAMPLE_DATA);
+    await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    expect(getMock).toHaveBeenCalledTimes(2);
+    expect(store.results[KEY]).toEqual(SAMPLE_DATA);
+  });
 });
 
 describe("results store: fetch + poll", () => {
@@ -169,7 +212,7 @@ describe("results store: index", () => {
     expect(store.indexError).toBeNull();
   });
 
-  it("loadIndex surfaces a failure and keeps a prior successful load intact", async () => {
+  it("loadIndex(true) forces a reload even when already loaded, keeping stale data on error", async () => {
     const jobs = [
       {
         cluster: CLUSTER,
@@ -190,10 +233,34 @@ describe("results store: index", () => {
     await store.loadIndex();
 
     indexMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
-    await store.loadIndex();
+    await store.loadIndex(true);
 
+    expect(indexMock).toHaveBeenCalledTimes(2);
     expect(store.indexError).toBe("Cannot reach the dashboard backend.");
     expect(store.index).toEqual(jobs);
+  });
+
+  it("skips a second unforced call once the index is already loaded (plan 079)", async () => {
+    indexMock.mockResolvedValueOnce({ jobs: [] });
+    const store = useResultsStore();
+    await store.loadIndex();
+
+    await store.loadIndex();
+
+    expect(indexMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("a prior index load error still allows an unforced retry (plan 079)", async () => {
+    indexMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
+    const store = useResultsStore();
+    await store.loadIndex();
+    expect(store.indexError).toBeDefined();
+
+    indexMock.mockResolvedValueOnce({ jobs: [] });
+    await store.loadIndex();
+
+    expect(indexMock).toHaveBeenCalledTimes(2);
+    expect(store.indexError).toBeNull();
   });
 });
 
