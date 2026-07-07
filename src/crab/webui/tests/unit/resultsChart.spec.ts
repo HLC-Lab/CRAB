@@ -4,15 +4,12 @@ import {
   autoUnit,
   autoUnitGeneric,
   binByX,
-  buildChartOptions,
   formatBytes,
   formatVal,
   isSizeCol,
   isTimeCol,
-  makeChartData,
   numericCols,
   unitForCol,
-  xScaleType,
 } from "@/lib/resultsChart";
 
 describe("isSizeCol / isTimeCol", () => {
@@ -101,154 +98,5 @@ describe("binByX", () => {
       { x: 3, y: null },
     ];
     expect(binByX(rows, "x", "y")).toEqual({ "1": [10, 20], "2": [30] });
-  });
-});
-
-describe("xScaleType", () => {
-  it("forces category for bar/violin, otherwise the requested scale", () => {
-    expect(xScaleType("bar", "linear")).toBe("category");
-    expect(xScaleType("violin", "logarithmic")).toBe("category");
-    expect(xScaleType("scatter", "linear")).toBe("linear");
-    expect(xScaleType("line", "logarithmic")).toBe("logarithmic");
-  });
-});
-
-describe("makeChartData", () => {
-  const rows = [
-    { size: 1, duration: 2 },
-    { size: 2, duration: 4 },
-  ];
-
-  it("scatter/line: one point per row, scaled by yUnit", () => {
-    const spec = makeChartData(
-      rows,
-      "size",
-      "duration",
-      "scatter",
-      { div: 2, label: "x" },
-      "#111",
-      "Exp A",
-    );
-    expect(spec.labels).toBeUndefined();
-    expect(spec.datasets).toHaveLength(1);
-    expect(spec.datasets[0]).toMatchObject({ type: "scatter", label: "Exp A" });
-    expect(spec.datasets[0].data).toEqual([
-      { x: 1, y: 1 },
-      { x: 2, y: 2 },
-    ]);
-  });
-
-  it("bar: one averaged point per x bin", () => {
-    const binned = [
-      { nodes: 1, duration: 2 },
-      { nodes: 1, duration: 4 },
-    ];
-    const spec = makeChartData(
-      binned,
-      "nodes",
-      "duration",
-      "bar",
-      { div: 1, label: "s" },
-      "#111",
-      "Exp A",
-    );
-    expect(spec.labels).toEqual(["1"]);
-    expect(spec.datasets[0].data).toEqual([3]);
-  });
-
-  it("violin: one array of values per x bin, labeled with the count", () => {
-    const binned = [
-      { nodes: 1, duration: 2 },
-      { nodes: 1, duration: 4 },
-    ];
-    const spec = makeChartData(
-      binned,
-      "nodes",
-      "duration",
-      "violin",
-      { div: 1, label: "s" },
-      "#111",
-      "Exp A",
-    );
-    expect(spec.labels).toEqual(["1 (n=2)"]);
-    expect(spec.datasets[0].data).toEqual([[2, 4]]);
-  });
-
-  it("drops rows missing either axis", () => {
-    const withGaps = [
-      { size: 1, duration: null },
-      { size: null, duration: 4 },
-      { size: 3, duration: 6 },
-    ];
-    const spec = makeChartData(
-      withGaps,
-      "size",
-      "duration",
-      "scatter",
-      { div: 1, label: "" },
-      "#111",
-      "Exp A",
-    );
-    expect(spec.datasets[0].data).toEqual([{ x: 3, y: 6 }]);
-  });
-});
-
-interface TestChartOptions {
-  scales: { x: { type: string; title: { text: string } }; y: { title: { text: string } } };
-  plugins: { legend: { display: boolean } };
-}
-
-function asTestOptions(opts: Record<string, unknown>): TestChartOptions {
-  return opts as unknown as TestChartOptions;
-}
-
-describe("buildChartOptions", () => {
-  const theme = { text: "#fff", text2: "#aaa", bg2: "#111", bg3: "#222", border: "#333" };
-  const unit = { div: 1, label: "s" };
-
-  it("uses a category x-scale for bar/violin regardless of the requested scale", () => {
-    const opts = asTestOptions(
-      buildChartOptions("size", "duration", unit, unit, "bar", "logarithmic", false, theme),
-    );
-    expect(opts.scales.x.type).toBe("category");
-  });
-
-  it("honors linear/logarithmic for scatter/line", () => {
-    const linear = asTestOptions(
-      buildChartOptions("size", "duration", unit, unit, "scatter", "linear", false, theme),
-    );
-    const log = asTestOptions(
-      buildChartOptions("size", "duration", unit, unit, "scatter", "logarithmic", false, theme),
-    );
-    expect(linear.scales.x.type).toBe("linear");
-    expect(log.scales.x.type).toBe("logarithmic");
-  });
-
-  it("only shows the legend when multiple datasets are present", () => {
-    const solo = asTestOptions(
-      buildChartOptions("size", "duration", unit, unit, "scatter", "linear", false, theme),
-    );
-    const multi = asTestOptions(
-      buildChartOptions("size", "duration", unit, unit, "scatter", "linear", true, theme),
-    );
-    expect(solo.plugins.legend.display).toBe(false);
-    expect(multi.plugins.legend.display).toBe(true);
-  });
-
-  it("labels axes with the column name and unit", () => {
-    const opts = asTestOptions(
-      buildChartOptions(
-        "duration",
-        "throughput",
-        unit,
-        { div: 1e3, label: "K" },
-        "scatter",
-        "linear",
-        false,
-        theme,
-      ),
-    );
-    expect(opts.scales.x.title.text).toBe("duration (s)");
-    expect(opts.scales.y.title.text).toBe("throughput (K)");
   });
 });

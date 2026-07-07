@@ -1,24 +1,24 @@
 <script setup lang="ts">
 // Scatter/line/bar/violin chart over one experiment's rows, with axis pickers
 // and a linear/log scale toggle. Ported from crab_dashboard.html's
-// ChartRenderer module (dataset/options logic lives in lib/resultsChart.ts,
-// pure and unit-tested there; this component only owns the canvas lifecycle
-// and the picker UI), restyled to this app's design tokens.
-import { Chart, type ChartConfiguration } from "chart.js";
-import { registerables } from "chart.js";
-import { Violin, ViolinController } from "@sgratzl/chartjs-chart-boxplot";
+// ChartRenderer module (trace/layout logic lives in lib/resultsPlot.ts, pure
+// and unit-tested there; this component only owns the Plotly lifecycle and
+// the picker UI). Print/paper themed regardless of app dark/light mode.
+import Plotly from "plotly.js-cartesian-dist-min";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
-  buildChartOptions,
-  makeChartData,
   numericCols,
   unitForCol,
   type ChartKind,
   type ResultRow,
   type ScaleKind,
 } from "@/lib/resultsChart";
-
-Chart.register(...registerables, ViolinController, Violin);
+import {
+  defaultAxisPair,
+  exportChartImage,
+  makePlotlyLayout,
+  makePlotlyTraces,
+} from "@/lib/resultsPlot";
 
 const props = defineProps<{
   rows: ResultRow[];
@@ -35,33 +35,34 @@ const CHART_KINDS: { value: ChartKind; label: string }[] = [
 
 const columns = computed(() => numericCols(props.rows));
 const kind = ref<ChartKind>("scatter");
-const scale = ref<ScaleKind>("logarithmic");
+const scale = ref<ScaleKind>("linear");
 const xCol = ref("");
 const yCol = ref("");
 
 // Keep the axis pickers valid as the active experiment (and therefore its
-// column set) changes; default to the first two numeric columns.
+// column set) changes; default via decision 5's sweep/metric heuristic.
 watch(
   columns,
   (cols) => {
-    if (!cols.includes(xCol.value)) xCol.value = cols[0] ?? "";
-    if (!cols.includes(yCol.value))
-      yCol.value = cols.find((c) => c !== xCol.value) ?? cols[0] ?? "";
+    if (cols.includes(xCol.value) && cols.includes(yCol.value)) return;
+    const pair = defaultAxisPair(cols);
+    xCol.value = pair.x;
+    yCol.value = pair.y;
   },
   { immediate: true },
 );
 
-const canvasEl = ref<HTMLCanvasElement | null>(null);
-let chart: Chart | null = null;
-
-function cssVar(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
+const plotEl = ref<HTMLDivElement | null>(null);
+let rendered = false;
 
 function render() {
-  chart?.destroy();
-  chart = null;
-  if (!canvasEl.value || !xCol.value || !yCol.value || !props.rows.length) return;
+  if (!plotEl.value || !xCol.value || !yCol.value || !props.rows.length) {
+    if (rendered && plotEl.value) {
+      Plotly.purge(plotEl.value);
+      rendered = false;
+    }
+    return;
+  }
 
   const validRows = props.rows.filter((r) => r[xCol.value] != null && r[yCol.value] != null);
   const yUnit = unitForCol(
@@ -72,7 +73,7 @@ function render() {
     xCol.value,
     validRows.map((r) => r[xCol.value] as number),
   );
-  const spec = makeChartData(
+  const data = makePlotlyTraces(
     props.rows,
     xCol.value,
     yCol.value,
@@ -81,14 +82,7 @@ function render() {
     props.color,
     props.label,
   );
-  const theme = {
-    text: cssVar("--text"),
-    text2: cssVar("--text2"),
-    bg2: cssVar("--bg2"),
-    bg3: cssVar("--bg3"),
-    border: cssVar("--border"),
-  };
-  const options = buildChartOptions(
+  const layout = makePlotlyLayout(
     xCol.value,
     yCol.value,
     xUnit,
@@ -96,27 +90,26 @@ function render() {
     kind.value,
     scale.value,
     false,
-    theme,
   );
+  const config = { displayModeBar: false, responsive: true };
 
-  // Chart.js's config type is generic per chart kind; this component builds
-  // the same loose config shape the legacy dashboard did (chart type picked
-  // at runtime), so the union is collapsed here rather than fought.
-  const config = {
-    type: kind.value,
-    data: spec.labels
-      ? { labels: spec.labels, datasets: spec.datasets }
-      : { datasets: spec.datasets },
-    options,
-  } as unknown as ChartConfiguration;
+  if (rendered) {
+    Plotly.react(plotEl.value, data, layout, config);
+  } else {
+    Plotly.newPlot(plotEl.value, data, layout, config);
+    rendered = true;
+  }
+}
 
-  chart = new Chart(canvasEl.value, config);
+async function exportImage() {
+  if (!plotEl.value || !rendered) return;
+  await exportChartImage(plotEl.value, "png", props.label || "chart");
 }
 
 onMounted(render);
 onUnmounted(() => {
-  chart?.destroy();
-  chart = null;
+  if (plotEl.value && rendered) Plotly.purge(plotEl.value);
+  rendered = false;
 });
 
 watch([() => props.rows, xCol, yCol, kind, scale, () => props.color], render);
@@ -154,15 +147,19 @@ watch([() => props.rows, xCol, yCol, kind, scale, () => props.color], render);
       <label class="scale-toggle" v-if="kind === 'scatter' || kind === 'line'">
         <input
           type="checkbox"
-          :checked="scale === 'linear'"
-          @change="scale = ($event.target as HTMLInputElement).checked ? 'linear' : 'logarithmic'"
+          :checked="scale === 'logarithmic'"
+          @change="scale = ($event.target as HTMLInputElement).checked ? 'logarithmic' : 'linear'"
         />
-        Linear scale
+        Log scale
       </label>
+
+      <button v-if="columns.length" type="button" class="export-btn" @click="exportImage">
+        Export image
+      </button>
     </div>
 
     <div class="canvas-wrap">
-      <canvas v-if="columns.length" ref="canvasEl"></canvas>
+      <div v-if="columns.length" ref="plotEl" class="plot"></div>
       <p v-else class="empty">No numeric columns to chart for this experiment.</p>
     </div>
   </div>
@@ -225,9 +222,27 @@ watch([() => props.rows, xCol, yCol, kind, scale, () => props.color], render);
   font-size: var(--t-sm);
   color: var(--text2);
 }
+.export-btn {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  margin-left: auto;
+}
+.export-btn:hover {
+  border-color: var(--accent);
+}
 .canvas-wrap {
   position: relative;
   height: 360px;
+}
+.plot {
+  width: 100%;
+  height: 100%;
 }
 .empty {
   color: var(--text3);
