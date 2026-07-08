@@ -462,6 +462,33 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/results/{cluster}/{system}/{job_basename}/experiments": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Results Experiments
+     * @description Per-experiment status/run-failure counts for one job.
+     *
+     *     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
+     *     Results must work identically for CLI-only jobs (plan 077 decision 7),
+     *     and a live/cached `crab history` call already has everything needed
+     *     without a registry join. Shares `_live_or_cached`'s cache scope with
+     *     `get_results_index` (same `f"cluster:{cluster}"` key), so this often
+     *     reuses whatever the picker already fetched instead of a fresh round-trip.
+     */
+    get: operations["get_results_experiments_api_results__cluster___system___job_basename__experiments_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/results/{cluster}/{system}/{job_basename}/fetch": {
     parameters: {
       query?: never;
@@ -600,6 +627,27 @@ export interface components {
       } | null;
       /** Reason */
       reason?: string | null;
+    };
+    /**
+     * ExperimentRunStatus
+     * @description One experiment's status and run-failure counts (plan 081) -- lets a
+     *     caller show "3/10 runs failed" instead of just "FAILED" for an
+     *     experiment where most runs actually succeeded and have real data.
+     */
+    ExperimentRunStatus: {
+      /** Experiment Name */
+      experiment_name: string;
+      /** Status */
+      status: string;
+      /** Total Runs */
+      total_runs: string;
+      /** Failed Runs */
+      failed_runs: string;
+    };
+    /** ExperimentRunStatusList */
+    ExperimentRunStatusList: {
+      /** Experiments */
+      experiments: components["schemas"]["ExperimentRunStatus"][];
     };
     /** FetchAccepted */
     FetchAccepted: {
@@ -1871,6 +1919,39 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ResultsIndex"];
+        };
+      };
+    };
+  };
+  get_results_experiments_api_results__cluster___system___job_basename__experiments_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        cluster: string;
+        system: string;
+        job_basename: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ExperimentRunStatusList"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

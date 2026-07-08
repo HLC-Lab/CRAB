@@ -240,6 +240,63 @@ async def get_results_index(request: Request) -> ResultsIndex:
     return ResultsIndex(jobs=list(entries.values()))
 
 
+class ExperimentRunStatus(BaseModel):
+    """One experiment's status and run-failure counts (plan 081) -- lets a
+    caller show "3/10 runs failed" instead of just "FAILED" for an
+    experiment where most runs actually succeeded and have real data."""
+
+    experiment_name: str
+    status: str
+    total_runs: str
+    failed_runs: str
+
+
+class ExperimentRunStatusList(BaseModel):
+    experiments: list[ExperimentRunStatus]
+
+
+@router.get("/{cluster}/{system}/{job_basename}/experiments")
+async def get_results_experiments(
+    cluster: str, system: str, job_basename: str, request: Request
+) -> ExperimentRunStatusList:
+    """Per-experiment status/run-failure counts for one job.
+
+    Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
+    Results must work identically for CLI-only jobs (plan 077 decision 7),
+    and a live/cached `crab history` call already has everything needed
+    without a registry join. Shares `_live_or_cached`'s cache scope with
+    `get_results_index` (same `f"cluster:{cluster}"` key), so this often
+    reuses whatever the picker already fetched instead of a fresh round-trip.
+    """
+    profile = _profiles(request).get(cluster)
+
+    async def fetch() -> dict:
+        transport = _live_transport(cluster, request)
+        return await run_crab_json(
+            transport, profile, ["history", "-s", system, "--json"], timeout=30.0
+        )
+
+    try:
+        history, _stale, _cached_at = await _live_or_cached(
+            request, "history", f"cluster:{cluster}", fetch
+        )
+    except RemoteConnectionError:
+        return ExperimentRunStatusList(experiments=[])
+
+    return ExperimentRunStatusList(
+        experiments=[
+            ExperimentRunStatus(
+                experiment_name=row.get("experiment_name", ""),
+                status=row.get("status", ""),
+                total_runs=row.get("total_runs", ""),
+                failed_runs=row.get("failed_runs", ""),
+            )
+            for row in history["experiments"]
+            if _job_basename(row.get("relative_path", "")) == job_basename
+        ]
+    )
+
+
 class FetchAccepted(BaseModel):
     fetch_id: str
 

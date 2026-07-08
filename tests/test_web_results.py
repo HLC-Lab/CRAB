@@ -304,7 +304,12 @@ def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):
 # GET /api/results — cross-cluster index (plan 077 S6)
 # --------------------------------------------------------------------------- #
 def _history_row(
-    job_basename: str, status: str, system: str = SYSTEM, experiment_name: str = "e1"
+    job_basename: str,
+    status: str,
+    system: str = SYSTEM,
+    experiment_name: str = "e1",
+    total_runs: str = "",
+    failed_runs: str = "",
 ) -> dict:
     return {
         "job_name": job_basename,
@@ -313,6 +318,8 @@ def _history_row(
         "system": system,
         "relative_path": f"./{job_basename}/{experiment_name}",
         "absolute_path": f"/remote/data/{system}/{job_basename}/{experiment_name}",
+        "total_runs": total_runs,
+        "failed_runs": failed_runs,
     }
 
 
@@ -513,3 +520,76 @@ def test_clear_results_cache_removes_everything(tmp_path: Path):
         assert client.get("/api/results/cache").json() == {"total_bytes": 0}
         again = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}")
         assert again.status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/results/{cluster}/{system}/{job_basename}/experiments (plan 081)
+# --------------------------------------------------------------------------- #
+def test_results_experiments_reports_run_failure_counts(tmp_path: Path):
+    history = _history_json(
+        [_history_row(JOB_BASENAME, "FAILED", total_runs="10", failed_runs="3")]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        experiments = resp.json()["experiments"]
+        assert len(experiments) == 1
+        assert experiments[0]["status"] == "FAILED"
+        assert experiments[0]["total_runs"] == "10"
+        assert experiments[0]["failed_runs"] == "3"
+
+
+def test_results_experiments_only_returns_rows_for_this_job(tmp_path: Path):
+    history = _history_json(
+        [
+            _history_row(JOB_BASENAME, "COMPLETED", experiment_name="e1"),
+            _history_row(JOB_BASENAME, "FAILED", experiment_name="e2", failed_runs="1"),
+            _history_row("some_other_job", "COMPLETED", experiment_name="e1"),
+        ]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        names = {e["experiment_name"] for e in resp.json()["experiments"]}
+        assert names == {"e1", "e2"}
+
+
+def test_results_experiments_works_for_a_cli_only_job(tmp_path: Path):
+    # No registry record seeded at all -- must still resolve via live history,
+    # matching plan 077 decision 7 (full interoperability).
+    history = _history_json([_history_row("cli_job", "FAILED", failed_runs="2")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/cli_job/experiments")
+        assert resp.status_code == 200
+        experiments = resp.json()["experiments"]
+        assert len(experiments) == 1
+        assert experiments[0]["failed_runs"] == "2"
+
+
+def test_results_experiments_disconnected_cluster_returns_empty(tmp_path: Path):
+    # Profile known (added), but never connected -- distinct from "no such
+    # cluster profile at all", which 404s per `_profiles().get()`'s contract.
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        assert resp.json()["experiments"] == []
