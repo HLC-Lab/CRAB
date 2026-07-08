@@ -3,7 +3,10 @@
 // (cluster, system, jobBasename) instead of a registry record id, so a
 // CLI-only job (no JobsStore record) works identically to a
 // dashboard-submitted one. A matching JobsStore record is an optional join,
-// purely for the "View job details" backlink -- never required to render.
+// purely for the "View job details" action -- never required to render.
+// Nav coherence (owner feedback, 2026-07-08): the back arrow always returns
+// to the Results picker, matching where every entry point into this page
+// comes from; a separate, explicit action goes to the job's own detail page.
 import { computed, onMounted } from "vue";
 import { RouterLink, useRoute } from "vue-router";
 import { useJobsStore } from "@/stores/jobs";
@@ -32,14 +35,16 @@ const record = computed(() =>
 
 <template>
   <section class="results-job">
-    <RouterLink v-if="record" :to="`/jobs/${record.id}`" class="back">
-      &larr; View job details
-    </RouterLink>
-    <RouterLink v-else to="/results" class="back">&larr; Results</RouterLink>
+    <RouterLink to="/results" class="back">&larr; Results</RouterLink>
 
     <div class="head">
-      <h1>{{ jobBasename }}</h1>
-      <span class="sub">{{ cluster }} / {{ system }}</span>
+      <div>
+        <h1>{{ jobBasename }}</h1>
+        <span class="sub">{{ cluster }} / {{ system }}</span>
+      </div>
+      <RouterLink v-if="record" :to="`/jobs/${record.id}`" class="btn">
+        View job details &rarr;
+      </RouterLink>
     </div>
 
     <ResultsPanel :cluster="cluster" :system="system" :job-basename="jobBasename" />
@@ -60,6 +65,10 @@ const record = computed(() =>
   color: var(--accent);
 }
 .head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
   margin: 0.4rem 0 0.9rem;
 }
 h1 {
@@ -71,5 +80,21 @@ h1 {
 .sub {
   color: var(--text3);
   font-size: var(--t-sm);
+}
+.btn {
+  flex-shrink: 0;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.4rem 0.9rem;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 </style>

@@ -125,14 +125,14 @@ async function confirmRerunFailed() {
       <div class="links">
         <RouterLink
           :to="`/jobs/report/${encodeURIComponent(detailStore.detail.config_name)}`"
-          class="history-link"
+          class="btn"
         >
           View full history for this use case &rarr;
         </RouterLink>
         <RouterLink
           v-if="resultsKey"
           :to="`/results/${resultsKey.cluster}/${resultsKey.system}/${resultsKey.jobBasename}`"
-          class="history-link"
+          class="btn"
         >
           View results &rarr;
         </RouterLink>
@@ -233,17 +233,8 @@ h1 {
 }
 .links {
   display: flex;
-  gap: 1rem;
+  gap: 0.75rem;
   margin-bottom: 1rem;
-}
-.history-link {
-  display: inline-block;
-  color: var(--accent);
-  font-size: var(--t-sm);
-  text-decoration: none;
-}
-.history-link:hover {
-  text-decoration: underline;
 }
 .banner {
   padding: 0.5rem 0.75rem;
@@ -290,6 +281,7 @@ h1 {
   list-style: none;
 }
 .btn {
+  display: inline-block;
   background: var(--bg2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -297,6 +289,8 @@ h1 {
   padding: 0.35rem 0.8rem;
   cursor: pointer;
   font-family: var(--sans);
+  font-size: var(--t-sm);
+  text-decoration: none;
 }
 .btn:hover {
   border-color: var(--accent);
