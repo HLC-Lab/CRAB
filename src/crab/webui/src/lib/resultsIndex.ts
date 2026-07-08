@@ -25,3 +25,29 @@ export function sortEntries(entries: ResultsJobEntry[]): ResultsJobEntry[] {
     return b.submitted_at.localeCompare(a.submitted_at);
   });
 }
+
+export interface EntryFilters {
+  search: string;
+  clusters: Set<string>;
+  staleness: Set<string>;
+}
+
+/** Search matches job_basename (substring, case-insensitive); `clusters`/
+ * `staleness` are AND'd together, each empty meaning "no filter" for that
+ * dimension -- same "no chip selected shows everything" convention Jobs'
+ * own filter chips already use. `staleness` values are the same labels
+ * `describeStaleness` produces, so the two functions share one vocabulary. */
+export function filterEntries(
+  entries: ResultsJobEntry[],
+  filters: EntryFilters,
+): ResultsJobEntry[] {
+  const search = filters.search.trim().toLowerCase();
+  return entries.filter((entry) => {
+    if (search && !entry.job_basename.toLowerCase().includes(search)) return false;
+    if (filters.clusters.size && !filters.clusters.has(entry.cluster)) return false;
+    if (filters.staleness.size && !filters.staleness.has(describeStaleness(entry).label)) {
+      return false;
+    }
+    return true;
+  });
+}

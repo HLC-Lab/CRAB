@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeStaleness, sortEntries } from "@/lib/resultsIndex";
+import { describeStaleness, filterEntries, sortEntries } from "@/lib/resultsIndex";
 import type { ResultsJobEntry } from "@/api/types";
 
 function entry(overrides: Partial<ResultsJobEntry>): ResultsJobEntry {
@@ -64,5 +64,50 @@ describe("sortEntries", () => {
     const list = [entry({ job_basename: "a", submitted_at: "2026-01-01T00:00:00Z" })];
     const sorted = sortEntries(list);
     expect(sorted).not.toBe(list);
+  });
+});
+
+describe("filterEntries", () => {
+  const NO_FILTER = { search: "", clusters: new Set<string>(), staleness: new Set<string>() };
+  const entries = [
+    entry({ job_basename: "msgsize-sweep", cluster: "leonardo", cached: false }),
+    entry({
+      job_basename: "scaling-study",
+      cluster: "leonardo",
+      cached: true,
+      possibly_stale: true,
+    }),
+    entry({ job_basename: "coscheduling", cluster: "m100", cached: true, possibly_stale: false }),
+  ];
+
+  it("returns everything when no filter is set", () => {
+    expect(filterEntries(entries, NO_FILTER)).toEqual(entries);
+  });
+
+  it("matches job_basename by substring, case-insensitively", () => {
+    const result = filterEntries(entries, { ...NO_FILTER, search: "SWEEP" });
+    expect(result.map((e) => e.job_basename)).toEqual(["msgsize-sweep"]);
+  });
+
+  it("filters by cluster", () => {
+    const result = filterEntries(entries, { ...NO_FILTER, clusters: new Set(["m100"]) });
+    expect(result.map((e) => e.job_basename)).toEqual(["coscheduling"]);
+  });
+
+  it("filters by staleness label", () => {
+    const result = filterEntries(entries, {
+      ...NO_FILTER,
+      staleness: new Set(["Not fetched yet"]),
+    });
+    expect(result.map((e) => e.job_basename)).toEqual(["msgsize-sweep"]);
+  });
+
+  it("composes all three filters with AND, not OR", () => {
+    const result = filterEntries(entries, {
+      search: "s", // matches msgsize-sweep and scaling-study
+      clusters: new Set(["leonardo"]), // excludes coscheduling anyway
+      staleness: new Set(["Possibly stale"]), // only scaling-study
+    });
+    expect(result.map((e) => e.job_basename)).toEqual(["scaling-study"]);
   });
 });
