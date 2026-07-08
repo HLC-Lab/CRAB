@@ -37,6 +37,11 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
     <div v-for="j in props.jobs" :key="jobKey(j)" class="job-group">
       <button type="button" class="job-header" @click="toggleExpand(j)">
         <span class="chevron" :class="{ open: expanded[jobKey(j)] }">&rsaquo;</span>
+        <span
+          class="dot"
+          :class="j.connected ? 'on' : 'off'"
+          :title="j.connected ? 'cluster connected' : 'cluster not connected'"
+        />
         {{ j.job_basename }}
         <span class="job-sub">{{ j.cluster }}/{{ j.system }}</span>
       </button>
@@ -101,6 +106,18 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
   color: var(--text3);
   font-size: 0.75rem;
 }
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot.on {
+  background: var(--ok);
+}
+.dot.off {
+  background: var(--text3);
+}
 .chevron {
   display: inline-block;
   transition: transform 0.15s;
@@ -127,12 +144,39 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
 .app-checkbox {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   padding: 0.15rem 0.3rem;
   font-family: var(--mono);
   font-size: var(--t-sm);
   color: var(--text2);
   cursor: pointer;
+}
+.app-checkbox input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg1);
+  cursor: pointer;
+  position: relative;
+}
+.app-checkbox input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.app-checkbox input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--bg1);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 .meta {
   color: var(--text3);
