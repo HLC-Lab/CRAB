@@ -4,7 +4,7 @@
 // ChartRenderer module (trace/layout logic lives in lib/resultsPlot.ts, pure
 // and unit-tested there; this component only owns the Plotly lifecycle and
 // the picker UI). Print/paper themed regardless of app dark/light mode.
-import Plotly from "plotly.js-cartesian-dist-min";
+import Plotly from "@/lib/plotlyBundle";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   numericCols,

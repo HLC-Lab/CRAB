@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "pinia": "^2.2.0",
-    "plotly.js-cartesian-dist-min": "^3.7.0",
+    "plotly.js": "^3.7.0",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0"
   },

@@ -5,7 +5,7 @@
 // resultsPlot.ts theme and S14's resultsCompare.ts trace builders, so both
 // modes always share one axis unit (decision 11).
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
-import Plotly from "plotly.js-cartesian-dist-min";
+import Plotly from "@/lib/plotlyBundle";
 import { useResultsStore } from "@/stores/results";
 import { resultsKey } from "@/lib/jobKey";
 import { assignColors, type ChartKind, type ScaleKind } from "@/lib/resultsChart";

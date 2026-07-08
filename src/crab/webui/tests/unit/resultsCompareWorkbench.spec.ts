@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 // resultsCompare.ts pulls in resultsPlot.ts, whose real Plotly bundle assumes
 // a browser global (`self`) that doesn't exist under vitest's node
 // environment -- mocked at the module boundary, same as resultsPlot.spec.ts.
-vi.mock("plotly.js-cartesian-dist-min", () => ({ default: {} }));
+vi.mock("@/lib/plotlyBundle", () => ({ default: {} }));
 
 import {
   makeOverlayTraces,

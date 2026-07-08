@@ -2,7 +2,7 @@
 // makeChartData/buildChartOptions/xScaleType. Chart aesthetic is print/paper
 // styled (decision 3): white background and a serif font regardless of the
 // app's own dark/light theme -- deliberate, scoped to the chart canvas only.
-import Plotly from "plotly.js-cartesian-dist-min";
+import Plotly from "@/lib/plotlyBundle";
 import type { Data, Layout } from "plotly.js";
 import {
   binByX,
@@ -45,7 +45,7 @@ export function makePlotlyTraces(
     });
     return [
       {
-        type: "scatter",
+        type: "scattergl",
         mode: kind === "line" ? "lines" : "markers",
         name: label,
         x: validRows.map((r) => r[xCol] as number | string),

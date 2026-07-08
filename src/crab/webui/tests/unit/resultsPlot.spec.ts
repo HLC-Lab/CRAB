@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const { downloadImage } = vi.hoisted(() => ({
   downloadImage: vi.fn().mockResolvedValue("data:image/png;base64,"),
 }));
-vi.mock("plotly.js-cartesian-dist-min", () => ({
+vi.mock("@/lib/plotlyBundle", () => ({
   default: { downloadImage },
 }));
 
@@ -32,7 +32,7 @@ describe("makePlotlyTraces", () => {
       "exp1",
     );
     expect(trace).toMatchObject({
-      type: "scatter",
+      type: "scattergl",
       mode: "markers",
       name: "exp1",
       x: [1, 2],
@@ -69,7 +69,7 @@ describe("makePlotlyTraces", () => {
       "#111",
       "exp1",
     );
-    expect(trace).toMatchObject({ type: "scatter", mode: "lines" });
+    expect(trace).toMatchObject({ type: "scattergl", mode: "lines" });
   });
 
   it("scales y values by the given unit", () => {
