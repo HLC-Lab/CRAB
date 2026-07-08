@@ -188,6 +188,11 @@ async def get_results_index(request: Request) -> ResultsIndex:
                 "results_fetch_status", f"{profile.name}:{system}:{basename}"
             )
             fetch_status = snapshot["data"]["status"] if snapshot else None
+            cached_bytes = (
+                await asyncio.to_thread(_cached_bytes, cache.path_for(*triple))
+                if is_cached
+                else None
+            )
             profile_entries.append(
                 ResultsJobEntry(
                     cluster=profile.name,
@@ -199,7 +204,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
                     job_id=known.job_id if known else None,
                     submitted_at=known.submitted_at if known else None,
                     cached=is_cached,
-                    cached_bytes=_cached_bytes(cache.path_for(*triple)) if is_cached else None,
+                    cached_bytes=cached_bytes,
                     possibly_stale=not is_cached or fetch_status != status,
                 )
             )
@@ -223,6 +228,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
     for triple in cached_triples - entries.keys():
         cluster, system, basename = triple
         known = registry_by_triple.get(triple)
+        cached_bytes = await asyncio.to_thread(_cached_bytes, cache.path_for(*triple))
         entries[triple] = ResultsJobEntry(
             cluster=cluster,
             system=system,
@@ -233,7 +239,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
             job_id=known.job_id if known else None,
             submitted_at=known.submitted_at if known else None,
             cached=True,
-            cached_bytes=_cached_bytes(cache.path_for(*triple)),
+            cached_bytes=cached_bytes,
             possibly_stale=True,
         )
 
@@ -443,7 +449,8 @@ class CacheSize(BaseModel):
 
 @router.get("/cache")
 async def get_results_cache_size(request: Request) -> CacheSize:
-    return CacheSize(total_bytes=_results_cache(request).total_size())
+    total_bytes = await asyncio.to_thread(_results_cache(request).total_size)
+    return CacheSize(total_bytes=total_bytes)
 
 
 @router.delete("/cache", status_code=204)
