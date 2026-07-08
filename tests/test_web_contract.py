@@ -122,6 +122,41 @@ def test_gather_history_absolute_path_falls_back_when_relative_path_missing(tmp_
     assert contract.gather_history(data_root=tmp_path / "nope")["experiments"] == []
 
 
+def test_gather_history_reports_run_failure_counts(tmp_path: Path):
+    _write_registry(
+        tmp_path / "leonardo",
+        [
+            {
+                "job_name": "j1",
+                "experiment_name": "e1",
+                "status": "FAILED",
+                "total_runs": "10",
+                "failed_runs": "3",
+            }
+        ],
+    )
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["total_runs"] == "10"
+    assert entry["failed_runs"] == "3"
+
+
+def test_gather_history_missing_run_failure_columns_is_graceful(tmp_path: Path):
+    # A metadata.csv from before plan 081 (owner declined migrating existing
+    # files) -- the OLD 9-column header, no total_runs/failed_runs at all.
+    system_dir = tmp_path / "leonardo"
+    system_dir.mkdir(parents=True)
+    old_columns = contract._HISTORY_COLUMNS[:-2]
+    header = ",".join(old_columns)
+    row = ",".join(["j1", "e1", "", "", "", "", "COMPLETED", "", ""])
+    (system_dir / "metadata.csv").write_text(header + "\n" + row + "\n")
+
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["total_runs"] == ""
+    assert entry["failed_runs"] == ""
+
+
 # --------------------------------------------------------------------------- #
 # benchmarks + wrappers
 # --------------------------------------------------------------------------- #

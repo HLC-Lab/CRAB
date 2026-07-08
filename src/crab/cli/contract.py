@@ -88,6 +88,8 @@ _HISTORY_COLUMNS = (
     "status",
     "tags",
     "relative_path",
+    "total_runs",
+    "failed_runs",
 )
 
 
