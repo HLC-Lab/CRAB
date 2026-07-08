@@ -6,54 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("plotly.js-cartesian-dist-min", () => ({ default: {} }));
 
 import {
-  buildChips,
   makeOverlayTraces,
   makeSmallMultipleTraces,
   resolveCol,
   sharedColumns,
   sharedUnit,
   type CompareSeries,
-  type SeriesMeta,
 } from "@/lib/resultsCompare";
-
-describe("buildChips", () => {
-  const meta = (jobBasename: string, experiment: string, app: string): SeriesMeta => ({
-    cluster: "c1",
-    system: "s1",
-    jobBasename,
-    experiment,
-    app,
-  });
-
-  it("returns nothing for an empty selection", () => {
-    expect(buildChips(new Map())).toEqual([]);
-  });
-
-  it("labels a chip as job / experiment / app", () => {
-    const selected = new Map([["id1", meta("job1", "exp1", "appA")]]);
-    const chips = buildChips(selected);
-    expect(chips).toEqual([{ id: "id1", label: "job1 / exp1 / appA", color: chips[0].color }]);
-  });
-
-  it("assigns a distinct color per selected series, in Map insertion order", () => {
-    const selected = new Map([
-      ["id1", meta("job1", "exp1", "appA")],
-      ["id2", meta("job2", "exp2", "appB")],
-    ]);
-    const chips = buildChips(selected);
-    expect(chips.map((c) => c.id)).toEqual(["id1", "id2"]);
-    expect(chips[0].color).not.toBe(chips[1].color);
-  });
-
-  it("drops a chip once its entry is removed from the selection", () => {
-    const selected = new Map([
-      ["id1", meta("job1", "exp1", "appA")],
-      ["id2", meta("job2", "exp2", "appB")],
-    ]);
-    selected.delete("id1");
-    expect(buildChips(selected).map((c) => c.id)).toEqual(["id2"]);
-  });
-});
 
 describe("resolveCol", () => {
   it("returns the column unchanged when it already exists", () => {

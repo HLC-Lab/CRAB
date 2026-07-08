@@ -8,16 +8,14 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import Plotly from "plotly.js-cartesian-dist-min";
 import { useResultsStore } from "@/stores/results";
 import { resultsKey } from "@/lib/jobKey";
-import { type ChartKind, type ScaleKind } from "@/lib/resultsChart";
+import { assignColors, type ChartKind, type ScaleKind } from "@/lib/resultsChart";
 import { makePlotlyLayout } from "@/lib/resultsPlot";
 import {
-  buildChips,
   makeOverlayTraces,
   makeSmallMultipleTraces,
   seriesId,
   sharedColumns,
   sharedUnit,
-  type CompareChip,
   type CompareSeries,
   type SeriesMeta,
 } from "@/lib/resultsCompare";
@@ -39,23 +37,18 @@ function toggleSeries(m: SeriesMeta) {
   else selected.set(id, m);
 }
 
-// The single place a selection's colors/labels are computed -- chips and
-// chart traces both derive from this list, so they can never disagree.
-const chips = computed<CompareChip[]>(() => buildChips(selected));
-function removeChip(id: string) {
-  const m = selected.get(id);
-  if (m) toggleSeries(m);
-}
-
-const selectedSeries = computed<CompareSeries[]>(() =>
-  chips.value.flatMap((c) => {
-    const m = selected.get(c.id)!;
+const selectedSeries = computed<CompareSeries[]>(() => {
+  const entries = [...selected.entries()];
+  const colors = assignColors(entries.map(([id]) => id));
+  return entries.flatMap(([id, m]) => {
     const data = results.results[resultsKey(m.cluster, m.system, m.jobBasename)];
     const rows = data?.experiments[m.experiment]?.[m.app];
     if (!rows) return [];
-    return [{ id: c.id, label: c.label, color: c.color, rows }];
-  }),
-);
+    return [
+      { id, label: `${m.jobBasename} / ${m.experiment} / ${m.app}`, color: colors[id], rows },
+    ];
+  });
+});
 
 const columns = computed(() => sharedColumns(selectedSeries.value));
 const xCol = ref("");
@@ -208,23 +201,7 @@ onUnmounted(() => {
     <p v-if="results.indexBusy" class="meta">Loading…</p>
 
     <div class="layout">
-      <div class="sidebar-col">
-        <div v-if="chips.length" class="chip-strip">
-          <span v-for="c in chips" :key="c.id" class="chip">
-            <span class="chip-swatch" :style="{ background: c.color }" />
-            <span class="chip-label">{{ c.label }}</span>
-            <button
-              type="button"
-              class="chip-remove"
-              :aria-label="`Remove ${c.label} from the comparison`"
-              @click="removeChip(c.id)"
-            >
-              &times;
-            </button>
-          </span>
-        </div>
-        <CompareJobTree :jobs="cachedJobs" :selected-ids="selectedIds" @toggle="toggleSeries" />
-      </div>
+      <CompareJobTree :jobs="cachedJobs" :selected-ids="selectedIds" @toggle="toggleSeries" />
 
       <div class="content">
         <p v-if="!selectedSeries.length" class="empty">
@@ -321,51 +298,6 @@ h1 {
   display: flex;
   align-items: flex-start;
   gap: 1.25rem;
-}
-.sidebar-col {
-  flex: 0 0 17rem;
-}
-.chip-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.5rem;
-}
-.chip {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  max-width: 100%;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.15rem 0.3rem 0.15rem 0.5rem;
-  background: var(--bg1);
-  font-family: var(--mono);
-  font-size: 0.75rem;
-  color: var(--text2);
-}
-.chip-swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.chip-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chip-remove {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text3);
-  font-size: 0.9rem;
-  line-height: 1;
-  padding: 0 0.15rem;
-}
-.chip-remove:hover {
-  color: var(--danger);
 }
 .content {
   flex: 1;
