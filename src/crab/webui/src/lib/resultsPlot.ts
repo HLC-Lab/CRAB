@@ -34,6 +34,15 @@ export function makePlotlyTraces(
   const validRows = rows.filter((r) => r[xCol] != null && r[yCol] != null);
 
   if (kind === "scatter" || kind === "line") {
+    // Sorted by X regardless of row order in the source CSV -- otherwise a
+    // "line" trace connects points in write/selection order, not X order,
+    // and the line zigzags back and forth across the axis.
+    validRows.sort((a, b) => {
+      const av = a[xCol];
+      const bv = b[xCol];
+      if (typeof av === "number" && typeof bv === "number") return av - bv;
+      return String(av).localeCompare(String(bv));
+    });
     return [
       {
         type: "scatter",

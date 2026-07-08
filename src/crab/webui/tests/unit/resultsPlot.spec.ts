@@ -41,6 +41,24 @@ describe("makePlotlyTraces", () => {
     });
   });
 
+  it("sorts points by X ascending regardless of row order (owner bug report: unsorted rows made a line chart's X axis jump around)", () => {
+    const shuffled = [
+      { msg_size: 4, latency_s: 0.4 },
+      { msg_size: 1, latency_s: 0.1 },
+      { msg_size: 2, latency_s: 0.2 },
+    ];
+    const [trace] = makePlotlyTraces(
+      shuffled,
+      "msg_size",
+      "latency_s",
+      "line",
+      { div: 1, label: "" },
+      "#111",
+      "exp1",
+    );
+    expect(trace).toMatchObject({ x: [1, 2, 4], y: [0.1, 0.2, 0.4] });
+  });
+
   it("builds a lines-mode scatter trace for line kind", () => {
     const [trace] = makePlotlyTraces(
       rows,
