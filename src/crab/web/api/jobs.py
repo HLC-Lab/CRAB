@@ -418,6 +418,15 @@ class ReportExperiment(BaseModel):
     status: str
     tags: str
     relative_path: str
+    # Plan 081: how many of this experiment's internal runs (min/maxruns
+    # retry loop) failed, vs how many were attempted -- lets a client tell
+    # "one bad run tainted the overall status, but most runs succeeded and
+    # have real data" apart from "everything failed." Empty string (not
+    # None) for a `metadata.csv` written before this field existed, matching
+    # the contract's degrade-gracefully convention -- never migrated in
+    # place (owner's explicit call, see ADR-023).
+    total_runs: str = ""
+    failed_runs: str = ""
     record_id: str | None = None
     job_id: str | None = None
     submitted_at: str | None = None

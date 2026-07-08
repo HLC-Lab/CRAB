@@ -900,6 +900,16 @@ export interface components {
       tags: string;
       /** Relative Path */
       relative_path: string;
+      /**
+       * Total Runs
+       * @default
+       */
+      total_runs: string;
+      /**
+       * Failed Runs
+       * @default
+       */
+      failed_runs: string;
       /** Record Id */
       record_id?: string | null;
       /** Job Id */

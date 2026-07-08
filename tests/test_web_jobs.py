@@ -945,6 +945,35 @@ def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: P
         assert any("crab history -s leonardo --json" in c for c in transport.calls)
 
 
+def test_job_experiments_reports_run_failure_counts(tmp_path: Path):
+    _seed_job(
+        tmp_path,
+        job_id="48552582",
+        data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
+        config_name="msgsize_scaling_study",
+        system="leonardo",
+    )
+    history_json = json.dumps(
+        {
+            "schema": 1,
+            "experiments": [_history_row(status="FAILED", total_runs="10", failed_runs="3")],
+        }
+    )
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/leonardo:48552582/experiments")
+        assert resp.status_code == 200
+        entry = resp.json()["experiments"][0]
+        assert entry["total_runs"] == "10"
+        assert entry["failed_runs"] == "3"
+
+
 def test_job_experiments_reports_rerun_lineage(tmp_path: Path):
     _seed_job(tmp_path, job_id="1", data_dir="/d/original", config_name="demo")
     _seed_job(
@@ -1082,6 +1111,30 @@ def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Pat
         assert unmatched["status"] == "FAILED"
         assert unmatched["record_id"] is None
         assert unmatched["job_id"] is None
+
+
+def test_use_case_report_reports_run_failure_counts(tmp_path: Path):
+    history_json = json.dumps(
+        {
+            "schema": 1,
+            "experiments": [
+                _history_row(status="FAILED", total_runs="10", failed_runs="3"),
+            ],
+        }
+    )
+
+    def factory():
+        return ScriptedTransport(history_json=history_json)
+
+    with _client(tmp_path, factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs/report/msgsize_scaling_study")
+        assert resp.status_code == 200
+        entry = resp.json()["experiments"][0]
+        assert entry["total_runs"] == "10"
+        assert entry["failed_runs"] == "3"
 
 
 def test_use_case_report_matches_registry_config_name_over_internal_job_name(tmp_path: Path):
