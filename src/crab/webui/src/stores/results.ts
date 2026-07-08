@@ -36,6 +36,7 @@ export const useResultsStore = defineStore("results", () => {
   const experimentsError = ref<Record<string, string>>({});
 
   const cacheSize = ref<number | null>(null);
+  const cacheSizeLoaded = ref(false);
   const cacheSizeBusy = ref(false);
   const clearBusy = ref(false);
   const clearError = ref<string | null>(null);
@@ -110,10 +111,16 @@ export const useResultsStore = defineStore("results", () => {
     }
   }
 
-  async function refreshCacheSize() {
+  // `force=false` is a no-op once already loaded (same convention as
+  // `loadIndex`): the total only actually changes after a Fetch or Clear
+  // cache, both of which already pass `force=true` -- a plain job-panel visit
+  // doesn't need to recompute it (walking the whole on-disk cache) again.
+  async function refreshCacheSize(force = false) {
+    if (!force && cacheSizeLoaded.value) return;
     cacheSizeBusy.value = true;
     try {
       cacheSize.value = (await api.results.cacheSize()).total_bytes;
+      cacheSizeLoaded.value = true;
     } finally {
       cacheSizeBusy.value = false;
     }
@@ -139,7 +146,7 @@ export const useResultsStore = defineStore("results", () => {
       fetchBusy.value[key] = false;
       if (status.status === "done") {
         await loadResults(cluster, system, jobBasename, true); // just fetched -- always reload
-        await refreshCacheSize();
+        await refreshCacheSize(true);
         return;
       }
       fetchError.value[key] = status.detail
@@ -168,7 +175,7 @@ export const useResultsStore = defineStore("results", () => {
       await api.results.clearCache();
       results.value = {};
       notFetched.value = {};
-      await refreshCacheSize();
+      await refreshCacheSize(true);
     } catch (e) {
       clearError.value = msg(e);
     } finally {

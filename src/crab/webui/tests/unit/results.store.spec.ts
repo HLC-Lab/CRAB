@@ -323,6 +323,22 @@ describe("results store: cache size + clear", () => {
     expect(store.cacheSize).toBe(128);
   });
 
+  it("refreshCacheSize is a no-op once loaded, unless forced (owner: repeated job visits kept re-walking the whole disk cache)", async () => {
+    cacheSizeMock.mockResolvedValueOnce({ total_bytes: 128 });
+
+    const store = useResultsStore();
+    await store.refreshCacheSize();
+    await store.refreshCacheSize(); // e.g. a second job's panel mounting
+
+    expect(cacheSizeMock).toHaveBeenCalledTimes(1);
+
+    cacheSizeMock.mockResolvedValueOnce({ total_bytes: 256 });
+    await store.refreshCacheSize(true);
+
+    expect(cacheSizeMock).toHaveBeenCalledTimes(2);
+    expect(store.cacheSize).toBe(256);
+  });
+
   it("clearCache empties loaded results and re-reads a zero size", async () => {
     getMock.mockResolvedValueOnce(SAMPLE_DATA);
     cacheSizeMock.mockResolvedValueOnce({ total_bytes: 0 });
