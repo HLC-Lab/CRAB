@@ -29,3 +29,4 @@ marked superseded, never deleted.
 | [020](adr-020-rerun-lineage.md) | Track rerun lineage as additive fields, not a new entity | accepted |
 | [021](adr-021-results-dashboard.md) | Results dashboard: recursive SFTP, per-job cache, one chart implementation | accepted |
 | [022](adr-022-results-plotly-and-job-identity.md) | Results redesign: Plotly over Chart.js, absolute paths, job identity off the registry | accepted |
+| [023](adr-023-per-run-failure-counts.md) | Per-run failure counts as additive fields, no `metadata.csv` migration | accepted |
