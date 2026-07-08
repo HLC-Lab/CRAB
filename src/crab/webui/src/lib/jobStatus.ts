@@ -46,3 +46,24 @@ export function failedExperimentNames(
 ): string[] {
   return experiments.filter((e) => isFailureState(e.status)).map((e) => e.experiment_name);
 }
+
+// Plan 081: an experiment's overall status latches to FAILED on its first
+// bad internal run and never resets, even though every OTHER run in that
+// same min/maxruns loop that succeeded still has its data collected. This
+// tells "3 of 10 runs failed, here's data from the other 7" apart from
+// "everything failed" -- null when there's nothing to show (a
+// `metadata.csv` written before plan 081, never migrated by design, reports
+// both fields as "", and `Number("")` is 0) or when nothing actually
+// failed. Loosely typed so it works against both `ReportExperiment` and the
+// results view's `ExperimentRunStatus`, which share this shape.
+export function runFailureNote(experiment: {
+  total_runs?: string;
+  failed_runs?: string;
+}): string | null {
+  const failed = Number(experiment.failed_runs);
+  const total = Number(experiment.total_runs);
+  if (!Number.isFinite(failed) || !Number.isFinite(total) || failed <= 0 || total <= 0) {
+    return null;
+  }
+  return `${failed}/${total} runs failed`;
+}

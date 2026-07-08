@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { failedExperimentNames, isFailureState, isTerminal, stateClass } from "@/lib/jobStatus";
+import {
+  failedExperimentNames,
+  isFailureState,
+  isTerminal,
+  runFailureNote,
+  stateClass,
+} from "@/lib/jobStatus";
 
 describe("isFailureState", () => {
   it("is true for danger-classed states", () => {
@@ -37,5 +43,27 @@ describe("failedExperimentNames (plan 076 quick rerun)", () => {
     expect(
       failedExperimentNames([{ status: "COMPLETED", experiment_name: "01_baseline" }]),
     ).toEqual([]);
+  });
+});
+
+describe("runFailureNote (plan 081)", () => {
+  it("formats N/M when some runs failed", () => {
+    expect(runFailureNote({ total_runs: "10", failed_runs: "3" })).toBe("3/10 runs failed");
+  });
+
+  it("returns null when no runs failed", () => {
+    expect(runFailureNote({ total_runs: "10", failed_runs: "0" })).toBeNull();
+  });
+
+  it("returns null for a pre-plan-081 metadata.csv (both fields empty)", () => {
+    expect(runFailureNote({ total_runs: "", failed_runs: "" })).toBeNull();
+  });
+
+  it("returns null when the fields are entirely absent", () => {
+    expect(runFailureNote({})).toBeNull();
+  });
+
+  it("returns null for non-numeric garbage rather than throwing", () => {
+    expect(runFailureNote({ total_runs: "n/a", failed_runs: "n/a" })).toBeNull();
   });
 });

@@ -4,7 +4,7 @@
 // Extracted from ReportView.vue (plan 075 S1) so a future per-job view can
 // reuse the same card without duplicating this markup.
 import { useReportStore } from "@/stores/report";
-import { stateClass } from "@/lib/jobStatus";
+import { runFailureNote, stateClass } from "@/lib/jobStatus";
 import { ansiToHtml } from "@/lib/ansi";
 import type { ReportExperiment } from "@/api/types";
 
@@ -39,6 +39,9 @@ function toggleLogs(recordId: string, experimentName: string) {
         </span>
       </div>
       <div class="ctrls">
+        <span v-if="runFailureNote(experiment)" class="run-failure-note">
+          {{ runFailureNote(experiment) }}
+        </span>
         <span class="state" :class="stateClass(experiment.status)">{{ experiment.status }}</span>
         <button
           v-if="experiment.record_id"
@@ -198,6 +201,11 @@ function toggleLogs(recordId: string, experimentName: string) {
 }
 .state.muted {
   color: var(--text3);
+}
+.run-failure-note {
+  color: var(--warn);
+  font-size: var(--t-sm);
+  white-space: nowrap;
 }
 .btn {
   background: var(--bg2);
