@@ -4,12 +4,14 @@
 // CLI-only alike) with real metadata and a staleness badge. Card layout and
 // filters mirror JobsView.vue's established pattern (plan 080), for
 // consistency across the app rather than a bespoke Results-only style.
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useResultsStore } from "@/stores/results";
 import { formatBytes } from "@/lib/resultsChart";
+import { resultsKey } from "@/lib/jobKey";
 import { describeStaleness, filterEntries, sortEntries } from "@/lib/resultsIndex";
 import ResultsTabs from "@/components/results/ResultsTabs.vue";
+import type { ResultsJobEntry } from "@/api/types";
 
 const results = useResultsStore();
 
@@ -51,6 +53,31 @@ function toggleStaleness(label: string) {
   if (next.has(label)) next.delete(label);
   else next.add(label);
   stalenessFilter.value = next;
+}
+
+// Inline "Fetch" on a not-yet-fetched card (plan 080 decision 4): `fetchResults`
+// only resolves once the initial request is accepted -- the actual fetch
+// finishes later via the store's own background poll, so wait for
+// `fetchBusy[key]` to flip back to false before reloading the index (a
+// deliberate reload, not a violation of plan 079's manual-refresh policy:
+// the data genuinely just changed because of this action).
+async function fetchNow(entry: ResultsJobEntry) {
+  const key = resultsKey(entry.cluster, entry.system, entry.job_basename);
+  await results.fetchResults(entry.cluster, entry.system, entry.job_basename);
+  if (results.fetchBusy[key]) {
+    await new Promise<void>((resolve) => {
+      const stop = watch(
+        () => results.fetchBusy[key],
+        (busy) => {
+          if (!busy) {
+            stop();
+            resolve();
+          }
+        },
+      );
+    });
+  }
+  await results.loadIndex(true);
 }
 </script>
 
@@ -123,6 +150,25 @@ function toggleStaleness(label: string) {
           </div>
           <p class="meta">{{ e.cached ? formatBytes(e.cached_bytes ?? 0) : "not fetched yet" }}</p>
         </RouterLink>
+        <div v-if="describeStaleness(e).label === 'Not fetched yet'" class="card-actions">
+          <button
+            class="btn"
+            :disabled="results.fetchBusy[resultsKey(e.cluster, e.system, e.job_basename)]"
+            @click="fetchNow(e)"
+          >
+            {{
+              results.fetchBusy[resultsKey(e.cluster, e.system, e.job_basename)]
+                ? "Fetching…"
+                : "Fetch"
+            }}
+          </button>
+          <p
+            v-if="results.fetchError[resultsKey(e.cluster, e.system, e.job_basename)]"
+            class="banner err small"
+          >
+            {{ results.fetchError[resultsKey(e.cluster, e.system, e.job_basename)] }}
+          </p>
+        </div>
       </li>
     </ul>
   </section>
@@ -217,6 +263,30 @@ h1 {
   color: inherit;
   text-decoration: none;
   cursor: pointer;
+}
+.card-actions {
+  padding: 0 1rem 1rem;
+}
+.btn {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.banner.small {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
 }
 .card:hover {
   border-color: var(--accent);
