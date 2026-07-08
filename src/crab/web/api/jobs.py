@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from collections.abc import Awaitable, Callable, Iterable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -80,14 +81,32 @@ def _submissions(request: Request) -> dict[str, dict[str, Any]]:
 
 
 async def _live_or_cached(
-    request: Request, scope: str, key: str, fetch: Callable[[], Awaitable[dict]]
+    request: Request,
+    scope: str,
+    key: str,
+    fetch: Callable[[], Awaitable[dict]],
+    ttl_seconds: float = 0,
 ) -> tuple[dict, bool, str | None]:
     """Try `fetch()` live; on disconnect/command failure, fall back to the local cache.
+
+    `ttl_seconds` (default 0, meaning always live) lets a caller reuse a very
+    recent live result instead of paying a second SSH round-trip — e.g. the
+    Results picker and a job's own experiment-status query both read the same
+    cluster's `crab history` moments apart. A hit within `ttl_seconds` is
+    returned as fresh (`stale=False`), not as the disconnected-fallback case.
 
     Returns ``(data, stale, cached_at)``. A cache miss re-raises the live error
     unchanged (no regression for data that was never successfully fetched before).
     """
     cache = _cache(request)
+    if ttl_seconds > 0:
+        cached = cache.read(scope, key)
+        if cached is not None:
+            age = (
+                datetime.now(timezone.utc) - datetime.fromisoformat(cached["fetched_at"])
+            ).total_seconds()
+            if age <= ttl_seconds:
+                return cached["data"], False, None
     try:
         result = await fetch()
     except (RemoteConnectionError, RemoteCommandError):

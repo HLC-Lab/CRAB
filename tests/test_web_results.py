@@ -584,6 +584,66 @@ def test_results_experiments_works_for_a_cli_only_job(tmp_path: Path):
         assert experiments[0]["failed_runs"] == "2"
 
 
+def test_results_experiments_reuses_a_recent_index_fetch_instead_of_a_second_round_trip(
+    tmp_path: Path,
+):
+    """The picker (GET /api/results) and a job's own experiments query read the
+    same cluster's `crab history` moments apart in normal use -- the second
+    call should reuse the first's still-fresh result rather than a second
+    live SSH round-trip."""
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+    history_calls = 0
+
+    class CountingTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            nonlocal history_calls
+            if "crab history" in command:
+                history_calls += 1
+            return await super().run(command, timeout)
+
+    with _client(
+        tmp_path, transport_factory=lambda: CountingTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        assert client.get("/api/results").status_code == 200
+        assert history_calls == 1
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        assert len(resp.json()["experiments"]) == 1
+        assert history_calls == 1  # reused, not a second round-trip
+
+
+def test_results_experiments_filters_by_system_even_when_reusing_unscoped_history(
+    tmp_path: Path,
+):
+    """The index's own `crab history` query is unscoped (no `-s system`) --
+    reusing its cached result for a system-scoped experiments query must not
+    leak another system's same-named job into the answer."""
+    history = _history_json(
+        [
+            _history_row(JOB_BASENAME, "COMPLETED", system=SYSTEM),
+            _history_row(JOB_BASENAME, "FAILED", system="other_system"),
+        ]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        assert client.get("/api/results").status_code == 200
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        experiments = resp.json()["experiments"]
+        assert len(experiments) == 1
+        assert experiments[0]["status"] == "COMPLETED"
+
+
 def test_results_experiments_disconnected_cluster_returns_empty(tmp_path: Path):
     # Profile known (added), but never connected -- distinct from "no such
     # cluster profile at all", which 404s per `_profiles().get()`'s contract.

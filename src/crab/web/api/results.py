@@ -38,6 +38,13 @@ from crab.web.store.results_cache import ResultsCache
 
 router = APIRouter(prefix="/api/results", tags=["results"])
 
+# The Results picker (get_results_index) and a job's own experiment-status
+# query (get_results_experiments) both read the same cluster's `crab history`
+# moments apart in normal use (open the picker, then a job). Reusing a result
+# this recent instead of a second live SSH round-trip is imperceptible for a
+# monitoring dashboard's freshness needs.
+_HISTORY_TTL_SECONDS = 10.0
+
 
 def _jobs_store(request: Request) -> JobsStore:
     return JobsStore(request.app.state.settings)
@@ -165,7 +172,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
 
         try:
             history, _stale, _cached_at = await _live_or_cached(
-                request, "history", f"cluster:{profile.name}", fetch
+                request, "history", f"cluster:{profile.name}", fetch, _HISTORY_TTL_SECONDS
             )
         except RemoteConnectionError:
             return []  # nothing live or cached for this cluster's history at all
@@ -270,9 +277,12 @@ async def get_results_experiments(
     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
     Results must work identically for CLI-only jobs (plan 077 decision 7),
     and a live/cached `crab history` call already has everything needed
-    without a registry join. Shares `_live_or_cached`'s cache scope with
-    `get_results_index` (same `f"cluster:{cluster}"` key), so this often
-    reuses whatever the picker already fetched instead of a fresh round-trip.
+    without a registry join. Shares `_live_or_cached`'s cache scope and TTL
+    with `get_results_index` (same `f"cluster:{cluster}"` key), so opening a
+    job shortly after the picker loaded often reuses that result instead of a
+    second live round-trip -- the reused history may be UNSCOPED (the
+    picker's own query has no `-s system`), so `row["system"]` is checked
+    explicitly below rather than trusting the query's own scope.
     """
     profile = _profiles(request).get(cluster)
 
@@ -284,7 +294,7 @@ async def get_results_experiments(
 
     try:
         history, _stale, _cached_at = await _live_or_cached(
-            request, "history", f"cluster:{cluster}", fetch
+            request, "history", f"cluster:{cluster}", fetch, _HISTORY_TTL_SECONDS
         )
     except RemoteConnectionError:
         return ExperimentRunStatusList(experiments=[])
@@ -298,7 +308,8 @@ async def get_results_experiments(
                 failed_runs=row.get("failed_runs", ""),
             )
             for row in history["experiments"]
-            if _job_basename(row.get("relative_path", "")) == job_basename
+            if row["system"] == system
+            and _job_basename(row.get("relative_path", "")) == job_basename
         ]
     )
 
