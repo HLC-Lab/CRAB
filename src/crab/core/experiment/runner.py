@@ -232,6 +232,7 @@ class ExperimentRunner:
                     static_schedule.append((i, "k", val))
 
         runs = 0
+        failed_runs = 0
         global_start = time.time()
         converged = False
 
@@ -458,6 +459,8 @@ class ExperimentRunner:
                             shutil.rmtree(target_run_dir, ignore_errors=True)
 
                 runs += 1
+                if not run_successful:
+                    failed_runs += 1
                 if runs >= min_runs:
                     converged = check_CI(self.data_containers, alpha, beta, converge_all, runs)
                     if converged:
@@ -466,7 +469,7 @@ class ExperimentRunner:
         finally:
             self.teardown()
 
-        self._write_to_registry(status=experiment_status)
+        self._write_to_registry(status=experiment_status, total_runs=runs, failed_runs=failed_runs)
 
     def teardown(self):
         """Ensures all processes are killed before next experiment."""
@@ -486,10 +489,17 @@ class ExperimentRunner:
             log_data(out_fmt, prefix, self.data_containers)
             self.log.info(f"Data saved to {self.exp_dir}")
 
-    def _write_to_registry(self, status):
+    def _write_to_registry(self, status, total_runs, failed_runs):
         """
         Appends a data row for this experiment to the system-level metadata.csv.
         Uses exclusive POSIX file locking to guarantee process safety on shared HPC filesystems.
+
+        `total_runs`/`failed_runs` let a caller distinguish "this experiment's
+        overall status latched to FAILED because of one bad run, but N of M
+        runs actually succeeded and have data" from "every run failed" (plan
+        081). An existing metadata.csv from before this field existed keeps
+        its old header forever (no migration, by design) -- new rows still
+        append fine, they just aren't readable by these column names.
         """
         try:
             # Traversal: self.exp_dir is system/job_name_timestamp/experiment_name
@@ -539,6 +549,8 @@ class ExperimentRunner:
                 "status",
                 "tags",
                 "relative_path",
+                "total_runs",
+                "failed_runs",
             ]
             row = [
                 job_name,
@@ -550,6 +562,8 @@ class ExperimentRunner:
                 status,
                 tags,
                 relative_path,
+                total_runs,
+                failed_runs,
             ]
 
             # Atomic append routine using advisory locking
