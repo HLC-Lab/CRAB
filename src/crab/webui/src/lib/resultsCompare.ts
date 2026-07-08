@@ -11,6 +11,7 @@
 // could silently show "the same" axis in different units/scales -- this
 // computes ONE unit across every selected series up front instead.
 import {
+  assignColors,
   numericCols,
   unitForCol,
   type ChartKind,
@@ -40,6 +41,25 @@ export interface SeriesMeta {
 
 export function seriesId(m: SeriesMeta): string {
   return `${m.cluster}|${m.system}|${m.jobBasename}|${m.experiment}|${m.app}`;
+}
+
+/** One removable chip per selected series, for the Compare workbench's
+ * selection summary. The single place colors are assigned for a selection --
+ * `selectedSeries` in ResultsCompareView.vue derives its own trace colors
+ * from this same list, so a chip and its chart trace can never disagree. */
+export interface CompareChip {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export function buildChips(selected: Map<string, SeriesMeta>): CompareChip[] {
+  const ids = [...selected.keys()];
+  const colors = assignColors(ids);
+  return ids.map((id) => {
+    const m = selected.get(id)!;
+    return { id, label: `${m.jobBasename} / ${m.experiment} / ${m.app}`, color: colors[id] };
+  });
 }
 
 /** Strip a numeric prefix ("1_Avg-Duration_s" -> "Avg-Duration_s") and find the
