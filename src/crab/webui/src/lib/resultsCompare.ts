@@ -79,10 +79,13 @@ export function sharedUnit(series: CompareSeries[], col: string): Unit {
   return unitForCol(col, vals);
 }
 
-function remapCol(rows: ResultRow[], col: string): ResultRow[] {
-  const resolved = resolveCol(rows, col);
-  if (resolved === col) return rows;
-  return rows.map((r) => ({ ...r, [col]: r[resolved] }));
+/** One pass over `rows` remapping BOTH axis columns at once, instead of two
+ * separate full-array passes (one per axis) each copying every row. */
+function remapCols(rows: ResultRow[], xCol: string, yCol: string): ResultRow[] {
+  const resolvedX = resolveCol(rows, xCol);
+  const resolvedY = resolveCol(rows, yCol);
+  if (resolvedX === xCol && resolvedY === yCol) return rows;
+  return rows.map((r) => ({ ...r, [xCol]: r[resolvedX], [yCol]: r[resolvedY] }));
 }
 
 /** One trace per series, sharing one pair of axes -- an overlay chart. */
@@ -94,7 +97,7 @@ export function makeOverlayTraces(
   yUnit: Unit,
 ): Data[] {
   return series.flatMap((s) => {
-    const rows = remapCol(remapCol(s.rows, xCol), yCol);
+    const rows = remapCols(s.rows, xCol, yCol);
     return makePlotlyTraces(rows, xCol, yCol, kind, yUnit, s.color, s.label);
   });
 }
@@ -115,7 +118,7 @@ export function makeSmallMultipleTraces(
   yUnit: Unit,
 ): SmallMultiple[] {
   return series.map((s) => {
-    const rows = remapCol(remapCol(s.rows, xCol), yCol);
+    const rows = remapCols(s.rows, xCol, yCol);
     return {
       id: s.id,
       label: s.label,
