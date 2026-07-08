@@ -220,3 +220,6 @@ export type CacheSize = components["schemas"]["CacheSize"];
 /** GET /api/results — every (cluster, system, job_basename) the picker can show. */
 export type ResultsIndex = components["schemas"]["ResultsIndex"];
 export type ResultsJobEntry = components["schemas"]["ResultsJobEntry"];
+/** GET .../experiments — per-experiment status/run-failure counts for one job (plan 081). */
+export type ExperimentRunStatus = components["schemas"]["ExperimentRunStatus"];
+export type ExperimentRunStatusList = components["schemas"]["ExperimentRunStatusList"];

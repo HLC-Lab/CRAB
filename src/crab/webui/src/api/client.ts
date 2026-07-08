@@ -11,6 +11,7 @@ import type {
   DetectResult,
   ErrorEnvelope,
   ExperimentLogs,
+  ExperimentRunStatusList,
   FetchAccepted,
   FetchStatus,
   Health,
@@ -204,6 +205,8 @@ export const api = {
       ),
     get: (cluster: string, system: string, jobBasename: string) =>
       request<ResultsData>(resultsPath(cluster, system, jobBasename)),
+    experiments: (cluster: string, system: string, jobBasename: string) =>
+      request<ExperimentRunStatusList>(`${resultsPath(cluster, system, jobBasename)}/experiments`),
     cacheSize: () => request<CacheSize>("/api/results/cache"),
     clearCache: () => request<void>("/api/results/cache", { method: "DELETE" }),
   },

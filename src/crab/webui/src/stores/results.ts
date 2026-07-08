@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
 import { resultsKey } from "@/lib/jobKey";
-import type { ResultsData, ResultsJobEntry } from "@/api/types";
+import type { ExperimentRunStatus, ResultsData, ResultsJobEntry } from "@/api/types";
 
 // Same cadence as jobs.ts's SUBMISSION_POLL_INTERVAL_MS: a genuine poll, not
 // a "wait N seconds then reveal" timer.
@@ -27,6 +27,13 @@ export const useResultsStore = defineStore("results", () => {
 
   const fetchBusy = ref<Record<string, boolean>>({});
   const fetchError = ref<Record<string, string>>({});
+
+  // Per-experiment status/run-failure counts (plan 081) -- a separate,
+  // registry-independent query from `results`, so it loads even for a job
+  // whose CSV tree hasn't been fetched yet.
+  const experiments = ref<Record<string, ExperimentRunStatus[]>>({});
+  const experimentsBusy = ref<Record<string, boolean>>({});
+  const experimentsError = ref<Record<string, string>>({});
 
   const cacheSize = ref<number | null>(null);
   const cacheSizeBusy = ref(false);
@@ -79,6 +86,27 @@ export const useResultsStore = defineStore("results", () => {
       }
     } finally {
       loadBusy.value[key] = false;
+    }
+  }
+
+  async function loadExperiments(
+    cluster: string,
+    system: string,
+    jobBasename: string,
+    force = false,
+  ) {
+    const key = resultsKey(cluster, system, jobBasename);
+    if (!force && key in experiments.value) return;
+    experimentsBusy.value[key] = true;
+    delete experimentsError.value[key];
+    try {
+      experiments.value[key] = (
+        await api.results.experiments(cluster, system, jobBasename)
+      ).experiments;
+    } catch (e) {
+      experimentsError.value[key] = msg(e);
+    } finally {
+      experimentsBusy.value[key] = false;
     }
   }
 
@@ -155,6 +183,9 @@ export const useResultsStore = defineStore("results", () => {
     loadError,
     fetchBusy,
     fetchError,
+    experiments,
+    experimentsBusy,
+    experimentsError,
     cacheSize,
     cacheSizeBusy,
     clearBusy,
@@ -164,6 +195,7 @@ export const useResultsStore = defineStore("results", () => {
     indexError,
     loadIndex,
     loadResults,
+    loadExperiments,
     fetchResults,
     refreshCacheSize,
     clearCache,

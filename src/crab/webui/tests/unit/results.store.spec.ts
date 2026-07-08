@@ -14,6 +14,7 @@ vi.mock("@/api/client", () => ({
       fetch: vi.fn(),
       fetchStatus: vi.fn(),
       get: vi.fn(),
+      experiments: vi.fn(),
       cacheSize: vi.fn(),
       clearCache: vi.fn(),
     },
@@ -35,6 +36,7 @@ const indexMock = vi.mocked(api.results.index);
 const fetchMock = vi.mocked(api.results.fetch);
 const fetchStatusMock = vi.mocked(api.results.fetchStatus);
 const getMock = vi.mocked(api.results.get);
+const experimentsMock = vi.mocked(api.results.experiments);
 const cacheSizeMock = vi.mocked(api.results.cacheSize);
 const clearCacheMock = vi.mocked(api.results.clearCache);
 
@@ -51,6 +53,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   fetchStatusMock.mockReset();
   getMock.mockReset();
+  experimentsMock.mockReset();
   cacheSizeMock.mockReset();
   clearCacheMock.mockReset();
   vi.useFakeTimers();
@@ -133,6 +136,52 @@ describe("results store: loading cached data", () => {
 
     expect(getMock).toHaveBeenCalledTimes(2);
     expect(store.results[KEY]).toEqual(SAMPLE_DATA);
+  });
+});
+
+describe("results store: loadExperiments (plan 081)", () => {
+  const SAMPLE_EXPERIMENTS = [
+    { experiment_name: "01_baseline", status: "FAILED", total_runs: "10", failed_runs: "3" },
+  ];
+
+  it("stores the returned experiment list on success", async () => {
+    experimentsMock.mockResolvedValueOnce({ experiments: SAMPLE_EXPERIMENTS });
+
+    const store = useResultsStore();
+    await store.loadExperiments(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    expect(store.experiments[KEY]).toEqual(SAMPLE_EXPERIMENTS);
+    expect(store.experimentsError[KEY]).toBeUndefined();
+  });
+
+  it("surfaces a failure as an experiments load error", async () => {
+    experimentsMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
+
+    const store = useResultsStore();
+    await store.loadExperiments(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    expect(store.experiments[KEY]).toBeUndefined();
+    expect(store.experimentsError[KEY]).toBe("Cannot reach the dashboard backend.");
+  });
+
+  it("skips a second unforced call once already loaded", async () => {
+    experimentsMock.mockResolvedValueOnce({ experiments: SAMPLE_EXPERIMENTS });
+    const store = useResultsStore();
+    await store.loadExperiments(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    await store.loadExperiments(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    expect(experimentsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("force=true always calls through even when already loaded", async () => {
+    experimentsMock.mockResolvedValue({ experiments: SAMPLE_EXPERIMENTS });
+    const store = useResultsStore();
+    await store.loadExperiments(CLUSTER, SYSTEM, JOB_BASENAME);
+
+    await store.loadExperiments(CLUSTER, SYSTEM, JOB_BASENAME, true);
+
+    expect(experimentsMock).toHaveBeenCalledTimes(2);
   });
 });
 

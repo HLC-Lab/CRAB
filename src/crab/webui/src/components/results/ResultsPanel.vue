@@ -11,6 +11,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useResultsStore } from "@/stores/results";
 import { assignColors, formatBytes } from "@/lib/resultsChart";
 import { resultsKey } from "@/lib/jobKey";
+import { runFailureNote } from "@/lib/jobStatus";
 import ResultsChart from "@/components/results/ResultsChart.vue";
 import ResultsTable from "@/components/results/ResultsTable.vue";
 
@@ -20,11 +21,24 @@ const key = computed(() => resultsKey(props.cluster, props.system, props.jobBase
 
 onMounted(() => {
   results.loadResults(props.cluster, props.system, props.jobBasename);
+  results.loadExperiments(props.cluster, props.system, props.jobBasename);
   results.refreshCacheSize();
 });
 
 const data = computed(() => results.results[key.value]);
 const experimentNames = computed(() => (data.value ? Object.keys(data.value.experiments) : []));
+
+// Per-experiment run-failure notes (plan 081), keyed by experiment name --
+// loaded independently of `data`, so a note can show even before/without the
+// CSV tree being fetched.
+const runFailureNotes = computed(() => {
+  const notes: Record<string, string> = {};
+  for (const exp of results.experiments[key.value] ?? []) {
+    const note = runFailureNote(exp);
+    if (note) notes[exp.experiment_name] = note;
+  }
+  return notes;
+});
 const activeExperiment = ref("");
 const expanded = reactive<Record<string, boolean>>({});
 watch(
@@ -119,6 +133,9 @@ async function clearCache() {
           >
             <span class="chevron" :class="{ open: expanded[exp] }">&rsaquo;</span>
             {{ exp }}
+            <span v-if="runFailureNotes[exp]" class="run-failure-note">
+              {{ runFailureNotes[exp] }}
+            </span>
           </button>
           <ul v-if="expanded[exp]" class="app-list">
             <li v-for="app in appNamesFor(exp)" :key="app">
@@ -233,6 +250,11 @@ async function clearCache() {
 }
 .exp-header.active {
   color: var(--accent);
+}
+.run-failure-note {
+  color: var(--warn);
+  font-size: 0.7rem;
+  white-space: nowrap;
 }
 .chevron {
   display: inline-block;
