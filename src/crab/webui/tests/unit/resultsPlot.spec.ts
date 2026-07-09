@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { downloadImage } = vi.hoisted(() => ({
   downloadImage: vi.fn().mockResolvedValue("data:image/png;base64,"),
@@ -21,6 +21,10 @@ describe("makePlotlyTraces", () => {
     { msg_size: null, latency_s: 0.3 },
   ];
 
+  // No `document` exists under Vitest's node environment, so `scattergl`
+  // (WebGL) support is correctly detected as unavailable here -- the same
+  // safe fallback a real browser without WebGL gets. See the "WebGL
+  // fallback" suite below for the scattergl-available path.
   it("builds a marker scatter trace for scatter kind, skipping null rows", () => {
     const [trace] = makePlotlyTraces(
       rows,
@@ -32,7 +36,7 @@ describe("makePlotlyTraces", () => {
       "exp1",
     );
     expect(trace).toMatchObject({
-      type: "scattergl",
+      type: "scatter",
       mode: "markers",
       name: "exp1",
       x: [1, 2],
@@ -69,7 +73,7 @@ describe("makePlotlyTraces", () => {
       "#111",
       "exp1",
     );
-    expect(trace).toMatchObject({ type: "scattergl", mode: "lines" });
+    expect(trace).toMatchObject({ type: "scatter", mode: "lines" });
   });
 
   it("scales y values by the given unit", () => {
@@ -197,6 +201,49 @@ describe("makePlotlyLayout", () => {
     expect((layout.xaxis as { title: { text: string } }).title.text).toBe("latency (ms)");
     expect((layout.yaxis as { title: { text: string } }).title.text).toBe("throughput (K)");
   });
+
+  it("has no explicit y-axis range by default (each chart autoscales to its own data)", () => {
+    const layout = makePlotlyLayout(
+      "x",
+      "y",
+      { div: 1, label: "" },
+      { div: 1, label: "" },
+      "scatter",
+      "linear",
+      false,
+    );
+    expect((layout.yaxis as { range?: unknown }).range).toBeUndefined();
+  });
+
+  it("pads a given y-range by 5% each side, for small multiples to share one axis", () => {
+    const layout = makePlotlyLayout(
+      "x",
+      "y",
+      { div: 1, label: "" },
+      { div: 1, label: "" },
+      "scatter",
+      "linear",
+      false,
+      [0, 100],
+    );
+    expect((layout.yaxis as { range: [number, number] }).range).toEqual([-5, 105]);
+  });
+
+  it("pads a zero-width y-range with a small fixed margin instead of a degenerate range", () => {
+    const layout = makePlotlyLayout(
+      "x",
+      "y",
+      { div: 1, label: "" },
+      { div: 1, label: "" },
+      "scatter",
+      "linear",
+      false,
+      [10, 10],
+    );
+    const [lo, hi] = (layout.yaxis as { range: [number, number] }).range;
+    expect(lo).toBeLessThan(10);
+    expect(hi).toBeGreaterThan(10);
+  });
 });
 
 describe("defaultAxisPair", () => {
@@ -230,5 +277,54 @@ describe("exportChartImage", () => {
       height: 900,
       filename: "my-chart",
     });
+  });
+});
+
+describe("WebGL fallback (owner: max compatibility everywhere)", () => {
+  // `hasWebglSupport` memoizes at module scope, so each case needs a fresh
+  // module instance (vi.resetModules + a dynamic re-import) to see its own
+  // fake `document`, not a state left over from an earlier case.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reports unsupported outside a browser (no document) -- the real Vitest environment", async () => {
+    vi.resetModules();
+    const { hasWebglSupport } = await import("@/lib/resultsPlot");
+    expect(hasWebglSupport()).toBe(false);
+  });
+
+  it("uses scattergl when the browser can actually create a WebGL context", async () => {
+    vi.stubGlobal("document", {
+      createElement: () => ({ getContext: (kind: string) => (kind === "webgl" ? {} : null) }),
+    });
+    vi.resetModules();
+    const { makePlotlyTraces } = await import("@/lib/resultsPlot");
+    const [trace] = makePlotlyTraces(
+      [{ x: 1, y: 1 }],
+      "x",
+      "y",
+      "scatter",
+      { div: 1, label: "" },
+      "#111",
+      "s",
+    );
+    expect(trace).toMatchObject({ type: "scattergl" });
+  });
+
+  it("falls back to plain scatter when WebGL context creation fails (e.g. no GPU/driver support)", async () => {
+    vi.stubGlobal("document", { createElement: () => ({ getContext: () => null }) });
+    vi.resetModules();
+    const { makePlotlyTraces } = await import("@/lib/resultsPlot");
+    const [trace] = makePlotlyTraces(
+      [{ x: 1, y: 1 }],
+      "x",
+      "y",
+      "scatter",
+      { div: 1, label: "" },
+      "#111",
+      "s",
+    );
+    expect(trace).toMatchObject({ type: "scatter" });
   });
 });

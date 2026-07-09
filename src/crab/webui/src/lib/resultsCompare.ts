@@ -69,14 +69,27 @@ export function sharedColumns(series: CompareSeries[]): string[] {
   return [...first].filter((c) => rest.every((set) => set.has(c)));
 }
 
-/** One unit for `col`, computed across every selected series' values at once
- * (decision 11) -- never per series, so every card/overlay trace agrees. */
-export function sharedUnit(series: CompareSeries[], col: string): Unit {
-  const vals = series.flatMap((s) => {
+function collectValues(series: CompareSeries[], col: string): number[] {
+  return series.flatMap((s) => {
     const resolved = resolveCol(s.rows, col);
     return s.rows.map((r) => r[resolved]).filter((v): v is number => typeof v === "number");
   });
-  return unitForCol(col, vals);
+}
+
+/** One unit for `col`, computed across every selected series' values at once
+ * (decision 11) -- never per series, so every card/overlay trace agrees. */
+export function sharedUnit(series: CompareSeries[], col: string): Unit {
+  return unitForCol(col, collectValues(series, col));
+}
+
+/** One min/max for `col` across every selected series' RAW values (divide by
+ * the matching `Unit.div` before use) -- lets small multiples share one axis
+ * range, not just one unit, so cards are actually comparable side by side
+ * instead of each auto-scaling to its own data. `null` when no series has
+ * any numeric value for `col`. */
+export function sharedRange(series: CompareSeries[], col: string): [number, number] | null {
+  const vals = collectValues(series, col);
+  return vals.length ? [Math.min(...vals), Math.max(...vals)] : null;
 }
 
 /** One pass over `rows` remapping BOTH axis columns at once, instead of two

@@ -10,6 +10,7 @@ import {
   makeSmallMultipleTraces,
   resolveCol,
   sharedColumns,
+  sharedRange,
   sharedUnit,
   type CompareSeries,
 } from "@/lib/resultsCompare";
@@ -140,6 +141,45 @@ describe("sharedUnit", () => {
       rows: [{ count: "n/a" }, { count: 2 }],
     };
     expect(sharedUnit([series], "count")).toEqual({ div: 1, label: "" });
+  });
+});
+
+describe("sharedRange", () => {
+  it("spans the min/max across every series, not just one", () => {
+    const seriesA: CompareSeries = {
+      id: "a",
+      label: "A",
+      color: "#111",
+      rows: [{ y: 10 }, { y: 20 }],
+    };
+    const seriesB: CompareSeries = {
+      id: "b",
+      label: "B",
+      color: "#222",
+      rows: [{ y: 1 }, { y: 100 }],
+    };
+    expect(sharedRange([seriesA, seriesB], "y")).toEqual([1, 100]);
+  });
+
+  it("resolves numeric-prefixed columns per series before combining", () => {
+    const seriesA: CompareSeries = {
+      id: "a",
+      label: "A",
+      color: "#111",
+      rows: [{ "1_y": 5 }],
+    };
+    const seriesB: CompareSeries = {
+      id: "b",
+      label: "B",
+      color: "#222",
+      rows: [{ "2_y": 50 }],
+    };
+    expect(sharedRange([seriesA, seriesB], "1_y")).toEqual([5, 50]);
+  });
+
+  it("returns null when no series has a numeric value for the column", () => {
+    const series: CompareSeries = { id: "a", label: "A", color: "#111", rows: [{ y: "n/a" }] };
+    expect(sharedRange([series], "y")).toBeNull();
   });
 });
 

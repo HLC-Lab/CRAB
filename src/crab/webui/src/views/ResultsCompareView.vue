@@ -15,6 +15,7 @@ import {
   makeSmallMultipleTraces,
   seriesId,
   sharedColumns,
+  sharedRange,
   sharedUnit,
   type CompareSeries,
   type SeriesMeta,
@@ -144,6 +145,10 @@ function renderSmallMultiples() {
     kind.value,
     yUnit.value,
   );
+  const rawYRange = sharedRange(selectedSeries.value, yCol.value);
+  const yRange: [number, number] | undefined = rawYRange
+    ? [rawYRange[0] / yUnit.value.div, rawYRange[1] / yUnit.value.div]
+    : undefined;
   const layout = makePlotlyLayout(
     xCol.value,
     yCol.value,
@@ -152,6 +157,7 @@ function renderSmallMultiples() {
     kind.value,
     scale.value,
     false,
+    yRange,
   );
   const currentIds = new Set(cards.map((c) => c.id));
   [...smallRendered].forEach((id) => {

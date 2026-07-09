@@ -35,14 +35,14 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
   <nav class="sidebar">
     <p v-if="!props.jobs.length" class="meta">No cached jobs to compare yet.</p>
     <div v-for="j in props.jobs" :key="jobKey(j)" class="job-group">
-      <button type="button" class="job-header" @click="toggleExpand(j)">
+      <button type="button" class="job-header" :title="j.job_basename" @click="toggleExpand(j)">
         <span class="chevron" :class="{ open: expanded[jobKey(j)] }">&rsaquo;</span>
         <span
           class="dot"
           :class="j.connected ? 'on' : 'off'"
           :title="j.connected ? 'cluster connected' : 'cluster not connected'"
         />
-        {{ j.job_basename }}
+        <span class="job-name">{{ j.job_basename }}</span>
         <span class="job-sub">{{ j.cluster }}/{{ j.system }}</span>
       </button>
       <div v-if="expanded[jobKey(j)]" class="job-body">
@@ -55,14 +55,14 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
           :key="exp"
           class="exp-group"
         >
-          <div class="exp-label">{{ exp }}</div>
-          <label v-for="app in Object.keys(apps)" :key="app" class="app-checkbox">
+          <div class="exp-label" :title="String(exp)">{{ exp }}</div>
+          <label v-for="app in Object.keys(apps)" :key="app" class="app-checkbox" :title="app">
             <input
               type="checkbox"
               :checked="props.selectedIds.has(seriesId(meta(j, String(exp), app)))"
               @change="emit('toggle', meta(j, String(exp), app))"
             />
-            {{ app }}
+            <span class="app-name">{{ app }}</span>
           </label>
         </div>
       </div>
@@ -101,7 +101,15 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
 .job-header:hover {
   background: var(--bg2);
 }
+.job-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .job-sub {
+  flex-shrink: 0;
   margin-left: auto;
   color: var(--text3);
   font-size: 0.75rem;
@@ -140,6 +148,9 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
   color: var(--text3);
   font-size: 0.75rem;
   margin-top: 0.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .app-checkbox {
   display: flex;
@@ -177,6 +188,13 @@ function meta(j: ResultsJobEntry, experiment: string, app: string): SeriesMeta {
   border: solid var(--bg1);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
+}
+.app-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .meta {
   color: var(--text3);
