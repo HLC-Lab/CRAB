@@ -10,6 +10,15 @@ as a deferred feature — it never actually landed as a row below. Noted here on
 loop, not because anything is still outstanding: plan 077 built the cross-cluster/cross-job
 Compare workbench (ADR-022), so this item is done, not deferred.
 
+## Closed: per-run (not just per-experiment) failure status
+
+Was tracked below as deferred, with a revisit trigger. The trigger fired (2026-07-08, see
+git history around that date) and the gap was closed the same day: plan
+`081-per-run-failure-visibility.md` shipped a `failed_runs` counter alongside the existing
+`runs` counter (engine + CLI contract + web backend + frontend), so a FAILED experiment now
+shows e.g. "3/10 runs failed" instead of just "FAILED" with no indication most runs actually
+succeeded. See ADR-023. Noted here only to close the loop the entry below originally opened.
+
 ## Deferred features
 
 | Feature | Why deferred | Revisit |
@@ -25,7 +34,6 @@ Compare workbench (ADR-022), so this item is done, not deferred.
 | Multi-user / shared server / central instance | Explicitly a personal tool | Not planned |
 | Gantt-style scheduling visualizations, drag-and-drop reordering | Cosmetic | Later |
 | Interactive cluster map of real nodes (pick nodes visually) | Overkill for now; the placement strip is the stepping stone | Later |
-| Per-run (not just per-experiment) failure status | The engine tracks status per experiment, not per individual run within it, so a config with repeated runs can't say which run failed — only that the experiment did. The per-app error log already shipped (ADR-017) explains why an experiment failed, which covers most of the same need | **Revisit trigger fired (2026-07-08):** owner found a real case confusing in practice — an experiment reported FAILED (confirmed by its logs) still showed Results data, because `ExperimentRunner`'s `experiment_status` latches to FAILED on the first bad run in the min/maxruns loop (`core/experiment/runner.py:319-324`) and never resets, while every OTHER run in that same loop that exits 0 still has its data collected (`runner.py:438-443`) and written to the CSV — legitimate data, not corruption or a stale leftover, just an experiment-level status that can't say "7 of 10 runs succeeded." Confirmed via code reading, not yet a scoped fix. |
 
 ## v1 simplifications (smaller versions we do ship)
 
@@ -44,8 +52,13 @@ Compare workbench (ADR-022), so this item is done, not deferred.
 - The guided bootstrap currently clones the `feature/web-dashboard` branch (the JSON seam is
   not on master yet); switch to the default branch at the v1 merge — a `TODO(pre-v1)` comment
   in `src/crab/web/remoteops/bootstrap.py` marks the spot.
-- `webui/src/api/types.ts` is hand-maintained against the backend models until generated
-  types land (see the config-validation work).
+- `webui/src/api/types.ts`: generated types (`npm run gen:api`, landed with the
+  config-validation work) are now the default for every backend-owned shape — most of the file
+  is `type X = components["schemas"]["X"]` re-exports. Only cluster-contract passthrough shapes
+  (forwarded verbatim from `crab ... --json` and so never appearing in the OpenAPI schema —
+  `CrabInfo`, `BootstrapPlan`/`StepResult`, `Wrapper`/`BenchmarksResult`, `NodesResult`,
+  `JobLogs`/`ExperimentLogs`) stay intentionally hand-written; that's a permanent design choice,
+  not a pending migration.
 - Cache/library growth is unbounded; revisit with the results cache. The local fallback cache
   for job logs/history (ADR-018) has the same unbounded-growth trade-off, for the same reason.
 - A real bug in `Transport.fetch_tree()` (asyncssh not creating the local destination's missing

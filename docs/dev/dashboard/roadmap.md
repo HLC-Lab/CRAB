@@ -34,21 +34,43 @@ decisions live in the [decision records](decisions/index.md).
   descended from it; the use-case history view groups experiments by submission instead of one
   flat list; a one-click "rerun failed experiments" action, with manual multi-select now an
   explicit opt-in mode instead of always-visible checkboxes.
+- **Hardening** (ADR-013, ADR-015) — localhost API authentication (per-session token plus
+  origin/host checks) and server-side config shape validation (saves warn, never reject).
+- **Results dashboard** (ADR-021, ADR-022, ADR-024) — fetch result CSVs to a local cache; a
+  top-level Results section (Plotly charts with a print/paper look, a sortable table, and a
+  cross-job/cross-cluster Compare workbench) covering every job `crab history` reports, whether
+  submitted through the dashboard or run directly on the cluster. Performance passes (result
+  caching, deduped `crab history` round-trips, WebGL-rendered scatter/line charts with an
+  automatic SVG fallback where WebGL is unavailable) and UX fixes (picker card redesign,
+  small-multiples shared axis range, sidebar text truncation, chart axis ordering) landed across
+  several follow-up rounds after the initial ship — see `078-results-perf-and-ux.md` for the
+  itemized backlog.
+- **Per-run failure visibility** (ADR-023) — an experiment's run-failure count (e.g. "3/10 runs
+  failed") is now visible on job cards and in the Results sidebar, closing the gap where a
+  FAILED experiment could still show Results data with no explanation.
 
 ## v1.0 gates (remaining)
 
-1. **Results dashboard** — fetch result CSVs to a local cache; a top-level Results section
-   (Plotly charts with a print/paper look, a sortable table, and a cross-job/cross-cluster
-   Compare workbench) covering every job `crab history` reports, whether submitted through the
-   dashboard or run directly on the cluster — **and a standalone self-contained HTML export**
-   (data embedded, shareable offline) still outstanding. History-across-clusters and
-   per-experiment detail already shipped (see Done).
-2. **Hardening before submit ships**: localhost API authentication (session token + origin
-   checks) and server-side config shape validation.
-3. **Polish & packaging** — first-run onboarding, empty/error states, version-skew warning,
-   clean-machine `pip install crab[web]` test, user docs.
-4. **Merge to master**; switch the guided bootstrap's clone off the feature branch; set up CI
-   to run `make verify` on PRs.
+1. **Results dashboard: two things left.** A standalone self-contained HTML export (data
+   embedded, shareable offline) — deferred from the original results-dashboard plan and needs
+   re-scoping against the Plotly/Compare-workbench redesign before resuming, since the old spec
+   references components that no longer exist. Plus three smaller items from the post-launch
+   backlog (`078-results-perf-and-ux.md`): plot/chart visual polish, a way to rename a data
+   series' displayed label, and a multi-part "plot controls" ask (axis range override, chart
+   theme, legend visibility/position, per-series color override) — none yet grilled into a plan.
+2. **Polish & packaging** — first-run onboarding (none exists yet); a version-skew warning
+   (the status bar shows the connected cluster's CLI/schema version but never compares it
+   against the dashboard's own and never warns on a mismatch); a clean-machine
+   `pip install crab[web]` verification; and, the biggest gap, real user-facing documentation
+   for the web dashboard itself — the current docs site only covers the legacy `crab export`
+   static-HTML viewer, with no coverage of `crab web` (adding a remote, authoring, submit/
+   monitor, Results). Empty/error states are already covered informally throughout the app and
+   don't need a dedicated sweep.
+3. **Merge to master.** A CI workflow already exists (`.github/workflows/ci.yml`: docs build +
+   a packaging sanity check) but does not yet run `make verify` (ruff, mypy, pytest, prettier,
+   eslint, type-check, vitest) — extend it before relying on CI as a merge gate. After merging:
+   switch the guided bootstrap's clone off `feature/web-dashboard` onto the default branch
+   (already flagged with a `TODO(pre-v1)` comment in `remoteops/bootstrap.py`).
 
 ## After v1
 
