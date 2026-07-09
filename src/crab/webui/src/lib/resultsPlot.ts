@@ -140,7 +140,15 @@ function padRange([min, max]: [number, number]): [number, number] {
  * usually identical across series already, and this app's "Log scale"
  * toggle only ever applies to X (see `type` below), where an explicit
  * `range` would need converting to log space -- not worth the complexity
- * for an axis that doesn't have this problem in practice. */
+ * for an axis that doesn't have this problem in practice.
+ *
+ * `xCategoryOrder` fixes a bar/violin chart's shared categorical X axis to a
+ * given order -- needed for Overlay mode, where multiple series/traces share
+ * one axis and Plotly's own default `categoryorder` ("trace") would
+ * otherwise order categories by which trace/series mentions them first, i.e.
+ * SELECTION order rather than a sensible one. Small multiples don't need
+ * this: each card is one trace, already sorted correctly by
+ * `makePlotlyTraces`'s own per-trace key sort. */
 export function makePlotlyLayout(
   xCol: string,
   yCol: string,
@@ -150,6 +158,7 @@ export function makePlotlyLayout(
   scale: ScaleKind,
   showLegend: boolean,
   yRange?: [number, number],
+  xCategoryOrder?: string[],
 ): Partial<Layout> {
   const isCategory = kind === "bar" || kind === "violin";
   const xLabel = xCol + (xUnit.label ? ` (${xUnit.label})` : "");
@@ -169,6 +178,9 @@ export function makePlotlyLayout(
       linecolor: AXIS_LINE,
       zeroline: false,
       showline: true,
+      ...(isCategory && xCategoryOrder?.length
+        ? { categoryorder: "array", categoryarray: xCategoryOrder }
+        : {}),
     },
     yaxis: {
       title: { text: yLabel },

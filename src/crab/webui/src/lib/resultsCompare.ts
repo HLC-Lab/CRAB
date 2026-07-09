@@ -11,6 +11,8 @@
 // could silently show "the same" axis in different units/scales -- this
 // computes ONE unit across every selected series up front instead.
 import {
+  formatBytes,
+  isSizeCol,
   numericCols,
   unitForCol,
   type ChartKind,
@@ -90,6 +92,27 @@ export function sharedUnit(series: CompareSeries[], col: string): Unit {
 export function sharedRange(series: CompareSeries[], col: string): [number, number] | null {
   const vals = collectValues(series, col);
   return vals.length ? [Math.min(...vals), Math.max(...vals)] : null;
+}
+
+/** The category axis order a bar/violin Overlay chart's shared `col` axis
+ * should use, numerically sorted -- Plotly's own default `categoryorder`
+ * ("trace") instead orders categories by which trace/series first mentions
+ * them, i.e. SELECTION order (owner bug report: selecting msg_size 1k, then
+ * 4k, then 2k plotted the axis in that click order, not 1k/2k/4k). Formatted
+ * through the same `isSizeCol`/`formatBytes` rule `makePlotlyTraces` already
+ * uses for bar/violin labels, so this array matches those traces' own `x`
+ * strings exactly -- Plotly matches `categoryarray` entries by string. */
+export function categoryOrder(series: CompareSeries[], col: string): string[] {
+  const keys = new Set<string>();
+  series.forEach((s) => {
+    const resolved = resolveCol(s.rows, col);
+    s.rows.forEach((r) => {
+      const v = r[resolved];
+      if (v != null) keys.add(String(v));
+    });
+  });
+  const sorted = [...keys].sort((a, b) => Number(a) - Number(b));
+  return isSizeCol(col) ? sorted.map((k) => formatBytes(Number(k))) : sorted;
 }
 
 /** One pass over `rows` remapping BOTH axis columns at once, instead of two

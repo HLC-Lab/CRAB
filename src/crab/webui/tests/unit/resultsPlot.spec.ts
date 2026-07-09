@@ -244,6 +244,41 @@ describe("makePlotlyLayout", () => {
     expect(lo).toBeLessThan(10);
     expect(hi).toBeGreaterThan(10);
   });
+
+  it("fixes a bar/violin x-axis to a given category order (owner bug report: selection order otherwise wins)", () => {
+    const layout = makePlotlyLayout(
+      "x",
+      "y",
+      { div: 1, label: "" },
+      { div: 1, label: "" },
+      "bar",
+      "linear",
+      false,
+      undefined,
+      ["1 KiB", "2 KiB", "4 KiB"],
+    );
+    expect((layout.xaxis as { categoryorder: string }).categoryorder).toBe("array");
+    expect((layout.xaxis as { categoryarray: string[] }).categoryarray).toEqual([
+      "1 KiB",
+      "2 KiB",
+      "4 KiB",
+    ]);
+  });
+
+  it("does not set a category order for scatter/line (a real numeric axis, not categorical)", () => {
+    const layout = makePlotlyLayout(
+      "x",
+      "y",
+      { div: 1, label: "" },
+      { div: 1, label: "" },
+      "scatter",
+      "linear",
+      false,
+      undefined,
+      ["1", "2"],
+    );
+    expect((layout.xaxis as { categoryorder?: string }).categoryorder).toBeUndefined();
+  });
 });
 
 describe("defaultAxisPair", () => {

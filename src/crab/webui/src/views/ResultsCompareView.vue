@@ -11,6 +11,7 @@ import { resultsKey } from "@/lib/jobKey";
 import { assignColors, type ChartKind, type ScaleKind } from "@/lib/resultsChart";
 import { makePlotlyLayout } from "@/lib/resultsPlot";
 import {
+  categoryOrder,
   makeOverlayTraces,
   makeSmallMultipleTraces,
   seriesId,
@@ -114,6 +115,8 @@ function renderOverlay() {
     kind.value,
     scale.value,
     true,
+    undefined,
+    categoryOrder(selectedSeries.value, xCol.value),
   );
   if (overlayRendered) Plotly.react(overlayEl.value, data, layout, PLOT_CONFIG);
   else {

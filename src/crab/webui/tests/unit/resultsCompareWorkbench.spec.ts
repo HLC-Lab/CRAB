@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/plotlyBundle", () => ({ default: {} }));
 
 import {
+  categoryOrder,
   makeOverlayTraces,
   makeSmallMultipleTraces,
   resolveCol,
@@ -180,6 +181,52 @@ describe("sharedRange", () => {
   it("returns null when no series has a numeric value for the column", () => {
     const series: CompareSeries = { id: "a", label: "A", color: "#111", rows: [{ y: "n/a" }] };
     expect(sharedRange([series], "y")).toBeNull();
+  });
+});
+
+describe("categoryOrder", () => {
+  it("orders numerically regardless of which series lists a value first (owner bug report: selection order 1k, 4k, 2k plotted in that order)", () => {
+    const series1k: CompareSeries = {
+      id: "a",
+      label: "1k",
+      color: "#111",
+      rows: [{ msg_size: 1024 }],
+    };
+    const series4k: CompareSeries = {
+      id: "b",
+      label: "4k",
+      color: "#222",
+      rows: [{ msg_size: 4096 }],
+    };
+    const series2k: CompareSeries = {
+      id: "c",
+      label: "2k",
+      color: "#333",
+      rows: [{ msg_size: 2048 }],
+    };
+
+    // Selected/passed in scrambled order: 1k, then 4k, then 2k.
+    const order = categoryOrder([series1k, series4k, series2k], "msg_size");
+
+    expect(order).toEqual(["1 KiB", "2 KiB", "4 KiB"]);
+  });
+
+  it("does not format non-size columns", () => {
+    const seriesA: CompareSeries = { id: "a", label: "A", color: "#111", rows: [{ nodes: 30 }] };
+    const seriesB: CompareSeries = { id: "b", label: "B", color: "#222", rows: [{ nodes: 10 }] };
+    expect(categoryOrder([seriesA, seriesB], "nodes")).toEqual(["10", "30"]);
+  });
+
+  it("resolves numeric-prefixed columns per series before combining", () => {
+    const seriesA: CompareSeries = { id: "a", label: "A", color: "#111", rows: [{ "1_x": 20 }] };
+    const seriesB: CompareSeries = { id: "b", label: "B", color: "#222", rows: [{ "2_x": 5 }] };
+    expect(categoryOrder([seriesA, seriesB], "1_x")).toEqual(["5", "20"]);
+  });
+
+  it("deduplicates a value shared by multiple series", () => {
+    const seriesA: CompareSeries = { id: "a", label: "A", color: "#111", rows: [{ nodes: 5 }] };
+    const seriesB: CompareSeries = { id: "b", label: "B", color: "#222", rows: [{ nodes: 5 }] };
+    expect(categoryOrder([seriesA, seriesB], "nodes")).toEqual(["5"]);
   });
 });
 
