@@ -55,3 +55,16 @@ already-flagged bundle weight, still only loaded on Results-family routes (the r
 lazy code-splitting is untouched). If this bundle size becomes its own problem, the next lever is
 route- or bundle-splitting `scattergl` out from the rest of the chart code, not reverting to SVG
 scatter.
+
+**Follow-up (2026-07-09) — compatibility fallback.** `scattergl` requires a real WebGL context;
+without one, Plotly does not fall back to SVG on its own — confirmed live (Chromium launched with
+`--disable-webgl`/`--disable-gpu`) that it instead draws a "WebGL is not supported by your
+browser" placeholder in place of the chart, a silent total failure to show any data on a
+GPU-less/sandboxed/older environment. `resultsPlot.ts` gained `hasWebglSupport()` (memoized
+feature detection: creates a throwaway canvas, checks `getContext("webgl")`) so
+`makePlotlyTraces` only requests `scattergl` when a context is actually available, falling back to
+plain `scatter` otherwise — the same safe SVG path this ADR's decision moved away from as the
+default, kept as an automatic fallback rather than removed. Verified live in both directions
+(WebGL disabled: real chart data renders via SVG, not the placeholder; WebGL enabled: still
+renders via a `<canvas>`, confirming the fallback doesn't accidentally win when GPU support is
+present).
