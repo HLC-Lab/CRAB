@@ -1,7 +1,7 @@
 # Deferred — explicitly not now
 
 Recorded so nothing is silently dropped or silently added. To pull an item into scope, move it
-into [roadmap.md](roadmap.md) (or a work plan) with a date and reason.
+into the [project roadmap](../roadmap.md) (or a work plan) with a date and reason.
 
 ## Closed: cross-cluster compare
 
@@ -23,6 +23,8 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
 
 | Feature | Why deferred | Revisit |
 |---|---|---|
+| Standalone self-contained HTML export (data embedded, shareable offline) | Moved out of the v1.0 scope (2026-07-10): the original spec predates the Plotly/Compare redesign and needs re-scoping; not worth blocking the release | First post-v1 follow-up; `crab export` stays until it lands |
+| Live-updating job detail view (auto-refresh, RUNNING chips, growing experiment list) | Captured as an idea during v1.0 work; the main Jobs list already auto-refreshes, the detail view fetches once on mount | Post-v1.0, with the other engine/dashboard live features |
 | Live log streaming (`tail -f` over WebSocket) | v1 opens/refreshes log files on demand; streaming is plumbing-heavy | First post-v1 follow-up |
 | Remote `crab setup` from the UI (build/register benchmarks) | Interactive builds and module systems are risky remotely; v1 uses what is installed | With the Wrappers section |
 | Pre-submit validation against installed receipts, plus install-from-UI (recipes) and a manual "point at this binary" fallback for apps with no recipe (mirrors `crab setup`'s manual path entry) | Found via a real submit that silently produced an empty `srun` command for an uninstalled app (base class swallows the missing-binary case instead of erroring clearly) — a real gap, but the UI half needs the Wrappers section to exist first | With the Wrappers section |
@@ -44,8 +46,9 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
 - Job progress is coarse (state + runs done), not a live convergence curve — per-experiment
   status and per-app error logs are browsable (ADR-017), but not a live per-run metric feed.
 - Guided bootstrap confirms before running; not fully silent. Its install output is captured
-  per step rather than streamed live — live progress streaming should land before v1.0 ships
-  (tracked in the roadmap's polish gate).
+  per step rather than streamed live — live progress streaming stays out of v1.0 (the
+  per-step capture is workable) and is revisited after the bootstrap switches to installing
+  the published package.
 
 ## Known debt (tracked, not forgotten)
 

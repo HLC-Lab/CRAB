@@ -84,7 +84,8 @@ nav:
   - Development:
       - Web dashboard architecture: dev/dashboard/architecture.md
       - Testing & verification: dev/dashboard/testing.md
-      - Roadmap: dev/dashboard/roadmap.md
+      - Roadmap: dev/roadmap.md
+      - Web dashboard milestones: dev/dashboard/roadmap.md
       - Deferred work: dev/dashboard/deferred.md
       - Decision records: dev/dashboard/decisions/index.md
   - Glossary: glossary.md

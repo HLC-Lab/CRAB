@@ -1,7 +1,11 @@
 # Web dashboard roadmap
 
-Where the dashboard is and what remains for v1.0. History of completed phases lives in git;
-decisions live in the [decision records](decisions/index.md).
+**Superseded (2026-07-10):** planning now happens in the [project-wide roadmap](../roadmap.md),
+which covers the whole package (engine, wrappers, packaging, docs, dashboard). This page is
+kept as the record of what the dashboard shipped; its former "remaining" sections were folded
+into the project roadmap.
+
+Decisions live in the [decision records](decisions/index.md).
 
 ## Done
 
@@ -49,40 +53,10 @@ decisions live in the [decision records](decisions/index.md).
   failed") is now visible on job cards and in the Results sidebar, closing the gap where a
   FAILED experiment could still show Results data with no explanation.
 
-## v1.0 gates (remaining)
+## What remains
 
-1. **Results dashboard: two things left.** A standalone self-contained HTML export (data
-   embedded, shareable offline) — deferred from the original results-dashboard plan and needs
-   re-scoping against the Plotly/Compare-workbench redesign before resuming, since the old spec
-   references components that no longer exist. Plus three smaller items from the post-launch
-   backlog (`078-results-perf-and-ux.md`): plot/chart visual polish, a way to rename a data
-   series' displayed label, and a multi-part "plot controls" ask (axis range override, chart
-   theme, legend visibility/position, per-series color override) — none yet grilled into a plan.
-2. **Polish & packaging** — first-run onboarding (none exists yet); a version-skew warning
-   (the status bar shows the connected cluster's CLI/schema version but never compares it
-   against the dashboard's own and never warns on a mismatch); a clean-machine
-   `pip install crab[web]` verification; and, the biggest gap, real user-facing documentation
-   for the web dashboard itself — the current docs site only covers the legacy `crab export`
-   static-HTML viewer, with no coverage of `crab web` (adding a remote, authoring, submit/
-   monitor, Results). Empty/error states are already covered informally throughout the app and
-   don't need a dedicated sweep.
-3. **Merge to master.** A CI workflow already exists (`.github/workflows/ci.yml`: docs build +
-   a packaging sanity check) but does not yet run `make verify` (ruff, mypy, pytest, prettier,
-   eslint, type-check, vitest) — extend it before relying on CI as a merge gate. After merging:
-   switch the guided bootstrap's clone off `feature/web-dashboard` onto the default branch
-   (already flagged with a `TODO(pre-v1)` comment in `remoteops/bootstrap.py`).
-
-## After v1
-
-- **Wrappers section** — browse/inspect wrapper sources (metadata, path finder, `read_data`),
-  author wrappers locally and sync them to clusters. (Nav stub exists.)
-- **Genericity audit** — the dashboard and its tests grew against one real cluster
-  (Leonardo @ CINECA) as the running example, and it shows in places beyond just docs: test
-  fixtures are literally named and shaped after it (e.g. `tests/test_web_remotes.py`'s
-  `_leonardo()` profile fixture), rather than a neutral placeholder cluster. Before calling the
-  dashboard done, sweep the codebase (tests, fixtures, example data, comments) for this kind of
-  cluster-specific naming and replace it with generic placeholders, so nothing reads as built
-  for one specific HPC center rather than for HPC clusters in general.
-- Deprecations: the Textual TUI once the web UI reaches parity; `crab export` once the
-  dashboard's standalone HTML export replaces it.
-- See [deferred.md](deferred.md) for the full intentionally-not-now list.
+See the [project-wide roadmap](../roadmap.md). The dashboard items formerly listed here
+(Results backlog, onboarding, version-skew warning, user docs, CI, the merge itself, the
+standalone HTML export, the Wrappers section, the genericity audit, the deprecations) are
+all placed there, before or after v1.0. [deferred.md](deferred.md) still holds the full
+intentionally-not-now list.
