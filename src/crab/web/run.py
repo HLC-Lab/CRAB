@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import threading
 import webbrowser
+from dataclasses import replace
 
 from crab.web.settings import get_settings
 
@@ -49,6 +50,7 @@ def run_server(
     *,
     open_browser: bool = True,
     verbose: bool = False,
+    sbatchman: bool = False,
 ) -> None:
     """Start the dashboard. Blocks until the server is stopped (Ctrl-C).
 
@@ -57,10 +59,14 @@ def run_server(
         open_browser: open the dashboard in the default browser on startup.
         verbose: emit full INFO logs (startup + per-request access). Off by
             default to keep the console clean.
+        sbatchman: enable the SbatchMan integration mode (plan 084). The flag
+            wins if set; the CRAB_WEB_SBATCHMAN env var can enable it too.
     """
     import uvicorn
 
     settings = get_settings()
+    if sbatchman and not settings.sbatchman:
+        settings = replace(settings, sbatchman=True)
     settings.ensure_dirs()
     host = host or settings.host
     port = port or settings.port

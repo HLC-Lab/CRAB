@@ -240,7 +240,11 @@ def handle_web(args):
             return
 
     run_server(
-        host=args.host, port=args.port, open_browser=not args.no_browser, verbose=args.verbose
+        host=args.host,
+        port=args.port,
+        open_browser=not args.no_browser,
+        verbose=args.verbose,
+        sbatchman=args.sbatchman,
     )
 
 
@@ -305,6 +309,11 @@ def cli_router():
         "--verbose",
         action="store_true",
         help="Verbose logging (startup + per-request access logs).",
+    )
+    parser_web.add_argument(
+        "--sbatchman",
+        action="store_true",
+        help="Enable the SbatchMan integration mode (campaign generator).",
     )
     parser_web.set_defaults(func=handle_web)
 

@@ -10,6 +10,8 @@ with environment variables — primarily for tests and power users:
   the user's choosing (e.g. a git repo or synced folder) instead of the data dir
   (see docs/dev/dashboard/decisions/ ADR-014). Existing entries are copied over
   on first run.
+* ``CRAB_WEB_SBATCHMAN`` — enable the SbatchMan integration mode (the campaign
+  generator), equivalent to launching ``crab web --sbatchman`` (plan 084).
 
 Nothing secret is stored here (see ``.crab-web-dev/05-instructions.md`` §7);
 ``clusters.json`` holds only non-secret connection profile fields.
@@ -44,6 +46,9 @@ class Settings:
     static_override: Path | None = None
     # Optional user-chosen home for the experiment library (ADR-014).
     library_dir: Path | None = None
+    # SbatchMan integration mode: gates the campaign-generator UI + its API routes
+    # (plan 084). Off by default; enabled per-launch via `crab web --sbatchman`.
+    sbatchman: bool = False
 
     # ---- derived locations -------------------------------------------------
     @property
@@ -113,4 +118,18 @@ def get_settings() -> Settings:
         port = int(port_raw) if port_raw else DEFAULT_PORT
     except ValueError:
         port = DEFAULT_PORT
-    return Settings(config_dir=config_dir, data_dir=data_dir, port=port, library_dir=library_dir)
+    # Explicit truthiness (never rely on Python string-truthiness — see the audit's
+    # config-coercion findings): only these exact tokens enable the mode.
+    sbatchman = os.environ.get("CRAB_WEB_SBATCHMAN", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+    return Settings(
+        config_dir=config_dir,
+        data_dir=data_dir,
+        port=port,
+        library_dir=library_dir,
+        sbatchman=sbatchman,
+    )
