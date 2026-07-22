@@ -96,6 +96,14 @@ def execute_worker(work_dir: str, log_level_str: str = None):
         with open(env_file) as f:
             execution_env = json.load(f)
 
+        # Resolve the __CWD__ placeholder (presets.json uses it for CRAB_ROOT) that the
+        # orchestrator path substitutes but the worker path historically skipped. Without
+        # this, CRAB_ROOT reaches the engine as the literal string "__CWD__" and every
+        # wrapper that builds paths off os.environ["CRAB_ROOT"] silently breaks. This is
+        # what lets the worker run inside an externally-obtained (e.g. SbatchMan) allocation
+        # from a hand-written environment.json.
+        execution_env = prepare_execution_environment(execution_env)
+
         logger.info("Environment loaded, starting engine")
 
         start = time.time()
