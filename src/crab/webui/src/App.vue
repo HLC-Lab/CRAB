@@ -1,18 +1,20 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useAppStore } from "@/stores/app";
 import StatusBar from "@/components/StatusBar.vue";
 
 const app = useAppStore();
 
-const nav = [
+const nav = computed(() => [
   { to: "/remotes", label: "Remotes" },
   { to: "/author", label: "Author" },
   { to: "/wrappers", label: "Wrappers" },
   { to: "/jobs", label: "Jobs" },
   { to: "/results", label: "Results" },
-];
+  // Only shown when launched with `crab web --sbatchman` (plan 084).
+  ...(app.sbatchman ? [{ to: "/sbatchman", label: "SbatchMan" }] : []),
+]);
 
 onMounted(() => app.checkHealth());
 </script>

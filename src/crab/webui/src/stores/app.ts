@@ -2,12 +2,15 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
 import type { Health } from "@/api/types";
+import { isSbatchmanMode } from "@/lib/mode";
 
 const THEME_KEY = "crab.theme";
 
 export const useAppStore = defineStore("app", () => {
   const health = ref<Health | null>(null);
   const backendError = ref<string | null>(null);
+  // SbatchMan integration mode (plan 084): read once from the injected meta tag.
+  const sbatchman = ref(isSbatchmanMode());
   const theme = ref<"dark" | "light">(
     (localStorage.getItem(THEME_KEY) as "dark" | "light") || "dark",
   );
@@ -33,5 +36,5 @@ export const useAppStore = defineStore("app", () => {
     }
   }
 
-  return { health, backendError, theme, applyTheme, toggleTheme, checkHealth };
+  return { health, backendError, sbatchman, theme, applyTheme, toggleTheme, checkHealth };
 });
