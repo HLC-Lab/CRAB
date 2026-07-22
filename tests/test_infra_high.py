@@ -77,6 +77,31 @@ class TestOrchestratorOnlyFlag(unittest.TestCase):
         self.assertEqual(mock_run.call_args.kwargs.get("only"), ["ex1", "ex3"])
 
 
+class TestWorkerCwdResolution(unittest.TestCase):
+    def test_worker_resolves_cwd_placeholder_in_environment(self):
+        """execute_worker must resolve __CWD__ in environment.json (audit W4 §1).
+
+        Otherwise CRAB_ROOT reaches the engine as the literal string '__CWD__',
+        silently breaking every wrapper that builds paths off os.environ['CRAB_ROOT'].
+        This is the blocker for running the CRAB worker inside a SbatchMan allocation.
+        """
+        from crab.cli.orchestrator import CRAB_ROOT, execute_worker
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, "config.json"), "w") as f:
+                json.dump({"global_options": {"numnodes": "2"}, "experiments": {}}, f)
+            with open(os.path.join(tmpdir, "environment.json"), "w") as f:
+                json.dump({"CRAB_ROOT": "__CWD__", "CRAB_SYSTEM": "test"}, f)
+
+            with patch("crab.core.engine.Engine.run", return_value={}) as mock_run:
+                execute_worker(tmpdir)
+
+            mock_run.assert_called_once()
+            passed_env = mock_run.call_args.kwargs.get("environment")
+            self.assertEqual(passed_env["CRAB_ROOT"], CRAB_ROOT)
+            self.assertNotIn("__CWD__", passed_env["CRAB_ROOT"])
+
+
 # ── Logger ────────────────────────────────────────────────────────────────────
 
 
