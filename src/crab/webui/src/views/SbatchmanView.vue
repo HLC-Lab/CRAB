@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// SbatchMan campaign authoring (plan 084 S6): campaign-level settings, a rail
-// of job groups, the selected group's SbatchMan fields + its CRAB experiment
-// template (via the now-decoupled ExperimentPane/AllocationEditor, S5), and a
-// live YAML preview. Writing/launching the composed YAML is S7/S8.
+// SbatchMan campaign authoring (plan 084): campaign-level settings, a rail of
+// job groups, the selected group's SbatchMan fields + its CRAB experiment
+// template (via the now-decoupled ExperimentPane/AllocationEditor, S5), a
+// live YAML preview, and writing/launching it to a connected cluster (S7/S8).
 import { computed, onMounted, ref, watchEffect } from "vue";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 import { useRemotesStore } from "@/stores/remotes";
@@ -116,7 +116,20 @@ function confirmRemoveGroup(): void {
         <p v-else class="empty pad">Add a group to start authoring the campaign.</p>
       </main>
 
-      <CampaignPreview v-if="showPreview" :yaml="store.yaml" :total-jobs="store.totalJobs" />
+      <CampaignPreview
+        v-if="showPreview"
+        :yaml="store.yaml"
+        :total-jobs="store.totalJobs"
+        :connected-clusters="connectedClusters"
+        :destination="store.destination"
+        :busy="store.busy"
+        :error="store.error"
+        :last-write="store.lastWrite"
+        :last-launch="store.lastLaunch"
+        @update:destination="store.destination = $event"
+        @write="store.write"
+        @launch="store.launch"
+      />
     </div>
 
     <ConfirmModal

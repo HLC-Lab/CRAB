@@ -6,6 +6,8 @@
 // Pinia store per group is needed, a plain reactive object is enough.
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
+import { api, ApiError } from "@/api/client";
+import type { SbatchmanLaunchResult, SbatchmanWriteResult } from "@/api/types";
 import { type Draft, emptyDraft, emptyExperiment, toConfig } from "@/lib/config";
 import {
   campaignJobCount,
@@ -15,6 +17,10 @@ import {
   type SbatchmanCampaign,
   type SbatchmanVar,
 } from "@/lib/sbatchman";
+
+function msg(e: unknown): string {
+  return e instanceof ApiError ? e.message : "Unexpected error";
+}
 
 export interface EnvPair {
   key: string;
@@ -35,6 +41,7 @@ function emptyGroup(name: string): GroupState {
 }
 
 export const useSbatchmanStore = defineStore("sbatchman", () => {
+  const name = ref("campaign");
   const configsPath = ref("");
   const crabRoot = ref("");
   const system = ref("");
@@ -42,6 +49,14 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const variables = reactive<SbatchmanVar[]>([]);
   const groups = reactive<GroupState[]>([emptyGroup("run")]);
   const selected = ref(0);
+
+  // Destination + write/launch state (S8): which connected profile to push
+  // the campaign to, and the outcome of the last write/launch round-trip.
+  const destination = ref("");
+  const busy = ref(false);
+  const error = ref<string | null>(null);
+  const lastWrite = ref<SbatchmanWriteResult | null>(null);
+  const lastLaunch = ref<SbatchmanLaunchResult | null>(null);
 
   function addGroup() {
     groups.push(emptyGroup("run"));
@@ -87,7 +102,45 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     return g ? sampleTags(c, g) : [];
   }
 
+  async function write(): Promise<boolean> {
+    error.value = null;
+    lastLaunch.value = null;
+    if (!destination.value) {
+      error.value = "Choose a connected cluster to write to first.";
+      return false;
+    }
+    busy.value = true;
+    try {
+      lastWrite.value = await api.sbatchman.write(destination.value, yaml.value, name.value);
+      return true;
+    } catch (e) {
+      error.value = msg(e);
+      return false;
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  async function launch(): Promise<boolean> {
+    error.value = null;
+    if (!destination.value || !lastWrite.value) {
+      error.value = "Write the campaign to the cluster before launching it.";
+      return false;
+    }
+    busy.value = true;
+    try {
+      lastLaunch.value = await api.sbatchman.launch(destination.value, lastWrite.value.remote_path);
+      return true;
+    } catch (e) {
+      error.value = msg(e);
+      return false;
+    } finally {
+      busy.value = false;
+    }
+  }
+
   return {
+    name,
     configsPath,
     crabRoot,
     system,
@@ -95,6 +148,11 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     variables,
     groups,
     selected,
+    destination,
+    busy,
+    error,
+    lastWrite,
+    lastLaunch,
     addGroup,
     removeGroup,
     campaign,
@@ -102,5 +160,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     totalJobs,
     jobsForGroup,
     tagSamples,
+    write,
+    launch,
   };
 });

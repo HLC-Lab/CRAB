@@ -25,6 +25,8 @@ import type {
   ResultsData,
   ResultsIndex,
   SavedEntry,
+  SbatchmanLaunchResult,
+  SbatchmanWriteResult,
   StepResult,
   SubmissionAccepted,
   SubmissionStatus,
@@ -209,5 +211,18 @@ export const api = {
       request<ExperimentRunStatusList>(`${resultsPath(cluster, system, jobBasename)}/experiments`),
     cacheSize: () => request<CacheSize>("/api/results/cache"),
     clearCache: () => request<void>("/api/results/cache", { method: "DELETE" }),
+  },
+
+  sbatchman: {
+    write: (profileName: string, yaml: string, name: string) =>
+      request<SbatchmanWriteResult>("/api/sbatchman/write", {
+        method: "POST",
+        body: JSON.stringify({ profile_name: profileName, yaml, name }),
+      }),
+    launch: (profileName: string, remotePath: string) =>
+      request<SbatchmanLaunchResult>("/api/sbatchman/launch", {
+        method: "POST",
+        body: JSON.stringify({ profile_name: profileName, remote_path: remotePath }),
+      }),
   },
 };

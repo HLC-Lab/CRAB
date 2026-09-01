@@ -574,6 +574,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sbatchman/write": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Write Campaign */
+    post: operations["write_campaign_api_sbatchman_write_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sbatchman/launch": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Launch Campaign */
+    post: operations["launch_campaign_api_sbatchman_launch_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -776,6 +810,22 @@ export interface components {
       rerun_of?: string | null;
       /** Rerun Experiments */
       rerun_experiments?: string[] | null;
+    };
+    /** LaunchRequest */
+    LaunchRequest: {
+      /** Profile Name */
+      profile_name: string;
+      /** Remote Path */
+      remote_path: string;
+    };
+    /** LaunchResponse */
+    LaunchResponse: {
+      /** Ok */
+      ok: boolean;
+      /** Stdout */
+      stdout: string;
+      /** Stderr */
+      stderr: string;
     };
     /** LibraryEntry */
     LibraryEntry: {
@@ -1115,6 +1165,25 @@ export interface components {
       input?: unknown;
       /** Context */
       ctx?: Record<string, never>;
+    };
+    /** WriteRequest */
+    WriteRequest: {
+      /** Profile Name */
+      profile_name: string;
+      /** Yaml */
+      yaml: string;
+      /**
+       * Name
+       * @default campaign
+       */
+      name: string;
+    };
+    /** WriteResponse */
+    WriteResponse: {
+      /** Local Path */
+      local_path: string;
+      /** Remote Path */
+      remote_path: string;
     };
   };
   responses: never;
@@ -2094,6 +2163,72 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  write_campaign_api_sbatchman_write_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["WriteRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WriteResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  launch_campaign_api_sbatchman_launch_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["LaunchRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LaunchResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
       };
     };
   };

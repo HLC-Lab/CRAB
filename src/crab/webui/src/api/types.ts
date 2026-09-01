@@ -223,3 +223,10 @@ export type ResultsJobEntry = components["schemas"]["ResultsJobEntry"];
 /** GET .../experiments — per-experiment status/run-failure counts for one job (plan 081). */
 export type ExperimentRunStatus = components["schemas"]["ExperimentRunStatus"];
 export type ExperimentRunStatusList = components["schemas"]["ExperimentRunStatusList"];
+
+// -- SbatchMan campaign generator (plan 084) --------------------------------
+
+/** POST /api/sbatchman/write — local + remote paths of the persisted jobs YAML. */
+export type SbatchmanWriteResult = components["schemas"]["WriteResponse"];
+/** POST /api/sbatchman/launch — `sbatchman launch` output, even on a non-zero exit. */
+export type SbatchmanLaunchResult = components["schemas"]["LaunchResponse"];
