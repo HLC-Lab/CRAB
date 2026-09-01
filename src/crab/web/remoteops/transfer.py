@@ -36,24 +36,20 @@ def staging_dir(profile: Profile, settings: Settings | None = None) -> str:
     return f"{crab_dir(profile)}/.web_staging"
 
 
-async def stage_config(
+async def _resolve_staging_dir(
     transport: Transport,
     profile: Profile,
-    config: dict,
-    name: str,
-    *,
-    settings: Settings | None = None,
-    timeout: float = 30.0,
+    settings: Settings | None,
+    timeout: float,
 ) -> str:
-    """Write ``config`` to a JSON file in the staging dir; return its absolute path.
+    """Resolve the staging dir to an absolute path, creating it if needed.
 
     ``staging_dir`` may contain a literal ``~`` for SSH profiles. Only a shell
     can expand that (``mkdir -p "$HOME/..."`` via ``remote_path_expr``), but
-    the write goes over SFTP, which has no shell and does no expansion of its
+    a write goes over SFTP, which has no shell and does no expansion of its
     own — so mkdir and the write could target different trees if each handled
     ``~`` separately. Instead, one shell round-trip resolves the directory to
-    an absolute path (``cd ... && pwd``) that mkdir, the SFTP write, and the
-    returned path (used later as a ``crab run`` arg) all share.
+    an absolute path (``cd ... && pwd``) that mkdir and every write share.
     """
     remote_dir = staging_dir(profile, settings)
     quoted_dir = remote_path_expr(remote_dir)
@@ -67,7 +63,39 @@ async def stage_config(
     absolute_dir = result.stdout.strip()
     if not absolute_dir:
         raise RemoteCommandError(f"Could not resolve the staging directory {remote_dir}.")
+    return absolute_dir
 
+
+async def stage_config(
+    transport: Transport,
+    profile: Profile,
+    config: dict,
+    name: str,
+    *,
+    settings: Settings | None = None,
+    timeout: float = 30.0,
+) -> str:
+    """Write ``config`` to a JSON file in the staging dir; return its absolute path."""
+    absolute_dir = await _resolve_staging_dir(transport, profile, settings, timeout)
     remote_path = f"{absolute_dir}/{_slug(name)}.json"
     await transport.write_file(remote_path, json.dumps(config, indent=2), timeout=timeout)
+    return remote_path
+
+
+async def stage_text(
+    transport: Transport,
+    profile: Profile,
+    text: str,
+    filename: str,
+    *,
+    settings: Settings | None = None,
+    timeout: float = 30.0,
+) -> str:
+    """Write raw ``text`` to ``filename`` in the staging dir; return its absolute
+    path. Same directory/resolution as ``stage_config``, for content that isn't
+    a CRAB config JSON blob (e.g. a composed SbatchMan campaign YAML, plan 084).
+    """
+    absolute_dir = await _resolve_staging_dir(transport, profile, settings, timeout)
+    remote_path = f"{absolute_dir}/{filename}"
+    await transport.write_file(remote_path, text, timeout=timeout)
     return remote_path

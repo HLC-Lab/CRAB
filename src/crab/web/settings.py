@@ -77,6 +77,11 @@ class Settings:
         return self.data_dir / "results_cache"
 
     @property
+    def sbatchman_dir(self) -> Path:
+        """Local copies of composed SbatchMan campaign YAML files (plan 084)."""
+        return self.data_dir / "sbatchman_campaigns"
+
+    @property
     def log_file(self) -> Path:
         return self.data_dir / "logs" / "web.log"
 
