@@ -33,6 +33,9 @@ const props = defineProps<{
   globalAllocation: AllocationDraft;
   globalNumnodes: string;
   sourceCluster: string;
+  // SbatchMan campaign groups have exactly one experiment; "Remove experiment"
+  // doesn't apply there (removing the group itself is the rail's job).
+  hideRemove?: boolean;
 }>();
 const emit = defineEmits<{
   "update:sourceCluster": [string];
@@ -285,7 +288,7 @@ function chooseWrapper(relpath: string) {
   </div>
 
   <ConfirmButton
-    v-if="sel"
+    v-if="sel && !hideRemove"
     v-slot="{ trigger }"
     class="remove-exp"
     :label="sel.name || 'this experiment'"
