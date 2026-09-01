@@ -31,3 +31,4 @@ marked superseded, never deleted.
 | [022](adr-022-results-plotly-and-job-identity.md) | Results redesign: Plotly over Chart.js, absolute paths, job identity off the registry | accepted |
 | [023](adr-023-per-run-failure-counts.md) | Per-run failure counts as additive fields, no `metadata.csv` migration | accepted |
 | [024](adr-024-plotly-webgl-scatter.md) | Switch scatter/line charts to WebGL rendering (scattergl) | accepted |
+| [025](adr-025-sbatchman-worker-seam-and-campaign-generator.md) | SbatchMan integration: file-based worker seam, generator not driver | accepted |
