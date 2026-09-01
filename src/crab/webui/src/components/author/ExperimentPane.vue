@@ -1,15 +1,24 @@
 <script setup lang="ts">
 // EXPERIMENT: name/description, placement (global allocation or a per-
 // experiment override), run-setting overrides, the app flow diagram, and the
-// apps editor. `expIndex` is the only piece of shared selection state passed
-// in (owned by AuthorView); `sourceCluster` is also shared (Basics reads it,
-// this pane is where it gets picked), everything else is local or store-direct.
+// apps editor. Takes the experiment being edited plus the global allocation/
+// numnodes it may inherit from as props (owned by the caller — the Author
+// page's draft there, a SbatchMan campaign group's own draft elsewhere) so
+// this component has no dependency on any particular store; `expIndex` is
+// only carried through for the `remove-experiment` emit, `sourceCluster` is
+// shared with the caller (Basics reads it, this pane is where it gets picked).
 import { computed, ref } from "vue";
-import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
 import type { Wrapper } from "@/api/types";
-import { cloneAllocation, emptyApp, flowForest, hasAllocation } from "@/lib/config";
+import {
+  type AllocationDraft,
+  type ExperimentDraft,
+  cloneAllocation,
+  emptyApp,
+  flowForest,
+  hasAllocation,
+} from "@/lib/config";
 import { equalShares, sliceColor, sliceName } from "@/lib/slices";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
@@ -19,7 +28,10 @@ import AppCard from "@/components/author/AppCard.vue";
 import WrapperPickerModal from "@/components/author/WrapperPickerModal.vue";
 
 const props = defineProps<{
+  experiment: ExperimentDraft;
   expIndex: number;
+  globalAllocation: AllocationDraft;
+  globalNumnodes: string;
   sourceCluster: string;
 }>();
 const emit = defineEmits<{
@@ -27,12 +39,10 @@ const emit = defineEmits<{
   "remove-experiment": [number];
 }>();
 
-const store = useAuthorStore();
 const remotes = useRemotesStore();
 const catalog = useCatalogStore();
-const d = store.draft;
 
-const sel = computed(() => d.experiments[props.expIndex]);
+const sel = computed(() => props.experiment);
 
 const connectedClusters = computed(() =>
   remotes.items.filter((r) => r.connected).map((r) => r.name),
@@ -48,7 +58,7 @@ const showOverrides = ref(false);
 // experiment (its local override when set, otherwise the global allocation).
 const effectiveAlloc = computed(() => {
   const e = sel.value;
-  return e && e.overrideAlloc ? e.allocation : d.allocation;
+  return e && e.overrideAlloc ? e.allocation : props.globalAllocation;
 });
 
 // Every partition of the effective allocation, paired with a colour (colour
@@ -96,7 +106,7 @@ const overridesActive = computed(() => {
 });
 
 const flow = computed(() =>
-  sel.value ? flowForest(sel.value.apps, effectiveAlloc.value, d.numnodes) : [],
+  sel.value ? flowForest(sel.value.apps, effectiveAlloc.value, props.globalNumnodes) : [],
 );
 
 function toggleOverride(): void {
@@ -107,7 +117,7 @@ function toggleOverride(): void {
     // the editor opens pre-filled with what the user already sees globally.
     // This is a one-time copy, not a live binding: later edits to the global
     // allocation never retroactively change an override that already exists.
-    e.allocation = cloneAllocation(d.allocation);
+    e.allocation = cloneAllocation(props.globalAllocation);
   }
   e.overrideAlloc = !e.overrideAlloc;
 }
@@ -207,7 +217,7 @@ function chooseWrapper(relpath: string) {
         {{ sel.overrideAlloc ? "Use global allocation" : "Override for this experiment" }}
       </button>
     </div>
-    <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" :numnodes="d.numnodes" />
+    <AllocationEditor v-if="sel.overrideAlloc" :alloc="sel.allocation" :numnodes="globalNumnodes" />
   </div>
 
   <!-- Per-experiment run-setting overrides (local_options) — expandable card -->

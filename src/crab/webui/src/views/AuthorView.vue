@@ -151,7 +151,10 @@ function duplicateExperiment(i: number): void {
         <!-- EXPERIMENT -->
         <template v-else-if="sel">
           <ExperimentPane
+            :experiment="sel"
             :exp-index="curExpIndex!"
+            :global-allocation="d.allocation"
+            :global-numnodes="d.numnodes"
             v-model:source-cluster="sourceCluster"
             @remove-experiment="removeExperiment"
           />
