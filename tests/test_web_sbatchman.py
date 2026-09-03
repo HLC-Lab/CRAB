@@ -1,7 +1,8 @@
 """Plan 084 S7: local + remote persistence of a composed SbatchMan campaign
 YAML (``store/sbatchman.py``, ``remoteops/transfer.py::stage_text``), and the
-``/api/sbatchman`` write + launch routes. No real SSH — a fake transport
-stands in, same pattern as test_web_jobs.py/test_web_remotes.py.
+``/api/sbatchman`` write route. No real SSH — a fake transport stands in,
+same pattern as test_web_jobs.py/test_web_remotes.py. Launch was removed in
+plan 085 — SbatchMan owns launch/monitor/results, CRAB no longer triggers it.
 """
 
 from __future__ import annotations
@@ -43,13 +44,10 @@ def _leonardo() -> Profile:
 
 
 class FakeTransport(Transport):
-    def __init__(self, launch_rc: int = 0, launch_stdout: str = "", launch_stderr: str = ""):
+    def __init__(self):
         self._alive = True
         self.calls: list[str] = []
         self.written_files: dict[str, str] = {}
-        self._launch_rc = launch_rc
-        self._launch_stdout = launch_stdout
-        self._launch_stderr = launch_stderr
 
     @property
     def alive(self) -> bool:
@@ -61,8 +59,6 @@ class FakeTransport(Transport):
             return CmdResult(0, _INFO_JSON, "")
         if "mkdir -p" in command:
             return CmdResult(0, "/home/researcher/base/CRAB/.web_staging\n", "")
-        if "sbatchman launch" in command:
-            return CmdResult(self._launch_rc, self._launch_stdout, self._launch_stderr)
         raise AssertionError(f"unexpected command: {command}")
 
     async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
@@ -157,54 +153,6 @@ def test_write_without_connection_fails(tmp_path: Path):
         resp = client.post(
             "/api/sbatchman/write",
             json={"profile_name": "leonardo", "yaml": _YAML, "name": "demo"},
-        )
-
-        assert resp.status_code == 502
-        assert resp.json()["code"] == "connection_error"
-
-
-def test_launch_runs_sbatchman_and_returns_output(tmp_path: Path):
-    transport = FakeTransport(launch_rc=0, launch_stdout="submitted 4 jobs\n")
-    with _client(tmp_path, transport) as client:
-        client.post("/api/remotes", json=_leonardo_profile_body())
-        client.post("/api/remotes/leonardo/connect")
-
-        resp = client.post(
-            "/api/sbatchman/launch",
-            json={"profile_name": "leonardo", "remote_path": "/x/campaign.yaml"},
-        )
-
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body == {"ok": True, "stdout": "submitted 4 jobs\n", "stderr": ""}
-        assert any("sbatchman launch -f /x/campaign.yaml" in c for c in transport.calls)
-
-
-def test_launch_surfaces_a_failed_command_as_ok_false(tmp_path: Path):
-    transport = FakeTransport(launch_rc=1, launch_stderr="sbatchman: command not found")
-    with _client(tmp_path, transport) as client:
-        client.post("/api/remotes", json=_leonardo_profile_body())
-        client.post("/api/remotes/leonardo/connect")
-
-        resp = client.post(
-            "/api/sbatchman/launch",
-            json={"profile_name": "leonardo", "remote_path": "/x/campaign.yaml"},
-        )
-
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["ok"] is False
-        assert "command not found" in body["stderr"]
-
-
-def test_launch_without_connection_fails(tmp_path: Path):
-    transport = FakeTransport()
-    with _client(tmp_path, transport) as client:
-        client.post("/api/remotes", json=_leonardo_profile_body())
-
-        resp = client.post(
-            "/api/sbatchman/launch",
-            json={"profile_name": "leonardo", "remote_path": "/x/campaign.yaml"},
         )
 
         assert resp.status_code == 502
