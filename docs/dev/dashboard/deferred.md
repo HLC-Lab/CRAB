@@ -73,3 +73,15 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
   (`stage_config`, `run_crab_json`) — those currently only have fake-transport coverage too, and
   the same class of "the fake never touches a real filesystem/socket" bug could in principle hide
   there. Revisit if another real-cluster-only bug surfaces in that layer.
+- **`sbatchman` branch only** (plan 085): this branch was narrowed to SbatchMan campaign
+  authoring only, since it is scoped to one project rather than the product direction (see
+  ADR-026). Author (classic single-experiment direct-submit), Jobs, and Results were unhooked
+  from nav/routing, not deleted — their view/store/component files
+  (`views/AuthorView.vue`, `views/JobsView.vue`, `views/ResultsView.vue`,
+  `views/ResultsCompareView.vue`, `views/ResultsJobView.vue`, `views/ReportView.vue`, and their
+  supporting stores/components) sit unregistered in the tree. Delete them for real if this
+  branch is ever picked up for further work. The `--sbatchman` CLI flag, `Settings.sbatchman`,
+  and the `CRAB_WEB_SBATCHMAN` env var are similarly dead — `get_settings()` now hardcodes
+  `sbatchman=True` — and should go with the same cleanup. `webui/tests/e2e/authoring.spec.ts` is
+  `test.skip`ped rather than deleted or rewritten; the real replacement is a campaign-editor e2e
+  spec, not written yet.
