@@ -101,24 +101,22 @@ def test_spa_shell_injects_sbatchman_meta(tmp_path: Path):
     assert '<meta name="crab-sbatchman" content="true">' in on.get("/").text
 
 
-def test_get_settings_honours_sbatchman_env(tmp_path: Path, monkeypatch):
+def test_get_settings_always_enables_sbatchman(tmp_path: Path, monkeypatch):
+    """This branch is dedicated to the SbatchMan flow (plan 085): `get_settings()`
+    always turns the mode on, regardless of `CRAB_WEB_SBATCHMAN` being set, set to
+    a falsy value, or unset."""
     from crab.web.settings import get_settings
 
     monkeypatch.setenv("CRAB_WEB_CONFIG_DIR", str(tmp_path / "c"))
     monkeypatch.setenv("CRAB_WEB_DATA_DIR", str(tmp_path / "d"))
 
-    monkeypatch.setenv("CRAB_WEB_SBATCHMAN", "true")
+    monkeypatch.setenv("CRAB_WEB_SBATCHMAN", "nope")
     get_settings.cache_clear()
     assert get_settings().sbatchman is True
 
-    # Only exact truthy tokens enable it -- an arbitrary non-empty string does not.
-    monkeypatch.setenv("CRAB_WEB_SBATCHMAN", "nope")
-    get_settings.cache_clear()
-    assert get_settings().sbatchman is False
-
     monkeypatch.delenv("CRAB_WEB_SBATCHMAN", raising=False)
     get_settings.cache_clear()
-    assert get_settings().sbatchman is False
+    assert get_settings().sbatchman is True
 
 
 def test_run_server_threads_sbatchman_flag_into_settings(tmp_path: Path, monkeypatch):

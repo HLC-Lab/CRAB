@@ -7,7 +7,11 @@
  */
 import { expect, test } from "@playwright/test";
 
-test("author, save, reopen, override", async ({ page }) => {
+// Author is unhooked from nav/routing on this branch (plan 085) -- SbatchMan
+// owns run/monitor/results and this dashboard only authors campaigns now.
+// See docs/dev/dashboard/deferred.md for the deferred replacement (a
+// campaign-editor e2e); this spec is kept, not deleted, as a reference.
+test.skip("author, save, reopen, override", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Author" }).click();
 

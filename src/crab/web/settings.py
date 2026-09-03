@@ -123,18 +123,13 @@ def get_settings() -> Settings:
         port = int(port_raw) if port_raw else DEFAULT_PORT
     except ValueError:
         port = DEFAULT_PORT
-    # Explicit truthiness (never rely on Python string-truthiness — see the audit's
-    # config-coercion findings): only these exact tokens enable the mode.
-    sbatchman = os.environ.get("CRAB_WEB_SBATCHMAN", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-        "on",
-    )
+    # This branch is dedicated to the SbatchMan flow (plan 085) — always on,
+    # regardless of `--sbatchman`/`CRAB_WEB_SBATCHMAN` (left in place but dead;
+    # see docs/dev/dashboard/deferred.md).
     return Settings(
         config_dir=config_dir,
         data_dir=data_dir,
         port=port,
         library_dir=library_dir,
-        sbatchman=sbatchman,
+        sbatchman=True,
     )

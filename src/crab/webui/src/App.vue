@@ -8,11 +8,9 @@ const app = useAppStore();
 
 const nav = computed(() => [
   { to: "/remotes", label: "Remotes" },
-  { to: "/author", label: "Author" },
   { to: "/wrappers", label: "Wrappers" },
-  { to: "/jobs", label: "Jobs" },
-  { to: "/results", label: "Results" },
-  // Only shown when launched with `crab web --sbatchman` (plan 084).
+  // Only shown when launched with `crab web --sbatchman` (plan 084). Always on
+  // on this branch (plan 085) — Author/Jobs/Results are unhooked here.
   ...(app.sbatchman ? [{ to: "/sbatchman", label: "SbatchMan" }] : []),
 ]);
 
