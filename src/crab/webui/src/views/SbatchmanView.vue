@@ -2,7 +2,8 @@
 // SbatchMan campaign authoring (plan 084): campaign-level settings, a rail of
 // job groups, the selected group's SbatchMan fields + its CRAB experiment
 // template (via the now-decoupled ExperimentPane/AllocationEditor, S5), a
-// live YAML preview, and writing/launching it to a connected cluster (S7/S8).
+// live YAML preview, and writing it to a connected cluster (S7/S8). Launching
+// is SbatchMan's job (plan 085) — this view never triggers `sbatchman launch`.
 import { computed, onMounted, ref, watchEffect } from "vue";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 import { useRemotesStore } from "@/stores/remotes";
@@ -125,10 +126,8 @@ function confirmRemoveGroup(): void {
         :busy="store.busy"
         :error="store.error"
         :last-write="store.lastWrite"
-        :last-launch="store.lastLaunch"
         @update:destination="store.destination = $event"
         @write="store.write"
-        @launch="store.launch"
       />
     </div>
 

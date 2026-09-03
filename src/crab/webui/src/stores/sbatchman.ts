@@ -7,7 +7,7 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import { api, ApiError } from "@/api/client";
-import type { SbatchmanLaunchResult, SbatchmanWriteResult } from "@/api/types";
+import type { SbatchmanWriteResult } from "@/api/types";
 import { type Draft, emptyDraft, emptyExperiment, toConfig } from "@/lib/config";
 import {
   campaignJobCount,
@@ -50,13 +50,13 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const groups = reactive<GroupState[]>([emptyGroup("run")]);
   const selected = ref(0);
 
-  // Destination + write/launch state (S8): which connected profile to push
-  // the campaign to, and the outcome of the last write/launch round-trip.
+  // Destination + write state (S8): which connected profile to push the
+  // campaign to, and the outcome of the last write round-trip. Launching is
+  // SbatchMan's job now (plan 085) — the store has no launch state.
   const destination = ref("");
   const busy = ref(false);
   const error = ref<string | null>(null);
   const lastWrite = ref<SbatchmanWriteResult | null>(null);
-  const lastLaunch = ref<SbatchmanLaunchResult | null>(null);
 
   function addGroup() {
     groups.push(emptyGroup("run"));
@@ -104,7 +104,6 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   async function write(): Promise<boolean> {
     error.value = null;
-    lastLaunch.value = null;
     if (!destination.value) {
       error.value = "Choose a connected cluster to write to first.";
       return false;
@@ -112,24 +111,6 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     busy.value = true;
     try {
       lastWrite.value = await api.sbatchman.write(destination.value, yaml.value, name.value);
-      return true;
-    } catch (e) {
-      error.value = msg(e);
-      return false;
-    } finally {
-      busy.value = false;
-    }
-  }
-
-  async function launch(): Promise<boolean> {
-    error.value = null;
-    if (!destination.value || !lastWrite.value) {
-      error.value = "Write the campaign to the cluster before launching it.";
-      return false;
-    }
-    busy.value = true;
-    try {
-      lastLaunch.value = await api.sbatchman.launch(destination.value, lastWrite.value.remote_path);
       return true;
     } catch (e) {
       error.value = msg(e);
@@ -152,7 +133,6 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     busy,
     error,
     lastWrite,
-    lastLaunch,
     addGroup,
     removeGroup,
     campaign,
@@ -161,6 +141,5 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     jobsForGroup,
     tagSamples,
     write,
-    launch,
   };
 });

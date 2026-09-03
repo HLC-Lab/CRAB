@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // Read-only preview of the composed SbatchMan jobs YAML (mirrors JsonPanel's
-// layout), plus the destination picker and Write/Launch actions (plan 084
-// S8). Presentational only — the campaign store (owned by SbatchmanView)
-// holds the write/launch state and does the API calls.
+// layout), plus the destination picker and Write action (plan 084 S8; launch
+// removed in plan 085 — SbatchMan owns launch/monitor/results). Presentational
+// only — the campaign store (owned by SbatchmanView) holds the write state
+// and does the API call.
 import { ref } from "vue";
-import type { SbatchmanLaunchResult, SbatchmanWriteResult } from "@/api/types";
+import type { SbatchmanWriteResult } from "@/api/types";
 
 const props = defineProps<{
   yaml: string;
@@ -14,12 +15,10 @@ const props = defineProps<{
   busy: boolean;
   error: string | null;
   lastWrite: SbatchmanWriteResult | null;
-  lastLaunch: SbatchmanLaunchResult | null;
 }>();
 const emit = defineEmits<{
   "update:destination": [string];
   write: [];
-  launch: [];
 }>();
 
 const copied = ref(false);
@@ -42,7 +41,7 @@ async function copyYaml() {
     </header>
     <pre>{{ yaml }}</pre>
 
-    <div class="launch-section">
+    <div class="write-section">
       <label
         >Cluster
         <select
@@ -60,27 +59,12 @@ async function copyYaml() {
         <button class="btn" :disabled="busy || !destination" @click="emit('write')">
           {{ busy ? "Writing…" : "Write files" }}
         </button>
-        <button
-          class="btn"
-          :disabled="busy || !lastWrite"
-          title="Write the campaign first"
-          @click="emit('launch')"
-        >
-          {{ busy ? "Running…" : "Run sbatchman launch" }}
-        </button>
       </div>
 
       <p v-if="lastWrite" class="out">
         Written to <b>{{ lastWrite.remote_path }}</b>
         <span class="muted">(local copy: {{ lastWrite.local_path }})</span>
       </p>
-      <div v-if="lastLaunch" class="out">
-        <p :class="lastLaunch.ok ? 'ok' : 'err'">
-          {{ lastLaunch.ok ? "sbatchman launch succeeded." : "sbatchman launch failed." }}
-        </p>
-        <pre v-if="lastLaunch.stdout">{{ lastLaunch.stdout }}</pre>
-        <pre v-if="lastLaunch.stderr" class="stderr">{{ lastLaunch.stderr }}</pre>
-      </div>
     </div>
   </aside>
 </template>
@@ -130,14 +114,14 @@ async function copyYaml() {
   margin: 0;
 }
 
-.launch-section {
+.write-section {
   padding: 0.75rem;
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
 }
-.launch-section label {
+.write-section label {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -194,25 +178,5 @@ select {
 }
 .out .muted {
   color: var(--text3);
-}
-.out .ok {
-  color: var(--ok);
-  margin: 0 0 0.3rem;
-}
-.out .err {
-  color: var(--danger);
-  margin: 0 0 0.3rem;
-}
-.out pre {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 0.5rem;
-  font-size: var(--t-xs);
-  white-space: pre-wrap;
-  margin: 0 0 0.4rem;
-}
-.out pre.stderr {
-  color: var(--danger);
 }
 </style>

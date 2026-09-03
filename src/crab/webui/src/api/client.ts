@@ -25,7 +25,6 @@ import type {
   ResultsData,
   ResultsIndex,
   SavedEntry,
-  SbatchmanLaunchResult,
   SbatchmanWriteResult,
   StepResult,
   SubmissionAccepted,
@@ -218,11 +217,6 @@ export const api = {
       request<SbatchmanWriteResult>("/api/sbatchman/write", {
         method: "POST",
         body: JSON.stringify({ profile_name: profileName, yaml, name }),
-      }),
-    launch: (profileName: string, remotePath: string) =>
-      request<SbatchmanLaunchResult>("/api/sbatchman/launch", {
-        method: "POST",
-        body: JSON.stringify({ profile_name: profileName, remote_path: remotePath }),
       }),
   },
 };

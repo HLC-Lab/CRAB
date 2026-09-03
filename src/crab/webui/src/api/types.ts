@@ -228,5 +228,3 @@ export type ExperimentRunStatusList = components["schemas"]["ExperimentRunStatus
 
 /** POST /api/sbatchman/write — local + remote paths of the persisted jobs YAML. */
 export type SbatchmanWriteResult = components["schemas"]["WriteResponse"];
-/** POST /api/sbatchman/launch — `sbatchman launch` output, even on a non-zero exit. */
-export type SbatchmanLaunchResult = components["schemas"]["LaunchResponse"];
