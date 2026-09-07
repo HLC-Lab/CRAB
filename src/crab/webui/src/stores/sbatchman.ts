@@ -7,7 +7,7 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import { api, ApiError } from "@/api/client";
-import type { SbatchmanWriteResult } from "@/api/types";
+import type { CampaignEntry, SbatchmanWriteResult } from "@/api/types";
 import { type Draft, emptyDraft, emptyExperiment, toConfig } from "@/lib/config";
 import {
   campaignJobCount,
@@ -40,6 +40,20 @@ function emptyGroup(name: string): GroupState {
   return { tag: "", preset: "", variables: [], draft };
 }
 
+/** The saved/loaded shape of a campaign draft (plan 086) — everything needed to
+ * reconstruct the editor's state, distinct from `SbatchmanCampaign` (the
+ * composed/derived shape used to emit the YAML, where each group's `draft` has
+ * already been reduced to a `CrabConfig` via `toConfig`). Persisted as an opaque
+ * dict backend-side (`store/campaign_library.py`). */
+export interface CampaignSpec {
+  configsPath: string;
+  crabRoot: string;
+  system: string;
+  env: EnvPair[];
+  variables: SbatchmanVar[];
+  groups: GroupState[];
+}
+
 export const useSbatchmanStore = defineStore("sbatchman", () => {
   const name = ref("campaign");
   const configsPath = ref("");
@@ -57,6 +71,33 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const busy = ref(false);
   const error = ref<string | null>(null);
   const lastWrite = ref<SbatchmanWriteResult | null>(null);
+
+  // Campaign library (plan 086): save/load, mirroring stores/author.ts.
+  const library = ref<CampaignEntry[]>([]);
+  const entryId = ref<string | null>(null);
+  const notice = ref<string | null>(null);
+
+  const spec = computed<CampaignSpec>(() => ({
+    configsPath: configsPath.value,
+    crabRoot: crabRoot.value,
+    system: system.value,
+    env: env.map((p) => ({ ...p })),
+    variables: variables.map((v) => ({ ...v })),
+    groups: groups.map((g) => ({
+      tag: g.tag,
+      preset: g.preset,
+      variables: g.variables.map((v) => ({ ...v })),
+      draft: g.draft,
+    })),
+  }));
+  const specJson = computed(() => JSON.stringify(spec.value));
+
+  // Snapshot of `specJson` as of the last save/open/new-campaign. `isDirty`
+  // only warns New/Browse when something would actually be lost (mirrors
+  // stores/author.ts's `isDirty`). Seeded with the initial state so a fresh,
+  // untouched campaign doesn't read as dirty.
+  const savedSnapshot = ref<string>(specJson.value);
+  const isDirty = computed(() => specJson.value !== savedSnapshot.value);
 
   function addGroup() {
     groups.push(emptyGroup("run"));
@@ -102,6 +143,115 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     return g ? sampleTags(c, g) : [];
   }
 
+  function _load(s: CampaignSpec) {
+    configsPath.value = s.configsPath;
+    crabRoot.value = s.crabRoot;
+    system.value = s.system;
+    env.splice(0, env.length, ...s.env.map((p) => ({ ...p })));
+    if (!env.length) env.push({ key: "", value: "" });
+    variables.splice(0, variables.length, ...s.variables.map((v) => ({ ...v })));
+    groups.splice(
+      0,
+      groups.length,
+      ...s.groups.map((g) => ({
+        tag: g.tag,
+        preset: g.preset,
+        variables: g.variables.map((v) => ({ ...v })),
+        draft: g.draft,
+      })),
+    );
+    if (!groups.length) groups.push(emptyGroup("run"));
+    selected.value = 0;
+    savedSnapshot.value = specJson.value;
+  }
+
+  async function loadLibrary(): Promise<void> {
+    try {
+      library.value = await api.sbatchman.campaigns.list();
+    } catch (e) {
+      error.value = msg(e);
+    }
+  }
+
+  function newCampaign(): void {
+    entryId.value = null;
+    name.value = "campaign";
+    _load({ configsPath: "", crabRoot: "", system: "", env: [], variables: [], groups: [] });
+    error.value = null;
+    notice.value = null;
+  }
+
+  async function open(id: string): Promise<void> {
+    error.value = null;
+    notice.value = null;
+    busy.value = true;
+    try {
+      const entry = await api.sbatchman.campaigns.get(id);
+      entryId.value = entry.id;
+      name.value = entry.name;
+      // `entry.spec` is opaque to the backend; this store owns the shape.
+      _load(entry.spec as unknown as CampaignSpec);
+    } catch (e) {
+      error.value = msg(e);
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  function flashNotice(text: string, ms = 3000): void {
+    notice.value = text;
+    setTimeout(() => {
+      if (notice.value === text) notice.value = null;
+    }, ms);
+  }
+
+  async function save(): Promise<boolean> {
+    error.value = null;
+    if (!name.value.trim()) {
+      error.value = "Name the campaign before saving.";
+      return false;
+    }
+    busy.value = true;
+    try {
+      const n = name.value.trim();
+      const asDict = spec.value as unknown as Record<string, unknown>;
+      const entry = entryId.value
+        ? await api.sbatchman.campaigns.update(entryId.value, n, asDict)
+        : await api.sbatchman.campaigns.create(n, asDict);
+      entryId.value = entry.id;
+      await loadLibrary();
+      savedSnapshot.value = specJson.value;
+      flashNotice(`Saved "${n}".`);
+      return true;
+    } catch (e) {
+      error.value = msg(e);
+      return false;
+    } finally {
+      busy.value = false;
+    }
+  }
+
+  async function duplicateCampaign(id: string): Promise<void> {
+    try {
+      const entry = await api.sbatchman.campaigns.duplicate(id);
+      await loadLibrary();
+      await open(entry.id); // clears `notice` as part of opening; flash after
+      flashNotice(`Duplicated as "${entry.name}".`);
+    } catch (e) {
+      error.value = msg(e);
+    }
+  }
+
+  async function removeCampaign(id: string): Promise<void> {
+    try {
+      await api.sbatchman.campaigns.remove(id);
+      if (entryId.value === id) newCampaign();
+      await loadLibrary();
+    } catch (e) {
+      error.value = msg(e);
+    }
+  }
+
   async function write(): Promise<boolean> {
     error.value = null;
     if (!destination.value) {
@@ -141,5 +291,15 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     jobsForGroup,
     tagSamples,
     write,
+    library,
+    entryId,
+    notice,
+    isDirty,
+    loadLibrary,
+    newCampaign,
+    open,
+    save,
+    duplicateCampaign,
+    removeCampaign,
   };
 });

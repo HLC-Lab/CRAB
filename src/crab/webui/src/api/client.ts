@@ -5,6 +5,7 @@ import type {
   BenchmarksResult,
   BootstrapPlan,
   CacheSize,
+  CampaignEntry,
   CancelResponse,
   ConnectResult,
   CrabConfig,
@@ -218,5 +219,29 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ profile_name: profileName, yaml, name }),
       }),
+
+    campaigns: {
+      list: () => request<CampaignEntry[]>("/api/sbatchman/campaigns"),
+      get: (id: string) =>
+        request<CampaignEntry>(`/api/sbatchman/campaigns/${encodeURIComponent(id)}`),
+      create: (name: string, spec: Record<string, unknown>) =>
+        request<CampaignEntry>("/api/sbatchman/campaigns", {
+          method: "POST",
+          body: JSON.stringify({ name, spec }),
+        }),
+      update: (id: string, name: string, spec: Record<string, unknown>) =>
+        request<CampaignEntry>(`/api/sbatchman/campaigns/${encodeURIComponent(id)}`, {
+          method: "PUT",
+          body: JSON.stringify({ name, spec }),
+        }),
+      duplicate: (id: string) =>
+        request<CampaignEntry>(`/api/sbatchman/campaigns/${encodeURIComponent(id)}/duplicate`, {
+          method: "POST",
+        }),
+      remove: (id: string) =>
+        request<void>(`/api/sbatchman/campaigns/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        }),
+    },
   },
 };

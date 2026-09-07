@@ -591,6 +591,60 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sbatchman/campaigns": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Campaigns */
+    get: operations["list_campaigns_api_sbatchman_campaigns_get"];
+    put?: never;
+    /** Create Campaign */
+    post: operations["create_campaign_api_sbatchman_campaigns_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sbatchman/campaigns/{entry_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Campaign */
+    get: operations["get_campaign_api_sbatchman_campaigns__entry_id__get"];
+    /** Update Campaign */
+    put: operations["update_campaign_api_sbatchman_campaigns__entry_id__put"];
+    post?: never;
+    /** Delete Campaign */
+    delete: operations["delete_campaign_api_sbatchman_campaigns__entry_id__delete"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/sbatchman/campaigns/{entry_id}/duplicate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Duplicate Campaign */
+    post: operations["duplicate_campaign_api_sbatchman_campaigns__entry_id__duplicate_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -611,6 +665,31 @@ export interface components {
     CacheSize: {
       /** Total Bytes */
       total_bytes: number;
+    };
+    /** CampaignBody */
+    CampaignBody: {
+      /**
+       * Name
+       * @default
+       */
+      name: string;
+      /** Spec */
+      spec?: {
+        [key: string]: unknown;
+      };
+    };
+    /** CampaignEntry */
+    CampaignEntry: {
+      /** Id */
+      id: string;
+      /** Name */
+      name: string;
+      /** Updated At */
+      updated_at: string;
+      /** Spec */
+      spec: {
+        [key: string]: unknown;
+      };
     };
     /** CancelResponse */
     CancelResponse: {
@@ -2153,6 +2232,185 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["WriteResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_campaigns_api_sbatchman_campaigns_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CampaignEntry"][];
+        };
+      };
+    };
+  };
+  create_campaign_api_sbatchman_campaigns_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CampaignBody"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CampaignEntry"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  get_campaign_api_sbatchman_campaigns__entry_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        entry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CampaignEntry"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  update_campaign_api_sbatchman_campaigns__entry_id__put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        entry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CampaignBody"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CampaignEntry"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  delete_campaign_api_sbatchman_campaigns__entry_id__delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        entry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  duplicate_campaign_api_sbatchman_campaigns__entry_id__duplicate_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        entry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CampaignEntry"];
         };
       };
       /** @description Validation Error */
