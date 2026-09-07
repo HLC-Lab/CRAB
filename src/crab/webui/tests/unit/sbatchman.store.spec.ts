@@ -187,6 +187,18 @@ describe("sbatchman store: campaign library", () => {
     expect(store.isDirty).toBe(false);
   });
 
+  it("isDirty flips true after a rename alone, even with the spec untouched", async () => {
+    // Regression: the name lives outside `spec`, so the dirty-check must not
+    // only diff `spec` — a rename with nothing else changed is still unsaved.
+    getMock.mockResolvedValueOnce(entry());
+    const store = useSbatchmanStore();
+    await store.open("a2a-baseline");
+    expect(store.isDirty).toBe(false);
+
+    store.name = "a2a baseline (renamed)";
+    expect(store.isDirty).toBe(true);
+  });
+
   it("surfaces the backend error message on a failed save", async () => {
     createMock.mockRejectedValueOnce(new ApiError("Disk full.", 500));
     const store = useSbatchmanStore();

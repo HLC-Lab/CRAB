@@ -8,6 +8,7 @@ import { computed, onMounted, ref, watchEffect } from "vue";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 import { useRemotesStore } from "@/stores/remotes";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import CampaignLibraryBar from "@/components/sbatchman/CampaignLibraryBar.vue";
 import CampaignBar from "@/components/sbatchman/CampaignBar.vue";
 import GroupRail from "@/components/sbatchman/GroupRail.vue";
 import GroupBasics from "@/components/sbatchman/GroupBasics.vue";
@@ -44,9 +45,17 @@ watchEffect(() => {
 const showPreview = ref(true);
 
 onMounted(() => {
+  store.loadLibrary();
   remotes.refresh();
   if (store.groups.length) view.value = { kind: "group" };
 });
+
+function afterNew(): void {
+  view.value = { kind: "campaign" };
+}
+function afterOpened(): void {
+  view.value = store.groups.length ? { kind: "group" } : { kind: "campaign" };
+}
 
 const removeGroupTarget = ref<number | null>(null);
 function requestRemoveGroup(i: number): void {
@@ -60,6 +69,8 @@ function confirmRemoveGroup(): void {
 
 <template>
   <section class="sbatchman">
+    <CampaignLibraryBar @new="afterNew" @opened="afterOpened" />
+
     <header class="toolbar">
       <button class="btn" :class="{ on: view.kind === 'campaign' }" @click="selectCampaign">
         Campaign settings

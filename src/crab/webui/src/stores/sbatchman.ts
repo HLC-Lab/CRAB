@@ -90,14 +90,17 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
       draft: g.draft,
     })),
   }));
-  const specJson = computed(() => JSON.stringify(spec.value));
+  // `name` lives outside `spec` (it's the library entry's own field, not part
+  // of the persisted campaign spec), but a rename with nothing else touched is
+  // still an unsaved change — so the dirty-check snapshot covers both.
+  const savedStateJson = computed(() => JSON.stringify({ name: name.value, spec: spec.value }));
 
-  // Snapshot of `specJson` as of the last save/open/new-campaign. `isDirty`
-  // only warns New/Browse when something would actually be lost (mirrors
-  // stores/author.ts's `isDirty`). Seeded with the initial state so a fresh,
-  // untouched campaign doesn't read as dirty.
-  const savedSnapshot = ref<string>(specJson.value);
-  const isDirty = computed(() => specJson.value !== savedSnapshot.value);
+  // Snapshot of `savedStateJson` as of the last save/open/new-campaign.
+  // `isDirty` only warns New/Browse when something would actually be lost
+  // (mirrors stores/author.ts's `isDirty`). Seeded with the initial state so a
+  // fresh, untouched campaign doesn't read as dirty.
+  const savedSnapshot = ref<string>(savedStateJson.value);
+  const isDirty = computed(() => savedStateJson.value !== savedSnapshot.value);
 
   function addGroup() {
     groups.push(emptyGroup("run"));
@@ -162,7 +165,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     );
     if (!groups.length) groups.push(emptyGroup("run"));
     selected.value = 0;
-    savedSnapshot.value = specJson.value;
+    savedSnapshot.value = savedStateJson.value;
   }
 
   async function loadLibrary(): Promise<void> {
@@ -220,7 +223,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
         : await api.sbatchman.campaigns.create(n, asDict);
       entryId.value = entry.id;
       await loadLibrary();
-      savedSnapshot.value = specJson.value;
+      savedSnapshot.value = savedStateJson.value;
       flashNotice(`Saved "${n}".`);
       return true;
     } catch (e) {
