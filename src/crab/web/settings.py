@@ -82,6 +82,15 @@ class Settings:
         return self.data_dir / "sbatchman_campaigns"
 
     @property
+    def campaign_library_dir(self) -> Path:
+        """Library of saved campaign drafts (plan 086). Lives alongside the experiment
+        library (``library_dir`` if set, else the data dir), in its own ``campaigns/``
+        subfolder — unlike ``experiments_dir``, never collapses to the bare library
+        root, so campaign files never mix with the experiment library's flat files."""
+        base = self.library_dir if self.library_dir is not None else self.data_dir
+        return base / "campaigns"
+
+    @property
     def log_file(self) -> Path:
         return self.data_dir / "logs" / "web.log"
 
@@ -98,6 +107,7 @@ class Settings:
             self.config_dir,
             self.data_dir,
             self.experiments_dir,
+            self.campaign_library_dir,
             self.cache_dir,
             self.log_file.parent,
         ):
