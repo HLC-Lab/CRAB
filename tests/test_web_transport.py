@@ -16,6 +16,7 @@ there too.
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 
 import asyncssh
@@ -269,4 +270,20 @@ async def test_connect_ssh_real_server_connection_refused_maps_cleanly(
         hostkey_policy="insecure",
     )
     with pytest.raises(RemoteConnectionError):
+        await connect_ssh(profile)
+
+
+async def test_connect_ssh_raises_a_clean_error_when_asyncssh_is_missing(monkeypatch):
+    """`sys.modules[name] = None` is the standard way to simulate an uninstalled
+    package: Python's import system raises ImportError rather than looking it up
+    (docs.python.org/3/reference/import.html#the-module-cache)."""
+    monkeypatch.setitem(sys.modules, "asyncssh", None)
+    profile = Profile(
+        name="test",
+        host="cluster.example.org",
+        user="test",
+        auth="agent",
+        hostkey_policy="insecure",
+    )
+    with pytest.raises(RemoteConnectionError, match="asyncssh"):
         await connect_ssh(profile)
