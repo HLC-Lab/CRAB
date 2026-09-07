@@ -189,7 +189,13 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
       * 'strict'   — verify against the system known_hosts.
       * 'insecure' — no verification (required for round-robin login nodes).
     """
-    import asyncssh
+    try:
+        import asyncssh
+    except ImportError as e:
+        raise RemoteConnectionError(
+            "SSH support isn't installed in this environment ('asyncssh' is missing). "
+            'Install it with `pip install "crab[web]"` and restart `crab web`.'
+        ) from e
 
     if not profile.host:
         raise RemoteConnectionError("Profile has no host to connect to.")
