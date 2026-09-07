@@ -157,3 +157,55 @@ def test_write_without_connection_fails(tmp_path: Path):
 
         assert resp.status_code == 502
         assert resp.json()["code"] == "connection_error"
+
+
+# --------------------------------------------------------------------------- #
+# /api/sbatchman/campaigns — the saved-campaign-draft library (plan 086)
+# --------------------------------------------------------------------------- #
+_SPEC = {
+    "configsPath": "",
+    "crabRoot": "",
+    "system": "",
+    "env": [],
+    "variables": [{"name": "nodes", "values": ["4", "8"]}],
+    "groups": [{"tag": "baseline-{nodes}", "preset": "", "variables": [], "draft": {}}],
+}
+
+
+def test_campaigns_api_flow(tmp_path: Path):
+    with _client(tmp_path, FakeTransport()) as client:
+        assert client.get("/api/sbatchman/campaigns").json() == []
+
+        created = client.post(
+            "/api/sbatchman/campaigns", json={"name": "Campaign A", "spec": _SPEC}
+        )
+        assert created.status_code == 201
+        cid = created.json()["id"]
+        assert cid == "campaign-a"
+
+        assert client.get(f"/api/sbatchman/campaigns/{cid}").json()["name"] == "Campaign A"
+
+        updated_spec = {**_SPEC, "system": "leonardo"}
+        client.put(
+            f"/api/sbatchman/campaigns/{cid}", json={"name": "Campaign A2", "spec": updated_spec}
+        )
+        got = client.get(f"/api/sbatchman/campaigns/{cid}").json()
+        assert got["name"] == "Campaign A2"
+        assert got["spec"]["system"] == "leonardo"
+
+        dup = client.post(f"/api/sbatchman/campaigns/{cid}/duplicate")
+        assert dup.status_code == 201 and dup.json()["id"] != cid
+
+        assert len(client.get("/api/sbatchman/campaigns").json()) == 2
+
+        assert client.delete(f"/api/sbatchman/campaigns/{cid}").status_code == 204
+        assert client.get(f"/api/sbatchman/campaigns/{cid}").status_code == 404
+
+
+def test_campaign_with_var_placeholders_saves_without_validation(tmp_path: Path):
+    """Unlike /api/experiments, no shape-validation pass — a group's `{var}`
+    placeholders would fail typed single-config validation."""
+    with _client(tmp_path, FakeTransport()) as client:
+        resp = client.post("/api/sbatchman/campaigns", json={"name": "Swept", "spec": _SPEC})
+        assert resp.status_code == 201
+        assert "warnings" not in resp.json()
