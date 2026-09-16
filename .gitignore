@@ -5,6 +5,7 @@ __pycache__/
 hosts
 /data/
 .todo.md
+/.crab_local_jobs/
 *.egg-info/
 
 # CRAB Setup & Benchmarks
