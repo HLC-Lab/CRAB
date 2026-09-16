@@ -199,6 +199,9 @@ class Engine:
         with open(os.path.join(data_directory, "environment.json"), "w") as f:
             json.dump(environment, f, indent=4)
 
+        if environment.get("CRAB_SCHEDULER") == "local":
+            return self._submit_local(data_directory, safe_system)
+
         # --- GENERAZIONE HEADER SBATCH DINAMICO ---
         sbatch_headers = self._generate_sbatch_header(g_opts, data_directory)
 
@@ -250,6 +253,57 @@ class Engine:
             raise
 
         # Structured result for programmatic callers (e.g. `crab run --json`).
+        return {
+            "job_id": job_id,
+            "data_dir": data_directory,
+            "system": safe_system,
+        }
+
+    def _submit_local(self, data_directory: str, safe_system: str) -> dict[str, Any]:
+        """CRAB_SCHEDULER=local: run the worker as a detached local subprocess instead of
+        submitting to Slurm (plan 087, dev/testing-only, not documented for end users).
+
+        Redirects stdout/stderr to the same slurm_output.log/slurm_error.log filenames the
+        Slurm path uses, so cli/contract.py's gather_logs needs no changes. Wraps the command
+        in `bash -c '<cmd>; echo $? > <exit_file>'` because a later, separate CLI invocation
+        (crab status) is a fresh process and cannot wait() on this one.
+        """
+        worker_cmd = (
+            f"{shlex.quote(sys.executable)} "
+            f"{shlex.quote(os.path.abspath(sys.argv[0]))} "
+            f"worker --workdir {shlex.quote(data_directory)}"
+        )
+        exit_code_path = os.path.join(data_directory, "local_exit_code")
+        full_cmd = f"{worker_cmd}; echo $? > {shlex.quote(exit_code_path)}"
+
+        stdout_path = os.path.join(data_directory, "slurm_output.log")
+        stderr_path = os.path.join(data_directory, "slurm_error.log")
+        stdout_f = open(stdout_path, "wb")
+        stderr_f = open(stderr_path, "wb")
+        try:
+            proc = subprocess.Popen(
+                ["bash", "-c", full_cmd],
+                stdout=stdout_f,
+                stderr=stderr_f,
+                start_new_session=True,
+            )
+        finally:
+            stdout_f.close()
+            stderr_f.close()
+
+        job_id = str(proc.pid)
+        local_jobs_dir = os.path.join(CRAB_ROOT, ".crab_local_jobs")
+        os.makedirs(local_jobs_dir, exist_ok=True)
+        state = {
+            "pid": proc.pid,
+            "data_dir": data_directory,
+            "started_at": datetime.datetime.now().isoformat(),
+        }
+        with open(os.path.join(local_jobs_dir, f"{job_id}.json"), "w") as f:
+            json.dump(state, f)
+
+        self.log.info(f"Submitted local job {job_id} (pid {proc.pid})")
+
         return {
             "job_id": job_id,
             "data_dir": data_directory,
