@@ -219,6 +219,33 @@ class TestWLMAllowlist(unittest.TestCase):
                 except Exception:
                     pass  # other errors (missing apps, etc.) are expected in this minimal setup
 
+    def test_valid_wlm_local_does_not_raise(self):
+        """CRAB_WL_MANAGER=local (plan 087, no-Slurm testing path) must load without ValueError."""
+        from crab.core.experiment.runner import ExperimentRunner
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            runner = ExperimentRunner.__new__(ExperimentRunner)
+            runner.name = "test"
+            runner.config = {"apps": {}}
+            runner.global_opts = {}
+            runner.exp_opts = {}
+            runner.node_list = []
+            runner.exp_dir = tmpdir
+            runner.log = self._make_logger()
+            runner.ppn = 1
+            runner.apps = []
+            runner.wlmanager = None
+            runner.data_containers = []
+
+            with patch.dict(os.environ, {"CRAB_WL_MANAGER": "local"}):
+                try:
+                    runner.setup()
+                except ValueError as e:
+                    if "CRAB_WL_MANAGER" in str(e):
+                        self.fail(f"Valid WLM 'local' was incorrectly rejected: {e}")
+                except Exception:
+                    pass  # other errors (missing apps, etc.) are expected in this minimal setup
+
 
 if __name__ == "__main__":
     unittest.main()

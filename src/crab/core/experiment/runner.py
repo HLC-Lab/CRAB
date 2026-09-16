@@ -73,7 +73,7 @@ class ExperimentRunner:
 
         # WLM Loading
         wlm_name = os.environ.get("CRAB_WL_MANAGER", "slurm")
-        _ALLOWED_WLM = {"slurm", "mpi", "workerpool"}
+        _ALLOWED_WLM = {"slurm", "mpi", "workerpool", "local"}
         if wlm_name not in _ALLOWED_WLM:
             raise ValueError(
                 f"Unknown CRAB_WL_MANAGER value: {wlm_name!r}. Allowed: {sorted(_ALLOWED_WLM)}"
