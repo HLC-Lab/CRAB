@@ -37,7 +37,12 @@ class G500Recipe(BenchmarkRecipe):
             return False, None, "Git clone failed."
 
         src_dir = os.path.join(target_dir, "src")
-        build_cmd = ["make", "MPICC=mpicc", "CFLAGS=-fcommon", "-j"]
+        # -fcommon rides on MPICC, not CFLAGS: a command-line CFLAGS=... assignment replaces
+        # the Makefile's own CFLAGS wholesale (GNU Make override semantics), dropping -I../aml
+        # and breaking the aml.h include. Target graph500_reference_bfs explicitly -- the
+        # _sssp variant has an unrelated, genuine upstream bug (generate_kronecker_range's
+        # weights arg) that fails the whole default "all" target under -j/-k.
+        build_cmd = ["make", "MPICC=mpicc -fcommon", "graph500_reference_bfs"]
 
         if not self.run_command_streamed(
             build_cmd, src_dir, "Compiling Binaries...", env, log_callback

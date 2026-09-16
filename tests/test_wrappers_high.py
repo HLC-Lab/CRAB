@@ -215,31 +215,3 @@ class TestIbSendLat(unittest.TestCase):
         with patch.dict(os.environ, env, clear=True):
             with self.assertRaises((RuntimeError, KeyError)):
                 instance.read_data()
-
-
-# ── g500: MPICC token splitting ───────────────────────────────────────────────
-
-
-class TestG500Recipe(unittest.TestCase):
-    def test_mpicc_is_separate_token(self):
-        """The build command must not put 'mpicc -fcommon' in a single token."""
-        from crab.setup.recipes.g500 import G500Recipe
-
-        recipe = G500Recipe()
-
-        with patch.object(recipe, "run_command_streamed", return_value=True) as mock_run:
-            with patch("os.path.exists", return_value=True):
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    recipe.download_and_build(tmpdir, {}, {})
-
-        # Find the make call
-        make_call = next((c for c in mock_run.call_args_list if "make" in str(c)), None)
-        self.assertIsNotNone(make_call, "make command not found in calls")
-        cmd = make_call.args[0]  # first positional arg is the command list
-        # No single token should contain both 'mpicc' and '-fcommon'
-        bad_tokens = [t for t in cmd if "mpicc" in t and "-fcommon" in t]
-        self.assertEqual(
-            bad_tokens,
-            [],
-            f"'mpicc -fcommon' must be split into separate tokens, found: {bad_tokens}",
-        )
