@@ -40,6 +40,18 @@ class TestSlurmNodelistUnset(unittest.TestCase):
                     engine._run_worker(config, {}, tmpdir)
         self.assertIn("SLURM_NODELIST", str(ctx.exception))
 
+    def test_local_scheduler_uses_localhost_when_nodelist_absent(self):
+        """CRAB_SCHEDULER=local must bypass the SLURM_NODELIST requirement and use a single
+        'localhost' node instead of raising or calling scontrol."""
+        engine = _make_engine()
+        config = {"global_options": {}, "experiments": {}}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(os.environ, {}, clear=True):
+                with patch("subprocess.run") as mock_scontrol:
+                    engine._run_worker(config, {"CRAB_SCHEDULER": "local"}, tmpdir)
+                mock_scontrol.assert_not_called()
+        engine.log.info.assert_any_call("Allocated 1 node(s)")
+
     def test_scontrol_nonzero_exit_raises(self):
         """If scontrol exits non-zero the worker must raise, not silently leave an empty file."""
         engine = _make_engine()

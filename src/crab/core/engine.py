@@ -322,15 +322,20 @@ class Engine:
 
         node_file = os.path.join(output_dir, "worker_nodelist.txt")
         try:
-            nodelist = os.environ.get("SLURM_NODELIST")
-            if not nodelist:
-                raise RuntimeError(
-                    "SLURM_NODELIST is not set — are you running inside a Slurm allocation?"
-                )
-            with open(node_file, "w") as f:
-                subprocess.run(["scontrol", "show", "hostnames", nodelist], stdout=f, check=True)
-            nodes_df = pandas.read_csv(node_file, header=None)
-            full_node_list = nodes_df.iloc[:, 0].tolist()
+            if os.environ.get("CRAB_SCHEDULER") == "local":
+                full_node_list = ["localhost"]
+            else:
+                nodelist = os.environ.get("SLURM_NODELIST")
+                if not nodelist:
+                    raise RuntimeError(
+                        "SLURM_NODELIST is not set — are you running inside a Slurm allocation?"
+                    )
+                with open(node_file, "w") as f:
+                    subprocess.run(
+                        ["scontrol", "show", "hostnames", nodelist], stdout=f, check=True
+                    )
+                nodes_df = pandas.read_csv(node_file, header=None)
+                full_node_list = nodes_df.iloc[:, 0].tolist()
             self.log.info(f"Allocated {len(full_node_list)} node(s)")
 
             global_opts = config.get("global_options", {})
