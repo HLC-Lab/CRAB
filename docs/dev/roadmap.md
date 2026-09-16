@@ -125,6 +125,15 @@ whether the unused HDF output option is fixed or dropped (dropping is simpler).
   management, first-class multi-version apps.
 - **Engine features**: per-experiment partition override, single-node sequential reuse,
   checkpointing, prolog/epilog hooks, live log streaming, live job detail view.
+- **A real local (no-Slurm) execution backend.** A narrow `CRAB_SCHEDULER=local` patch
+  (dev/testing only, not documented) exists on the `sbatchman` branch: `crab run`/`status`/
+  `cancel`/`logs`/`history` work with no Slurm installed by running the worker as a detached
+  local subprocess instead of `sbatch`. It is single-process only (no multi-node/MPI) and adds
+  ad hoc branches next to the Slurm path rather than a real abstraction. A proper version is a
+  genuine scheduler interface with Slurm and Local as real implementations (replacing the
+  hardcoded `sbatch`/`squeue`/`sacct`/`scancel`/`scontrol` calls in `core/engine.py` and
+  `cli/contract.py`), documented and held to the same bar as the Slurm path, with multi-node
+  simulation considered.
 - **Topology awareness and provenance**: record placement and environment per run;
   placement strategies that use topology.
 - **TUI removal**, after one release of deprecation.
