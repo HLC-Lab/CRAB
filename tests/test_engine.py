@@ -300,5 +300,124 @@ class TestOnlyExperimentFilter(unittest.TestCase):
         self.assertEqual(set(written["experiments"].keys()), {"ex1", "ex2"})
 
 
+# ---------------------------------------------------------------------------
+# CRAB_SCHEDULER=local: skip sbatch, submit as a detached local subprocess
+# (plan 087, dev/testing-only no-Slurm path)
+# ---------------------------------------------------------------------------
+
+
+class TestLocalScheduler(unittest.TestCase):
+    def _config(self, tmpdir):
+        return {
+            "global_options": {"numnodes": 1, "ppn": 1, "datapath": tmpdir},
+            "experiments": {},
+        }
+
+    def test_local_scheduler_never_calls_sbatch(self):
+        """CRAB_SCHEDULER=local must never shell out to sbatch."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.check_output") as mock_sbatch:
+                    with patch("subprocess.Popen") as mock_popen:
+                        mock_popen.return_value = MagicMock(pid=12345)
+                        engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+            mock_sbatch.assert_not_called()
+            mock_popen.assert_called_once()
+
+    def test_local_scheduler_returns_pid_as_job_id(self):
+        """The returned job_id must be the spawned subprocess's PID (as a string)."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.Popen") as mock_popen:
+                    mock_popen.return_value = MagicMock(pid=12345)
+                    result = engine._run_orchestrator(
+                        self._config(tmpdir), {"CRAB_SCHEDULER": "local"}
+                    )
+        self.assertEqual(result["job_id"], "12345")
+
+    def test_local_scheduler_writes_state_file(self):
+        """A state file keyed by pid must be written so gather_status/cancel can find it later."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.Popen") as mock_popen:
+                    mock_popen.return_value = MagicMock(pid=54321)
+                    engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+
+            state_path = os.path.join(tmpdir, ".crab_local_jobs", "54321.json")
+            self.assertTrue(os.path.isfile(state_path), "no local job state file written")
+            with open(state_path) as f:
+                state = json.load(f)
+        self.assertEqual(state["pid"], 54321)
+        self.assertIn("data_dir", state)
+
+    def test_local_scheduler_redirects_to_slurm_log_filenames(self):
+        """stdout/stderr must be redirected to the same filenames the Slurm path uses,
+        so gather_logs (engine.py naming contract) needs zero changes for local jobs."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.Popen") as mock_popen:
+                    mock_popen.return_value = MagicMock(pid=1)
+                    result = engine._run_orchestrator(
+                        self._config(tmpdir), {"CRAB_SCHEDULER": "local"}
+                    )
+            _, kwargs = mock_popen.call_args
+            self.assertEqual(
+                os.path.basename(kwargs["stdout"].name),
+                "slurm_output.log",
+            )
+            self.assertEqual(
+                os.path.basename(kwargs["stderr"].name),
+                "slurm_error.log",
+            )
+            self.assertTrue(
+                kwargs["stdout"].name.startswith(result["data_dir"]),
+                "stdout log must live inside the job's own data directory",
+            )
+
+    def test_local_scheduler_captures_exit_code_via_bash_trailer(self):
+        """The command must be wrapped so a later, separate CLI invocation can learn the exit
+        code (a live Popen handle does not survive across CLI invocations)."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.Popen") as mock_popen:
+                    mock_popen.return_value = MagicMock(pid=1)
+                    engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+            args, _ = mock_popen.call_args
+            popen_cmd = args[0]
+        self.assertEqual(popen_cmd[0], "bash")
+        self.assertEqual(popen_cmd[1], "-c")
+        self.assertIn("local_exit_code", popen_cmd[2])
+        self.assertIn("worker --workdir", popen_cmd[2])
+
+    def test_local_scheduler_detaches_the_process(self):
+        """The child must be launched in its own session so it survives the parent exiting."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.Popen") as mock_popen:
+                    mock_popen.return_value = MagicMock(pid=1)
+                    engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+            _, kwargs = mock_popen.call_args
+        self.assertTrue(kwargs.get("start_new_session"))
+
+    def test_slurm_path_unaffected_when_scheduler_unset(self):
+        """Regression: with no CRAB_SCHEDULER, submission must still go through sbatch exactly
+        as before, never through subprocess.Popen."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch(
+                "subprocess.check_output", return_value="Submitted batch job 77"
+            ) as mock_sbatch:
+                with patch("subprocess.Popen") as mock_popen:
+                    engine._run_orchestrator(self._config(tmpdir), {})
+            mock_sbatch.assert_called_once()
+            mock_popen.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
