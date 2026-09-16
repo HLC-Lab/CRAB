@@ -318,6 +318,134 @@ def test_gather_cancel_no_scancel_binary():
 
 
 # --------------------------------------------------------------------------- #
+# status/cancel for CRAB_SCHEDULER=local jobs (plan 087)
+# --------------------------------------------------------------------------- #
+def _write_local_state(crab_root: Path, job_id: str, pid: int, data_dir: Path) -> None:
+    local_jobs_dir = crab_root / ".crab_local_jobs"
+    local_jobs_dir.mkdir(parents=True, exist_ok=True)
+    (local_jobs_dir / f"{job_id}.json").write_text(
+        json.dumps({"pid": pid, "data_dir": str(data_dir), "started_at": "2026-09-16T00:00:00"})
+    )
+
+
+def test_gather_status_local_job_running(tmp_path: Path):
+    import subprocess
+
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    proc = subprocess.Popen(["sleep", "5"])
+    try:
+        _write_local_state(tmp_path, "999", proc.pid, data_dir)
+
+        data = contract.gather_status(["999"], crab_root=tmp_path)
+
+        job = data["jobs"][0]
+        assert job == {"job_id": "999", "state": "RUNNING", "source": "local"}
+    finally:
+        proc.terminate()
+        proc.wait()
+
+
+def test_gather_status_local_job_completed(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("0\n")
+    _write_local_state(tmp_path, "111", pid=999999, data_dir=data_dir)
+
+    data = contract.gather_status(["111"], crab_root=tmp_path)
+
+    job = data["jobs"][0]
+    assert job == {"job_id": "111", "state": "COMPLETED", "exit_code": "0", "source": "local"}
+
+
+def test_gather_status_local_job_failed(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("1\n")
+    _write_local_state(tmp_path, "112", pid=999999, data_dir=data_dir)
+
+    data = contract.gather_status(["112"], crab_root=tmp_path)
+
+    job = data["jobs"][0]
+    assert job == {"job_id": "112", "state": "FAILED", "exit_code": "1", "source": "local"}
+
+
+def test_gather_status_mixes_local_and_slurm_job_ids():
+    """A local job id and a real Slurm job id in the same call must each resolve correctly and
+    preserve request order; the fake runner only ever sees the non-local id."""
+    import tempfile
+
+    def fake_runner(cmd: list[str]) -> str:
+        if cmd[0] == "squeue":
+            assert "222" not in ",".join(cmd)  # local id must never reach squeue
+            return "555|RUNNING\n"
+        raise AssertionError(cmd)
+
+    with tempfile.TemporaryDirectory() as crab_root_str:
+        crab_root = Path(crab_root_str)
+        data_dir = crab_root / "job_data"
+        data_dir.mkdir()
+        (data_dir / "local_exit_code").write_text("0\n")
+        _write_local_state(crab_root, "222", pid=999999, data_dir=data_dir)
+
+        data = contract.gather_status(["222", "555"], runner=fake_runner, crab_root=crab_root)
+
+    assert [j["job_id"] for j in data["jobs"]] == ["222", "555"]
+    states = {j["job_id"]: j for j in data["jobs"]}
+    assert states["222"]["source"] == "local"
+    assert states["555"]["source"] == "squeue"
+
+
+def test_gather_cancel_local_job_kills_the_process(tmp_path: Path):
+    import subprocess
+    import time
+
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    proc = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    _write_local_state(tmp_path, "333", proc.pid, data_dir)
+
+    data = contract.gather_cancel("333", crab_root=tmp_path)
+
+    assert data == {
+        "schema": contract.CONTRACT_SCHEMA,
+        "job_id": "333",
+        "cancelled": True,
+        "detail": None,
+    }
+    for _ in range(50):
+        if proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    assert proc.poll() is not None, "local cancel must actually terminate the process"
+
+
+def test_gather_cancel_local_job_already_gone(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    _write_local_state(tmp_path, "444", pid=999999, data_dir=data_dir)
+
+    data = contract.gather_cancel("444", crab_root=tmp_path)
+
+    assert data["cancelled"] is False
+    assert data["job_id"] == "444"
+    assert data["detail"]
+
+
+def test_gather_cancel_falls_through_for_non_local_job_id(tmp_path: Path):
+    """A job id with no local state file must still go through the real scancel path."""
+    calls = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        calls.append(cmd)
+        return ""
+
+    data = contract.gather_cancel("123", runner=fake_runner, crab_root=tmp_path)
+    assert calls == [["scancel", "123"]]
+    assert data["cancelled"] is True
+
+
+# --------------------------------------------------------------------------- #
 # logs (slurm_output.log / slurm_error.log in a job's data_dir)
 # --------------------------------------------------------------------------- #
 def test_gather_logs_reads_both_files(tmp_path: Path):
