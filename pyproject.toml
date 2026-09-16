@@ -72,8 +72,10 @@ target-version = "py310"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
-# E/F/W core, I import order, UP modernize, B bugbear.
-select = ["E", "F", "W", "I", "UP", "B"]
+# E/F/W core, I import order, UP modernize, B bugbear, FA future-annotations
+# (catches bare `X | Y` used without `from __future__ import annotations`, which
+# crashes on import below Python 3.10 -- see commit d702342 and its follow-up fix).
+select = ["E", "F", "W", "I", "UP", "B", "FA"]
 ignore = [
     "E501",  # long lines: the formatter handles code; prose/URLs in strings stay readable
 ]

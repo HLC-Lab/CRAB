@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -50,7 +52,7 @@ def load_environment_config(preset_arg: str) -> dict[str, Any]:
     return {"env": final_env, "sbatch": final_sbatch, "header": final_header}
 
 
-def _parse_log_level(raw: str) -> "LogLevel":
+def _parse_log_level(raw: str) -> LogLevel:
     """Convert a CLI string to a LogLevel, defaulting to INFO."""
     from crab.log import LogLevel
 
