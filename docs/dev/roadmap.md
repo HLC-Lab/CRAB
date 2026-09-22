@@ -34,17 +34,23 @@ standalone export (after v1.0).
 
 CRAB and [SbatchMan](https://github.com/LorenzoPichetti/SbatchMan) stay independent,
 fully standalone tools, with an agreed division of labor for teams using both:
-downloading and compiling benchmarks is CRAB's recipe system; scheduler configuration and
-job submission are SbatchMan's; a SbatchMan job can generate a CRAB experiment JSON and
-run the CRAB worker inside the allocation it obtained; parsing stays in CRAB's wrappers;
-plotting and inspection happen in CRAB's web dashboard.
+downloading and compiling benchmarks is CRAB's recipe system; scheduler configuration,
+job submission, monitoring, and results visualization are SbatchMan's, end to end, through
+its own CLI/TUI/dashboard. A SbatchMan job runs the CRAB worker inside the allocation it
+obtained (`crab worker --workdir`), sourcing its execution environment from whatever the
+partner's own SbatchMan preset already exports rather than a CRAB-written file (ADR-027);
+parsing stays in CRAB's wrappers. CRAB's dashboard has no SbatchMan launch, monitoring, or
+results view (ADR-026) — its only SbatchMan-facing feature, on the dedicated `sbatchman`
+branch, is authoring a campaign and generating and pushing the jobs YAML that wires the two
+tools together (ADR-025/027); everything downstream of that YAML, including plotting and
+inspection, is SbatchMan's own job.
 
 Before v1.0, CRAB ships its half of that boundary as ordinary standalone features (they
 are useful without SbatchMan): a worker entrypoint that runs a config inside an existing
 allocation, a versioned and validated experiment-JSON schema, result parsing callable as a
 library, and a dashboard mode that reads a plain local results directory with no SSH or
-cluster profile. The actual adapter work (reading SbatchMan's store, launching the
-dashboard from SbatchMan) comes after v1.0.
+cluster profile. Reading SbatchMan's own job store from CRAB's dashboard remains
+after-v1.0, not-yet-committed scope (see "After v1.0" below).
 
 A separate, project-specific SbatchMan integration (2026-09, tracked on its own `sbatchman`
 branch, see ADR-026 in the dashboard decisions) surfaced a real gap: standalone CRAB has no
