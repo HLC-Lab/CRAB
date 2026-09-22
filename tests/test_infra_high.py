@@ -102,6 +102,61 @@ class TestWorkerCwdResolution(unittest.TestCase):
             self.assertNotIn("__CWD__", passed_env["CRAB_ROOT"])
 
 
+class TestWorkerEnvironmentSourcing(unittest.TestCase):
+    """Plan 089 / ADR-027: crab worker sources its environment from environment.json when
+    present (CRAB's own orchestrator/sbatch path, unchanged) or falls back to the real process
+    environment when absent (the SbatchMan-launched case, which inherits sbatchman launch's own
+    environment plus whatever the partner's preset exported at `configure` time)."""
+
+    def test_environment_json_present_is_used_unchanged(self):
+        """Regression guard: when environment.json exists, behavior must not change."""
+        from crab.cli.orchestrator import execute_worker
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, "config.json"), "w") as f:
+                json.dump({"global_options": {"numnodes": "2"}, "experiments": {}}, f)
+            with open(os.path.join(tmpdir, "environment.json"), "w") as f:
+                json.dump({"CRAB_ROOT": "/from/file", "CRAB_SYSTEM": "test"}, f)
+
+            with (
+                patch.dict(os.environ, {"CRAB_ROOT": "/from/process/env"}, clear=False),
+                patch("crab.core.engine.Engine.run", return_value={}) as mock_run,
+            ):
+                execute_worker(tmpdir)
+
+            mock_run.assert_called_once()
+            passed_env = mock_run.call_args.kwargs.get("environment")
+            self.assertEqual(passed_env["CRAB_ROOT"], "/from/file")
+            self.assertEqual(passed_env["CRAB_SYSTEM"], "test")
+
+    def test_environment_json_absent_falls_back_to_process_environment(self):
+        """No environment.json -> execution_env is sourced from the real process environment."""
+        from crab.cli.orchestrator import execute_worker
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, "config.json"), "w") as f:
+                json.dump({"global_options": {"numnodes": "2"}, "experiments": {}}, f)
+            # Deliberately no environment.json written.
+
+            fake_env = {
+                "CRAB_ROOT": "/inherited/root",
+                "CRAB_SYSTEM": "leonardo",
+                "CRAB_PATH_WRAPPERS": "/inherited/root/wrappers",
+                "SBATCHMAN_JOB_DIR": tmpdir,
+            }
+            with (
+                patch.dict(os.environ, fake_env, clear=True),
+                patch("crab.core.engine.Engine.run", return_value={}) as mock_run,
+            ):
+                execute_worker(tmpdir)
+
+            mock_run.assert_called_once()
+            passed_env = mock_run.call_args.kwargs.get("environment")
+            self.assertEqual(passed_env["CRAB_ROOT"], "/inherited/root")
+            self.assertEqual(passed_env["CRAB_SYSTEM"], "leonardo")
+            self.assertEqual(passed_env["CRAB_PATH_WRAPPERS"], "/inherited/root/wrappers")
+
+
 # ── Logger ────────────────────────────────────────────────────────────────────
 
 
