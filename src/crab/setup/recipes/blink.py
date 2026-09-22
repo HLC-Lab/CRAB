@@ -30,7 +30,7 @@ class BlinkRecipe(BenchmarkRecipe):
         env: dict[str, str],
         log_callback: Callable[[str, str], None] | None = None,
     ) -> tuple[bool, BuildResult | None, str]:
-        repo_url = "https://github.com/SharkGamerZ/blink-clean.git"
+        repo_url = "https://github.com/HLC-Lab/blink.git"
         if not self.run_command_streamed(
             ["git", "clone", repo_url, target_dir], ".", "Cloning Repository...", env, log_callback
         ):

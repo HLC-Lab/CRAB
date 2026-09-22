@@ -5,7 +5,7 @@ can obtain and build them and generate a [receipt](../glossary.md#receipt) autom
 
 | Benchmark | `benchmark_id` | Source | Built binary | Launcher |
 |-----------|----------------|--------|--------------|----------|
-| **Blink Suite** | `blink` | [SharkGamerZ/blink-clean](https://github.com/SharkGamerZ/blink-clean) | `bin/` (e.g. `ping-pong_b`) | cluster default |
+| **Blink Suite** | `blink` | [HLC-Lab/blink](https://github.com/HLC-Lab/blink) | `bin/` (e.g. `ping-pong_b`) | cluster default |
 | **Graph500** | `g500` | [graph500/graph500](https://github.com/graph500/graph500) | `src/graph500_reference_bfs` | cluster default |
 | **Quantum ESPRESSO v6** | `qe-v6` | [QEF/q-e](https://gitlab.com/QEF/q-e) (tag `qe-6.8`) | `bin/pw.x` | `mpirun` (override) |
 | **Quantum ESPRESSO v7** | `qe-v7` | [QEF/q-e](https://gitlab.com/QEF/q-e) | `bin/pw.x` | `mpirun` (override) |
