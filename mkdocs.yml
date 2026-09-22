@@ -69,6 +69,7 @@ nav:
       - Running an experiment: using/running.md
       - Writing experiment configs: using/writing-configs.md
       - Reading results: using/results.md
+      - Using CRAB with SbatchMan: using/sbatchman-integration.md
   - Extending CRAB:
       - Overview: extending/overview.md
       - Writing a wrapper: extending/wrappers.md
