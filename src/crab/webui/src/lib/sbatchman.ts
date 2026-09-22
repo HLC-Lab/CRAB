@@ -2,11 +2,18 @@
 // suite can import it, mirroring lib/config.ts.
 //
 // It turns a CampaignSpec into a SbatchMan jobs YAML (`sbatchman launch -f`). Each
-// group becomes one `jobs:` entry whose `preprocess` writes environment.json +
-// config.json into $SBATCHMAN_JOB_DIR and whose `command` runs the CRAB worker
-// inside the allocation SbatchMan obtained. The cartesian expansion of `variables`
-// and the `{var}` substitution are done by SbatchMan at launch time (core/launcher.py,
+// group becomes one `jobs:` entry whose `preprocess` writes config.json into
+// $SBATCHMAN_JOB_DIR and whose `command` runs the CRAB worker inside the allocation
+// SbatchMan obtained. The cartesian expansion of `variables` and the `{var}`
+// substitution are done by SbatchMan at launch time (core/launcher.py,
 // core/variables.py); this module only PREVIEWS the product and emits the templates.
+//
+// ADR-027: this module does NOT write environment.json. `crab worker` falls back to
+// the inherited process environment when no environment.json exists in the workdir --
+// CRAB_ROOT/CRAB_SYSTEM/CRAB_PATH_WRAPPERS/SBATCHMAN_JOB_DIR must instead be exported
+// by the partner's own SbatchMan preset (`sbatchman configure --env ...`, documented
+// in docs/using/sbatchman-integration.md), not generated here. config.json still gets
+// heredoc'd -- it is per-job sweep data, not a static preset value.
 //
 // The embedded CRAB JSON keeps its `{var}` placeholders literal — SbatchMan's own
 // substitution regex ignores `{` followed by whitespace, so JSON object braces are
@@ -35,11 +42,14 @@ export interface SbatchmanGroup {
 export interface SbatchmanCampaign {
   /** SbatchMan presets file, referenced by the jobs YAML `configs:` key. */
   configsPath: string;
-  /** Remote CRAB checkout dir -> environment.json CRAB_ROOT (resolved, no __CWD__). */
+  /** Remote CRAB checkout dir. Reference only (ADR-027): not written to any generated
+   * file -- put it in the SbatchMan preset's `--env CRAB_ROOT=...` instead. */
   crabRoot: string;
-  /** CRAB_SYSTEM recorded in environment.json. */
+  /** CRAB_SYSTEM. Reference only (ADR-027): put it in the SbatchMan preset's
+   * `--env CRAB_SYSTEM=...` instead. */
   system: string;
-  /** Extra environment entries merged into environment.json (optional). */
+  /** Extra environment entries. Reference only (ADR-027): put these in the SbatchMan
+   * preset's `--env` list instead -- nothing here is written to a generated file. */
   env: Record<string, string>;
   /** Campaign-global variables (merged into every group). */
   variables: SbatchmanVar[];
@@ -136,15 +146,12 @@ function yamlList(values: Array<string | number>): string {
   return `[${values.map(yamlListItem).join(", ")}]`;
 }
 
-/** The bash heredoc lines (at column 0) that write the two JSON files. The caller
- * indents the whole block; YAML dedents it back so the heredoc bodies and their
- * `JSON` terminators land at column 0 for bash. */
-function preprocessLines(campaign: SbatchmanCampaign, group: SbatchmanGroup): string[] {
-  const environment = {
-    CRAB_ROOT: campaign.crabRoot,
-    CRAB_SYSTEM: campaign.system,
-    ...campaign.env,
-  };
+/** The bash heredoc lines (at column 0) that write config.json. The caller indents
+ * the whole block; YAML dedents it back so the heredoc body and its `JSON`
+ * terminator land at column 0 for bash. ADR-027: environment.json is NOT written
+ * here -- `crab worker` falls back to the inherited process environment when no
+ * environment.json exists in the workdir. */
+function preprocessLines(_campaign: SbatchmanCampaign, group: SbatchmanGroup): string[] {
   const heredoc = (relPath: string, json: string): string[] => [
     `cat > "${WORKDIR}/${relPath}" <<'JSON'`,
     ...json.split("\n"),
@@ -152,7 +159,6 @@ function preprocessLines(campaign: SbatchmanCampaign, group: SbatchmanGroup): st
   ];
   return [
     `mkdir -p "${WORKDIR}"`,
-    ...heredoc("environment.json", JSON.stringify(environment, null, 2)),
     ...heredoc("config.json", JSON.stringify(group.config, null, 2)),
   ];
 }

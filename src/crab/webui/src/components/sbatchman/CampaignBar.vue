@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // Campaign-level settings: the SbatchMan configs.yaml reference, the remote
-// CRAB checkout (environment.json's CRAB_ROOT), CRAB_SYSTEM, extra
-// environment entries, and the campaign-wide sweep variables (a group's own
-// variables of the same name override these — see lib/sbatchman.ts).
+// CRAB checkout, CRAB_SYSTEM, extra environment entries, and the campaign-wide
+// sweep variables (a group's own variables of the same name override these —
+// see lib/sbatchman.ts). ADR-027: CRAB_ROOT/CRAB_SYSTEM/env below are reference
+// values for the partner's own SbatchMan preset — nothing here is written into
+// a generated file; put them in `sbatchman configure --env ...` instead.
 import { computed } from "vue";
 import type { EnvPair } from "@/stores/sbatchman";
 import type { SbatchmanVar } from "@/lib/sbatchman";
@@ -49,7 +51,7 @@ function removeEnv(i: number) {
         placeholder="e.g. /home/user/CRAB"
         @input="emit('update:crabRoot', ($event.target as HTMLInputElement).value)"
       />
-      <small>Becomes environment.json's CRAB_ROOT.</small>
+      <small>Reference only: put this in your SbatchMan preset's `--env CRAB_ROOT=...`.</small>
     </label>
     <label
       >CRAB_SYSTEM
@@ -58,12 +60,16 @@ function removeEnv(i: number) {
         placeholder="cluster preset name"
         @input="emit('update:system', ($event.target as HTMLInputElement).value)"
       />
-      <small>Recorded in environment.json.</small>
+      <small>Reference only: put this in your SbatchMan preset's `--env CRAB_SYSTEM=...`.</small>
     </label>
   </div>
 
   <div class="env-section">
     <div class="seclabel">Environment</div>
+    <p class="hint">
+      Reference only: not written to any generated file. Put these in your SbatchMan preset's
+      `--env` list instead.
+    </p>
     <div v-for="(p, i) in env" :key="i" class="env-row">
       <input v-model="p.key" placeholder="KEY" />
       <input v-model="p.value" placeholder="value" />

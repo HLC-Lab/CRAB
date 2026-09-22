@@ -148,10 +148,13 @@ describe("composeCampaignYaml", () => {
     expect(cfg.experiments["g500_baseline_20_8_8"]).toBeDefined();
     expect(cfg.experiments["g500_baseline_20_8_8"].apps["0"].args).toBe("-scale 20 -ef 8");
     expect(cfg.global_options.numnodes).toBe("8");
+  });
 
-    // environment.json carries a concrete CRAB_ROOT (no __CWD__).
-    const env = JSON.parse(heredocBody(expanded, "environment.json"));
-    expect(env.CRAB_ROOT).toBe("/leonardo/home/user/CRAB");
-    expect(env.CRAB_SYSTEM).toBe("leonardo");
+  it("never writes environment.json (ADR-027: env comes from the partner's SbatchMan preset)", () => {
+    const doc = yaml.load(composeCampaignYaml(campaign())) as any;
+    const pre: string = doc.jobs[0].preprocess;
+    expect(pre).not.toContain("environment.json");
+    // Only one heredoc (config.json) -- exactly two "JSON" terminator lines would mean two files.
+    expect(pre.match(/^JSON$/gm)?.length).toBe(1);
   });
 });
