@@ -95,15 +95,25 @@ def execute_worker(work_dir: str, log_level_str: str = None):
         with open(config_file) as f:
             benchmark_config = json.load(f)
 
-        with open(env_file) as f:
-            execution_env = json.load(f)
+        # environment.json is written by CRAB's own orchestrator/sbatch path (execute_orchestrator's
+        # preprocess step); when present, load and use it exactly as before. When absent -- the
+        # SbatchMan-launched case (ADR-027) -- the worker's command already inherited the entire
+        # environment of whoever ran `sbatchman launch`, plus anything the partner's SbatchMan
+        # preset exported at `configure` time, so fall back to that instead of requiring a
+        # CRAB-written env file.
+        if os.path.exists(env_file):
+            with open(env_file) as f:
+                execution_env = json.load(f)
+        else:
+            execution_env = dict(os.environ)
 
         # Resolve the __CWD__ placeholder (presets.json uses it for CRAB_ROOT) that the
         # orchestrator path substitutes but the worker path historically skipped. Without
         # this, CRAB_ROOT reaches the engine as the literal string "__CWD__" and every
         # wrapper that builds paths off os.environ["CRAB_ROOT"] silently breaks. This is
         # what lets the worker run inside an externally-obtained (e.g. SbatchMan) allocation
-        # from a hand-written environment.json.
+        # from a hand-written environment.json, or (ADR-027) from the inherited process
+        # environment when no environment.json exists.
         execution_env = prepare_execution_environment(execution_env)
 
         logger.info("Environment loaded, starting engine")
