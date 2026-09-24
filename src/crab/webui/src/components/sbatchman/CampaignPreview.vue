@@ -14,6 +14,8 @@ const props = defineProps<{
   destination: string;
   busy: boolean;
   error: string | null;
+  /** validateCampaign output; Write stays disabled while it is non-empty. */
+  issues: string[];
   lastWrite: SbatchmanWriteResult | null;
 }>();
 const emit = defineEmits<{
@@ -53,10 +55,23 @@ async function copyYaml() {
         </select>
       </label>
 
+      <div v-if="issues.length" class="issues">
+        <p class="issues-title">
+          {{ issues.length }} thing{{ issues.length === 1 ? "" : "s" }} to fix before writing
+        </p>
+        <ul>
+          <li v-for="msg in issues" :key="msg">{{ msg }}</li>
+        </ul>
+      </div>
+
       <p v-if="error" class="banner err">{{ error }}</p>
 
       <div class="actions">
-        <button class="btn" :disabled="busy || !destination" @click="emit('write')">
+        <button
+          class="btn"
+          :disabled="busy || !destination || issues.length > 0"
+          @click="emit('write')"
+        >
           {{ busy ? "Writing…" : "Write files" }}
         </button>
       </div>
@@ -168,6 +183,19 @@ select {
   background: rgba(245, 101, 101, 0.12);
   color: var(--danger);
   border: 1px solid var(--danger);
+}
+.issues {
+  font-size: var(--t-sm);
+  color: var(--warn);
+}
+.issues-title {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+.issues ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text2);
 }
 .out {
   font-size: var(--t-sm);

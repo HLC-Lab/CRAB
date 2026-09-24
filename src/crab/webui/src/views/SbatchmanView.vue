@@ -136,6 +136,7 @@ function confirmRemoveGroup(): void {
         :destination="store.destination"
         :busy="store.busy"
         :error="store.error"
+        :issues="store.issues"
         :last-write="store.lastWrite"
         @update:destination="store.destination = $event"
         @write="store.write"

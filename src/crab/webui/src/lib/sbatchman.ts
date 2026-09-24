@@ -21,6 +21,7 @@
 
 import yaml from "js-yaml";
 import type { CrabConfig } from "@/api/types";
+import { fromConfig, validateDraft } from "@/lib/config";
 
 /** A sweep variable: a name and the list of values SbatchMan will expand. */
 export interface SbatchmanVar {
@@ -208,4 +209,53 @@ export function composeCampaignYaml(campaign: SbatchmanCampaign): string {
   });
   // lineWidth -1: never fold long lines (the preprocess script must stay verbatim).
   return yaml.dump(doc, { lineWidth: -1, noRefs: true });
+}
+
+// -- Validation ---------------------------------------------------------------
+
+function varIssues(vars: SbatchmanVar[], where: string): string[] {
+  const issues: string[] = [];
+  const seen = new Set<string>();
+  for (const v of vars) {
+    const name = v.name.trim();
+    if (!name) {
+      issues.push(`${where}: a variable has no name.`);
+      continue;
+    }
+    if (seen.has(name)) issues.push(`${where}: "${name}" is defined twice.`);
+    seen.add(name);
+    if (!v.values.length) issues.push(`${where}: variable "${name}" has no values.`);
+  }
+  return issues;
+}
+
+/** Everything that would make the generated YAML fail at `sbatchman launch` or give the
+ * CRAB worker a bad config. Each group's experiment is checked the way the engine gets
+ * it: config.json with the first variable combination substituted, then validateDraft. */
+export function validateCampaign(campaign: SbatchmanCampaign): string[] {
+  const issues = varIssues(campaign.variables, "Campaign variables");
+  campaign.groups.forEach((group, i) => {
+    const where = `Group "${group.tag.trim() || `#${i + 1}`}"`;
+    issues.push(...varIssues(group.variables, where));
+    if (!group.preset.trim()) issues.push(`${where}: set the SbatchMan config it runs with.`);
+
+    const defined = new Set(effectiveVars(campaign, group).map((v) => v.name.trim()));
+    const unknown = [...usedNames(group)].filter((n) => !defined.has(n));
+    for (const n of unknown) issues.push(`${where}: {${n}} is not a defined variable.`);
+    if (unknown.length) return; // the experiment can't be checked with unresolved tokens
+
+    const combo = cartesian(usedVars(campaign, group))[0] ?? {};
+    let config: unknown;
+    try {
+      config = JSON.parse(substitute(configJson(group.config), combo));
+    } catch {
+      issues.push(
+        `${where}: a variable value makes config.json invalid (a text value in a numeric field?).`,
+      );
+      return;
+    }
+    for (const issue of validateDraft(fromConfig(config as CrabConfig)))
+      issues.push(`${where}: ${issue}`);
+  });
+  return issues;
 }

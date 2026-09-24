@@ -15,6 +15,7 @@ import {
   groupJobCount,
   sampleTags,
   type SbatchmanCampaign,
+  validateCampaign,
 } from "@/lib/sbatchman";
 
 function campaign(): SbatchmanCampaign {
@@ -213,5 +214,55 @@ describe("composeCampaignYaml", () => {
     expect(cfg.experiments["g500_baseline_20_8_8"].local_options.allocation.seed).toBe(7);
     // Other string fields keep their quotes (numnodes stays a string, as in every config).
     expect(cfg.global_options.numnodes).toBe("8");
+  });
+});
+
+describe("validateCampaign (plan 090 S11d)", () => {
+  it("a well-formed campaign has no issues", () => {
+    expect(validateCampaign(campaign())).toEqual([]);
+  });
+
+  it("flags blank, duplicate and empty variables", () => {
+    const c = campaign();
+    c.variables.push({ name: " ", values: [1] });
+    c.variables.push({ name: "scale", values: [28] });
+    c.groups[0].variables.push({ name: "empty", values: [] });
+    const issues = validateCampaign(c);
+    expect(issues).toContain("Campaign variables: a variable has no name.");
+    expect(issues).toContain('Campaign variables: "scale" is defined twice.');
+    expect(issues).toContain(
+      'Group "g500_baseline_{scale}_{ef}_{nodes}": variable "empty" has no values.',
+    );
+  });
+
+  it("flags a {token} that no variable defines", () => {
+    const c = campaign();
+    c.groups[0].tag = "run_{typo}";
+    expect(validateCampaign(c)).toContain('Group "run_{typo}": {typo} is not a defined variable.');
+  });
+
+  it("flags a group with no SbatchMan config name", () => {
+    const c = campaign();
+    c.groups[0].preset = " ";
+    expect(validateCampaign(c)).toContain(
+      'Group "g500_baseline_{scale}_{ef}_{nodes}": set the SbatchMan config it runs with.',
+    );
+  });
+
+  it("validates the CRAB experiment as the engine receives it, after substitution", () => {
+    const c = campaign();
+    const app = c.groups[0].config.experiments["g500_baseline_{scale}_{ef}_{nodes}"].apps["0"];
+    app.path = "";
+    const issues = validateCampaign(c);
+    expect(issues.some((i) => i.includes("wrapper path is required"))).toBe(true);
+  });
+
+  it("flags a variable value that breaks a numeric field", () => {
+    const c = campaign();
+    c.groups[0].config.global_options.allocation = { mode: "interleaved", stride: "{stride}" };
+    c.groups[0].variables.push({ name: "stride", values: ["wide"] });
+    expect(validateCampaign(c)).toContain(
+      'Group "g500_baseline_{scale}_{ef}_{nodes}": a variable value makes config.json invalid (a text value in a numeric field?).',
+    );
   });
 });

@@ -16,6 +16,7 @@ import {
   sampleTags,
   type SbatchmanCampaign,
   type SbatchmanVar,
+  validateCampaign,
 } from "@/lib/sbatchman";
 
 function msg(e: unknown): string {
@@ -134,6 +135,9 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   const yaml = computed(() => composeCampaignYaml(campaign.value));
   const totalJobs = computed(() => campaignJobCount(campaign.value));
+  // Problems that would break `sbatchman launch` or the CRAB worker; write() refuses
+  // while any exist (plan 090 S11d).
+  const issues = computed(() => validateCampaign(campaign.value));
 
   function jobsForGroup(i: number): number {
     const c = campaign.value;
@@ -261,6 +265,11 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
       error.value = "Choose a connected cluster to write to first.";
       return false;
     }
+    if (issues.value.length) {
+      const n = issues.value.length;
+      error.value = `Fix the ${n} issue${n === 1 ? "" : "s"} listed in the preview before writing.`;
+      return false;
+    }
     busy.value = true;
     try {
       lastWrite.value = await api.sbatchman.write(destination.value, yaml.value, name.value);
@@ -291,6 +300,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     campaign,
     yaml,
     totalJobs,
+    issues,
     jobsForGroup,
     tagSamples,
     write,

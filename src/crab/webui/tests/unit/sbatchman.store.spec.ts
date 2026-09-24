@@ -33,7 +33,7 @@ vi.mock("@/api/client", () => ({
 
 import { ApiError, api } from "@/api/client";
 import type { CampaignEntry } from "@/api/types";
-import { emptyDraft, emptyExperiment } from "@/lib/config";
+import { emptyApp, emptyDraft, emptyExperiment } from "@/lib/config";
 import { type CampaignSpec, type GroupState, useSbatchmanStore } from "@/stores/sbatchman";
 
 const listMock = vi.mocked(api.sbatchman.campaigns.list);
@@ -42,6 +42,7 @@ const createMock = vi.mocked(api.sbatchman.campaigns.create);
 const updateMock = vi.mocked(api.sbatchman.campaigns.update);
 const duplicateMock = vi.mocked(api.sbatchman.campaigns.duplicate);
 const removeMock = vi.mocked(api.sbatchman.campaigns.remove);
+const writeMock = vi.mocked(api.sbatchman.write);
 
 function group(tag: string): GroupState {
   const draft = emptyDraft();
@@ -75,6 +76,7 @@ beforeEach(() => {
   updateMock.mockReset();
   duplicateMock.mockReset();
   removeMock.mockReset();
+  writeMock.mockReset();
   vi.useFakeTimers();
 });
 
@@ -208,5 +210,40 @@ describe("sbatchman store: campaign library", () => {
 
     expect(ok).toBe(false);
     expect(store.error).toBe("Disk full.");
+  });
+});
+
+describe("sbatchman store: write is gated on validation (plan 090 S11d)", () => {
+  function makeValid(store: ReturnType<typeof useSbatchmanStore>): void {
+    const g = store.groups[0];
+    g.tag = "run";
+    g.preset = "cpu";
+    g.draft.numnodes = "2";
+    const app = emptyApp();
+    app.path = "blink/a2a_b.py";
+    g.draft.experiments[0].apps.push(app);
+  }
+
+  it("a fresh campaign reports issues and write() refuses without calling the API", async () => {
+    const store = useSbatchmanStore();
+    store.destination = "cluster-a";
+
+    expect(store.issues.length).toBeGreaterThan(0);
+    const ok = await store.write();
+
+    expect(ok).toBe(false);
+    expect(writeMock).not.toHaveBeenCalled();
+    expect(store.error).toMatch(/issue/);
+  });
+
+  it("a valid campaign writes", async () => {
+    writeMock.mockResolvedValueOnce({ path: "/remote/x.yaml" } as never);
+    const store = useSbatchmanStore();
+    store.destination = "cluster-a";
+    makeValid(store);
+
+    expect(store.issues).toEqual([]);
+    expect(await store.write()).toBe(true);
+    expect(writeMock).toHaveBeenCalledOnce();
   });
 });
