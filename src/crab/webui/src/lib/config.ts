@@ -127,6 +127,14 @@ export function emptyPartition(name = ""): PartitionDraft {
 
 const RESERVED_PARTITION_KEYS = new Set(["share"]);
 
+// An exact `{name}` token (a SbatchMan sweep variable) is kept as a string so the
+// campaign generator can place it; anything else goes through Number() as before.
+const PLACEHOLDER = /^\{\w+\}$/;
+function numOrToken(raw: string): number | string {
+  const s = raw.trim();
+  return PLACEHOLDER.test(s) ? s : Number(s);
+}
+
 /**
  * Build the `allocation` object, or undefined when there is no content. Pass
  * `force` for a per-experiment override, where even a bare `{mode:"linear"}` is
@@ -138,8 +146,8 @@ export function toAllocation(
 ): Record<string, unknown> | undefined {
   if (!force && !hasAllocation(a)) return undefined;
   const out: Record<string, unknown> = { mode: a.mode };
-  if (a.mode === "interleaved" && a.stride.trim()) out.stride = Number(a.stride.trim());
-  if (a.mode === "random" && a.seed.trim()) out.seed = Number(a.seed.trim());
+  if (a.mode === "interleaved" && a.stride.trim()) out.stride = numOrToken(a.stride);
+  if (a.mode === "random" && a.seed.trim()) out.seed = numOrToken(a.seed);
 
   if (a.by === "groups") {
     const partitions: Record<string, unknown> = {};
@@ -147,15 +155,15 @@ export function toAllocation(
       const key = p.name.trim();
       if (!key) continue;
       const entry: Record<string, unknown> = { ...p.rest };
-      if (p.share.trim()) entry.share = Number(p.share.trim());
+      if (p.share.trim()) entry.share = numOrToken(p.share);
       partitions[key] = entry;
     }
     if (Object.keys(partitions).length) out.partitions = partitions;
   } else if (a.split.trim()) {
     out.split = a.split
       .split(",")
-      .map((s) => Number(s.trim()))
-      .filter((n) => !Number.isNaN(n));
+      .map(numOrToken)
+      .filter((n) => typeof n === "string" || !Number.isNaN(n));
   }
   return out;
 }
