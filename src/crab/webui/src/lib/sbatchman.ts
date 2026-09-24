@@ -144,6 +144,42 @@ function varsObject(vars: SbatchmanVar[]): Record<string, Array<string | number>
   return out;
 }
 
+// -- Numeric placeholders in config.json ---------------------------------------
+//
+// The engine uses allocation numerics raw (core/allocation/allocator.py compares
+// `stride < 1`), so a `{var}` in those positions must be written UNQUOTED in the
+// heredoc: `"stride": {stride}` becomes `"stride": 4` after SbatchMan substitutes it.
+// Everywhere else a placeholder stays inside its JSON string.
+
+const NUMERIC_ALLOC_KEYS = new Set(["stride", "seed", "share"]);
+const TOKEN = /^\{(\w+)\}$/;
+const SENTINEL = (name: string) => `@@crab-num:${name}@@`;
+const SENTINEL_QUOTED = /"@@crab-num:(\w+)@@"/g;
+
+function asSentinel(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  const m = TOKEN.exec(v);
+  return m ? SENTINEL(m[1]) : v;
+}
+
+/** Copy of `node` where numeric-position tokens under any `allocation` are sentinels. */
+function markNumericTokens(node: unknown, inAllocation = false): unknown {
+  if (Array.isArray(node)) return node.map((x) => markNumericTokens(x, inAllocation));
+  if (!node || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if (inAllocation && NUMERIC_ALLOC_KEYS.has(k)) out[k] = asSentinel(v);
+    else if (inAllocation && k === "split" && Array.isArray(v)) out[k] = v.map(asSentinel);
+    else out[k] = markNumericTokens(v, inAllocation || k === "allocation");
+  }
+  return out;
+}
+
+/** config.json text, with numeric-position placeholders unquoted. */
+function configJson(config: CrabConfig): string {
+  return JSON.stringify(markNumericTokens(config), null, 2).replace(SENTINEL_QUOTED, "{$1}");
+}
+
 /** The bash heredoc lines (at column 0) that write config.json. They become one
  * YAML block scalar, so the heredoc body and its `JSON` terminator reach bash at
  * column 0. ADR-027: environment.json is NOT written
@@ -155,10 +191,7 @@ function preprocessLines(_campaign: SbatchmanCampaign, group: SbatchmanGroup): s
     ...json.split("\n"),
     "JSON",
   ];
-  return [
-    `mkdir -p "${WORKDIR}"`,
-    ...heredoc("config.json", JSON.stringify(group.config, null, 2)),
-  ];
+  return [`mkdir -p "${WORKDIR}"`, ...heredoc("config.json", configJson(group.config))];
 }
 
 /** Compose the full SbatchMan jobs YAML for a campaign. */

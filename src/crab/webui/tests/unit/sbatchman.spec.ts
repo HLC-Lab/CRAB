@@ -181,4 +181,37 @@ describe("composeCampaignYaml", () => {
     const doc = yaml.load(composeCampaignYaml(c)) as ParsedDoc;
     expect(doc.variables.n).toEqual([8, 16, "abc"]);
   });
+
+  it("numeric allocation placeholders reach the engine as numbers (plan 090 S11c)", () => {
+    // The engine uses stride/seed/share/split raw (core/allocation/allocator.py
+    // compares `stride < 1`), so "{stride}" must not substitute into the string "4".
+    const c = campaign();
+    c.groups[0].config.global_options.allocation = {
+      mode: "interleaved",
+      stride: "{stride}",
+      split: ["{left}", 50],
+      partitions: { g1: { share: "{s1}" } },
+    };
+    c.groups[0].config.experiments["g500_baseline_{scale}_{ef}_{nodes}"].local_options = {
+      allocation: { mode: "random", seed: "{seed}" },
+    };
+    const pre = (yaml.load(composeCampaignYaml(c)) as ParsedDoc).jobs[0].preprocess;
+    const vars = {
+      scale: "20",
+      ef: "8",
+      nodes: "8",
+      stride: "4",
+      left: "50",
+      s1: "100",
+      seed: "7",
+    };
+    const cfg = JSON.parse(heredocBody(substituteAll(pre, vars), "config.json"));
+    const alloc = cfg.global_options.allocation;
+    expect(alloc.stride).toBe(4);
+    expect(alloc.split).toEqual([50, 50]);
+    expect(alloc.partitions.g1.share).toBe(100);
+    expect(cfg.experiments["g500_baseline_20_8_8"].local_options.allocation.seed).toBe(7);
+    // Other string fields keep their quotes (numnodes stays a string, as in every config).
+    expect(cfg.global_options.numnodes).toBe("8");
+  });
 });
