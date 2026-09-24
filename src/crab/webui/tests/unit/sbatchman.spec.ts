@@ -53,6 +53,12 @@ function campaign(): SbatchmanCampaign {
   };
 }
 
+/** The parts of a parsed jobs YAML the robustness tests read. */
+interface ParsedDoc {
+  variables: Record<string, unknown[]>;
+  jobs: Array<{ tag: string; preprocess: string }>;
+}
+
 /** Replace `{name}` tokens the way SbatchMan does (object braces are untouched). */
 function substituteAll(text: string, vars: Record<string, string>): string {
   return text.replace(/\{(\w+)\}/g, (m, name) => (name in vars ? vars[name] : m));
@@ -156,5 +162,23 @@ describe("composeCampaignYaml", () => {
     expect(pre).not.toContain("environment.json");
     // Only one heredoc (config.json) -- exactly two "JSON" terminator lines would mean two files.
     expect(pre.match(/^JSON$/gm)?.length).toBe(1);
+  });
+
+  it("stays valid YAML whatever the user types in names and values (plan 090 S11b)", () => {
+    const c = campaign();
+    c.variables.push({ name: "", values: [1] });
+    c.variables.push({ name: "a: b #c", values: ["x: y", "it's", '"q"', "- dash"] });
+    c.groups[0].tag = "tag: with # specials";
+    const doc = yaml.load(composeCampaignYaml(c)) as ParsedDoc;
+    expect(doc.variables[""]).toEqual([1]);
+    expect(doc.variables["a: b #c"]).toEqual(["x: y", "it's", '"q"', "- dash"]);
+    expect(doc.jobs[0].tag).toBe("tag: with # specials");
+  });
+
+  it("keeps numeric strings as numbers in variable lists, like the old emitter", () => {
+    const c = campaign();
+    c.variables = [{ name: "n", values: ["8", 16, "abc"] }];
+    const doc = yaml.load(composeCampaignYaml(c)) as ParsedDoc;
+    expect(doc.variables.n).toEqual([8, 16, "abc"]);
   });
 });
