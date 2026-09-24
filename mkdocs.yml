@@ -85,6 +85,7 @@ nav:
       - Web dashboard architecture: dev/dashboard/architecture.md
       - Testing & verification: dev/dashboard/testing.md
       - Roadmap: dev/roadmap.md
+      - Roadmap, July 2026 edition: dev/roadmap-2026-07-streams.md
       - Web dashboard milestones: dev/dashboard/roadmap.md
       - Deferred work: dev/dashboard/deferred.md
       - Decision records: dev/dashboard/decisions/index.md
