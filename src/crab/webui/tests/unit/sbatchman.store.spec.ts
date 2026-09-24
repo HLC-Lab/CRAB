@@ -247,3 +247,55 @@ describe("sbatchman store: write is gated on validation (plan 090 S11d)", () => 
     expect(writeMock).toHaveBeenCalledOnce();
   });
 });
+
+describe("sbatchman store: older saved specs and stale write results (plan 090 S11g)", () => {
+  it("open() fills in fields an older saved spec does not have", async () => {
+    // A spec saved before env/variables/draft options existed.
+    getMock.mockResolvedValueOnce({
+      id: "old",
+      name: "old campaign",
+      updated_at: "2026-09-01T00:00:00+00:00",
+      spec: {
+        configsPath: "",
+        groups: [{ tag: "t", draft: { numnodes: "2", experiments: [{ name: "run" }] } }],
+      },
+    });
+    const store = useSbatchmanStore();
+
+    await store.open("old");
+
+    expect(store.error).toBeNull();
+    expect(store.env).toEqual([{ key: "", value: "" }]);
+    expect(store.variables).toEqual([]);
+    const g = store.groups[0];
+    expect(g.preset).toBe("");
+    expect(g.variables).toEqual([]);
+    expect(g.draft.options).toEqual(emptyDraft().options);
+    expect(g.draft.experiments[0].apps).toEqual([]);
+    expect(typeof store.yaml).toBe("string");
+  });
+
+  it("a group saved with no experiment gets one, so the editor has something to show", async () => {
+    getMock.mockResolvedValueOnce(entry({ spec: { groups: [{ tag: "t" }] } }));
+    const store = useSbatchmanStore();
+
+    await store.open("a2a-baseline");
+
+    expect(store.error).toBeNull();
+    expect(store.groups[0].tag).toBe("t");
+    expect(store.groups[0].draft.experiments).toHaveLength(1);
+  });
+
+  it("newCampaign and open clear the last write result", async () => {
+    writeMock.mockResolvedValue({ remote_path: "/r/x.yaml", local_path: "/l/x.yaml" } as never);
+    const store = useSbatchmanStore();
+    store.lastWrite = { remote_path: "/r/x.yaml", local_path: "/l/x.yaml" } as never;
+    store.newCampaign();
+    expect(store.lastWrite).toBeNull();
+
+    store.lastWrite = { remote_path: "/r/x.yaml", local_path: "/l/x.yaml" } as never;
+    getMock.mockResolvedValueOnce(entry());
+    await store.open("a2a-baseline");
+    expect(store.lastWrite).toBeNull();
+  });
+});

@@ -8,7 +8,16 @@ import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
 import { api, ApiError } from "@/api/client";
 import type { CampaignEntry, SbatchmanWriteResult } from "@/api/types";
-import { type Draft, emptyDraft, emptyExperiment, toConfig } from "@/lib/config";
+import {
+  type Draft,
+  emptyAllocation,
+  emptyApp,
+  emptyDraft,
+  emptyExperiment,
+  emptyOptions,
+  emptySbatch,
+  toConfig,
+} from "@/lib/config";
 import {
   campaignJobCount,
   composeCampaignYaml,
@@ -54,6 +63,50 @@ export interface CampaignSpec {
   variables: SbatchmanVar[];
   groups: GroupState[];
 }
+
+// A saved spec is opaque to the backend and may predate fields added since
+// (plan 090 S11g): fill every missing piece from the current empty shapes.
+/* eslint-disable @typescript-eslint/no-explicit-any -- walking untyped saved JSON */
+function normalizeDraft(raw: any): Draft {
+  const d = raw && typeof raw === "object" ? raw : {};
+  const experiments = Array.isArray(d.experiments) ? d.experiments : [];
+  const draft: Draft = {
+    ...emptyDraft(),
+    ...d,
+    allocation: { ...emptyAllocation(), ...d.allocation },
+    options: { ...emptyOptions(), ...d.options },
+    sbatch: { ...emptySbatch(), ...d.sbatch },
+    experiments: experiments.map((e: any) => ({
+      ...emptyExperiment(),
+      ...e,
+      allocation: { ...emptyAllocation(), ...e?.allocation },
+      options: { ...emptyOptions(), ...e?.options },
+      apps: (Array.isArray(e?.apps) ? e.apps : []).map((a: any) => ({ ...emptyApp(), ...a })),
+    })),
+  };
+  if (!draft.experiments.length) draft.experiments.push(emptyExperiment("run"));
+  return draft;
+}
+
+function normalizeSpec(raw: unknown): CampaignSpec {
+  const s = (raw && typeof raw === "object" ? raw : {}) as any;
+  const list = (v: unknown): any[] => (Array.isArray(v) ? v : []);
+  const str = (v: unknown): string => (typeof v === "string" ? v : "");
+  return {
+    configsPath: str(s.configsPath),
+    crabRoot: str(s.crabRoot),
+    system: str(s.system),
+    env: list(s.env).map((p) => ({ key: str(p?.key), value: str(p?.value) })),
+    variables: list(s.variables).map((v) => ({ name: str(v?.name), values: list(v?.values) })),
+    groups: list(s.groups).map((g) => ({
+      tag: str(g?.tag),
+      preset: str(g?.preset),
+      variables: list(g?.variables).map((v) => ({ name: str(v?.name), values: list(v?.values) })),
+      draft: normalizeDraft(g?.draft),
+    })),
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export const useSbatchmanStore = defineStore("sbatchman", () => {
   const name = ref("campaign");
@@ -184,6 +237,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     entryId.value = null;
     name.value = "campaign";
     _load({ configsPath: "", crabRoot: "", system: "", env: [], variables: [], groups: [] });
+    lastWrite.value = null;
     error.value = null;
     notice.value = null;
   }
@@ -196,8 +250,9 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
       const entry = await api.sbatchman.campaigns.get(id);
       entryId.value = entry.id;
       name.value = entry.name;
+      lastWrite.value = null;
       // `entry.spec` is opaque to the backend; this store owns the shape.
-      _load(entry.spec as unknown as CampaignSpec);
+      _load(normalizeSpec(entry.spec));
     } catch (e) {
       error.value = msg(e);
     } finally {
