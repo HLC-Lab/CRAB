@@ -265,4 +265,11 @@ describe("validateCampaign (plan 090 S11d)", () => {
       'Group "g500_baseline_{scale}_{ef}_{nodes}": a variable value makes config.json invalid (a text value in a numeric field?).',
     );
   });
+
+  it("names an untagged group by position, without quotes", () => {
+    const c = campaign();
+    c.groups[0].tag = "";
+    c.groups[0].preset = "";
+    expect(validateCampaign(c)).toContain("Group #1: set the SbatchMan config it runs with.");
+  });
 });

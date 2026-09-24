@@ -235,7 +235,7 @@ function varIssues(vars: SbatchmanVar[], where: string): string[] {
 export function validateCampaign(campaign: SbatchmanCampaign): string[] {
   const issues = varIssues(campaign.variables, "Campaign variables");
   campaign.groups.forEach((group, i) => {
-    const where = `Group "${group.tag.trim() || `#${i + 1}`}"`;
+    const where = group.tag.trim() ? `Group "${group.tag.trim()}"` : `Group #${i + 1}`;
     issues.push(...varIssues(group.variables, where));
     if (!group.preset.trim()) issues.push(`${where}: set the SbatchMan config it runs with.`);
 
