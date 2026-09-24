@@ -95,7 +95,9 @@ At run time CRAB resolves which preset to use in this order:
 1. The `-p`/`--preset` flag: `crab run myconfig.json -p mycluster`
 2. The `CRAB_PRESET` environment variable
 3. A `.env` file in the working directory containing just the preset name
-4. Falls back to `local`
+
+If none of these names a preset, `crab run` stops with an error. It never picks one for you;
+to run without Slurm, ask for it explicitly with `-p local`.
 
 The `_common` block in `config/presets.json` is merged underneath every preset — put truly
 universal settings there (it already defines `CRAB_ROOT` and `CRAB_PATH_WRAPPERS`). The special

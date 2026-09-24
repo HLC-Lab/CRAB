@@ -181,7 +181,12 @@ def execute_orchestrator(
                 selected_preset = f.read().strip()
 
         if not selected_preset:
-            selected_preset = "local"
+            # Never fall back to a default: "local" skips Slurm, so a forgotten -p on a
+            # cluster would run the benchmarks on the login node.
+            raise ValueError(
+                "No preset selected. Pass -p <preset> or set CRAB_PRESET "
+                "(use -p local to run without Slurm)."
+            )
 
         logger.info(f"Loading preset '{selected_preset}'")
 
