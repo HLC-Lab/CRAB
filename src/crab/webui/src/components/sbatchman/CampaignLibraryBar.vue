@@ -50,9 +50,23 @@ const removeLibraryTarget = ref<{ id: string; name: string } | null>(null);
 function requestRemoveLibraryEntry(id: string, name: string): void {
   removeLibraryTarget.value = { id, name };
 }
+// Deleting the campaign that is open in the editor also resets the editor, so
+// unsaved edits would go with it: say so in the confirmation (plan 090 S11f).
+const removeMessage = computed(() => {
+  const t = removeLibraryTarget.value;
+  if (!t) return "";
+  const base = `Delete “${t.name}”? This cannot be undone.`;
+  return t.id === store.entryId && store.isDirty
+    ? `${base} It is open in the editor with unsaved changes, which will be lost too.`
+    : base;
+});
 async function confirmRemoveLibraryEntry(): Promise<void> {
-  if (removeLibraryTarget.value) await store.removeCampaign(removeLibraryTarget.value.id);
+  const t = removeLibraryTarget.value;
   removeLibraryTarget.value = null;
+  if (!t) return;
+  const wasOpen = t.id === store.entryId;
+  await store.removeCampaign(t.id);
+  if (wasOpen && store.entryId === null) emit("new"); // only if it was really removed
 }
 
 // Discard-unsaved-changes guard for "+ New" and "Browse…", gated on real
@@ -172,7 +186,7 @@ function confirmDiscard(): void {
   <ConfirmModal
     v-if="removeLibraryTarget"
     title="Delete this campaign?"
-    :message="`Delete “${removeLibraryTarget.name}”? This cannot be undone.`"
+    :message="removeMessage"
     confirm-label="Delete"
     @confirm="confirmRemoveLibraryEntry"
     @cancel="removeLibraryTarget = null"
