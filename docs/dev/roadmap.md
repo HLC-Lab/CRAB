@@ -52,6 +52,13 @@ library, and a dashboard mode that reads a plain local results directory with no
 cluster profile. Reading SbatchMan's own job store from CRAB's dashboard remains
 after-v1.0, not-yet-committed scope (see "After v1.0" below).
 
+A separate, project-specific SbatchMan integration (2026-09, tracked on its own `sbatchman`
+branch, see ADR-026 in the dashboard decisions) surfaced a real gap: standalone CRAB has no
+native way to sweep a range of values across experiments, and currently leans on SbatchMan's
+own `variables:` cartesian expansion for that. Closing this natively — a variable-sweep
+mechanism over experiment fields, so standalone CRAB does not depend on SbatchMan for
+parameter sweeps — is needed but not yet scoped; pick it up as its own stream when planned.
+
 ## Work remaining before v1.0
 
 In execution order. Each stream is sized to land independently.

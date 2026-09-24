@@ -165,6 +165,19 @@ def handle_setup(args):
     run_wizard()
 
 
+def _local_install_args(extra: str, root=None) -> list[str] | None:
+    """pip command installing this checkout with an optional extra, or None if there is none.
+
+    Never `pip install crab[...]`: `crab` on PyPI is an unrelated package.
+    """
+    if root is None:
+        # cli -> crab -> src -> checkout root
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    if not os.path.isfile(os.path.join(root, "pyproject.toml")):
+        return None
+    return [sys.executable, "-m", "pip", "install", "-e", f"{root}[{extra}]"]
+
+
 def handle_tui(args):
     """
     Handles the TUI launch with lazy loading and auto-installation
@@ -188,16 +201,18 @@ def handle_tui(args):
         if confirm == "y":
             print(f"[*] Installing 'textual' and 'textual-fspicker' into {sys.prefix}...")
             try:
-                # We use sys.executable to ensure we install into the active .venv
-                # We call 'pip install' on the local package with the [tui] extra
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "crab[tui]"])
+                # sys.executable installs into the active .venv, from this checkout
+                install_args = _local_install_args("tui")
+                if install_args is None:
+                    raise RuntimeError("no CRAB checkout found to install from")
+                subprocess.check_call(install_args)
                 print("[+] Installation successful. Launching TUI...")
 
                 # Re-attempt the import now that the environment is populated
                 from crab.tui.app import BenchmarkApp
             except Exception as e:
                 print(f"[ERROR] Auto-installation failed: {e}")
-                print("Please run 'pip install -e .[tui]' manually to fix this.")
+                print("Please run 'pip install -e .[tui]' from your CRAB checkout to fix this.")
                 return
         else:
             print("Aborting. The TUI requires optional dependencies to run.")
@@ -228,12 +243,15 @@ def handle_web(args):
         if confirm == "y":
             print(f"[*] Installing web dependencies into {sys.prefix}...")
             try:
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "crab[web]"])
+                install_args = _local_install_args("web")
+                if install_args is None:
+                    raise RuntimeError("no CRAB checkout found to install from")
+                subprocess.check_call(install_args)
                 print("[+] Installation successful. Launching dashboard...")
                 from crab.web.run import run_server
             except Exception as e:
                 print(f"[ERROR] Auto-installation failed: {e}")
-                print("Please run 'pip install -e .[web]' manually to fix this.")
+                print("Please run 'pip install -e .[web]' from your CRAB checkout to fix this.")
                 return
         else:
             print("Aborting. The web dashboard requires optional dependencies to run.")
