@@ -194,7 +194,7 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
     except ImportError as e:
         raise RemoteConnectionError(
             "SSH support isn't installed in this environment ('asyncssh' is missing). "
-            'Install it with `pip install "crab[web]"` and restart `crab web`.'
+            'Install it with `pip install -e ".[web]"` from your CRAB checkout and restart `crab web`.'
         ) from e
 
     if not profile.host:
