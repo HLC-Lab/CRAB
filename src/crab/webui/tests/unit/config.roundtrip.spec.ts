@@ -22,6 +22,7 @@ import {
   fromAllocation,
   fromConfig,
   normalizeSplitToPartitions,
+  toAllocation,
   toConfig,
   validateDraft,
 } from "@/lib/config";
@@ -332,6 +333,27 @@ const fixtures: { name: string; config: AnyObj }[] = [
       },
     },
   },
+  {
+    // SbatchMan campaigns (plan 090 S11a): an exact {name} token in a numeric
+    // allocation field must survive as-is, not become NaN -> null.
+    name: "allocation numerics: {var} placeholders in stride, seed, share",
+    config: {
+      global_options: {
+        numnodes: "{nodes}",
+        allocation: {
+          mode: "interleaved",
+          stride: "{stride}",
+          partitions: { g1: { share: "{s1}" }, g2: { share: "{s2}" } },
+        },
+      },
+      experiments: {
+        ex1: {
+          local_options: { allocation: { mode: "random", seed: "{seed}" } },
+          apps: { 0: { path: "a.py", args: "", start: "0", end: "", partition: "g1" } },
+        },
+      },
+    },
+  },
 ];
 
 describe("config round-trip (synthetic fixtures)", () => {
@@ -518,5 +540,19 @@ describe("allocationSummary badge math", () => {
     // Loose null check on purpose: the summary leaves these fields unset.
     expect(sum[0].nodes ?? null).toBeNull();
     expect(sum[0].group ?? null).toBeNull();
+  });
+});
+
+describe("allocation placeholders (plan 090 S11a)", () => {
+  it("a by-app split keeps {var} tokens next to numbers, in order", () => {
+    const a = fromAllocation({ mode: "linear" });
+    a.by = "app";
+    a.split = "{left}, 50";
+    expect(toAllocation(a)).toEqual({ mode: "linear", split: ["{left}", 50] });
+  });
+  it("a non-token, non-number value is still not emitted as a string", () => {
+    const a = fromAllocation({ mode: "interleaved" });
+    a.stride = "abc";
+    expect(typeof toAllocation(a)?.stride).not.toBe("string");
   });
 });
