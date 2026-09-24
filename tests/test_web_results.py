@@ -453,14 +453,28 @@ def test_results_index_disconnected_cluster_with_prior_cache_still_lists_its_job
 
 def test_results_index_queries_clusters_in_parallel_not_sequentially(tmp_path: Path):
     """Plan 079: two connected clusters, each slow to answer `crab history`,
-    must be queried concurrently -- wall time should track the SLOWEST one
-    cluster, not the sum of both."""
-    delay = 0.2
+    must be queried concurrently. Checked by overlap, not wall time: each
+    `crab history` call waits for the other one to start, so a sequential
+    index never sees two calls in flight (and would stall until the timeout)."""
+    state = {"in_flight": 0, "peak": 0}
+    both_started: asyncio.Event | None = None
 
     class SlowHistoryTransport(FakeFetchTransport):
         async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            nonlocal both_started
             if "crab history" in command:
-                await asyncio.sleep(delay)
+                if both_started is None:
+                    both_started = asyncio.Event()
+                state["in_flight"] += 1
+                state["peak"] = max(state["peak"], state["in_flight"])
+                if state["in_flight"] >= 2:
+                    both_started.set()
+                try:
+                    await asyncio.wait_for(both_started.wait(), timeout=5.0)
+                except TimeoutError:
+                    pass
+                finally:
+                    state["in_flight"] -= 1
             return await super().run(command, timeout)
 
     async def connector(profile, password):
@@ -474,14 +488,10 @@ def test_results_index_queries_clusters_in_parallel_not_sequentially(tmp_path: P
         client.post("/api/remotes", json={**_leonardo_profile(), "name": "m100"})
         client.post("/api/remotes/m100/connect")
 
-        start = time.monotonic()
         resp = client.get("/api/results")
-        elapsed = time.monotonic() - start
 
     assert resp.status_code == 200
-    # Sequential would take >= 2 * delay; parallel should stay well under
-    # that even with test-machine scheduling slack.
-    assert elapsed < delay * 1.7
+    assert state["peak"] == 2
 
 
 def test_results_index_reraises_an_unexpected_error_instead_of_swallowing_it(tmp_path: Path):
