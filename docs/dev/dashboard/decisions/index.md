@@ -34,3 +34,5 @@ marked superseded, never deleted.
 | [025](adr-025-sbatchman-worker-seam-and-campaign-generator.md) | SbatchMan integration: file-based worker seam, generator not driver | accepted |
 | [026](adr-026-sbatchman-dedicated-branch.md) | SbatchMan work moves to its own dedicated branch, launch removed | accepted |
 | [027](adr-027-sbatchman-seam-v2.md) | SbatchMan worker seam v2: environment inheritance, GitHub-main install | accepted |
+| [028](adr-028-branch-model.md) | Keep `sbatchman` as a long-lived project branch fed by merges from the product line | accepted |
+| [029](adr-029-scheduler-and-launcher.md) | Support Slurm and a local backend before v1.0, launcher separate from scheduler | accepted |
