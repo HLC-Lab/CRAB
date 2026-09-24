@@ -32,7 +32,7 @@ Here is `leonardo`, annotated — it's the recommended starting point for a Slur
         "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/leonardo/.../lib"  // site libraries
     },
     "sbatch": [                              // #SBATCH directives added to every job
-        "--account=IscrC_FOCAL",
+        "--account=<your_account>",
         "--partition=boost_usr_prod",
         "--gres=tmpfs:0"
     ],

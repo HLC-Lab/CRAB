@@ -769,8 +769,8 @@ if __name__ == "__main__":
     leonardo = {
         "name": "leonardo",
         "partition": "boost_usr_prod",
-        "account": "IscrB_SWING",
-        "path": "/leonardo/home/userexternal/lpiarull/CRAB/wrappers/",
+        "account": "<your_account>",
+        "path": "<path/to/CRAB>/wrappers/",
         "sus_nodes": [8, 16, 32, 64, 128],
         "bur_nodes": [128]
     }
@@ -778,8 +778,8 @@ if __name__ == "__main__":
     lumi = {
         "name": "lumi",
         "partition": "standard-g",
-        "account": "project_465001736",
-        "path": "/users/pasqualo/CRAB/wrappers/",
+        "account": "<your_account>",
+        "path": "<path/to/CRAB>/wrappers/",
         "sus_nodes": [8, 16, 32, 64, 128, 256],
         "bur_nodes": [64, 256]
     }
@@ -787,8 +787,8 @@ if __name__ == "__main__":
     cresco8 = {
         "name": "cresco8",
         "partition": "cresco8_cpu",
-        "account": "ssheneaadm",
-        "path": "/afs/enea.it/fra/user/faltelli/CRAB/wrappers/",
+        "account": "<your_account>",
+        "path": "<path/to/CRAB>/wrappers/",
         "sus_nodes": [8, 16, 32, 64, 128, 256],
         "bur_nodes": [64, 128]
     }
