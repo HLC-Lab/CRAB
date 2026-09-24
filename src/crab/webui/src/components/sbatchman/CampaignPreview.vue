@@ -3,7 +3,7 @@
 // layout), plus the destination picker and Write action (plan 084 S8; launch
 // removed in plan 085 — SbatchMan owns launch/monitor/results). Presentational
 // only — the campaign store (owned by SbatchmanView) holds the write state
-// and does the API call.
+// and does the API call; its error/notice banners are rendered by the view.
 import { ref } from "vue";
 import type { SbatchmanWriteResult } from "@/api/types";
 
@@ -13,7 +13,6 @@ const props = defineProps<{
   connectedClusters: string[];
   destination: string;
   busy: boolean;
-  error: string | null;
   /** validateCampaign output; Write stays disabled while it is non-empty. */
   issues: string[];
   lastWrite: SbatchmanWriteResult | null;
@@ -63,8 +62,6 @@ async function copyYaml() {
           <li v-for="msg in issues" :key="msg">{{ msg }}</li>
         </ul>
       </div>
-
-      <p v-if="error" class="banner err">{{ error }}</p>
 
       <div class="actions">
         <button
@@ -172,17 +169,6 @@ select {
 .btn:disabled {
   opacity: 0.5;
   cursor: default;
-}
-.banner {
-  padding: 0.4rem 0.6rem;
-  border-radius: var(--r);
-  font-size: var(--t-sm);
-  margin: 0;
-}
-.banner.err {
-  background: rgba(245, 101, 101, 0.12);
-  color: var(--danger);
-  border: 1px solid var(--danger);
 }
 .issues {
   font-size: var(--t-sm);

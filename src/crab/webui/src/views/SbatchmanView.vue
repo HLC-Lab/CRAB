@@ -71,6 +71,10 @@ function confirmRemoveGroup(): void {
   <section class="sbatchman">
     <CampaignLibraryBar @new="afterNew" @opened="afterOpened" />
 
+    <!-- Page-level so they show even with the YAML preview hidden (plan 090 S11e). -->
+    <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
+    <p v-if="store.notice" class="banner info" role="status">{{ store.notice }}</p>
+
     <header class="toolbar">
       <button class="btn" :class="{ on: view.kind === 'campaign' }" @click="selectCampaign">
         Campaign settings
@@ -135,7 +139,6 @@ function confirmRemoveGroup(): void {
         :connected-clusters="connectedClusters"
         :destination="store.destination"
         :busy="store.busy"
-        :error="store.error"
         :issues="store.issues"
         :last-write="store.lastWrite"
         @update:destination="store.destination = $event"
@@ -168,6 +171,21 @@ function confirmRemoveGroup(): void {
 }
 .spacer {
   flex: 1;
+}
+.banner {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--r);
+  margin: 0 0 1rem;
+}
+.banner.err {
+  background: rgba(245, 101, 101, 0.12);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.banner.info {
+  background: var(--accent-glow);
+  color: var(--text2);
+  border: 1px solid var(--border2);
 }
 .btn {
   background: var(--bg2);
