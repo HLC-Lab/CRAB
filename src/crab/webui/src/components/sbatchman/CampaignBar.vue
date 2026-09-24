@@ -9,6 +9,7 @@ import { computed } from "vue";
 import type { EnvPair } from "@/stores/sbatchman";
 import type { SbatchmanVar } from "@/lib/sbatchman";
 import VariablesEditor from "@/components/sbatchman/VariablesEditor.vue";
+import { rowKey } from "@/lib/rowKey";
 
 const props = defineProps<{
   configsPath: string;
@@ -70,7 +71,7 @@ function removeEnv(i: number) {
       Reference only: not written to any generated file. Put these in your SbatchMan preset's
       `--env` list instead.
     </p>
-    <div v-for="(p, i) in env" :key="i" class="env-row">
+    <div v-for="(p, i) in env" :key="rowKey(p)" class="env-row">
       <input v-model="p.key" placeholder="KEY" />
       <input v-model="p.value" placeholder="value" />
       <button type="button" class="icon-btn danger" title="Remove entry" @click="removeEnv(i)">

@@ -6,6 +6,7 @@
 // string/number split is needed here.
 import { computed } from "vue";
 import type { SbatchmanVar } from "@/lib/sbatchman";
+import { rowKey } from "@/lib/rowKey";
 
 const props = defineProps<{
   variables: SbatchmanVar[];
@@ -31,7 +32,7 @@ function removeVar(i: number) {
 
 <template>
   <div class="vars">
-    <div v-for="(v, i) in variables" :key="i" class="var-row">
+    <div v-for="(v, i) in variables" :key="rowKey(v)" class="var-row">
       <input
         class="name"
         :value="v.name"

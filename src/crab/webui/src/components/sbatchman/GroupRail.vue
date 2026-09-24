@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // Left rail: navigator over campaign groups, mirroring AuthorRail's
 // experiments zone. Selection is owned by the caller (SbatchmanView).
+import { rowKey } from "@/lib/rowKey";
+
 defineProps<{
   groups: Array<{ tag: string }>;
   selected: number;
@@ -23,7 +25,7 @@ const emit = defineEmits<{
       <ul>
         <li
           v-for="(g, i) in groups"
-          :key="i"
+          :key="rowKey(g)"
           :class="{ on: selected === i }"
           @click="emit('select', i)"
         >
