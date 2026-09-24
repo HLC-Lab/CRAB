@@ -33,7 +33,9 @@ CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
 # the feature branch, not master yet. Clone that branch for now. Once it is
 # merged, change this back to the default branch (master) and drop --branch.
 # Tracked in .crab-web-dev/06-pre-v1-todos.md.
-CRAB_REPO_BRANCH = "feature/web-dashboard"
+# On the sbatchman branch this clones `sbatchman` itself, the branch the SbatchMan
+# guide (docs/using/sbatchman-integration.md) tells partners to run on the cluster.
+CRAB_REPO_BRANCH = "sbatchman"
 
 # Clone + build can be slow (network + pip). Generous ceiling; transport.run
 # still maps the timeout to a connection error so the UI never hangs forever.
