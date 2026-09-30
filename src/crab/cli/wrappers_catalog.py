@@ -108,19 +108,28 @@ def _describe(path: Path, folder: Path) -> dict[str, Any]:
 def gather_wrappers() -> dict[str, Any]:
     """Every wrapper along the search path (the first file with a given relpath wins)."""
     from crab.cli.contract import CONTRACT_SCHEMA
+    from crab.core.experiment import wrapper_paths
 
     search = wrapper_search_path()
     seen: set[str] = set()
     wrappers = []
-    for folder_str in search:
-        folder = Path(folder_str)
-        if not folder.is_dir():
-            continue
-        for path in _wrapper_files(folder):
-            rel = str(path.relative_to(folder))
-            if rel not in seen:
-                seen.add(rel)
-                wrappers.append(_describe(path, folder))
+    # A run always has CRAB_ROOT (the presets' _common block sets it); older wrappers build
+    # binary paths from it, so give the listing the same view and restore the environment after.
+    had_root = "CRAB_ROOT" in os.environ
+    os.environ.setdefault("CRAB_ROOT", wrapper_paths._CRAB_ROOT)
+    try:
+        for folder_str in search:
+            folder = Path(folder_str)
+            if not folder.is_dir():
+                continue
+            for path in _wrapper_files(folder):
+                rel = str(path.relative_to(folder))
+                if rel not in seen:
+                    seen.add(rel)
+                    wrappers.append(_describe(path, folder))
+    finally:
+        if not had_root:
+            del os.environ["CRAB_ROOT"]
     return {"schema": CONTRACT_SCHEMA, "search_path": search, "wrappers": wrappers}
 
 

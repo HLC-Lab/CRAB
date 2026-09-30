@@ -157,3 +157,21 @@ def test_new_can_target_the_local_folder_and_refuses_to_overwrite(
     assert (root / "local" / "wrappers" / "draft" / "draft.py").exists()
     code, _, err = _crab(monkeypatch, capsys, "wrappers", "new", "draft", "--local")
     assert code == 2 and "already exists" in err
+
+
+def test_list_sees_crab_root_like_a_run_does(root, monkeypatch, capsys) -> None:
+    """Runs always have CRAB_ROOT (the presets' _common block sets it), so wrappers that
+    build paths from it must not show up as broken in the listing."""
+    monkeypatch.delenv("CRAB_ROOT", raising=False)
+    path = root / "wrappers" / "old" / "envpath.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        "import os\n"
+        "from crab.wrappers.base import base\n\n"
+        "class app(base):\n"
+        "    def get_binary_path(self):\n"
+        "        return os.environ['CRAB_ROOT'] + '/bin/x'\n"
+    )
+    code, out, _ = _crab(monkeypatch, capsys, "wrappers", "list", "--json")
+    entry = {w["relpath"]: w for w in json.loads(out)["wrappers"]}["old/envpath.py"]
+    assert entry["binary"] == {"status": "receipt", "path": f"{root}/bin/x"}
