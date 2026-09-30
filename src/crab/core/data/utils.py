@@ -10,6 +10,8 @@ def check_CI(
 ) -> bool:
     """Checks statistical convergence based on Confidence Intervals (CI)."""
     for container in container_list:
+        if not container.numeric:
+            continue
         if (not container.converged) and (converge_all or container.conv_goal):
             n = len(container.data)
             if n <= 1:
@@ -32,47 +34,50 @@ def check_CI(
     any_target = False
     check = True
     for container in container_list:
-        if converge_all or container.conv_goal:
+        if container.numeric and (converge_all or container.conv_goal):
             any_target = True
             check = check and container.converged
     return check and any_target
 
 
 def log_data(out_format: str, path_prefix: str, data_containers: list[DataContainer]):
-    """Aggregates and saves data to CSV (the only format; config_checks refuses others)."""
-    apps_data = {}
+    """Write one `<prefix>_app_<id>.csv` per app: run_id, msg_size, key columns, then metrics.
+
+    Containers of one app and one key value hold the same number of samples per run
+    (collect_run records whole rows), so they line up sample by sample. csv is the only
+    format; config_checks refuses others.
+    """
+    apps_data: dict[int, list[DataContainer]] = {}
     for container in data_containers:
         apps_data.setdefault(container.app_id, []).append(container)
 
     for app_id, containers in apps_data.items():
-        all_metrics = []
-        app_msg_size = containers[0].msg_size if containers else 0
+        app_msg_size = containers[0].msg_size
 
+        # One frame per key value, in order of first appearance.
+        groups: dict[tuple, list[DataContainer]] = {}
         for container in containers:
-            if not container.data or not container.num_samples:
-                continue
-
-            # Reconstruct run_id column
-            run_ids = []
-            for i, num in enumerate(container.num_samples):
-                run_ids.extend([i + 1] * num)
-
-            # Truncate mismatch
-            min_len = min(len(run_ids), len(container.data))
-            run_ids = run_ids[:min_len]
-            container.data = container.data[:min_len]
-
-            df = pandas.DataFrame({"run_id": run_ids, container.get_title(): container.data})
-            df = df.set_index(["run_id", df.groupby("run_id").cumcount()])
-            all_metrics.append(df)
-
-        if not all_metrics:
+            if container.data:
+                groups.setdefault(container.key, []).append(container)
+        if not groups:
             continue
 
-        dataframe = pandas.concat(all_metrics, axis=1).reset_index()
-        if "level_1" in dataframe.columns:
-            dataframe = dataframe.drop(columns=["level_1"])
+        frames = []
+        for order, (key, members) in enumerate(groups.items()):
+            frame = pandas.DataFrame({"run_id": members[0].run_ids})
+            for position, (key_name, key_value) in enumerate(key, start=1):
+                frame.insert(position, key_name, key_value)
+            for container in members:
+                frame[container.get_title()] = container.data
+            frame["_group"] = order
+            frame["_sample"] = frame.groupby("run_id").cumcount()
+            frames.append(frame)
 
+        dataframe = (
+            pandas.concat(frames, ignore_index=True)
+            .sort_values(["run_id", "_group", "_sample"], kind="stable")
+            .drop(columns=["_group", "_sample"])
+        )
         dataframe.insert(1, "msg_size", app_msg_size)
 
         file_name = f"{path_prefix}_app_{app_id}"

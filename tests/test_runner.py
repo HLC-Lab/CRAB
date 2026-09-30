@@ -26,9 +26,13 @@ class _MockProcess:
 class _MockApp:
     """Minimal app stub for collection-logic testing."""
 
+    _next_id = 0
+
     def __init__(self, collect_flag, returncode, series_list):
         self.collect_flag = collect_flag
-        self.id_num = 0
+        # Apps in one experiment have distinct ids (the runner numbers them in order).
+        self.id_num = _MockApp._next_id
+        _MockApp._next_id += 1
         # Each entry in series_list becomes one metadata slot and one data series
         self.metadata = [
             {"name": f"m{i}", "unit": "s", "conv": True} for i in range(len(series_list))
@@ -42,7 +46,7 @@ class _MockApp:
 
 def _run_collection(apps, containers):
     """The runner's real per-run collection step (core/data/parse.py)."""
-    return collect_run(apps, containers, MagicMock())
+    return collect_run(apps, containers, MagicMock(), run_id=1)
 
 
 # ---------------------------------------------------------------------------

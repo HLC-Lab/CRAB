@@ -20,6 +20,8 @@ class base:
     wrapper_api = 1
     # Metrics read_data returns, in order: [{"name", "unit", "conv"}, ...].
     metadata: list = []
+    # Sweep dimensions each result row carries (e.g. ["size"]); [] for one point per sample.
+    keys: list = []
     # Executable name looked up on PATH when neither the config nor a receipt names a binary.
     executable = ""
 

@@ -10,13 +10,13 @@ import time
 from typing import Any
 
 from crab.core.config_checks import parse_bool
-from crab.core.data.parse import collect_run
+from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
 from crab.log import CrabLogger
 from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
-from ..data import DataContainer, check_CI
+from ..data import check_CI
 from ..process import end_job, run_job
 
 
@@ -194,12 +194,8 @@ class ExperimentRunner:
                     except (ValueError, IndexError):
                         pass
 
-                for meta in app.metadata:
-                    self.data_containers.append(
-                        DataContainer(
-                            app.id_num, meta["conv"], meta["name"], meta["unit"], msg_size
-                        )
-                    )
+                app.msg_size = msg_size
+                self.data_containers.extend(setup_containers(app))
 
     def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""
@@ -446,7 +442,7 @@ class ExperimentRunner:
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
                 # Collect Data: a parse failure fails the run like a non-zero exit.
-                if not collect_run(self.apps, self.data_containers, run_log):
+                if not collect_run(self.apps, self.data_containers, run_log, run_id=runs + 1):
                     run_successful = False
                     if experiment_status != "TIMEOUT":
                         experiment_status = "FAILED"

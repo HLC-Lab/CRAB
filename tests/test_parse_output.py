@@ -33,7 +33,8 @@ class _App:
 
 
 def test_well_formed_data_is_returned() -> None:
-    assert parse_output(_App([[1.0, 2.0], [3, np.float64(4.5)]])) == [[1.0, 2.0], [3, 4.5]]
+    rows = parse_output(_App([[1.0, 2.0], [3, np.float64(4.5)]])).rows
+    assert rows == [{"m0": 1.0, "m1": 3}, {"m0": 2.0, "m1": 4.5}]
 
 
 @pytest.mark.parametrize(
@@ -69,7 +70,7 @@ def test_collect_run_records_good_apps_and_reports_a_bad_one() -> None:
     containers = _containers([good, bad])
     log = MagicMock()
 
-    assert collect_run([good, bad], containers, log) is False
+    assert collect_run([good, bad], containers, log, run_id=1) is False
     assert [c.data for c in containers] == [[1.0], [2.0], [], []]
     assert "app 1" in log.error.call_args[0][0]
 
@@ -77,5 +78,5 @@ def test_collect_run_records_good_apps_and_reports_a_bad_one() -> None:
 def test_collect_run_is_true_when_every_parse_succeeds() -> None:
     app = _App([[1.0, 2.0], [3.0, 4.0]])
     containers = _containers([app])
-    assert collect_run([app], containers, MagicMock()) is True
+    assert collect_run([app], containers, MagicMock(), run_id=1) is True
     assert [c.num_samples for c in containers] == [[2], [2]]

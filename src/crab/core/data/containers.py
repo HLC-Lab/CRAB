@@ -4,8 +4,23 @@ from typing import Any
 class DataContainer:
     """Holds runtime metrics for a specific application."""
 
-    def __init__(self, app_id: int, conv_goal: bool, label: str, unit: str, msg_size: int = 0):
+    def __init__(
+        self,
+        app_id: int,
+        conv_goal: bool,
+        label: str,
+        unit: str,
+        msg_size: int = 0,
+        key: tuple = (),
+        numeric: bool = True,
+    ):
         self.app_id = app_id
+        # ((key_name, value), ...) for one point of a sweep; () for a keyless wrapper.
+        self.key = key
+        # Text/boolean fields are recorded but never used for convergence.
+        self.numeric = numeric
+        # Real run number of each sample in `data`.
+        self.run_ids = []
         self.conv_run = 0
         self.label = label
         self.unit = unit
