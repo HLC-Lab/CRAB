@@ -237,7 +237,7 @@ export interface OptionsDraft {
   convergeall: TriBool;
   alpha: string;
   beta: string;
-  outformat: "" | "csv" | "hdf";
+  outformat: "" | "csv";
   retainFiles: TriBool;
   tags: string;
   extrainfo: string;
@@ -297,7 +297,7 @@ export function readOptions(src: Record<string, unknown>): OptionsDraft {
   o.walltime = str(src.walltime);
   o.datapath = str(src.datapath);
   const fmt = str(src.outformat);
-  o.outformat = fmt === "csv" || fmt === "hdf" ? fmt : "";
+  o.outformat = fmt === "csv" ? fmt : ""; // the engine accepts csv only
   o.convergeall = tri(src.convergeall);
   o.retainFiles = tri(src.retain_files);
   return o;

@@ -12,6 +12,7 @@ from typing import Any
 
 import pandas
 
+from crab.core.config_checks import check_config
 from crab.core.experiment import ExperimentRunner
 from crab.log import CrabLogger
 
@@ -53,6 +54,7 @@ class Engine:
         only: list[str] | None = None,
     ):
         check_config_schema_version(config)
+        check_config(config)
         if is_worker:
             return self._run_worker(config, environment, output_dir)
         else:

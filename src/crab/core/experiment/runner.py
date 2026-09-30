@@ -9,6 +9,7 @@ import signal
 import time
 from typing import Any
 
+from crab.core.config_checks import parse_bool
 from crab.core.data.utils import log_data
 from crab.log import CrabLogger
 
@@ -106,7 +107,7 @@ class ExperimentRunner:
             # Load App Class
             mod_app = load_module(path)
             args = details.get("args", "")
-            collect = details.get("collect", False)
+            collect = parse_bool(details.get("collect", False), "collect")
 
             # Instantiate the app
             app_instance = mod_app.app(idx_counter, collect, args)
@@ -204,7 +205,7 @@ class ExperimentRunner:
         min_runs = int(self.exp_opts.get("minruns", 10))
         max_runs = int(self.exp_opts.get("maxruns", 20))
         timeout = float(self.exp_opts.get("timeout", 1200.0))
-        converge_all = bool(self.exp_opts.get("convergeall", False))
+        converge_all = parse_bool(self.exp_opts.get("convergeall", False), "convergeall")
         alpha = float(self.exp_opts.get("alpha", 0.05))
         beta = float(self.exp_opts.get("beta", 0.05))
 
@@ -446,7 +447,7 @@ class ExperimentRunner:
 
                 # Clean Dirs Policy
                 # Default to True for maximum data safety if the flag is missing
-                retain_files = bool(self.exp_opts.get("retain_files", True))
+                retain_files = parse_bool(self.exp_opts.get("retain_files", True), "retain_files")
 
                 if not retain_files and run_successful:
                     # Target the shared run directory container

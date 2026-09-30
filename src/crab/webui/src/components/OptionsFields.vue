@@ -89,7 +89,6 @@ const retainFilesDisplay = computed({
           <select v-model="outformatDisplay">
             <option value="">{{ isGlobal ? "csv" : "(inherit)" }}</option>
             <option v-if="!isGlobal" value="csv">csv</option>
-            <option value="hdf">hdf</option>
           </select>
         </label>
         <label
