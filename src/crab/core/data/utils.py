@@ -39,7 +39,7 @@ def check_CI(
 
 
 def log_data(out_format: str, path_prefix: str, data_containers: list[DataContainer]):
-    """Aggregates and saves data to CSV or HDF."""
+    """Aggregates and saves data to CSV (the only format; config_checks refuses others)."""
     apps_data = {}
     for container in data_containers:
         apps_data.setdefault(container.app_id, []).append(container)
@@ -78,5 +78,3 @@ def log_data(out_format: str, path_prefix: str, data_containers: list[DataContai
         file_name = f"{path_prefix}_app_{app_id}"
         if out_format == "csv":
             dataframe.to_csv(f"{file_name}.csv", index=False)
-        elif out_format == "hdf":
-            dataframe.to_hdf(f"{file_name}.h5", key="df", index=False)
