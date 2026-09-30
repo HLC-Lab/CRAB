@@ -85,22 +85,32 @@ class base:
     def get_bench_input(self):
         return ""
 
+    def find_binary(self) -> tuple[str | None, str]:
+        """(binary, source): the app's config `binary`, else the receipt, else PATH.
+
+        `source` is "config", "receipt" or "path"; (None, "missing") when nothing gives one.
+        """
+        configured = getattr(self, "binary", None)
+        if configured:
+            return str(configured), "config"
+        from_receipt = self.get_binary_path()
+        if from_receipt:
+            return from_receipt, "receipt"
+        if self.executable:
+            found = shutil.which(self.executable)
+            if found:
+                return found, "path"
+        return None, "missing"
+
     def resolve_binary(self) -> str:
-        """The binary to launch: the app's config `binary`, else the receipt, else PATH.
+        """The binary to launch (see find_binary).
 
         Raises:
             MissingBinaryError: naming every source that was tried.
         """
-        configured = getattr(self, "binary", None)
-        if configured:
-            return str(configured)
-        from_receipt = self.get_binary_path()
-        if from_receipt:
-            return from_receipt
-        if self.executable:
-            found = shutil.which(self.executable)
-            if found:
-                return found
+        binary, _source = self.find_binary()
+        if binary:
+            return binary
 
         tried = ["the app's 'binary' key in the config"]
         if self.benchmark_id:
