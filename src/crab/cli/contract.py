@@ -25,10 +25,10 @@ import json
 import os
 import sys
 from collections.abc import Callable, Iterable
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any
+
+from crab import __version__
 
 # Bump on any breaking change to the shapes below. Reported by `crab info` so
 # the backend can detect laptop<->cluster skew (ContractError).
@@ -40,10 +40,7 @@ _CRAB_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _crab_version() -> str:
-    try:
-        return _pkg_version("crab")
-    except PackageNotFoundError:
-        return "unknown"
+    return __version__
 
 
 # --------------------------------------------------------------------------- #

@@ -11,10 +11,9 @@ import logging
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _pkg_version
 from typing import TYPE_CHECKING
 
+from crab import __version__
 from crab.web.errors import register_exception_handlers
 from crab.web.settings import Settings, get_settings
 
@@ -31,10 +30,7 @@ API_SCHEMA_VERSION = 1
 
 
 def _crab_version() -> str:
-    try:
-        return _pkg_version("crab")
-    except PackageNotFoundError:  # e.g. running from a non-installed checkout
-        return "unknown"
+    return __version__
 
 
 def create_app(
