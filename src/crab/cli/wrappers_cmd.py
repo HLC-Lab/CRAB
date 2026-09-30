@@ -1,4 +1,4 @@
-"""`crab parse` and `crab receipts set`.
+"""`crab parse`, `crab wrappers list|test|new` and `crab receipts set`.
 
 `crab parse` runs a wrapper's parser on saved output through the same checks a real run uses
 (core/data/parse.py), so a sample test, SbatchMan's parser and a CRAB run all read an output the
@@ -43,43 +43,33 @@ def _read(path: str) -> bytes:
     raise AssertionError("unreachable")
 
 
-def _differences(got: list[dict[str, Any]], expected: list[dict[str, Any]]) -> list[str]:
-    lines = []
-    if len(got) != len(expected):
-        lines.append(f"expected {len(expected)} rows, got {len(got)}")
-    for i, (g, e) in enumerate(zip(got, expected, strict=False)):
-        if g != e:
-            lines.append(f"row {i}: expected {e}, got {g}")
-    return lines
-
-
 def handle_parse(args: argparse.Namespace) -> None:
-    from crab.core.data.parse import ParseError, parse_output
-    from crab.core.experiment.wrapper_paths import load_module, resolve_wrapper_path
+    from crab.cli.wrappers_catalog import parse_saved_output
+    from crab.core.data.parse import ParseError
+    from crab.core.experiment.wrapper_paths import resolve_wrapper_path
 
     path = resolve_wrapper_path(args.wrapper)
     if not os.path.isfile(path):
         _fail(f"wrapper not found: {path}")
 
-    app = load_module(path).app(0, True, args.args)
-    for raw in args.set or []:
-        key, value = _setting(raw)
-        setattr(app, key, value)
+    settings = dict(_setting(raw) for raw in args.set or [])
     stderr = _read(args.stderr) if args.stderr else b""
-    app.set_output(_read(args.output), stderr)
-    app.run_dir = os.path.abspath(args.dir or os.path.dirname(args.output) or ".")
-
+    run_dir = args.dir or os.path.dirname(args.output) or "."
     try:
-        parsed = parse_output(app)
+        app, parsed = parse_saved_output(
+            path, _read(args.output), stderr, run_dir, args.args, settings
+        )
     except ParseError as exc:
         _fail(str(exc))
     if parsed.legacy:
         print("crab: note: this wrapper returns the old list-per-metric shape", file=sys.stderr)
 
     if args.check:
+        from crab.cli.wrappers_catalog import row_differences
+
         with open(args.check) as f:
             expected = json.load(f)
-        diffs = _differences(parsed.rows, expected)
+        diffs = row_differences(parsed.rows, expected)
         if diffs:
             for line in diffs:
                 print(line, file=sys.stderr)
@@ -119,6 +109,54 @@ def handle_receipts_set(args: argparse.Namespace) -> None:
         print(f"Saved receipt {args.id!r}: {args.binary}")
 
 
+def handle_wrappers_list(args: argparse.Namespace) -> None:
+    from crab.cli import contract
+    from crab.cli.wrappers_catalog import gather_wrappers
+
+    def human(data: dict[str, Any]) -> None:
+        print("Search path: " + " > ".join(data["search_path"]))
+        for w in data["wrappers"]:
+            if not w["loadable"]:
+                print(f"  {w['relpath']:<40} cannot load: {w['error']}")
+                continue
+            binary = w["binary"]
+            where = f"{binary['status']}: {binary['path']}" if binary["path"] else binary["status"]
+            print(f"  {w['relpath']:<40} binary {where}")
+
+    contract.emit(gather_wrappers(), args.json, human)
+
+
+def handle_wrappers_test(args: argparse.Namespace) -> None:
+    from crab.cli.wrappers_catalog import run_samples
+
+    try:
+        results = run_samples(args.apps or None, args.strict)
+    except LookupError as exc:
+        _fail(str(exc))
+    for r in results:
+        print(f"{r.status}  {r.label}" + (f": {r.detail}" if r.detail else ""))
+    failed = [r for r in results if not r.ok]
+    print(f"{len(results) - len(failed)} ok, {len(failed)} failed")
+    if failed:
+        sys.exit(1)
+
+
+def handle_wrappers_new(args: argparse.Namespace) -> None:
+    from pathlib import Path
+
+    from crab.cli.wrappers_catalog import scaffold
+    from crab.core.experiment.wrapper_paths import wrapper_search_path
+
+    search = wrapper_search_path()
+    target = Path(args.dir or (search[0] if args.local else search[1]))
+    try:
+        wrapper = scaffold(args.app, args.name, target)
+    except ValueError as exc:
+        _fail(str(exc))
+    print(f"Created {wrapper}")
+    print(f"Edit it, replace samples/ with real output, then run: crab wrappers test {args.app}")
+
+
 def register(subparsers: Any) -> None:
     """Add the `parse` and `receipts` commands to the main CLI."""
     parser_parse = subparsers.add_parser(
@@ -146,6 +184,36 @@ def register(subparsers: Any) -> None:
         help="Compare rows with a JSON list; exit 1 on a difference.",
     )
     parser_parse.set_defaults(func=handle_parse)
+
+    parser_wrappers = subparsers.add_parser("wrappers", help="List, test and create wrappers")
+    wrappers_sub = parser_wrappers.add_subparsers(dest="wrappers_command", required=True)
+    parser_list = wrappers_sub.add_parser(
+        "list", help="Wrappers on the search path and their binaries"
+    )
+    parser_list.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser_list.set_defaults(func=handle_wrappers_list)
+    parser_test = wrappers_sub.add_parser("test", help="Run the sample cases of each app")
+    parser_test.add_argument("apps", nargs="*", help="App folders to test (default: all).")
+    parser_test.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail on wrappers with no sample unless listed in unverified.txt.",
+    )
+    parser_test.set_defaults(func=handle_wrappers_test)
+    parser_new = wrappers_sub.add_parser(
+        "new", help="Create a wrapper with a passing example sample"
+    )
+    parser_new.add_argument("app", help="App folder name, e.g. hpl.")
+    parser_new.add_argument(
+        "--name", default=None, help="Wrapper file name (default: the app name)."
+    )
+    parser_new.add_argument(
+        "--local", action="store_true", help="Create it in local/wrappers (private, untracked)."
+    )
+    parser_new.add_argument(
+        "--dir", default=None, help="Create it in this wrappers folder instead."
+    )
+    parser_new.set_defaults(func=handle_wrappers_new)
 
     parser_receipts = subparsers.add_parser("receipts", help="Manage benchmark receipts")
     receipts_sub = parser_receipts.add_subparsers(dest="receipts_command", required=True)

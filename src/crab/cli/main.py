@@ -281,7 +281,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,receipts}",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts}",
     )
     subparsers.required = True
 
@@ -384,7 +384,7 @@ def cli_router():
     )
     parser_export.set_defaults(func=handle_export)
 
-    # 7. Wrapper tooling: crab parse, crab receipts
+    # 7. Wrapper tooling: crab parse, crab wrappers, crab receipts
     from crab.cli import wrappers_cmd
 
     wrappers_cmd.register(subparsers)
