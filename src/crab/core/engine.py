@@ -12,10 +12,34 @@ from typing import Any
 
 import pandas
 
+from crab.core.config_checks import check_config
 from crab.core.experiment import ExperimentRunner
+from crab.core.provenance import write_provenance
 from crab.log import CrabLogger
 
 CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+# Version of the config.json format this engine reads. A config without the field predates it
+# and is version 1. Bump only with a migration for the previous version.
+CONFIG_SCHEMA_VERSION = 1
+
+
+def check_config_schema_version(config: dict[str, Any]) -> None:
+    """Refuse a config written for a newer or unknown config format.
+
+    Raises:
+        ValueError: if `schema_version` is present but not an integer >= 1, or newer than this engine.
+    """
+    if "schema_version" not in config:
+        return
+    version = config["schema_version"]
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError(f"schema_version must be an integer of at least 1, got {version!r}")
+    if version > CONFIG_SCHEMA_VERSION:
+        raise ValueError(
+            f"This config has schema_version {version}, but this CRAB reads up to "
+            f"{CONFIG_SCHEMA_VERSION}. Run `crab update` on this machine."
+        )
 
 
 class Engine:
@@ -30,6 +54,8 @@ class Engine:
         output_dir: str = None,
         only: list[str] | None = None,
     ):
+        check_config_schema_version(config)
+        check_config(config)
         if is_worker:
             return self._run_worker(config, environment, output_dir)
         else:
@@ -339,6 +365,7 @@ class Engine:
                 nodes_df = pandas.read_csv(node_file, header=None)
                 full_node_list = nodes_df.iloc[:, 0].tolist()
             self.log.info(f"Allocated {len(full_node_list)} node(s)")
+            write_provenance(output_dir, config, full_node_list)
 
             global_opts = config.get("global_options", {})
             experiments = config.get("experiments", {})

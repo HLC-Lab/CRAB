@@ -177,6 +177,12 @@ class SSHTransport(Transport):
             pass
 
 
+# Upper bound for opening an SSH connection (TCP + handshake + auth). A login node that
+# accepts TCP but never answers would otherwise hang the connect, and every connect queued
+# behind the connection manager's lock.
+CONNECT_TIMEOUT_S = 30.0
+
+
 async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTransport:
     """Open an asyncssh connection for ``profile``, mapping failures to our errors.
 
@@ -232,7 +238,12 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
         opts["client_keys"] = []
 
     try:
-        conn = await asyncssh.connect(**opts)
+        conn = await asyncio.wait_for(asyncssh.connect(**opts), timeout=CONNECT_TIMEOUT_S)
+    except asyncio.TimeoutError as exc:  # not the builtin TimeoutError on Python 3.10
+        raise RemoteConnectionError(
+            f"Timed out connecting to {profile.host}:{profile.port} after "
+            f"{CONNECT_TIMEOUT_S:.0f}s. The login node may be down or overloaded; try again.",
+        ) from exc
     except asyncssh.PermissionDenied as exc:
         raise AuthError(
             "Authentication was rejected by the cluster. For Leonardo, your "

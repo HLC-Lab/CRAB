@@ -442,6 +442,24 @@ describe("split -> partitions normalization (ADR-007, semantic equivalence)", ()
   });
 });
 
+describe("output format (csv only)", () => {
+  it("does not re-emit hdf, which the engine refuses", () => {
+    const d = fromConfig({ global_options: { numnodes: "2", outformat: "hdf" }, experiments: {} });
+    expect("outformat" in toConfig(d).global_options).toBe(false);
+  });
+});
+
+describe("config format version (plan 091)", () => {
+  it("every emitted config carries schema_version 1, even from an untouched editor", () => {
+    expect(toConfig(emptyDraft()).schema_version).toBe(1);
+  });
+
+  it("re-emits schema_version 1 for an imported config that had none", () => {
+    const old = fromConfig({ global_options: { numnodes: "2" }, experiments: {} });
+    expect(toConfig(old).schema_version).toBe(1);
+  });
+});
+
 describe("validation and emit-on-set invariants (ADR-005)", () => {
   it("flags an app whose partition references no defined node group", () => {
     const orphan = fromConfig({

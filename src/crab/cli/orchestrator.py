@@ -5,6 +5,7 @@ import os
 import sys
 import time
 from datetime import timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -19,15 +20,18 @@ import crab.setup.memory as memory  # noqa: E402 -- must follow the sys.path set
 
 
 def load_environment_config(preset_arg: str) -> dict[str, Any]:
-    presets_filename = os.path.join(CRAB_ROOT, "config", "presets.json")
+    from crab.cli.presets import LOCAL_PRESETS, SHIPPED_PRESETS, load_all_presets
+
     try:
-        with open(presets_filename) as f:
-            all_presets = json.load(f)
+        all_presets = load_all_presets(Path(CRAB_ROOT))
     except FileNotFoundError:
-        raise FileNotFoundError(f"The presets file '{presets_filename}' was not found.") from None
+        shipped = os.path.join(CRAB_ROOT, SHIPPED_PRESETS)
+        raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
 
     if preset_arg not in all_presets:
-        raise KeyError(f"The preset '{preset_arg}' was not found in {presets_filename}.")
+        raise KeyError(
+            f"The preset '{preset_arg}' was not found in {SHIPPED_PRESETS} or {LOCAL_PRESETS}."
+        )
 
     # Carica _common e il preset specifico
     common_preset = all_presets.get("_common", {})

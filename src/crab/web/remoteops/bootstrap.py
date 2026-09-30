@@ -22,6 +22,7 @@ import shlex
 
 from pydantic import BaseModel
 
+from crab.cli.contract import CONTRACT_SCHEMA
 from crab.web.connections.transport import Transport
 from crab.web.errors import ContractError, RemoteCommandError
 from crab.web.remoteops.crab_cli import crab_dir, remote_path_expr, run_crab_json
@@ -64,6 +65,27 @@ class DetectResult(BaseModel):
     installed: bool
     info: dict | None = None
     reason: str | None = None
+    # Set when the cluster's `--json` contract differs from this dashboard's (see contract_skew).
+    skew: str | None = None
+
+
+def contract_skew(info: dict) -> str | None:
+    """A fix-it message when ``crab info``'s contract schema differs from ours, else None.
+
+    A missing schema means a CRAB older than the field, so it counts as older.
+    """
+    remote = info.get("schema")
+    if remote == CONTRACT_SCHEMA:
+        return None
+    if isinstance(remote, int) and remote > CONTRACT_SCHEMA:
+        return (
+            "This cluster's CRAB is newer than the dashboard. "
+            "Run crab update on this laptop, then restart crab web."
+        )
+    return (
+        "This cluster's CRAB is older than the dashboard. "
+        "Run crab update on the cluster, then reconnect."
+    )
 
 
 def _clone_command(profile: Profile) -> str:
@@ -76,7 +98,12 @@ def _clone_command(profile: Profile) -> str:
 
 def _build_command(profile: Profile) -> str:
     dir_expr = remote_path_expr(crab_dir(profile))
-    return f"cd {dir_expr} && make venv && .venv/bin/pip install -e ."
+    # `crab update --to-release` switches the fresh clone to the newest release tag of its
+    # branch's line (ADR-030), and stays on the branch while no release exists yet.
+    return (
+        f"cd {dir_expr} && make venv && .venv/bin/pip install -e . "
+        "&& .venv/bin/crab update --to-release"
+    )
 
 
 def default_plan(profile: Profile) -> list[BootstrapStep]:
@@ -108,7 +135,7 @@ async def detect(transport: Transport, profile: Profile) -> DetectResult:
         info = await run_crab_json(transport, profile, ["info", "--json"])
     except (RemoteCommandError, ContractError) as exc:
         return DetectResult(installed=False, reason=exc.message)
-    return DetectResult(installed=True, info=info)
+    return DetectResult(installed=True, info=info, skew=contract_skew(info))
 
 
 async def install(

@@ -25,10 +25,11 @@ import json
 import os
 import sys
 from collections.abc import Callable, Iterable
-from importlib.metadata import PackageNotFoundError
-from importlib.metadata import version as _pkg_version
 from pathlib import Path
 from typing import Any
+
+from crab import __version__
+from crab.cli.presets import load_all_presets
 
 # Bump on any breaking change to the shapes below. Reported by `crab info` so
 # the backend can detect laptop<->cluster skew (ContractError).
@@ -40,10 +41,7 @@ _CRAB_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _crab_version() -> str:
-    try:
-        return _pkg_version("crab")
-    except PackageNotFoundError:
-        return "unknown"
+    return __version__
 
 
 # --------------------------------------------------------------------------- #
@@ -52,17 +50,16 @@ def _crab_version() -> str:
 def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
     """Version handshake + available presets."""
     root = Path(crab_root) if crab_root else _CRAB_ROOT
-    presets_file = root / "config" / "presets.json"
 
     presets: list[dict[str, str]] = []
     try:
-        raw = json.loads(presets_file.read_text())
+        raw = load_all_presets(root)
         for name, body in raw.items():
             if name in ("_common", "example_preset"):
                 continue
             desc = body.get("description", "") if isinstance(body, dict) else ""
             presets.append({"name": name, "description": desc})
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         # No presets file / malformed → empty list, not a failure.
         presets = []
 
@@ -181,6 +178,7 @@ def _introspect_wrapper(path: Path, wrappers_root: Path) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "file": path.name,
         "relpath": rel,
+        "path": str(path),
         "group": rel.split(os.sep)[0] if os.sep in rel else "",
         "loadable": False,
         "benchmark_id": None,
@@ -249,20 +247,35 @@ def gather_benchmarks(
     env_dir: Path | None = None, wrappers_dir: Path | None = None
 ) -> dict[str, Any]:
     """Installed benchmarks (receipts) + discovered wrapper files."""
-    env = Path(env_dir) if env_dir else _CRAB_ROOT / "config" / "environments"
-    wdir = (
-        Path(wrappers_dir)
-        if wrappers_dir
-        else Path(os.environ.get("CRAB_PATH_WRAPPERS", _CRAB_ROOT / "wrappers"))
+    # Legacy receipts first, then local/receipts, so a local receipt wins (see setup/memory.py).
+    env_dirs = (
+        [Path(env_dir)]
+        if env_dir
+        else [_CRAB_ROOT / "config" / "environments", _CRAB_ROOT / "local" / "receipts"]
     )
+    if wrappers_dir:
+        wdirs = [Path(wrappers_dir)]
+    else:
+        from crab.core.experiment import wrapper_paths
 
-    benchmarks = _gather_receipts(env) if env.is_dir() else []
+        # Same folders, same order as the engine's lookup; the first file with a relpath wins.
+        wdirs = [Path(d) for d in wrapper_paths.wrapper_search_path()]
+
+    by_id = {b["id"]: b for d in env_dirs if d.is_dir() for b in _gather_receipts(d)}
+    benchmarks = [by_id[k] for k in sorted(by_id)]
 
     wrappers: list[dict[str, Any]] = []
-    if wdir.is_dir():
+    seen: set[str] = set()
+    for wdir in wdirs:
+        if not wdir.is_dir():
+            continue
         for py in sorted(wdir.rglob("*.py")):
             if py.name.startswith("_"):  # __init__.py and dunder helpers
                 continue
+            rel = str(py.relative_to(wdir))
+            if rel in seen:
+                continue
+            seen.add(rel)
             wrappers.append(_introspect_wrapper(py, wdir))
 
     return {"schema": CONTRACT_SCHEMA, "benchmarks": benchmarks, "wrappers": wrappers}

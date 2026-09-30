@@ -217,6 +217,7 @@ function confirmRemove(name: string) {
             presets: {{ store.info[r.name].presets.map((p) => p.name).join(", ") || "none" }}
           </span>
         </div>
+        <p v-if="store.skew[r.name]" class="banner warn small">{{ store.skew[r.name] }}</p>
 
         <!-- Connected, but CRAB isn't installed there. Offer a guided install. -->
         <div v-if="r.connected && store.crabMissing[r.name]" class="setup">
@@ -443,6 +444,11 @@ select {
   background: rgba(245, 101, 101, 0.12);
   color: var(--danger);
   border: 1px solid var(--danger);
+}
+.banner.warn {
+  background: rgba(237, 137, 54, 0.12);
+  color: var(--warn);
+  border: 1px solid var(--warn);
 }
 .banner.small {
   margin-top: 0.5rem;

@@ -144,7 +144,7 @@ def test_build_crab_command_remote_activates_venv():
     cmd = build_crab_command(_leonardo(), ["info", "--json"])
     assert cmd.startswith("bash -lc ")
     # ~ is rewritten to $HOME (tilde quoting would break expansion).
-    assert "$HOME/CRAB" in cmd
+    assert '"$HOME"/CRAB' in cmd
     assert ".venv/bin/activate" in cmd
     assert "crab info --json" in cmd
 
@@ -161,7 +161,7 @@ def test_build_crab_command_preserves_tilde_in_args():
     # shlex.quote on such an arg would break expansion the same way it would
     # for crab_dir/venv (see remote_path_expr's docstring).
     cmd = build_crab_command(_leonardo(), ["run", "~/CRAB/.web_staging/demo.json", "--json"])
-    assert "$HOME/CRAB/.web_staging/demo.json" in cmd
+    assert '"$HOME"/CRAB/.web_staging/demo.json' in cmd
     assert "'~/CRAB/.web_staging/demo.json'" not in cmd
 
 

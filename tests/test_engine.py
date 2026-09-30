@@ -47,7 +47,11 @@ class TestSlurmNodelistUnset(unittest.TestCase):
         config = {"global_options": {}, "experiments": {}}
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch.dict(os.environ, {}, clear=True):
-                with patch("subprocess.run") as mock_scontrol:
+                # Provenance runs git through subprocess too; this test is only about scontrol.
+                with (
+                    patch("crab.core.engine.write_provenance"),
+                    patch("subprocess.run") as mock_scontrol,
+                ):
                     engine._run_worker(config, {"CRAB_SCHEDULER": "local"}, tmpdir)
                 mock_scontrol.assert_not_called()
         engine.log.info.assert_any_call("Allocated 1 node(s)")

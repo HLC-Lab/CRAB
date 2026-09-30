@@ -96,6 +96,7 @@ async def connect_remote(name: str, request: Request, body: ConnectRequest | Non
         "info": result.info,
         "crab_installed": result.installed,
         "reason": result.reason,
+        "skew": result.skew,
     }
 
 

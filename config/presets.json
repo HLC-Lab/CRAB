@@ -1,6 +1,6 @@
 {
     "_common": {
-        "description": "Common settings shared across all presets",
+        "description": "Common settings shared across all presets. Put your accounts and per-machine changes in local/presets.json (same format, git-ignored), not here.",
         "env": {
             "CRAB_ROOT": "__CWD__",
             "CRAB_PATH_WRAPPERS": "__CWD__/wrappers"
@@ -60,7 +60,7 @@
             "NCCL_IB_SL": "${UCX_IB_SL}"
         },
         "sbatch": [
-            "--account=IscrC_FOCAL",
+            "--account=YOUR_PROJECT_ACCOUNT",
             "--partition=boost_usr_prod",
             "--gres=tmpfs:0"
         ],
@@ -80,7 +80,7 @@
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3"
         },
         "sbatch": [
-            "--account=enea",
+            "--account=YOUR_PROJECT_ACCOUNT",
             "--partition=cresco8_cpu",
             "--auks=yes",
             "--exclusive"

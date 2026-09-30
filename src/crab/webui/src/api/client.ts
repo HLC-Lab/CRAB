@@ -22,6 +22,8 @@ import type {
   LibraryEntry,
   NodesResult,
   Profile,
+  ReceiptImport,
+  ReceiptImportResult,
   RemoteListItem,
   ResultsData,
   ResultsIndex,
@@ -31,6 +33,7 @@ import type {
   SubmissionAccepted,
   SubmissionStatus,
   UseCaseReport,
+  WrappersResult,
 } from "./types";
 
 /** Error thrown for any non-2xx response, carrying the backend envelope. */
@@ -126,6 +129,13 @@ export const api = {
     benchmarks: (name: string) =>
       request<BenchmarksResult>(`/api/remotes/${encodeURIComponent(name)}/benchmarks`),
     nodes: (name: string) => request<NodesResult>(`/api/remotes/${encodeURIComponent(name)}/nodes`),
+    wrappers: (name: string) =>
+      request<WrappersResult>(`/api/remotes/${encodeURIComponent(name)}/wrappers`),
+    importBinary: (name: string, body: ReceiptImport) =>
+      request<ReceiptImportResult>(`/api/remotes/${encodeURIComponent(name)}/receipts`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
 
     bootstrap: {
       plan: (name: string) =>

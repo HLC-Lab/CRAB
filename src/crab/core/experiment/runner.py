@@ -1,20 +1,23 @@
 import csv
 import fcntl
-import importlib.util
 import os
-import pathlib
 import re
 import shutil
 import signal
 import time
 from typing import Any
 
+from crab.core.config_checks import parse_bool
+from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
 from crab.log import CrabLogger
+from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
-from ..data import DataContainer, check_CI
+from ..data import check_CI
 from ..process import end_job, run_job
+from .artifacts import copy_artifacts
+from .wrapper_paths import load_module, resolve_wrapper_path
 
 
 class ExperimentRunner:
@@ -64,13 +67,6 @@ class ExperimentRunner:
         sorted_keys = sorted(app_configs.keys(), key=lambda x: int(x) if x.isdigit() else x)
 
         # Helper to load modules
-        def load_module(path):
-            name = pathlib.Path(path).stem
-            spec = importlib.util.spec_from_file_location(name, path)
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            return mod
-
         # WLM Loading
         wlm_name = os.environ.get("CRAB_WL_MANAGER", "slurm")
         _ALLOWED_WLM = {"slurm", "mpi", "workerpool", "local"}
@@ -95,9 +91,7 @@ class ExperimentRunner:
             if not path:
                 continue
 
-            # Controlla la ENV CRAB_PATH_WRAPPERS
-            if not os.path.isabs(path) and "CRAB_PATH_WRAPPERS" in os.environ:
-                path = os.path.join(os.environ["CRAB_PATH_WRAPPERS"], path)
+            path = resolve_wrapper_path(path)
 
             if not os.path.exists(path):
                 self.log.error(f"Wrapper not found at: {path}")
@@ -106,7 +100,7 @@ class ExperimentRunner:
             # Load App Class
             mod_app = load_module(path)
             args = details.get("args", "")
-            collect = details.get("collect", False)
+            collect = parse_bool(details.get("collect", False), "collect")
 
             # Instantiate the app
             app_instance = mod_app.app(idx_counter, collect, args)
@@ -119,6 +113,11 @@ class ExperimentRunner:
                 if key not in reserved_keys:
                     setattr(app_instance, key, value)
             # --------------------------------
+
+            # Wrappers that launch through base.run_app need a binary: find it now so a
+            # missing one fails the experiment before any run starts.
+            if type(app_instance).run_app is base.run_app:
+                app_instance.resolve_binary()
 
             # --- ARCHITECTURE GUARDRAIL ---
             receipt = app_instance.get_receipt()
@@ -186,12 +185,8 @@ class ExperimentRunner:
                     except (ValueError, IndexError):
                         pass
 
-                for meta in app.metadata:
-                    self.data_containers.append(
-                        DataContainer(
-                            app.id_num, meta["conv"], meta["name"], meta["unit"], msg_size
-                        )
-                    )
+                app.msg_size = msg_size
+                self.data_containers.extend(setup_containers(app))
 
     def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""
@@ -204,7 +199,7 @@ class ExperimentRunner:
         min_runs = int(self.exp_opts.get("minruns", 10))
         max_runs = int(self.exp_opts.get("maxruns", 20))
         timeout = float(self.exp_opts.get("timeout", 1200.0))
-        converge_all = bool(self.exp_opts.get("convergeall", False))
+        converge_all = parse_bool(self.exp_opts.get("convergeall", False), "convergeall")
         alpha = float(self.exp_opts.get("alpha", 0.05))
         beta = float(self.exp_opts.get("beta", 0.05))
 
@@ -250,8 +245,11 @@ class ExperimentRunner:
 
                 run_successful = True
 
+                # Each app gets its own absolute working directory for this run, so files it
+                # writes relative to its cwd never collide with a co-running app's.
+                run_root = os.path.abspath(os.path.join(self.exp_dir, f"run_{runs + 1}"))
                 for app in self.apps:
-                    app.run_dir = os.path.join(self.exp_dir, f"run_{runs + 1}")
+                    app.run_dir = os.path.join(run_root, f"app_{app.id_num}")
                     os.makedirs(app.run_dir, exist_ok=True)
 
                 # Reset ephemeral schedule for this run
@@ -421,42 +419,36 @@ class ExperimentRunner:
                             end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
-                # Remove run directories whose only visible content is the hidden
-                # .wrappers/ build artefact — they appear empty in directory listings.
-                if self.apps:
-                    _run_dir = getattr(self.apps[0], "run_dir", None)
-                    if _run_dir and os.path.exists(_run_dir):
-                        if not any(f for f in os.listdir(_run_dir) if not f.startswith(".")):
-                            shutil.rmtree(_run_dir, ignore_errors=True)
+                # Remove app directories whose only visible content is the hidden
+                # .wrappers/ build artefact (they look empty), then the run directory if
+                # nothing is left in it.
+                for app in self.apps:
+                    _app_dir = getattr(app, "run_dir", None)
+                    if _app_dir and os.path.isdir(_app_dir):
+                        if not any(f for f in os.listdir(_app_dir) if not f.startswith(".")):
+                            shutil.rmtree(_app_dir, ignore_errors=True)
+                if os.path.isdir(run_root) and not os.listdir(run_root):
+                    os.rmdir(run_root)
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
-                # Collect Data
-                c_idx = 0
-                for app in self.apps:
-                    if app.collect_flag:
-                        num_meta = len(app.metadata)
-                        if hasattr(app, "process") and app.process.returncode == 0:
-                            raw_data = app.read_data()
-                            for i, series in enumerate(raw_data):
-                                if c_idx + i < len(self.data_containers):
-                                    self.data_containers[c_idx + i].data.extend(series)
-                                    self.data_containers[c_idx + i].num_samples.append(len(series))
-                        c_idx += num_meta
+                # Collect Data: a parse failure fails the run like a non-zero exit.
+                if not collect_run(self.apps, self.data_containers, run_log, run_id=runs + 1):
+                    run_successful = False
+                    if experiment_status != "TIMEOUT":
+                        experiment_status = "FAILED"
+
+                # Before any cleanup below can remove the run directory.
+                copy_artifacts(self.apps, self.exp_dir, runs + 1, run_log)
 
                 # Clean Dirs Policy
                 # Default to True for maximum data safety if the flag is missing
-                retain_files = bool(self.exp_opts.get("retain_files", True))
+                retain_files = parse_bool(self.exp_opts.get("retain_files", True), "retain_files")
 
-                if not retain_files and run_successful:
-                    # Target the shared run directory container
-                    # Using the directory path from the first app in the schedule
-                    if self.apps:
-                        target_run_dir = getattr(self.apps[0], "run_dir", None)
-                        if target_run_dir and os.path.exists(target_run_dir):
-                            # ignore_errors=True prevents transient parallel filesystem locks
-                            # from crashing the orchestrator loop
-                            shutil.rmtree(target_run_dir, ignore_errors=True)
+                if not retain_files and run_successful and os.path.exists(run_root):
+                    # ignore_errors=True prevents transient parallel filesystem locks
+                    # from crashing the orchestrator loop
+                    shutil.rmtree(run_root, ignore_errors=True)
 
                 runs += 1
                 if not run_successful:

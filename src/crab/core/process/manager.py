@@ -66,6 +66,7 @@ def run_job(
         stderr=subprocess.PIPE,
         start_new_session=True,
         shell=False,
+        cwd=run_dir,
     )
     job.set_process(process)
 

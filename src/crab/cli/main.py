@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -10,11 +9,13 @@ from argcomplete.completers import FilesCompleter
 
 def _preset_completer(prefix, parsed_args, **kwargs):
     """Dynamically parses presets.json for tab-autocompletion."""
+    from pathlib import Path
+
+    from crab.cli.presets import load_all_presets
+
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-    presets_filename = os.path.join(base_dir, "config", "presets.json")
     try:
-        with open(presets_filename) as f:
-            all_presets = json.load(f)
+        all_presets = load_all_presets(Path(base_dir))
         valid_presets = [k for k in all_presets.keys() if k not in ["_common", "example_preset"]]
         return [p for p in valid_presets if p.startswith(prefix)]
     except Exception:
@@ -284,7 +285,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs}",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update}",
     )
     subparsers.required = True
 
@@ -392,7 +393,16 @@ def cli_router():
     )
     parser_export.set_defaults(func=handle_export)
 
-    # 7. Worker Command (Hidden)
+    # 7. Wrapper tooling: crab parse, crab wrappers, crab receipts
+    from crab.cli import wrappers_cmd
+
+    wrappers_cmd.register(subparsers)
+
+    from crab.cli import update
+
+    update.register(subparsers)
+
+    # 8. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)

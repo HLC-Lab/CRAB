@@ -145,7 +145,7 @@ def _run_custom_benchmark_wizard(
 ) -> None:
     """
     Guides the user through registering an already-installed benchmark that has no recipe.
-    Produces a 'binary' receipt in config/environments/.
+    Produces a 'binary' receipt in local/receipts/.
     """
     taken_receipt_ids = set(existing_receipt_ids)
 

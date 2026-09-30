@@ -36,3 +36,5 @@ marked superseded, never deleted.
 | [027](adr-027-sbatchman-seam-v2.md) | SbatchMan worker seam v2: environment inheritance, GitHub-main install | accepted |
 | [028](adr-028-branch-model.md) | Keep `sbatchman` as a long-lived project branch fed by merges from the product line | accepted |
 | [029](adr-029-scheduler-and-launcher.md) | Support Slurm and a local backend before v1.0, launcher separate from scheduler | accepted |
+| [030](adr-030-compatibility-and-release-policy.md) | Version what partners keep, tag each partner release, update with one command | accepted |
+| [031](adr-031-wrapper-contract-v1.md) | Wrapper contract v1: rows with declared keys, loud failures, one parse path | accepted |

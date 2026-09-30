@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from crab.core.data.containers import DataContainer
+from crab.core.data.parse import collect_run
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -25,9 +26,13 @@ class _MockProcess:
 class _MockApp:
     """Minimal app stub for collection-logic testing."""
 
+    _next_id = 0
+
     def __init__(self, collect_flag, returncode, series_list):
         self.collect_flag = collect_flag
-        self.id_num = 0
+        # Apps in one experiment have distinct ids (the runner numbers them in order).
+        self.id_num = _MockApp._next_id
+        _MockApp._next_id += 1
         # Each entry in series_list becomes one metadata slot and one data series
         self.metadata = [
             {"name": f"m{i}", "unit": "s", "conv": True} for i in range(len(series_list))
@@ -40,21 +45,8 @@ class _MockApp:
 
 
 def _run_collection(apps, containers):
-    """
-    Re-implements the *fixed* collection logic from execute().
-    Tests call this to verify correctness; the production code must match.
-    """
-    c_idx = 0
-    for app in apps:
-        if app.collect_flag:
-            num_meta = len(app.metadata)
-            if hasattr(app, "process") and app.process.returncode == 0:
-                raw_data = app.read_data()
-                for i, series in enumerate(raw_data):
-                    if c_idx + i < len(containers):
-                        containers[c_idx + i].data.extend(series)
-                        containers[c_idx + i].num_samples.append(len(series))
-            c_idx += num_meta
+    """The runner's real per-run collection step (core/data/parse.py)."""
+    return collect_run(apps, containers, MagicMock(), run_id=1)
 
 
 # ---------------------------------------------------------------------------
