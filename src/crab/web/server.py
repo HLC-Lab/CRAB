@@ -110,9 +110,11 @@ def create_app(
     from crab.web.api.local import router as local_router
     from crab.web.api.remotes import router as remotes_router
     from crab.web.api.results import router as results_router
+    from crab.web.api.wrappers import router as wrappers_router
 
     app.include_router(remotes_router)
     app.include_router(bootstrap_router)
+    app.include_router(wrappers_router)
     app.include_router(experiments_router)
     app.include_router(local_router)
     app.include_router(jobs_router)

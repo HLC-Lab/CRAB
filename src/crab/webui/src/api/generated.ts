@@ -190,6 +190,48 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/remotes/{name}/wrappers": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Remote Wrappers
+     * @description `crab wrappers list --json` on the connected cluster.
+     *
+     *     Listing loads every wrapper module on the login node, so allow a generous timeout.
+     */
+    get: operations["remote_wrappers_api_remotes__name__wrappers_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/remotes/{name}/receipts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Import Binary
+     * @description Record where a benchmark's binary lives on the cluster (`crab receipts set`).
+     */
+    post: operations["import_binary_api_remotes__name__receipts_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/experiments": {
     parameters: {
       query?: never;
@@ -864,6 +906,21 @@ export interface components {
       /** Preset */
       preset?: string | null;
     };
+    /** ReceiptImport */
+    ReceiptImport: {
+      /** Id */
+      id: string;
+      /** Binary */
+      binary: string;
+      /** Pre Run */
+      pre_run?: string[];
+      /**
+       * Launcher
+       * @default
+       * @enum {string}
+       */
+      launcher: "" | "srun" | "mpirun";
+    };
     /**
      * RemoteListItem
      * @description A profile annotated with its live connection state.
@@ -1482,6 +1539,76 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["DetectResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  remote_wrappers_api_remotes__name__wrappers_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  import_binary_api_remotes__name__receipts_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ReceiptImport"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
         };
       };
       /** @description Validation Error */

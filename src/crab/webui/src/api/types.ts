@@ -228,3 +228,43 @@ export type ResultsJobEntry = components["schemas"]["ResultsJobEntry"];
 /** GET .../experiments — per-experiment status/run-failure counts for one job (plan 081). */
 export type ExperimentRunStatus = components["schemas"]["ExperimentRunStatus"];
 export type ExperimentRunStatusList = components["schemas"]["ExperimentRunStatusList"];
+
+// -- Wrappers page (plan 091) -------------------------------------------------
+
+/** Where a wrapper's binary comes from (`crab wrappers list --json`, cli/wrappers_catalog.py). */
+export type BinaryStatus = "config" | "receipt" | "path" | "missing" | "error" | "unknown";
+
+/** One wrapper on the cluster's search path. */
+export interface WrapperEntry {
+  relpath: string;
+  path: string;
+  folder: string;
+  loadable: boolean;
+  error: string | null;
+  benchmark_id: string | null;
+  executable: string | null;
+  keys: string[];
+  metrics: string[];
+  binary: { status: BinaryStatus; path: string | null; detail?: string };
+}
+
+/** GET /api/remotes/{name}/wrappers */
+export interface WrappersResult {
+  schema: number;
+  search_path: string[];
+  wrappers: WrapperEntry[];
+}
+
+/** POST /api/remotes/{name}/receipts body (mirrors web/api/wrappers.py ReceiptImport). */
+export interface ReceiptImport {
+  id: string;
+  binary: string;
+  pre_run: string[];
+  launcher: "" | "srun" | "mpirun";
+}
+
+/** POST /api/remotes/{name}/receipts response (`crab receipts set --json`). */
+export interface ReceiptImportResult {
+  schema: number;
+  receipt: Record<string, unknown>;
+}
