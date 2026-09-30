@@ -13,6 +13,7 @@ from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run
 from crab.core.data.utils import log_data
 from crab.log import CrabLogger
+from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import DataContainer, check_CI
@@ -121,6 +122,11 @@ class ExperimentRunner:
                 if key not in reserved_keys:
                     setattr(app_instance, key, value)
             # --------------------------------
+
+            # Wrappers that launch through base.run_app need a binary: find it now so a
+            # missing one fails the experiment before any run starts.
+            if type(app_instance).run_app is base.run_app:
+                app_instance.resolve_binary()
 
             # --- ARCHITECTURE GUARDRAIL ---
             receipt = app_instance.get_receipt()
