@@ -299,3 +299,43 @@ describe("sbatchman store: older saved specs and stale write results (plan 090 S
     expect(store.lastWrite).toBeNull();
   });
 });
+
+describe("sbatchman store: campaign format version (plan 091 S27)", () => {
+  it("save stores version 1 in the spec", async () => {
+    createMock.mockResolvedValueOnce(entry());
+    const store = useSbatchmanStore();
+    store.name = "a2a baseline";
+    await store.save();
+    const sentSpec = createMock.mock.calls[0][1] as Record<string, unknown>;
+    expect(sentSpec.version).toBe(1);
+  });
+
+  it("a spec saved before the version field opens, and is saved back as version 1", async () => {
+    getMock.mockResolvedValueOnce(entry());
+    updateMock.mockResolvedValueOnce(entry());
+    const store = useSbatchmanStore();
+    await store.open("a2a-baseline");
+    expect(store.error).toBeNull();
+    await store.save();
+    const sentSpec = updateMock.mock.calls[0][2] as Record<string, unknown>;
+    expect(sentSpec.version).toBe(1);
+  });
+
+  it("each job's config.json carries the engine config format version", async () => {
+    getMock.mockResolvedValueOnce(entry());
+    const store = useSbatchmanStore();
+    await store.open("a2a-baseline");
+    expect(store.yaml).toContain('"schema_version": 1');
+  });
+
+  it("a campaign saved by a newer dashboard is refused, not half-loaded", async () => {
+    const newer = entry();
+    (newer.spec as Record<string, unknown>).version = 2;
+    (newer.spec as Record<string, unknown>).system = "from-the-future";
+    getMock.mockResolvedValueOnce(newer);
+    const store = useSbatchmanStore();
+    await store.open("a2a-baseline");
+    expect(store.error).toMatch(/newer.*crab update/);
+    expect(store.system).not.toBe("from-the-future");
+  });
+});

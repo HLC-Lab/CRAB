@@ -29,8 +29,15 @@ import {
 } from "@/lib/sbatchman";
 
 function msg(e: unknown): string {
-  return e instanceof ApiError ? e.message : "Unexpected error";
+  if (e instanceof ApiError || e instanceof CampaignVersionError) return e.message;
+  return "Unexpected error";
 }
+
+/** Format of a saved campaign spec. A spec saved before the field existed is version 1. */
+export const CAMPAIGN_SPEC_VERSION = 1;
+
+/** A saved campaign in a format newer than this dashboard understands. */
+export class CampaignVersionError extends Error {}
 
 export interface EnvPair {
   key: string;
@@ -56,6 +63,7 @@ function emptyGroup(name: string): GroupState {
  * already been reduced to a `CrabConfig` via `toConfig`). Persisted as an opaque
  * dict backend-side (`store/campaign_library.py`). */
 export interface CampaignSpec {
+  version: number;
   configsPath: string;
   crabRoot: string;
   system: string;
@@ -90,9 +98,16 @@ function normalizeDraft(raw: any): Draft {
 
 function normalizeSpec(raw: unknown): CampaignSpec {
   const s = (raw && typeof raw === "object" ? raw : {}) as any;
+  const saved = s.version ?? 1;
+  if (!Number.isInteger(saved) || saved > CAMPAIGN_SPEC_VERSION) {
+    throw new CampaignVersionError(
+      `This campaign was saved by a newer dashboard (format ${saved}). Run crab update on this laptop to open it.`,
+    );
+  }
   const list = (v: unknown): any[] => (Array.isArray(v) ? v : []);
   const str = (v: unknown): string => (typeof v === "string" ? v : "");
   return {
+    version: CAMPAIGN_SPEC_VERSION,
     configsPath: str(s.configsPath),
     crabRoot: str(s.crabRoot),
     system: str(s.system),
@@ -132,6 +147,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const notice = ref<string | null>(null);
 
   const spec = computed<CampaignSpec>(() => ({
+    version: CAMPAIGN_SPEC_VERSION,
     configsPath: configsPath.value,
     crabRoot: crabRoot.value,
     system: system.value,
@@ -236,7 +252,15 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   function newCampaign(): void {
     entryId.value = null;
     name.value = "campaign";
-    _load({ configsPath: "", crabRoot: "", system: "", env: [], variables: [], groups: [] });
+    _load({
+      version: CAMPAIGN_SPEC_VERSION,
+      configsPath: "",
+      crabRoot: "",
+      system: "",
+      env: [],
+      variables: [],
+      groups: [],
+    });
     lastWrite.value = null;
     error.value = null;
     notice.value = null;
