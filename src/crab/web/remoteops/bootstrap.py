@@ -96,7 +96,12 @@ def _clone_command(profile: Profile) -> str:
 
 def _build_command(profile: Profile) -> str:
     dir_expr = remote_path_expr(crab_dir(profile))
-    return f"cd {dir_expr} && make venv && .venv/bin/pip install -e ."
+    # `crab update --to-release` switches the fresh clone to the newest release tag of its
+    # branch's line (ADR-030), and stays on the branch while no release exists yet.
+    return (
+        f"cd {dir_expr} && make venv && .venv/bin/pip install -e . "
+        "&& .venv/bin/crab update --to-release"
+    )
 
 
 def default_plan(profile: Profile) -> list[BootstrapStep]:
