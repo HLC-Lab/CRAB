@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from crab.core.data.containers import DataContainer
+from crab.core.data.parse import collect_run
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,21 +41,8 @@ class _MockApp:
 
 
 def _run_collection(apps, containers):
-    """
-    Re-implements the *fixed* collection logic from execute().
-    Tests call this to verify correctness; the production code must match.
-    """
-    c_idx = 0
-    for app in apps:
-        if app.collect_flag:
-            num_meta = len(app.metadata)
-            if hasattr(app, "process") and app.process.returncode == 0:
-                raw_data = app.read_data()
-                for i, series in enumerate(raw_data):
-                    if c_idx + i < len(containers):
-                        containers[c_idx + i].data.extend(series)
-                        containers[c_idx + i].num_samples.append(len(series))
-            c_idx += num_meta
+    """The runner's real per-run collection step (core/data/parse.py)."""
+    return collect_run(apps, containers, MagicMock())
 
 
 # ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from crab.core.config_checks import parse_bool
+from crab.core.data.parse import collect_run
 from crab.core.data.utils import log_data
 from crab.log import CrabLogger
 
@@ -432,18 +433,11 @@ class ExperimentRunner:
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
-                # Collect Data
-                c_idx = 0
-                for app in self.apps:
-                    if app.collect_flag:
-                        num_meta = len(app.metadata)
-                        if hasattr(app, "process") and app.process.returncode == 0:
-                            raw_data = app.read_data()
-                            for i, series in enumerate(raw_data):
-                                if c_idx + i < len(self.data_containers):
-                                    self.data_containers[c_idx + i].data.extend(series)
-                                    self.data_containers[c_idx + i].num_samples.append(len(series))
-                        c_idx += num_meta
+                # Collect Data: a parse failure fails the run like a non-zero exit.
+                if not collect_run(self.apps, self.data_containers, run_log):
+                    run_successful = False
+                    if experiment_status != "TIMEOUT":
+                        experiment_status = "FAILED"
 
                 # Clean Dirs Policy
                 # Default to True for maximum data safety if the flag is missing
