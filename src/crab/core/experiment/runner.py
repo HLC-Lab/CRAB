@@ -258,8 +258,11 @@ class ExperimentRunner:
 
                 run_successful = True
 
+                # Each app gets its own absolute working directory for this run, so files it
+                # writes relative to its cwd never collide with a co-running app's.
+                run_root = os.path.abspath(os.path.join(self.exp_dir, f"run_{runs + 1}"))
                 for app in self.apps:
-                    app.run_dir = os.path.join(self.exp_dir, f"run_{runs + 1}")
+                    app.run_dir = os.path.join(run_root, f"app_{app.id_num}")
                     os.makedirs(app.run_dir, exist_ok=True)
 
                 # Reset ephemeral schedule for this run
@@ -429,13 +432,16 @@ class ExperimentRunner:
                             end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
-                # Remove run directories whose only visible content is the hidden
-                # .wrappers/ build artefact — they appear empty in directory listings.
-                if self.apps:
-                    _run_dir = getattr(self.apps[0], "run_dir", None)
-                    if _run_dir and os.path.exists(_run_dir):
-                        if not any(f for f in os.listdir(_run_dir) if not f.startswith(".")):
-                            shutil.rmtree(_run_dir, ignore_errors=True)
+                # Remove app directories whose only visible content is the hidden
+                # .wrappers/ build artefact (they look empty), then the run directory if
+                # nothing is left in it.
+                for app in self.apps:
+                    _app_dir = getattr(app, "run_dir", None)
+                    if _app_dir and os.path.isdir(_app_dir):
+                        if not any(f for f in os.listdir(_app_dir) if not f.startswith(".")):
+                            shutil.rmtree(_app_dir, ignore_errors=True)
+                if os.path.isdir(run_root) and not os.listdir(run_root):
+                    os.rmdir(run_root)
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
@@ -449,15 +455,10 @@ class ExperimentRunner:
                 # Default to True for maximum data safety if the flag is missing
                 retain_files = parse_bool(self.exp_opts.get("retain_files", True), "retain_files")
 
-                if not retain_files and run_successful:
-                    # Target the shared run directory container
-                    # Using the directory path from the first app in the schedule
-                    if self.apps:
-                        target_run_dir = getattr(self.apps[0], "run_dir", None)
-                        if target_run_dir and os.path.exists(target_run_dir):
-                            # ignore_errors=True prevents transient parallel filesystem locks
-                            # from crashing the orchestrator loop
-                            shutil.rmtree(target_run_dir, ignore_errors=True)
+                if not retain_files and run_successful and os.path.exists(run_root):
+                    # ignore_errors=True prevents transient parallel filesystem locks
+                    # from crashing the orchestrator loop
+                    shutil.rmtree(run_root, ignore_errors=True)
 
                 runs += 1
                 if not run_successful:
