@@ -1,7 +1,34 @@
 # Writing a wrapper
 
-A wrapper is a Python module in `wrappers/` that teaches CRAB how to launch one application and
-parse its output. It is the only artifact strictly required to support a new application.
+A wrapper is a Python file that tells CRAB how to launch one application and how to turn its
+output into measurements. It is the only piece strictly required to support a new application.
+Wrappers are shared: one wrapper per application means everyone who runs it parses its output the
+same way. This page describes version 1 of the wrapper contract
+([ADR-031](../dev/dashboard/decisions/adr-031-wrapper-contract-v1.md)).
+
+## Start from the scaffold
+
+```bash
+crab wrappers new myapp            # myapp/myapp.py, myapp/README.md, myapp/samples/example/
+crab wrappers test myapp --strict  # passes as generated
+```
+
+The wrapper is created in the shared wrappers folder (the first folder of `CRAB_PATH_WRAPPERS`, or
+`wrappers/` in the checkout). Use `--local` to create it in `local/wrappers/` instead, which is
+git-ignored and meant for private or in-progress wrappers, or `--dir <folder>` for any other
+folder.
+
+## Where CRAB looks for wrappers
+
+A config names a wrapper by `path`, for example `blink/a2a_b.py`. A relative path is looked up in
+these folders, and the first match wins:
+
+1. `local/wrappers/` in the CRAB checkout;
+2. each folder in `CRAB_PATH_WRAPPERS` (separate several with `:`), or the checkout's `wrappers/`
+   when the variable is not set.
+
+An absolute `path` is used as is. `crab wrappers list` shows the search path and every wrapper
+found on it.
 
 ## The contract
 
@@ -10,37 +37,76 @@ Define a class named **`app`** that subclasses `base`:
 ```python
 from crab.wrappers.base import base
 
+
 class app(base):
-    ...
+    executable = "osu_latency"   # looked up on PATH when no binary is configured
+    benchmark_id = "osu"         # receipt name, for `crab receipts set osu --binary ...`
+    keys = ["size"]              # sweep dimensions every row carries
+    metadata = [
+        {"name": "latency", "unit": "us", "conv": True},
+    ]
+
+    def read_data(self):
+        rows = []
+        for line in self.stdout.splitlines():
+            if line and not line.startswith("#"):
+                size, latency = line.split()
+                rows.append({"size": int(size), "latency": float(latency)})
+        return rows
 ```
 
-!!! warning "Import path"
-    Import the base class as `from crab.wrappers.base import base`. Older wrappers in the repo
-    may use `from wrappers.base import base` — that is outdated and does not match the installed
-    package.
+| Attribute or method | Meaning |
+|---|---|
+| `metadata` | One entry per measured value: `name`, `unit`, and `conv` (`True` means CRAB repeats runs until this value converges). Optional `type`: `"float"` (default), `"int"`, `"str"` or `"bool"`. Text and boolean fields are recorded but never used for convergence. |
+| `keys` | Names of the sweep dimensions, for an application that prints results for several settings in one run (for example one line per message size). Leave it empty when a run gives single values. |
+| `read_data()` | Returns a list of rows, one dict per sample, holding every key and every metric and nothing else. The application's output is in `self.stdout` and `self.stderr`. |
+| `executable` | Program name found on `PATH` when neither the config nor a receipt gives a binary. |
+| `benchmark_id` | Name of the [receipt](receipts.md) that records where the binary lives. |
+| `get_extra_artifacts()` | Optional: paths or glob patterns, relative to `self.run_dir`, of files to keep with the results. |
 
-CRAB loads the module *by file path* at run time and instantiates `app(id_num, collect_flag, args)`,
-so your class is found automatically — no registration needed. You reference it from a config by its
-file path (see [Configuration schema](../reference/configuration.md#the-apps-block)).
+**When the output is not what you expect, raise an exception.** CRAB checks every result against
+`keys` and `metadata`. A result that raises, misses a field, has an undeclared field or holds a
+value of the wrong type fails that run, with the reason in the log. Nothing is recorded for it, and
+the experiment goes on with the next run. Never return zeros or placeholders: they would look like
+real measurements.
 
-A wrapper needs three things: a way to **find the binary**, a description of its **metrics**, and a
-way to **parse its output**.
+### Sweeps and convergence
 
-## 1. Link to the binary
+With `keys`, convergence is computed separately for every key value: in the example, the latency
+of each message size has to converge on its own. In the CSV, the key columns come right after
+`run_id` and `msg_size`, followed by one `<app>_<metric>_<unit>` column per metric.
 
-The cleanest approach is to set a `benchmark_id` matching a [receipt](receipts.md). The base class
-then resolves the binary path from that receipt automatically:
+### Correctness checks
+
+A metric declared with `"role": "check"` and `"type": "bool"` is a verdict on the run (for example
+a benchmark's own validation). When a row's check is false, that row is still written to the CSV,
+but the run counts as failed and the row is left out of convergence.
 
 ```python
-class app(base):
-    @property
-    def benchmark_id(self) -> str:
-        return "mybench"      # → config/environments/mybench.json
+metadata = [
+    {"name": "gflops", "unit": "GF", "conv": True},
+    {"name": "passed", "unit": "", "conv": False, "type": "bool", "role": "check"},
+]
 ```
 
-If the receipt's `binary_path` points **directly at the executable**, that's all you need — `base`
-returns it. If the receipt stores a **directory** (as the build recipes do), override
-`get_binary_path` to append the specific binary name:
+### The older shape
+
+Wrappers written before version 1 return one list of samples per metric from `read_data()`, in
+`metadata` order. That shape is still accepted and converted to rows, and CRAB logs a warning once
+per experiment. It stops being accepted at v1.0, so new wrappers should return rows.
+
+## Finding the binary
+
+For a wrapper that uses the default launch (`binary + " " + args`), CRAB takes the binary from, in
+order:
+
+1. the app's `binary` key in the experiment config;
+2. the wrapper's receipt (`get_binary_path()`, which reads the receipt named by `benchmark_id`);
+3. `executable`, looked up on `PATH` in the job's environment.
+
+When none of them gives a binary, the experiment fails before its first run, with a message listing
+what was tried. A wrapper whose receipt stores a directory rather than the executable can override
+`get_binary_path()` to add the file name:
 
 ```python
     def get_binary_path(self):
@@ -50,104 +116,68 @@ returns it. If the receipt stores a **directory** (as the build recipes do), ove
         return os.path.join(receipt.get("binary_path", ""), "my_executable")
 ```
 
-## 2. Declare metrics (`metadata`)
+A wrapper can also override `run_app()` to build the whole command itself; CRAB then does not
+check for a binary before the run.
 
-`metadata` is a list of metric descriptors, in the order `read_data` will return them:
+## Files the application writes
 
-```python
-    metadata = [
-        {"name": "performance", "unit": "GTEPS", "conv": True},
-        {"name": "time",        "unit": "s",     "conv": False},
-    ]
+Each app runs in its own working directory, `<experiment>/run_<n>/app_<id>/`, available to the
+wrapper as `self.run_dir`, so co-running apps never overwrite each other's files. `read_data()` may
+read files there as well as stdout. Files listed by `get_extra_artifacts()` are copied to
+`<experiment>/artifacts/run_<n>/app_<id>/` after every run, including failed ones, so they survive
+`retain_files: false`.
+
+## Testing with real samples
+
+A sample case is real output plus the rows the wrapper must produce for it:
+
+```
+myapp/samples/<case>/
+  case.json       {"wrapper": "myapp.py", "args": "-n 4", "set": {}}
+  stdout.txt      the application's output (plus stderr.txt and any files it wrote)
+  expected.json   [{"size": 8, "latency": 1.5}, ...]
 ```
 
-`conv: True` marks a metric as a [convergence](../glossary.md#convergence) target — CRAB keeps
-repeating runs until those metrics stabilize (unless `convergeall` overrides this).
+`crab wrappers test [app ...]` runs every case through the same parser a run uses and compares
+the rows with `expected.json`. With `--strict`, a wrapper that no case covers fails too, unless
+the folder's `unverified.txt` lists it. To try a single output by hand:
 
-## 3. Parse the output (`read_data`)
-
-`read_data` is the heart of a wrapper. CRAB captures the application's stdout into `self.stdout`
-after the run; your job is to turn it into samples.
-
-**Contract:** return a **list of lists** — one inner list per metric, in `metadata` order, each
-containing that metric's samples from the run.
-
-```python
-    def read_data(self):
-        performance, times = [], []
-        for line in self.stdout.splitlines():
-            if line.startswith("RESULT:"):
-                _, p, t = line.split(",")
-                performance.append(float(p))
-                times.append(float(t))
-        return [performance, times]   # same order as metadata
+```bash
+crab parse myapp/myapp.py output.txt --args "-n 4" --json
+crab parse myapp/myapp.py samples/<case>/stdout.txt --check samples/<case>/expected.json
 ```
 
-## How CRAB invokes your wrapper
+`case.json`'s `set` holds extra config keys for the wrapper (see below); `crab parse` takes them as
+`--set key=value`.
 
-1. It builds the command as `get_binary_path() + " " + self.args` (the `args` come from the config).
-2. It launches that on the app's allocated nodes through the workload manager, capturing stdout.
-3. On success, it calls `read_data()` and appends the returned samples to the per-metric data.
+## Custom configuration keys
 
-`self.args` is the argument string from the config. Any **extra keys** in the app's config entry
-(beyond the reserved `path`/`args`/`collect`/`start`/`end`/`partition`) are injected as attributes
-on your instance — so a wrapper can read custom configuration straight from the JSON.
+Any key in an app's config entry other than the reserved `path`, `args`, `collect`, `start`, `end`
+and `partition` becomes an attribute on the wrapper instance, so a wrapper can take its own
+settings from the JSON (for example an input file name).
 
-## Suite pattern: shared base + thin wrappers
+## Suite pattern: one helper, many thin wrappers
 
-When one build produces many related binaries (as the Blink suite does), put the shared logic —
-`benchmark_id`, `metadata`, `read_data`, and a path helper — in one intermediate class, and make
-each per-binary wrapper tiny. This is exactly how the supported Blink wrappers are structured.
-
-**`wrappers/blink/microbench_common.py`** — the shared base:
+When one build produces many related binaries, put the shared logic (`benchmark_id`, `metadata`,
+`read_data` and a path helper) in a helper module whose name starts with `_`, so CRAB does not list
+it as a wrapper, and make each wrapper a few lines that name its binary:
 
 ```python
-from crab.wrappers.base import base, sizeof_fmt
+import os
+import sys
 
-class microbench(base):
-    @property
-    def benchmark_id(self) -> str:
-        return "blink"
-
-    metadata = [
-        {"name": "Avg-Duration",    "unit": "s", "conv": True},
-        {"name": "Min-Duration",    "unit": "s", "conv": False},
-        # ...
-    ]
-
-    def get_path(self, name):
-        receipt = self.get_receipt()
-        if not receipt:
-            return None
-        return os.path.join(receipt.get("binary_path", ""), name)   # binary_path is the bin/ dir
-
-    def read_data(self):
-        rows = [[float(x) for x in line.split(",")]
-                for line in self.stdout.splitlines()[2:-1]]
-        return [list(col) for col in zip(*rows)]   # transpose rows → per-metric series
-```
-
-**`wrappers/blink/a2a_comm_only.py`** — one concrete benchmark:
-
-```python
-import sys, os
 sys.path.append(os.path.dirname(__file__))
-from microbench_common import microbench
+from _suite_common import suite
 
-class app(microbench):
+
+class app(suite):
     def get_binary_path(self):
-        return self.get_path("a2a_comm_only")
+        return self.get_path("alltoall")
 ```
 
-The thin wrapper imports its sibling common module by adding its own directory to `sys.path`, then
-only has to name its specific binary.
+## Hooks from the receipt
 
-## Optional hooks
-
-Pre-run commands and a launcher override come from the [receipt](receipts.md), not the wrapper —
-`base.get_pre_commands()` and `base.get_launcher_override()` read them automatically. You generally
-don't override these in the wrapper.
-
-For the full list of methods you can override, see the [Wrapper & Recipe API](../reference/api.md).
-Once your wrapper exists, point a [receipt](receipts.md) at the binary and it's usable in any
-config.
+Commands to run before each launch and a launcher override come from the
+[receipt](receipts.md): `base.get_pre_commands()` and `base.get_launcher_override()` read them, so
+wrappers normally do not override them. For every method you can override, see the
+[Wrapper & Recipe API](../reference/api.md).
