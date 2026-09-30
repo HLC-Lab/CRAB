@@ -281,7 +281,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts}",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update}",
     )
     subparsers.required = True
 
@@ -388,6 +388,10 @@ def cli_router():
     from crab.cli import wrappers_cmd
 
     wrappers_cmd.register(subparsers)
+
+    from crab.cli import update
+
+    update.register(subparsers)
 
     # 8. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
