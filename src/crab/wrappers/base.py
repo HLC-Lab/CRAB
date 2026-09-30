@@ -75,6 +75,10 @@ class base:
     def read_data(self):
         return []
 
+    def get_extra_artifacts(self) -> list[str]:
+        """Files to keep from each run, as paths or glob patterns relative to self.run_dir."""
+        return []
+
     def get_bench_name(self):
         return ""
 

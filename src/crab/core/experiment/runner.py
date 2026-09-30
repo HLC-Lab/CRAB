@@ -18,6 +18,7 @@ from crab.wrappers.base import base
 from ..allocation import NodeAllocator
 from ..data import check_CI
 from ..process import end_job, run_job
+from .artifacts import copy_artifacts
 
 
 class ExperimentRunner:
@@ -446,6 +447,9 @@ class ExperimentRunner:
                     run_successful = False
                     if experiment_status != "TIMEOUT":
                         experiment_status = "FAILED"
+
+                # Before any cleanup below can remove the run directory.
+                copy_artifacts(self.apps, self.exp_dir, runs + 1, run_log)
 
                 # Clean Dirs Policy
                 # Default to True for maximum data safety if the flag is missing
