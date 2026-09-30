@@ -246,14 +246,20 @@ def gather_benchmarks(
     env_dir: Path | None = None, wrappers_dir: Path | None = None
 ) -> dict[str, Any]:
     """Installed benchmarks (receipts) + discovered wrapper files."""
-    env = Path(env_dir) if env_dir else _CRAB_ROOT / "config" / "environments"
+    # Legacy receipts first, then local/receipts, so a local receipt wins (see setup/memory.py).
+    env_dirs = (
+        [Path(env_dir)]
+        if env_dir
+        else [_CRAB_ROOT / "config" / "environments", _CRAB_ROOT / "local" / "receipts"]
+    )
     wdir = (
         Path(wrappers_dir)
         if wrappers_dir
         else Path(os.environ.get("CRAB_PATH_WRAPPERS", _CRAB_ROOT / "wrappers"))
     )
 
-    benchmarks = _gather_receipts(env) if env.is_dir() else []
+    by_id = {b["id"]: b for d in env_dirs if d.is_dir() for b in _gather_receipts(d)}
+    benchmarks = [by_id[k] for k in sorted(by_id)]
 
     wrappers: list[dict[str, Any]] = []
     if wdir.is_dir():
