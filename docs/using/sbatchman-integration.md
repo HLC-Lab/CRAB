@@ -53,9 +53,10 @@ installed into that same environment.
 
 **Option A, from the dashboard.** Open **Remotes**, add the cluster (name, transport `ssh`,
 host, user, auth) and set **Install dir**. Click **Connect**. When CRAB is not there yet, the
-page offers **Install CRAB**: it clones the `sbatchman` branch into `<install dir>/CRAB` and
-installs it into `<install dir>/CRAB/.venv`, running anything you put in **Pre-commands** first
-(for example `module load python/3.11`). Then add SbatchMan over SSH:
+page offers **Install CRAB**: it clones the `sbatchman` branch into `<install dir>/CRAB`,
+installs it into `<install dir>/CRAB/.venv`, and switches to the newest `+sbatchman` release once
+one exists, running anything you put in **Pre-commands** first (for example
+`module load python/3.11`). Then add SbatchMan over SSH:
 
 ```bash
 source <install dir>/CRAB/.venv/bin/activate
@@ -92,17 +93,24 @@ sbatchman --version
 
 Note the root directory `crab info` prints: it is the `CRAB_ROOT` you will need in step 5.
 
-## 3. Build the benchmarks
+## 3. Build or register the benchmarks
 
-Still on the cluster, in the activated environment:
+Every application a campaign uses must be findable on the cluster. CRAB looks for each wrapper's
+binary in this order: the app's `binary` key in the campaign's config, then a receipt, then the
+wrapper's `executable` on `PATH` in the job (see
+[Finding the binary](../extending/wrappers.md#finding-the-binary)).
 
-```bash
-crab setup
-```
+- **Build it with CRAB**, for the applications CRAB has a recipe for (the Blink suite, for
+  example): in the activated environment run `crab setup` and pick it (see
+  [Set up benchmarks](installation.md#set-up-benchmarks-crab-setup)).
+- **Already installed through a module?** Add the `module load` to your SbatchMan preset (step 5).
+  If the wrapper declares an `executable`, CRAB then finds it on `PATH` with no receipt.
+- **Installed somewhere else?** Record it once: `crab receipts set <benchmark_id> --binary
+  /path/to/program`, or use **Import binary** on the dashboard's **Wrappers** page.
 
-and select the Blink suite (see
-[Set up benchmarks](installation.md#set-up-benchmarks-crab-setup) for the wizard walkthrough).
-Build every benchmark a campaign will use before launching it.
+`crab wrappers list` (or the **Wrappers** page) shows, for every wrapper, where its binary comes
+from or that it is missing. A campaign whose binary is missing fails before its first run, with a
+message saying what was tried.
 
 ## 4. Create a SbatchMan project
 
@@ -207,6 +215,30 @@ results.
     one of them on a different port (`crab web --port <other port>`, or check
     `sbatchman visualize --help` for its own port option).
 
+## Writing a wrapper for your own application
+
+A wrapper tells CRAB how to launch an application and how to parse its output. To add one:
+
+```bash
+crab wrappers new myapp --local    # in <install dir>/CRAB/local/wrappers/, private to you
+crab wrappers test myapp --strict  # the generated example passes
+```
+
+Edit `myapp/myapp.py`, replace the example in `myapp/samples/` with real output from your
+application and the values it must produce, and run `crab wrappers test myapp` again. Reference
+it in a campaign as `myapp/myapp.py`: CRAB looks in `local/wrappers/` before the shared wrappers.
+[Writing a wrapper](../extending/wrappers.md) describes the contract; when it works, share it
+with everyone who runs the same application by opening a pull request on the shared wrappers
+repository.
+
+## Keeping CRAB up to date
+
+Run `crab update` in the activated environment on the cluster, and in your laptop's CRAB checkout.
+It moves to the newest version of the `sbatchman` line, reinstalls dependencies only when they
+changed, and refuses to run over local edits to tracked files (keep yours in `local/`). When the
+laptop and a cluster run versions that no longer understand each other, the dashboard's
+**Remotes** page says which side to update.
+
 ## 9. Where results land
 
 Each job's `config.json` names an experiment (its key under `experiments` in the campaign).
@@ -217,12 +249,16 @@ example, a group whose experiment is named `run` with a single app produces
 (`SBATCHMAN_JOB_DIR`/`{EXP_DIR}`), shown in SbatchMan's own job listing; the job's
 `stdout.log` and `stderr.log` are in the same directory.
 
+Next to the experiment folders, `crab_run.json` records which CRAB version and which wrapper
+files (with their hashes) produced the job. Inside an experiment, each run's working files are in
+`run_<n>/app_<index>/`, and files a wrapper asks to keep are copied to `artifacts/run_<n>/`.
+
 Not every app produces this file: a benchmark that collects no metrics (`blink`'s `null_dummy`,
 for instance, an isolation sanity check with nothing to measure) never writes a CSV, by design.
 
 Reading that CSV is up to you: a spreadsheet, a notebook, or `sbatchman visualize`'s own parser
 script (its `--parser` option, `./parser.py` by default). CRAB's dashboard does not read or plot
-it.
+it. To parse a saved output again with a wrapper, use `crab parse <wrapper> <output file>`.
 
 ## Troubleshooting
 
@@ -234,8 +270,11 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `SbatchMan root not found. Please run 'sbatchman init'`, or a prompt offering to create a project | The command ran outside the project directory | `cd` into the directory where you ran `sbatchman init` ([step 4](#4-create-a-sbatchman-project)) |
 | `Cluster name not set. Please run 'sbatchman set-cluster-name'.` | No cluster name in SbatchMan's global settings | `sbatchman set-cluster-name your_cluster_name` |
 | `Wrapper not found: blink/a2a_b.py` (a relative path) in the job log | `CRAB_PATH_WRAPPERS` is not set in the job | Add it to the preset ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
-| `Wrapper not found: <absolute path>` | The wrapper file is not in that CRAB checkout | Check the path, and that the cluster's CRAB is on the `sbatchman` branch and up to date (`git -C <install dir>/CRAB pull`) |
-| The job starts but the benchmark never runs, or fails with an empty launch command | The benchmark was not built on this cluster; CRAB does not yet report a missing build clearly | Run `crab setup` for it ([step 3](#3-build-the-benchmarks)) |
+| `Wrapper not found: <absolute path>` | The wrapper file is not in that CRAB checkout | Check the path, and that the cluster's CRAB is on the `sbatchman` branch and up to date (`crab update`) |
+| `No binary for ... Tried: ...` in the job log | No config `binary`, receipt, or program on `PATH` for that wrapper | Build it, load its module in the preset, or record it with `crab receipts set` ([step 3](#3-build-or-register-the-benchmarks)) |
+| `PARSE FAILED  app <n>: ...` in the job log, and the run counted as failed | The wrapper could not read the application's output (the reason follows) | Compare the output with what the wrapper expects; fix the wrapper and check it with `crab parse` |
+| `This config has schema_version <n>, but this CRAB reads up to <m>` | The campaign was written by a newer dashboard than the cluster's CRAB | `crab update` on the cluster |
+| `crab update` stops with `Local edits to tracked files would be overwritten` | A tracked file in the checkout was changed by hand | Move the change to `local/` (presets, receipts, wrappers), or commit or stash it, then retry |
 | `sbatchman launch` fails with a `TypeError` | The campaign's **SbatchMan configs.yaml** field points at the project's configuration registry | Clear that field in the dashboard, write the campaign again ([step 6](#6-author-a-campaign)) |
 | `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job: SbatchMan is the PyPI release, or the preset lacks the entry | Install SbatchMan from GitHub `main` ([step 2](#2-install-crab-and-sbatchman-on-the-cluster)) and keep the `SBATCHMAN_JOB_DIR={EXP_DIR}` entry |
 | **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
