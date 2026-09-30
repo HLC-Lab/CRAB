@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(__file__))
 from crab.wrappers.base import sizeof_fmt
-from nccl_common import ncclbase
+from _nccl_common import ncclbase
 
 class app(ncclbase):  
     def get_binary_path(self):
