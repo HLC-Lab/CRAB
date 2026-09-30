@@ -63,7 +63,7 @@ def _local_profile() -> Profile:
 
 async def test_stage_config_ssh_resolves_tilde_to_absolute_before_writing():
     # mkdir and the SFTP write must target the SAME resolved directory: SFTP
-    # has no shell, so it cannot expand `~` the way `mkdir -p "$HOME/..."`
+    # has no shell, so it cannot expand `~` the way `mkdir -p "$HOME"/...`
     # does — resolving via `cd ... && pwd` once removes the ambiguity instead
     # of betting on the remote sftp-server also expanding a literal `~`.
     transport = FakeTransport(resolved_dir="/home/researcher/base/CRAB/.web_staging")
@@ -72,7 +72,7 @@ async def test_stage_config_ssh_resolves_tilde_to_absolute_before_writing():
     path = await stage_config(transport, _ssh_profile(), config, "My Run!")
 
     assert transport.run_calls == [
-        'mkdir -p "$HOME/base/CRAB/.web_staging" && cd "$HOME/base/CRAB/.web_staging" && pwd'
+        'mkdir -p "$HOME"/base/CRAB/.web_staging && cd "$HOME"/base/CRAB/.web_staging && pwd'
     ]
     assert path == "/home/researcher/base/CRAB/.web_staging/my-run.json"
     assert json.loads(transport.written_files[path]) == config

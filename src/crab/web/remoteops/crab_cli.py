@@ -21,13 +21,14 @@ from crab.web.store.profiles import Profile
 def remote_path_expr(path: str) -> str:
     """Quote a remote path while preserving ``~``/``$HOME`` expansion.
 
-    ``shlex.quote('~/CRAB')`` would stop tilde expansion, so leading ``~`` is
-    rewritten to ``$HOME`` inside double quotes (expanded by the remote bash).
+    ``shlex.quote('~/CRAB')`` would stop tilde expansion, so a leading ``~`` becomes a
+    double-quoted ``"$HOME"`` and the rest is single-quoted (bash joins the two words).
+    Only ``$HOME`` expands; ``$(...)``, backticks and other variables in the rest stay literal.
     """
     if path == "~":
         return '"$HOME"'
     if path.startswith("~/"):
-        return '"$HOME/' + path[2:].replace('"', '\\"') + '"'
+        return '"$HOME"/' + shlex.quote(path[2:])
     return shlex.quote(path)
 
 
