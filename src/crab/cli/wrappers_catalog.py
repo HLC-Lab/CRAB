@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from crab.core.data.parse import Parsed, ParseError, parse_output
-from crab.core.experiment.wrapper_paths import load_module, wrapper_search_path
+from crab.core.wrapper_paths import load_module, wrapper_search_path
 
 _NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
 UNVERIFIED_LIST = "unverified.txt"
@@ -108,7 +108,7 @@ def _describe(path: Path, folder: Path) -> dict[str, Any]:
 def gather_wrappers() -> dict[str, Any]:
     """Every wrapper along the search path (the first file with a given relpath wins)."""
     from crab.cli.contract import CONTRACT_SCHEMA
-    from crab.core.experiment import wrapper_paths
+    from crab.core import wrapper_paths
 
     search = wrapper_search_path()
     seen: set[str] = set()

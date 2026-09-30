@@ -14,7 +14,7 @@ import subprocess
 from typing import Any
 
 import crab
-from crab.core.experiment.wrapper_paths import resolve_wrapper_path
+from crab.core.wrapper_paths import resolve_wrapper_path
 from crab.wrappers.base import base
 
 # Version of the results layout (data_app_<id>.csv, metadata.csv, this file).

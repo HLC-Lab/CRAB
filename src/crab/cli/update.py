@@ -159,7 +159,7 @@ def handle_update(args: Any) -> None:
     import sys
 
     from crab.cli import contract
-    from crab.core.experiment import wrapper_paths
+    from crab.core import wrapper_paths
 
     root = Path(wrapper_paths._CRAB_ROOT)
     wrappers_dir = Path(wrapper_paths.wrapper_search_path()[1])

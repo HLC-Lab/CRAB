@@ -7,7 +7,7 @@ import os
 import pathlib
 from types import ModuleType
 
-_CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+_CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 
 def wrapper_search_path() -> list[str]:

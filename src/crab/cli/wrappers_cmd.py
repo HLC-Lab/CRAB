@@ -46,7 +46,7 @@ def _read(path: str) -> bytes:
 def handle_parse(args: argparse.Namespace) -> None:
     from crab.cli.wrappers_catalog import parse_saved_output
     from crab.core.data.parse import ParseError
-    from crab.core.experiment.wrapper_paths import resolve_wrapper_path
+    from crab.core.wrapper_paths import resolve_wrapper_path
 
     path = resolve_wrapper_path(args.wrapper)
     if not os.path.isfile(path):
@@ -145,7 +145,7 @@ def handle_wrappers_new(args: argparse.Namespace) -> None:
     from pathlib import Path
 
     from crab.cli.wrappers_catalog import scaffold
-    from crab.core.experiment.wrapper_paths import wrapper_search_path
+    from crab.core.wrapper_paths import wrapper_search_path
 
     search = wrapper_search_path()
     target = Path(args.dir or (search[0] if args.local else search[1]))
