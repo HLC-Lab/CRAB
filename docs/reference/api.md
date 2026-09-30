@@ -11,22 +11,29 @@ override are marked **override**.
 | Member | Signature | Notes |
 |--------|-----------|-------|
 | `__init__` | `(self, id_num, collect_flag, args)` | Set by CRAB on instantiation. Call `super().__init__(...)` if you override. |
-| `benchmark_id` | `property -> str` | **override** — return the id linking to a [receipt](../extending/receipts.md). Default `""` (no receipt). |
-| `metadata` | class/instance attr: `list[dict]` | **override** — `[{"name", "unit", "conv"}, ...]`, the order `read_data` returns. |
-| `read_data` | `(self) -> list[list]` | **override** — parse `self.stdout`; return one sample-list per metric, in `metadata` order. Default `[]`. |
-| `get_binary_path` | `(self) -> str \| None` | **override** for suites — default returns the receipt's `binary_path`. |
+| `wrapper_api` | class attr: `int` | The wrapper contract version the base implements (`1`). |
+| `benchmark_id` | `property -> str` | **override** (or a plain class attribute): the id linking to a [receipt](../extending/receipts.md). Default `""` (no receipt). |
+| `metadata` | class attr: `list[dict]` | **override**: `[{"name", "unit", "conv", "type"?, "role"?}, ...]`. Default `[]`. |
+| `keys` | class attr: `list[str]` | Sweep dimensions every row carries. Default `[]`. |
+| `executable` | class attr: `str` | Program looked up on `PATH` when no binary is configured. Default `""`. |
+| `read_data` | `(self) -> list[dict]` | **override**: parse `self.stdout` (and files in `self.run_dir`); return one dict per sample with every key and metric. The older one-list-per-metric return is still accepted. Default `[]`. |
+| `get_extra_artifacts` | `(self) -> list[str]` | **override** (optional): paths or globs, relative to `self.run_dir`, to keep with the results. Default `[]`. |
+| `get_binary_path` | `(self) -> str \| None` | **override** for suites: default returns the receipt's `binary_path`. |
+| `find_binary` | `(self) -> (str \| None, str)` | The binary and where it came from: `"config"`, `"receipt"`, `"path"`, or `(None, "missing")`. |
+| `resolve_binary` | `(self) -> str` | The binary from `find_binary`, or raises `MissingBinaryError` listing what was tried. |
 | `get_receipt` | `(self) -> dict \| None` | Loads the receipt for `benchmark_id`. |
 | `get_pre_commands` | `(self) -> list` | Returns the receipt's `hooks.pre_run`. |
 | `get_launcher_override` | `(self) -> str` | Returns the receipt's `launcher_override`. |
-| `run_app` | `(self) -> str` | The launch command: `get_binary_path() + " " + self.args`. Rarely overridden. |
+| `run_app` | `(self) -> str` | The launch command: `resolve_binary() + " " + self.args`. Override it to build the whole command yourself. |
 | `set_output` | `(self, stdout, stderr)` | Called by CRAB; decodes streams into `self.stdout` / `self.stderr`. |
 | `set_nodes` | `(self, node_list)` | Called by CRAB after allocation. |
 | `get_bench_name` | `(self) -> str` | **override** (optional) — a display name. |
-| `get_bench_input` | `(self) -> str` | **override** (optional) — a human label for the input (e.g. message size). |
+| `get_bench_input` | `(self) -> str` | **override** (optional): a human label for the input (e.g. message size). Not read by the engine. |
 
 Useful attributes available at run time: `self.args` (argument string), `self.id_num`,
-`self.collect_flag`, `self.node_list` / `self.num_nodes`, `self.stdout` / `self.stderr` (after the
-run), plus any extra config keys injected from the JSON app entry.
+`self.collect_flag`, `self.node_list` / `self.num_nodes`, `self.run_dir` (the app's working
+directory for the current run), `self.stdout` / `self.stderr` (after the run), plus any extra
+config keys injected from the JSON app entry (for example `self.binary`).
 
 Helper exported alongside `base`:
 

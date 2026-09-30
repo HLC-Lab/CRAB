@@ -35,10 +35,12 @@ Job — one `crab run`: one config file → one Slurm job → one output directo
 
 ## Top-level shape
 
-A config has two top-level keys: `global_options` and `experiments`.
+A config has two main top-level keys, `global_options` and `experiments`, and an optional
+`schema_version`.
 
 ```json
 {
+  "schema_version": 1,
   "global_options": { ... },
   "experiments": {
     "experiment_name": {
@@ -49,6 +51,16 @@ A config has two top-level keys: `global_options` and `experiments`.
   }
 }
 ```
+
+`schema_version` names the format of the file. The dashboard always writes it; a config without it
+is read as version 1. A config with a version newer than the installed CRAB understands is refused
+before anything runs, with a hint to run `crab update`.
+
+!!! note "Checked before anything runs"
+    Values CRAB would otherwise misread are errors before the job starts: `convergeall`,
+    `retain_files` and `collect` must be `true` or `false` (the strings `"true"` and `"false"` are
+    accepted too), `outformat` must be `csv`, allocation `mode`s must be one of `linear`,
+    `interleaved` or `random`, and every app needs a `path`.
 
 !!! note "Legacy single-experiment form"
     A config may instead use a top-level `applications` block in place of `experiments`. CRAB
@@ -73,7 +85,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `convergeall` | bool | `false` | If true, every metric must converge; otherwise only metrics flagged `conv` in the wrapper. |
 | `alpha` | float | `0.05` | Confidence-interval significance level. |
 | `beta` | float | `0.05` | Convergence threshold: CI width must fall below `beta × mean`. |
-| `outformat` | `csv` \| `hdf` | `csv` | Output file format. |
+| `outformat` | `csv` | `csv` | Output file format. `csv` is the only format. |
 | `retain_files` | bool | `true` | Keep per-run working directories. If `false`, successful runs' scratch dirs are deleted. |
 | `tags` | string | `none` | Free-form label recorded in the run registry (`metadata.csv`). |
 | `walltime` | string | `00:10:00` | Base Slurm `--time` value (overridable via `sbatch_directives`). |
@@ -157,7 +169,8 @@ application:
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `path` | string | **required** | Path to the [wrapper](../glossary.md#wrapper) module. If relative, resolved against `CRAB_PATH_WRAPPERS`. |
+| `path` | string | **required** | Path to the [wrapper](../glossary.md#wrapper) module. A relative path is looked up in `local/wrappers/`, then in each folder of `CRAB_PATH_WRAPPERS` (or `wrappers/`); see [Where CRAB looks for wrappers](../extending/wrappers.md#where-crab-looks-for-wrappers). |
+| `binary` | string | — | Path to the application's executable for this app. Takes precedence over the wrapper's receipt and `PATH` lookup. |
 | `args` | string | `""` | Command-line arguments passed to the executable. |
 | `collect` | bool | `false` | Whether to parse and store this app's metrics. |
 | `start` | string | `"0"` | When to start the app. See [Scheduling](#scheduling-start-and-end). |
@@ -165,8 +178,8 @@ application:
 | `partition` | string | — | (partitioned allocation) The named partition this app belongs to, e.g. `"victim"` or `"aggressor"`. Must match a key in `allocation.partitions`. |
 
 !!! tip "Extra keys become wrapper attributes"
-    Any key in an app entry that is **not** one of the reserved keys above
-    (`path`, `args`, `collect`, `start`, `end`, `partition`) is injected as an attribute onto the
+    Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end` or
+    `partition` (including `binary`) is injected as an attribute onto the
     wrapper instance. This lets a wrapper accept custom configuration straight from the JSON
     without framework changes.
 

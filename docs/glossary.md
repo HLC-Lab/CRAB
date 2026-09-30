@@ -98,7 +98,7 @@ every preset.
 
 ### Receipt
 
-A JSON file in `config/environments/<benchmark_id>.json`, produced by `crab setup` building a
+A JSON file in `local/receipts/<benchmark_id>.json`, produced by `crab setup` building a
 [recipe](#recipe). It records the built `binary_path`, optional `pre_run` hooks, a possible
 `launcher_override`, and `target_arch`. It is the bridge between *building* a benchmark and
 *running* it: [wrappers](#wrapper) read it at run time. System-dependent.

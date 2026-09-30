@@ -52,7 +52,7 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 | Variable | Read by | Notes |
 |----------|---------|-------|
 | `CRAB_ROOT` | framework | Repository root. Set in `_common` via `__CWD__`. |
-| `CRAB_PATH_WRAPPERS` | runner | Base directory for resolving relative wrapper `path`s. |
+| `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/`. Default: the checkout's `wrappers/`. |
 | `CRAB_WL_MANAGER` | runner | `slurm` (default) or `mpi` — selects the launch binding. |
 | `CRAB_MPIRUN` | wl_manager | Launcher binary. `slurm` defaults to `srun`; `mpi` requires it. |
 | `CRAB_PINNING_FLAGS` | wl_manager | CPU binding flags. Optional under `slurm`, required (may be empty) under `mpi`. |
@@ -68,7 +68,7 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 1. `-p` / `--preset` flag
 2. `CRAB_PRESET` environment variable
 3. A `.env` file in the working directory (its contents = the preset name)
-4. Default: `local`
+If none of these names a preset, `crab run` stops with an error; it never picks one for you.
 
 ## A note on `example_preset`
 

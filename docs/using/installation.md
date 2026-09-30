@@ -7,16 +7,15 @@ benchmarks you want available on this machine.
 
 - **Python 3.10+** (the installer hard-fails below this; on a cluster you may need `module load python` first).
 - **Git**.
-- **A Slurm cluster.** `crab run` submits the job with `sbatch`, so Slurm must be available — see
-  the note below.
+- **A Slurm cluster** to run experiments. `crab run` submits the job with `sbatch`; see the note
+  below for the one exception.
 - **An MPI toolchain / compilers** (`mpicc`, `make`, sometimes `cmake`) if you intend to *build*
   benchmarks from source with the setup wizard.
 
-!!! warning "CRAB requires Slurm to run experiments"
-    Every run is submitted through `sbatch`, including with the `local` preset. There is no
-    pure-laptop execution path — the `local`/MPI presets only change how individual applications
-    are *launched* on the allocated nodes (`mpirun` instead of `srun`), not how the job is
-    submitted. You need access to a Slurm-managed system to actually run experiments.
+!!! warning "CRAB needs Slurm to run experiments"
+    Every run is submitted through `sbatch`, except with the `local` preset: it runs a single-node
+    job directly on the machine you are on, without Slurm. That is meant for trying CRAB out and
+    for testing; real co-running experiments need a Slurm cluster.
 
 ## Install the framework
 
@@ -50,6 +49,9 @@ pip install -e .          # core framework
 pip install -e .[tui]     # optional: adds the Textual UI dependencies
 ```
 
+For the web dashboard, which runs on your laptop and drives clusters over SSH, install the `web`
+extra (`pip install -e ".[web]"`) and start it with `crab web`.
+
 The TUI extra can also be installed on demand — `crab tui` will offer to install it the first time
 if it's missing.
 
@@ -78,7 +80,8 @@ The wizard walks through:
     | **Environment module** | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
     | **Build from source** | Clones and compiles the benchmark (optionally with module loads and build parameters such as `cpu`/`gpu` arch for QE), streaming the build log live. |
 
-On success the wizard writes a receipt to `config/environments/<benchmark_id>.json`. Source builds
+On success the wizard writes a receipt to `local/receipts/<benchmark_id>.json` (receipts written
+by older versions in `config/environments/` are still read). Source builds
 are placed under `benchmarks/<benchmark_id>/` in the repo (this directory is git-ignored).
 
 Re-running `crab setup` lets you reconfigure an already-configured benchmark (it asks before
@@ -90,6 +93,30 @@ overwriting an existing receipt).
     orchestrator loads every receipt and also exports each binary path as a `CRAB_PATH_<ID>`
     environment variable for wrappers to read. See
     [Architecture → wrapper / recipe / receipt](../concepts/architecture.md#the-wrapper-recipe-receipt-model).
+
+### Applications you installed yourself
+
+An application that is already installed does not need the wizard:
+
+- If its wrapper declares an `executable` and that program is on `PATH` when the job runs (for
+  example after a `module load` in your preset), CRAB finds it with no setup at all.
+- Otherwise record where it is: `crab receipts set <benchmark_id> --binary /path/to/program`,
+  optionally with `--pre-run "module load ..."` (repeatable) and `--launcher srun|mpirun`.
+- A config can also name the binary for one app directly, with a `binary` key next to `path`.
+
+`crab wrappers list` shows every wrapper CRAB can see and where each one's binary comes from.
+
+## Keep it up to date
+
+Run `crab update` in the install. On a branch checkout it fast-forwards the branch; on an install
+that sits on a release tag it moves to the newest release of the same line. It reinstalls
+dependencies only when they changed, and it stops without changing anything if tracked files have
+local edits.
+
+Keep per-machine changes out of the tracked files so updates never conflict: the git-ignored
+`local/` folder holds `local/presets.json` (merged over the shipped presets, see
+[Configuring your cluster](presets.md)), `local/receipts/`, and `local/wrappers/` for private
+wrappers.
 
 ## Next steps
 
