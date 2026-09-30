@@ -15,7 +15,7 @@ class app(base):
         if not ib_devices_env:
             raise RuntimeError("CRAB_IB_DEVICES must be set to run ib_send_lat")
         ib_devices = ib_devices_env.count("#") + 1
-        files = [f"ib_send_lat{i}" for i in range(ib_devices)]
+        files = [os.path.join(self.run_dir, f"ib_send_lat{i}") for i in range(ib_devices)]
 
         samples = []
         for path in files:

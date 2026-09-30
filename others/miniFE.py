@@ -26,9 +26,9 @@ class app(base):
     def read_data(self):  # return list (size num_metrics) of variable size lists
         if self.exists:
             path = None
-            for file in os.listdir():
+            for file in os.listdir(self.run_dir):
                 if file[:6] == 'miniFE':
-                    path = file
+                    path = os.path.join(self.run_dir, file)
                     break
             if path is None:
                 # cannot find a file yaml file created by miniFE
