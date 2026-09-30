@@ -287,3 +287,43 @@ async def test_connect_ssh_raises_a_clean_error_when_asyncssh_is_missing(monkeyp
     )
     with pytest.raises(RemoteConnectionError, match="asyncssh"):
         await connect_ssh(profile)
+
+
+async def test_connect_ssh_times_out_on_a_silent_server(tmp_path: Path, monkeypatch):
+    """A host that accepts TCP but never speaks SSH (a hung login node) must fail within the
+    connect timeout instead of hanging the dashboard (and every other connect behind its lock)."""
+    import asyncio
+
+    import crab.web.connections.transport as transport_mod
+
+    monkeypatch.setattr(transport_mod, "CONNECT_TIMEOUT_S", 0.5)
+    client_key = asyncssh.generate_private_key("ssh-rsa")
+    key_path = tmp_path / "id_test"
+    client_key.write_private_key(str(key_path))
+    held: list[asyncio.StreamWriter] = []
+
+    async def silent(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        held.append(writer)  # keep the socket open, send nothing
+
+    server = await asyncio.start_server(silent, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    profile = Profile(
+        name="test",
+        host="127.0.0.1",
+        port=port,
+        user="test",
+        auth="key",
+        key_path=str(key_path),
+        hostkey_policy="insecure",
+    )
+    try:
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        with pytest.raises(RemoteConnectionError, match="Timed out"):
+            await connect_ssh(profile)
+        assert loop.time() - started < 5
+    finally:
+        for w in held:
+            w.close()
+        server.close()
+        await server.wait_closed()
