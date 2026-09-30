@@ -17,6 +17,28 @@ from crab.log import CrabLogger
 
 CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
+# Version of the config.json format this engine reads. A config without the field predates it
+# and is version 1. Bump only with a migration for the previous version.
+CONFIG_SCHEMA_VERSION = 1
+
+
+def check_config_schema_version(config: dict[str, Any]) -> None:
+    """Refuse a config written for a newer or unknown config format.
+
+    Raises:
+        ValueError: if `schema_version` is present but not an integer >= 1, or newer than this engine.
+    """
+    if "schema_version" not in config:
+        return
+    version = config["schema_version"]
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError(f"schema_version must be an integer of at least 1, got {version!r}")
+    if version > CONFIG_SCHEMA_VERSION:
+        raise ValueError(
+            f"This config has schema_version {version}, but this CRAB reads up to "
+            f"{CONFIG_SCHEMA_VERSION}. Run `crab update` on this machine."
+        )
+
 
 class Engine:
     def __init__(self, logger: CrabLogger):
@@ -30,6 +52,7 @@ class Engine:
         output_dir: str = None,
         only: list[str] | None = None,
     ):
+        check_config_schema_version(config)
         if is_worker:
             return self._run_worker(config, environment, output_dir)
         else:

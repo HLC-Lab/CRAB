@@ -82,6 +82,8 @@ class ExperimentModel(_Permissive):
 
 
 class CrabConfigModel(_Permissive):
+    # Format version (core/engine.py CONFIG_SCHEMA_VERSION); absent means 1.
+    schema_version: int | None = None
     global_options: GlobalOptionsModel = GlobalOptionsModel()
     experiments: dict[str, ExperimentModel] = {}
     # Legacy single-experiment form; the engine rewrites it into experiments.

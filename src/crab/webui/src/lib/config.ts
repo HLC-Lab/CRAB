@@ -8,6 +8,9 @@
 import type { AppConfig, CrabConfig, Experiment } from "@/api/types";
 import { sliceColor, sliceName } from "@/lib/slices";
 
+/** config.json format version; matches CONFIG_SCHEMA_VERSION in core/engine.py. */
+export const CONFIG_SCHEMA_VERSION = 1;
+
 // start: when the app launches. end: when it stops (the victim/aggressor axis).
 export type StartKind = "at_start" | "delay" | "after";
 export type EndKind = "complete" | "force" | "timed";
@@ -431,7 +434,8 @@ export function toConfig(draft: Draft): CrabConfig {
     if (Object.keys(local).length) out.local_options = local;
     experiments[key] = out;
   }
-  return { global_options: global, experiments };
+  // Always emitted (unlike options): it names the format, so the engine can refuse a newer one.
+  return { schema_version: CONFIG_SCHEMA_VERSION, global_options: global, experiments };
 }
 
 /**

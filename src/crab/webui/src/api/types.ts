@@ -96,6 +96,8 @@ export interface Experiment {
 
 /** The engine config document a `crab run` consumes. */
 export interface CrabConfig {
+  /** Format version (engine `CONFIG_SCHEMA_VERSION`); absent in configs written before it. */
+  schema_version?: number;
   global_options: Record<string, unknown>;
   experiments: Record<string, Experiment>;
 }
