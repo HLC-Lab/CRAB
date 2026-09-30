@@ -1,8 +1,6 @@
 import csv
 import fcntl
-import importlib.util
 import os
-import pathlib
 import re
 import shutil
 import signal
@@ -19,7 +17,7 @@ from ..allocation import NodeAllocator
 from ..data import check_CI
 from ..process import end_job, run_job
 from .artifacts import copy_artifacts
-from .wrapper_paths import resolve_wrapper_path
+from .wrapper_paths import load_module, resolve_wrapper_path
 
 
 class ExperimentRunner:
@@ -69,13 +67,6 @@ class ExperimentRunner:
         sorted_keys = sorted(app_configs.keys(), key=lambda x: int(x) if x.isdigit() else x)
 
         # Helper to load modules
-        def load_module(path):
-            name = pathlib.Path(path).stem
-            spec = importlib.util.spec_from_file_location(name, path)
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            return mod
-
         # WLM Loading
         wlm_name = os.environ.get("CRAB_WL_MANAGER", "slurm")
         _ALLOWED_WLM = {"slurm", "mpi", "workerpool", "local"}
