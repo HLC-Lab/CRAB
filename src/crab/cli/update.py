@@ -57,7 +57,7 @@ def _newest_tag(repo: Path, sbatchman_line: bool) -> str | None:
     return max(line, key=lambda t: _version(t) or (0, 0, 0)) if line else None
 
 
-def _update_crab(root: Path, pip: Callable[[Path], None]) -> dict[str, Any]:
+def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> dict[str, Any]:
     if not _is_repo_root(root):
         raise UpdateError(f"{root} is not a git checkout; reinstall CRAB with git to update it.")
     edited = _git(root, "diff", "--name-only", "HEAD")
@@ -70,7 +70,15 @@ def _update_crab(root: Path, pip: Callable[[Path], None]) -> dict[str, Any]:
 
     before = _git(root, "rev-parse", "HEAD")
     branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
-    if branch != "HEAD":
+    release = None
+    if branch != "HEAD" and to_release:
+        # A fresh install cloned from a branch: the branch name gives the release line.
+        _git(root, "fetch", "-q", "--tags", "origin")
+        release = _newest_tag(root, sbatchman_line=branch == "sbatchman")
+    if release:
+        _git(root, "checkout", "-q", release)
+        mode, old, new = "tag", branch, release
+    elif branch != "HEAD":
         _git(root, "pull", "--ff-only", "-q")
         mode, old, new = "branch", before[:12], _git(root, "rev-parse", "HEAD")[:12]
     else:
@@ -113,16 +121,23 @@ def _update_wrappers(root: Path, wrappers_dir: Path, url: str) -> dict[str, Any]
 
 
 def run_update(
-    root: Path, wrappers_dir: Path, wrappers_url: str, pip: Callable[[Path], None]
+    root: Path,
+    wrappers_dir: Path,
+    wrappers_url: str,
+    pip: Callable[[Path], None],
+    to_release: bool = False,
 ) -> dict[str, Any]:
     """Update the CRAB checkout at `root`, then the wrappers checkout.
+
+    With `to_release`, a checkout on a branch moves to the newest release tag of that branch's
+    line instead of fast-forwarding (the installer uses this right after cloning).
 
     Raises:
         UpdateError: when CRAB cannot be updated (nothing is changed) or the wrappers update fails.
     """
     from crab.cli.contract import CONTRACT_SCHEMA
 
-    crab = _update_crab(root, pip)
+    crab = _update_crab(root, pip, to_release)
     wrappers = _update_wrappers(root, wrappers_dir, wrappers_url)
     return {"schema": CONTRACT_SCHEMA, "crab": crab, "wrappers": wrappers}
 
@@ -149,7 +164,9 @@ def handle_update(args: Any) -> None:
     root = Path(wrapper_paths._CRAB_ROOT)
     wrappers_dir = Path(wrapper_paths.wrapper_search_path()[1])
     try:
-        result = run_update(root, wrappers_dir, WRAPPERS_REPO_URL, _pip_install)
+        result = run_update(
+            root, wrappers_dir, WRAPPERS_REPO_URL, _pip_install, to_release=args.to_release
+        )
     except (UpdateError, subprocess.CalledProcessError) as exc:
         print(f"crab: update stopped: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -171,5 +188,10 @@ def handle_update(args: Any) -> None:
 
 def register(subparsers: Any) -> None:
     parser = subparsers.add_parser("update", help="Update this CRAB install and its wrappers")
+    parser.add_argument(
+        "--to-release",
+        action="store_true",
+        help="On a branch checkout, switch to the newest release tag of that branch's line.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     parser.set_defaults(func=handle_update)

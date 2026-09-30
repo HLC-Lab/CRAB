@@ -140,3 +140,30 @@ def test_not_a_git_checkout_is_a_clear_error(tmp_path) -> None:
     plain.mkdir()
     with pytest.raises(UpdateError, match="not a git checkout"):
         run_update(plain, tmp_path / "w", "", Pip())
+
+
+@pytest.mark.parametrize(
+    ("branch", "expected"), [("main", "v0.10.0"), ("sbatchman", "v0.3.0+sbatchman")]
+)
+def test_to_release_moves_a_fresh_clone_to_the_newest_tag_of_its_line(
+    crab, tmp_path, branch, expected
+) -> None:
+    work, _ = crab
+    for i, tag in enumerate(["v0.9.0", "v0.10.0", "v0.3.0+sbatchman"]):
+        _commit(work, "a.py", f"{i}\n", tag=tag)
+    git(work, "push", "-q", "origin", f"main:{branch}")
+    fresh = tmp_path / f"fresh-{branch}"
+    subprocess.run(
+        ["git", "clone", "-q", "--branch", branch, str(tmp_path / "crab.git"), str(fresh)],
+        check=True,
+    )
+    result = run_update(fresh, tmp_path / "w", "", Pip(), to_release=True)
+    assert result["crab"]["mode"] == "tag" and result["crab"]["new"] == expected
+    assert git(fresh, "describe", "--tags", "--exact-match") == expected
+
+
+def test_to_release_without_any_tag_stays_on_the_branch(crab, tmp_path) -> None:
+    _, install = crab
+    result = run_update(install, tmp_path / "w", "", Pip(), to_release=True)
+    assert result["crab"]["mode"] == "branch"
+    assert git(install, "rev-parse", "--abbrev-ref", "HEAD") == "main"
