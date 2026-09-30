@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  wrappers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CRAB
+        run: pip install "crab @ git+https://github.com/HLC-Lab/CRAB.git@feature/web-dashboard"
+      - name: Every wrapper loads
+        run: |
+          CRAB_PATH_WRAPPERS="$PWD" crab wrappers list --json > wrappers.json
+          python - <<'PY'
+          import json, sys
+          bad = [w for w in json.load(open("wrappers.json"))["wrappers"] if not w["loadable"]]
+          for w in bad:
+              print(f"cannot load {w['relpath']}: {w['error']}")
+          sys.exit(1 if bad else 0)
+          PY
+      - name: Sample cases
+        run: CRAB_PATH_WRAPPERS="$PWD" crab wrappers test --strict
