@@ -14,6 +14,7 @@ import pandas
 
 from crab.core.config_checks import check_config
 from crab.core.experiment import ExperimentRunner
+from crab.core.provenance import write_provenance
 from crab.log import CrabLogger
 
 CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -364,6 +365,7 @@ class Engine:
                 nodes_df = pandas.read_csv(node_file, header=None)
                 full_node_list = nodes_df.iloc[:, 0].tolist()
             self.log.info(f"Allocated {len(full_node_list)} node(s)")
+            write_provenance(output_dir, config, full_node_list)
 
             global_opts = config.get("global_options", {})
             experiments = config.get("experiments", {})
