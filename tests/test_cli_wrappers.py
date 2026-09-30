@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-import crab.core.experiment.wrapper_paths as wp
+import crab.core.wrapper_paths as wp
 import crab.setup.memory as mem
 
 GOOD = """from crab.wrappers.base import base

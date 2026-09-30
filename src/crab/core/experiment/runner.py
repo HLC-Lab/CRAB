@@ -10,6 +10,7 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
+from crab.core.wrapper_paths import load_module, resolve_wrapper_path
 from crab.log import CrabLogger
 from crab.wrappers.base import base
 
@@ -17,7 +18,6 @@ from ..allocation import NodeAllocator
 from ..data import check_CI
 from ..process import end_job, run_job
 from .artifacts import copy_artifacts
-from .wrapper_paths import load_module, resolve_wrapper_path
 
 
 class ExperimentRunner:

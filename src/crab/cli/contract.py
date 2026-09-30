@@ -256,7 +256,7 @@ def gather_benchmarks(
     if wrappers_dir:
         wdirs = [Path(wrappers_dir)]
     else:
-        from crab.core.experiment import wrapper_paths
+        from crab.core import wrapper_paths
 
         # Same folders, same order as the engine's lookup; the first file with a relpath wins.
         wdirs = [Path(d) for d in wrapper_paths.wrapper_search_path()]

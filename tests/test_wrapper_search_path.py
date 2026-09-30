@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-import crab.core.experiment.wrapper_paths as wp
+import crab.core.wrapper_paths as wp
 from crab.cli import contract
 
 
