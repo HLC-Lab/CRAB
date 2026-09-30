@@ -4,8 +4,14 @@ A **receipt** is the small JSON file that records where a benchmark's binary liv
 plus how to launch it. It is the bridge between building a benchmark and running it: a
 [recipe](recipes.md) (or you, by hand) writes it; a [wrapper](wrappers.md) reads it.
 
-Receipts live in `config/environments/<benchmark_id>.json` (the directory is created on first
-setup).
+Receipts live in the git-ignored `local/receipts/<benchmark_id>.json` (the folder is created on
+first use). Receipts written by older versions in `config/environments/` are still read; when both
+exist, the one in `local/receipts/` wins.
+
+A receipt is only one of the ways a wrapper finds its binary: the app's `binary` key in the config
+comes first, and the wrapper's `executable` on `PATH` comes last (see
+[Finding the binary](wrappers.md#finding-the-binary)). An application that is on `PATH` when the
+job runs needs no receipt at all.
 
 ## How `crab setup` generates one
 
@@ -58,6 +64,20 @@ In addition, at run time the [orchestrator](../glossary.md#orchestrator) exports
 binary path as an environment variable **`CRAB_PATH_<ID>`** (uppercased id). Older wrappers read
 that variable directly instead of calling `get_receipt()`; both work.
 
+## Registering an installed binary with `crab receipts set`
+
+For an application that is already installed, one command records it:
+
+```bash
+crab receipts set mybench --binary /scratch/me/mybench/bin/mybench \
+  --pre-run "module load openmpi" --launcher srun
+```
+
+`--pre-run` can be repeated; `--launcher` overrides the cluster's launcher (for example `srun` or `mpirun`). The
+command refuses a binary path that does not exist unless you pass `--allow-missing`, and
+`--json` prints the saved receipt. The dashboard's Wrappers page uses the same command for its
+"Import binary" action.
+
 ## Registering a custom binary with `crab setup`
 
 For any binary that CRAB doesn't have a recipe for — something you built yourself, or an
@@ -73,8 +93,8 @@ override, then writes the receipt for you. This is the recommended path: no JSON
 
 ## Writing a receipt by hand
 
-If you prefer (or are scripting a setup), create the receipt directly —
-write `config/environments/<benchmark_id>.json` pointing `binary_path` at your build:
+If you prefer, create the receipt directly: write `local/receipts/<benchmark_id>.json` pointing
+`binary_path` at your build:
 
 ```json
 {
@@ -90,7 +110,7 @@ As long as a [wrapper](wrappers.md) declares the same `benchmark_id` (`"mybench"
 the binary from this file.
 
 !!! note "Receipts are system-dependent"
-    A receipt describes one machine — its paths and module commands won't transfer. It is
-    deliberately *not* committed (the `config/environments/` contents are local). Regenerate (or
-    re-write) receipts on each system. See
+    A receipt describes one machine: its paths and module commands won't transfer. It is
+    deliberately *not* committed (`local/` is git-ignored). Regenerate (or re-write) receipts on
+    each system. See
     [System-dependent vs system-independent](../concepts/system-dependent-vs-independent.md).

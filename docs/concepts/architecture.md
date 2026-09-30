@@ -65,7 +65,7 @@ collaborate — keep them separate in your mind:
 ```mermaid
 flowchart LR
     R["Recipe<br/>src/crab/setup/recipes/*.py<br/><i>how to build</i>"]
-    -->|"crab setup<br/>downloads &amp; compiles"| T["Receipt<br/>config/environments/&lt;id&gt;.json<br/><i>where the binary is</i>"]
+    -->|"crab setup<br/>downloads &amp; compiles"| T["Receipt<br/>local/receipts/&lt;id&gt;.json<br/><i>where the binary is</i>"]
     T -->|"read at runtime"| W["Wrapper<br/>wrappers/*.py<br/><i>how to launch &amp; parse</i>"]
     W -->|"uniform metrics"| D["data_app_&lt;id&gt;.csv"]
 ```
@@ -93,7 +93,7 @@ by `setup/registry.py` and are used only by the `crab setup` wizard.
 
 ### Receipt
 
-A JSON file at `config/environments/<benchmark_id>.json`, managed by `setup/memory.py`. It is the
+A JSON file at `local/receipts/<benchmark_id>.json`, managed by `setup/memory.py`. It is the
 **output of building a recipe** and the **input the wrapper reads at runtime**, recording:
 
 - `binary_path` — where the built executable lives.
@@ -101,7 +101,7 @@ A JSON file at `config/environments/<benchmark_id>.json`, managed by `setup/memo
 - `launcher_override` — a launcher to use instead of the cluster default.
 - `target_arch` — e.g. `gpu`, used for a guardrail check against the requested partition.
 
-The `config/environments/` directory does not exist until `crab setup` creates it.
+The `local/receipts/` folder is created on first use; receipts in the older `config/environments/` folder are still read.
 
 ## Per-experiment lifecycle
 

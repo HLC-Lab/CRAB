@@ -18,7 +18,7 @@ binary lives on this machine. A recipe *produces* a receipt; a wrapper *reads* o
 
 ```mermaid
 flowchart LR
-    R["Recipe<br/>(optional)"] -->|crab setup builds it| T["Receipt<br/>config/environments/&lt;id&gt;.json"]
+    R["Recipe<br/>(optional)"] -->|crab setup builds it| T["Receipt<br/>local/receipts/&lt;id&gt;.json"]
     T -->|read at run time| W["Wrapper<br/>(required)"]
     W --> M["uniform metrics"]
 ```

@@ -5,7 +5,9 @@ run: it tells CRAB how *this* machine launches work — which workload manager, 
 flags, CPU pinning, modules to load, and the Slurm directives every job needs. CRAB ships with
 presets for several systems; this page is about adding one for a cluster it doesn't know yet.
 
-Presets live in `config/presets.json`. For the exhaustive field/merge reference, see
+Presets live in `config/presets.json`, and your own additions and changes go in
+`local/presets.json` (see [Keep your presets out of git](#keep-your-presets-out-of-git)). For the
+exhaustive field/merge reference, see
 [presets.json format](../reference/presets.md); this page is the practical how-to.
 
 ## Start by copying an existing preset
@@ -14,7 +16,10 @@ Don't start from `example_preset` — it's an empty schema skeleton (and is deli
 `-p` tab-completion), so a run with it would fail. Copy a **complete, real** preset and adapt it:
 
 - **Slurm cluster (launcher `srun`)** → copy **`leonardo`**.
-- **Cluster where you launch with `mpirun`** → copy **`local`** or **`cluster_di`**.
+- **Cluster where you launch with `mpirun`** → copy **`cluster_di`**.
+
+The `local` preset is different: it runs a single-node job on your own machine without Slurm, for
+trying CRAB out. Don't use it as a template for a cluster.
 
 ## Anatomy of a working Slurm preset
 
@@ -103,6 +108,32 @@ The `_common` block in `config/presets.json` is merged underneath every preset �
 universal settings there (it already defines `CRAB_ROOT` and `CRAB_PATH_WRAPPERS`). The special
 token `__CWD__` is replaced with the repository root. If a preset doesn't set `CRAB_SYSTEM`, it
 defaults to the preset's name and is used in the output directory path.
+
+## Keep your presets out of git
+
+`config/presets.json` is tracked, so editing it (for example to put in your project account)
+turns every `git pull` or `crab update` into a conflict. Put your presets in
+`local/presets.json` instead: same format, git-ignored, and merged over the shipped file.
+
+- A preset in `local/presets.json` **replaces** the shipped preset of the same name as a whole,
+  so copy the entire block before changing it.
+- A preset that exists only in `local/presets.json` is simply added.
+- For `_common`, the `env` entries are merged key by key (yours win); any other `_common` key
+  you set replaces the shipped one.
+
+```json
+{
+  "leonardo": {
+    "description": "Leonardo with my project account",
+    "env": { "CRAB_MPIRUN": "srun", "CRAB_WL_MANAGER": "slurm" },
+    "sbatch": ["--account=MY_PROJECT", "--partition=boost_usr_prod"],
+    "header": ["module purge"]
+  }
+}
+```
+
+The shipped presets carry `--account=YOUR_PROJECT_ACCOUNT` as a placeholder where a cluster
+needs an account.
 
 Once your preset exists, [set up your benchmarks](installation.md#set-up-benchmarks-crab-setup) on
 the cluster and you're ready to [write an experiment](../reference/configuration.md).

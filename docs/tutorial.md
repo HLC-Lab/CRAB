@@ -29,7 +29,7 @@ crab setup
 
 Select the **Blink Suite**, then choose **Build from source** (the wizard clones and compiles it,
 streaming the build log). When it finishes it writes a [receipt](glossary.md#receipt) to
-`config/environments/blink.json` recording where the binaries live — the wrappers read this at run
+`local/receipts/blink.json` recording where the binaries live — the wrappers read this at run
 time. See [Installation & benchmark setup](using/installation.md#set-up-benchmarks-crab-setup) for
 the other strategies (e.g. pointing at an existing build).
 
