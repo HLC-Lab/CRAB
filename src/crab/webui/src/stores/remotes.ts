@@ -18,6 +18,8 @@ export const useRemotesStore = defineStore("remotes", () => {
   // Connected, but CRAB isn't installed there → drives the guided install.
   const crabMissing = ref<Record<string, boolean>>({});
   const info = ref<Record<string, CrabInfo>>({});
+  // Connected CRAB speaks a different `--json` contract: the backend's fix-it message.
+  const skew = ref<Record<string, string>>({});
 
   // Bootstrap (guided install) state, keyed by remote name.
   const plan = ref<Record<string, BootstrapPlan>>({});
@@ -74,10 +76,12 @@ export const useRemotesStore = defineStore("remotes", () => {
     busy.value[name] = true;
     delete connectError.value[name];
     delete crabMissing.value[name];
+    delete skew.value[name];
     try {
       const res = await api.remotes.connect(name, password);
       if (res.crab_installed && res.info) {
         info.value[name] = res.info;
+        if (res.skew) skew.value[name] = res.skew;
       } else {
         // Connected, but CRAB isn't there — offer to install it.
         crabMissing.value[name] = true;
@@ -98,6 +102,7 @@ export const useRemotesStore = defineStore("remotes", () => {
     try {
       await api.remotes.disconnect(name);
       delete info.value[name];
+      delete skew.value[name];
       delete crabMissing.value[name];
       delete plan.value[name];
       delete installResult.value[name];
@@ -132,6 +137,8 @@ export const useRemotesStore = defineStore("remotes", () => {
       const res = await api.remotes.bootstrap.verify(name);
       if (res.installed && res.info) {
         info.value[name] = res.info;
+        if (res.skew) skew.value[name] = res.skew;
+        else delete skew.value[name];
         delete crabMissing.value[name];
         delete plan.value[name];
         delete installResult.value[name];
@@ -155,6 +162,7 @@ export const useRemotesStore = defineStore("remotes", () => {
     connectError,
     crabMissing,
     info,
+    skew,
     plan,
     installResult,
     bootstrapBusy,

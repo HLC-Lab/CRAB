@@ -42,6 +42,8 @@ export interface ConnectResult {
   info: CrabInfo | null;
   crab_installed: boolean;
   reason: string | null;
+  /** Fix-it message when the cluster's `--json` contract differs from the dashboard's. */
+  skew: string | null;
 }
 
 /** One guided-install step (mirrors web/remoteops/bootstrap.py). */
@@ -73,6 +75,7 @@ export interface DetectResult {
   installed: boolean;
   info: CrabInfo | null;
   reason: string | null;
+  skew: string | null;
 }
 
 // -- Experiment authoring (Phase 3) ----------------------------------------

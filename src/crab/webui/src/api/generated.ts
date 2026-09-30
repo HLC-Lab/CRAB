@@ -630,6 +630,8 @@ export interface components {
       } | null;
       /** Reason */
       reason?: string | null;
+      /** Skew */
+      skew?: string | null;
     };
     /**
      * ExperimentRunStatus
