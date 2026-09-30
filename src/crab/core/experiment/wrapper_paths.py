@@ -7,14 +7,39 @@ import os
 import pathlib
 from types import ModuleType
 
+_CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+
+
+def wrapper_search_path() -> list[str]:
+    """Folders searched for a relative wrapper path, in order.
+
+    The untracked `local/wrappers` comes first (private or in-progress wrappers), then each
+    folder in CRAB_PATH_WRAPPERS (an os.pathsep-separated list), or the checkout's `wrappers/`
+    when CRAB_PATH_WRAPPERS is unset.
+    """
+    configured = os.environ.get("CRAB_PATH_WRAPPERS")
+    shared = [d for d in configured.split(os.pathsep) if d] if configured else []
+    return [os.path.join(_CRAB_ROOT, "local", "wrappers")] + (
+        shared or [os.path.join(_CRAB_ROOT, "wrappers")]
+    )
+
 
 def resolve_wrapper_path(path: str) -> str:
-    """A relative wrapper path is looked up under CRAB_PATH_WRAPPERS when that is set.
+    """The file a config's wrapper `path` names: the first match along the search path.
 
-    Absolute paths, and relative ones when CRAB_PATH_WRAPPERS is unset, are returned unchanged.
+    Absolute paths are returned unchanged. A relative path found nowhere resolves the way it
+    did before the search path existed (under the first CRAB_PATH_WRAPPERS folder, else
+    relative to the working directory), so old configs and error messages stay the same.
     """
-    if not os.path.isabs(path) and "CRAB_PATH_WRAPPERS" in os.environ:
-        return os.path.join(os.environ["CRAB_PATH_WRAPPERS"], path)
+    if os.path.isabs(path):
+        return path
+    for folder in wrapper_search_path():
+        candidate = os.path.join(folder, path)
+        if os.path.exists(candidate):
+            return candidate
+    configured = os.environ.get("CRAB_PATH_WRAPPERS")
+    if configured:
+        return os.path.join(configured.split(os.pathsep)[0], path)
     return path
 
 

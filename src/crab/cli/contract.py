@@ -178,6 +178,7 @@ def _introspect_wrapper(path: Path, wrappers_root: Path) -> dict[str, Any]:
     entry: dict[str, Any] = {
         "file": path.name,
         "relpath": rel,
+        "path": str(path),
         "group": rel.split(os.sep)[0] if os.sep in rel else "",
         "loadable": False,
         "benchmark_id": None,
@@ -252,20 +253,29 @@ def gather_benchmarks(
         if env_dir
         else [_CRAB_ROOT / "config" / "environments", _CRAB_ROOT / "local" / "receipts"]
     )
-    wdir = (
-        Path(wrappers_dir)
-        if wrappers_dir
-        else Path(os.environ.get("CRAB_PATH_WRAPPERS", _CRAB_ROOT / "wrappers"))
-    )
+    if wrappers_dir:
+        wdirs = [Path(wrappers_dir)]
+    else:
+        from crab.core.experiment import wrapper_paths
+
+        # Same folders, same order as the engine's lookup; the first file with a relpath wins.
+        wdirs = [Path(d) for d in wrapper_paths.wrapper_search_path()]
 
     by_id = {b["id"]: b for d in env_dirs if d.is_dir() for b in _gather_receipts(d)}
     benchmarks = [by_id[k] for k in sorted(by_id)]
 
     wrappers: list[dict[str, Any]] = []
-    if wdir.is_dir():
+    seen: set[str] = set()
+    for wdir in wdirs:
+        if not wdir.is_dir():
+            continue
         for py in sorted(wdir.rglob("*.py")):
             if py.name.startswith("_"):  # __init__.py and dunder helpers
                 continue
+            rel = str(py.relative_to(wdir))
+            if rel in seen:
+                continue
+            seen.add(rel)
             wrappers.append(_introspect_wrapper(py, wdir))
 
     return {"schema": CONTRACT_SCHEMA, "benchmarks": benchmarks, "wrappers": wrappers}
