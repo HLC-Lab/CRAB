@@ -12,6 +12,9 @@ hosts
 /benchmarks/
 /config/environments/
 
+# Per-machine files (presets overrides, receipts, private wrappers); never committed
+/local/
+
 # Generated dashboard exports (contain embedded data, should not be committed)
 crab_export.html
 *_export.html

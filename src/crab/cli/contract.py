@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from crab import __version__
+from crab.cli.presets import load_all_presets
 
 # Bump on any breaking change to the shapes below. Reported by `crab info` so
 # the backend can detect laptop<->cluster skew (ContractError).
@@ -49,17 +50,16 @@ def _crab_version() -> str:
 def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
     """Version handshake + available presets."""
     root = Path(crab_root) if crab_root else _CRAB_ROOT
-    presets_file = root / "config" / "presets.json"
 
     presets: list[dict[str, str]] = []
     try:
-        raw = json.loads(presets_file.read_text())
+        raw = load_all_presets(root)
         for name, body in raw.items():
             if name in ("_common", "example_preset"):
                 continue
             desc = body.get("description", "") if isinstance(body, dict) else ""
             presets.append({"name": name, "description": desc})
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         # No presets file / malformed → empty list, not a failure.
         presets = []
 

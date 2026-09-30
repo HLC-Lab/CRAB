@@ -1,5 +1,4 @@
 import argparse
-import json
 import os
 import subprocess
 import sys
@@ -10,11 +9,13 @@ from argcomplete.completers import FilesCompleter
 
 def _preset_completer(prefix, parsed_args, **kwargs):
     """Dynamically parses presets.json for tab-autocompletion."""
+    from pathlib import Path
+
+    from crab.cli.presets import load_all_presets
+
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-    presets_filename = os.path.join(base_dir, "config", "presets.json")
     try:
-        with open(presets_filename) as f:
-            all_presets = json.load(f)
+        all_presets = load_all_presets(Path(base_dir))
         valid_presets = [k for k in all_presets.keys() if k not in ["_common", "example_preset"]]
         return [p for p in valid_presets if p.startswith(prefix)]
     except Exception:
