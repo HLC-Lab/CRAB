@@ -19,6 +19,7 @@ from ..allocation import NodeAllocator
 from ..data import check_CI
 from ..process import end_job, run_job
 from .artifacts import copy_artifacts
+from .wrapper_paths import resolve_wrapper_path
 
 
 class ExperimentRunner:
@@ -99,9 +100,7 @@ class ExperimentRunner:
             if not path:
                 continue
 
-            # Controlla la ENV CRAB_PATH_WRAPPERS
-            if not os.path.isabs(path) and "CRAB_PATH_WRAPPERS" in os.environ:
-                path = os.path.join(os.environ["CRAB_PATH_WRAPPERS"], path)
+            path = resolve_wrapper_path(path)
 
             if not os.path.exists(path):
                 self.log.error(f"Wrapper not found at: {path}")
