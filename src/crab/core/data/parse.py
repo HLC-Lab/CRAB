@@ -42,7 +42,16 @@ def _metric_type(meta: dict[str, Any]) -> str:
     kind = meta.get("type", "float")
     if kind not in _TYPE_CHECKS:
         raise ParseError(f"metric {meta['name']!r} declares unknown type {kind!r}")
+    role = meta.get("role")
+    if role not in (None, "check"):
+        raise ParseError(f"metric {meta['name']!r} declares unknown role {role!r}")
+    if role == "check" and kind != "bool":
+        raise ParseError(f"check {meta['name']!r} must declare type bool")
     return kind
+
+
+def _check_names(metadata: list[dict[str, Any]]) -> list[str]:
+    return [m["name"] for m in metadata if m.get("role") == "check"]
 
 
 def _lift_legacy(raw: list[Any], metadata: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -135,7 +144,8 @@ def _new_container(app: Any, meta: dict[str, Any], key: tuple) -> DataContainer:
 
 
 def collect_run(apps: list[Any], containers: list[DataContainer], log: Any, *, run_id: int) -> bool:
-    """Record run `run_id`'s samples into `containers`; False if any collected app failed to parse.
+    """Record run `run_id`'s samples into `containers`; False if any app failed to parse or a
+    declared check was false (those rows are still recorded, but not used for convergence).
 
     There is one container per (app, metric, key values); new key values get a new container,
     appended to `containers`. Apps that exited non-zero are skipped here (the caller already
@@ -163,9 +173,13 @@ def collect_run(apps: list[Any], containers: list[DataContainer], log: Any, *, r
             )
 
         keys = list(getattr(app, "keys", []) or [])
+        checks = _check_names(app.metadata)
+        failed_checks: set[str] = set()
         counts: dict[tuple, int] = {}
         for row in parsed.rows:
             key = tuple((k, row[k]) for k in keys)
+            row_failed = [name for name in checks if row[name] is not True]
+            failed_checks.update(row_failed)
             for meta in app.metadata:
                 slot = (app.id_num, meta["name"], key)
                 container = index.get(slot)
@@ -175,7 +189,12 @@ def collect_run(apps: list[Any], containers: list[DataContainer], log: Any, *, r
                     containers.append(container)
                 container.data.append(row[meta["name"]])
                 container.run_ids.append(run_id)
+                container.valid.append(not row_failed)
                 counts[slot] = counts.get(slot, 0) + 1
         for slot, count in counts.items():
             index[slot].num_samples.append(count)
+        if failed_checks:
+            names = ", ".join(repr(n) for n in sorted(failed_checks))
+            log.error(f"CHECK FAILED  app {app.id_num}: {names} false in run {run_id}")
+            all_parsed = False
     return all_parsed

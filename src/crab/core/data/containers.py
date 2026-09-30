@@ -21,6 +21,8 @@ class DataContainer:
         self.numeric = numeric
         # Real run number of each sample in `data`.
         self.run_ids = []
+        # Per sample: False when a declared check failed in that sample's row.
+        self.valid = []
         self.conv_run = 0
         self.label = label
         self.unit = unit
@@ -29,6 +31,10 @@ class DataContainer:
         self.num_samples = []
         self.data = []
         self.msg_size = msg_size
+
+    def convergence_samples(self) -> list[Any]:
+        """The samples convergence may use: all of them, minus rows whose check failed."""
+        return [d for i, d in enumerate(self.data) if i >= len(self.valid) or self.valid[i]]
 
     def get_title(self) -> str:
         return f"{self.app_id}_{self.label}_{self.unit}"

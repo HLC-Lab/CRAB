@@ -13,12 +13,13 @@ def check_CI(
         if not container.numeric:
             continue
         if (not container.converged) and (converge_all or container.conv_goal):
-            n = len(container.data)
+            samples = container.convergence_samples()
+            n = len(samples)
             if n <= 1:
                 continue
 
-            mean = np.mean(container.data)
-            sem = st.sem(container.data)
+            mean = np.mean(samples)
+            sem = st.sem(samples)
 
             if sem == 0:
                 container.converged = True
