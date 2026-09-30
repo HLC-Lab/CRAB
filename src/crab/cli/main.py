@@ -281,7 +281,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs}",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,receipts}",
     )
     subparsers.required = True
 
@@ -384,7 +384,12 @@ def cli_router():
     )
     parser_export.set_defaults(func=handle_export)
 
-    # 7. Worker Command (Hidden)
+    # 7. Wrapper tooling: crab parse, crab receipts
+    from crab.cli import wrappers_cmd
+
+    wrappers_cmd.register(subparsers)
+
+    # 8. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)
