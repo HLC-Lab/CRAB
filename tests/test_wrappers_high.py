@@ -29,7 +29,7 @@ class TestPwBaseNoneBinary(unittest.TestCase):
             os.path.dirname(__file__), "..", "wrappers", "quantum-espresso", "pw"
         )
         sys.path.insert(0, wrappers_path)
-        from pw_base import pw_base
+        from _pw_base import pw_base
 
         sys.path.pop(0)
 
@@ -69,7 +69,7 @@ class TestPwBaseOutdirRegex(unittest.TestCase):
             os.path.dirname(__file__), "..", "wrappers", "quantum-espresso", "pw"
         )
         sys.path.insert(0, wrappers_path)
-        from pw_base import pw_base
+        from _pw_base import pw_base
 
         sys.path.pop(0)
 
@@ -117,7 +117,7 @@ class TestPwBaseOutdirRegex(unittest.TestCase):
 
 
 def _make_nccl():
-    return _load_wrapper("nccl_common")
+    return _load_wrapper("_nccl_common")
 
 
 class TestNcclCommon(unittest.TestCase):

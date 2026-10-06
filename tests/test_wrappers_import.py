@@ -12,22 +12,18 @@ from pathlib import Path
 import pytest
 
 _WRAPPERS = Path(__file__).resolve().parents[1] / "wrappers"
-_HELPERS = {"__init__.py"}  # plus *_common.py / *_base.py: shared code, no `class app`
+# Shared helper modules are `_`-prefixed (e.g. _microbench_common.py): no `class app`.
 
-# Known broken at import time; fixed in roadmap M1 (measurement trustworthiness).
-# strict=True: when M1 fixes one, this list must shrink or the suite goes red.
-_KNOWN_BROKEN: dict[str, str] = {
-    "others/amg.py": "subclasses the base wrapper without importing it (NameError)",
-}
+# Known broken at import time. strict=True: when one is fixed, this list must shrink
+# or the suite goes red.
+_KNOWN_BROKEN: dict[str, str] = {}
 
 
 def _wrapper_files() -> list[Path]:
     return sorted(
         p
         for p in _WRAPPERS.rglob("*.py")
-        if "__pycache__" not in p.parts
-        and p.name not in _HELPERS
-        and not p.stem.endswith(("_common", "_base"))
+        if "__pycache__" not in p.parts and not p.name.startswith("_")
     )
 
 
