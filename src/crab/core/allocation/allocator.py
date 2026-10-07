@@ -48,6 +48,28 @@ class NodeAllocator:
         return NodeAllocator._apply_largest_remainder(num_nodes, split_list)
 
     @staticmethod
+    def allocate_experiment(apps: list[Any], node_list: list[str], allocation: dict[str, Any]):
+        """Give every app of one experiment its nodes, per the experiment's `allocation`.
+
+        The single entry point used by the runner and by the pre-submit config checks.
+        """
+        if "partitions" in allocation:
+            NodeAllocator.allocate_partitioned(apps, node_list, allocation)
+            return
+        mode = allocation.get("mode", "linear")
+        split = NodeAllocator.get_abs_split(
+            allocation.get("split", "even"), len(apps), len(node_list)
+        )
+        if mode == "interleaved":
+            NodeAllocator.allocate_interleaved(
+                apps, node_list, split, stride=allocation.get("stride", 1)
+            )
+        elif mode == "random":
+            NodeAllocator.allocate_random(apps, node_list, split, seed=allocation.get("seed"))
+        else:  # linear (default)
+            NodeAllocator.allocate_linear(apps, node_list, split)
+
+    @staticmethod
     def allocate_linear(apps: list[Any], node_list: list[str], split_counts: list[int]):
         """Allocates contiguous blocks of nodes to applications."""
         idx = 0

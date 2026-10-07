@@ -117,22 +117,10 @@ class _Slot:
 def _allocate_on_paper(
     allocation: dict[str, Any], partitions: list[Any], numnodes: int
 ) -> list[int]:
-    """Node count per app, from the same NodeAllocator calls as ExperimentRunner.setup."""
+    """Node count per app, from the same NodeAllocator call as ExperimentRunner.setup."""
     slots = [_Slot(p) for p in partitions]
     node_list = [f"n{i}" for i in range(numnodes)]
-    if "partitions" in allocation:
-        NodeAllocator.allocate_partitioned(slots, node_list, allocation)
-    else:
-        mode = allocation.get("mode", "linear")
-        split = NodeAllocator.get_abs_split(allocation.get("split", "even"), len(slots), numnodes)
-        if mode == "interleaved":
-            NodeAllocator.allocate_interleaved(
-                slots, node_list, split, stride=allocation.get("stride", 1)
-            )
-        elif mode == "random":
-            NodeAllocator.allocate_random(slots, node_list, split, seed=allocation.get("seed"))
-        else:
-            NodeAllocator.allocate_linear(slots, node_list, split)
+    NodeAllocator.allocate_experiment(slots, node_list, allocation)
     return [len(s.nodes) for s in slots]
 
 
