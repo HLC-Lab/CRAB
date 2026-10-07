@@ -437,3 +437,22 @@ class TestLocalScheduler(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFailedExperimentsFailTheJob(unittest.TestCase):
+    def test_worker_runs_every_experiment_then_fails_naming_the_failed_ones(self):
+        """An experiment that raises must not stop the others, but the worker must end with an
+        error: its exit status is the job's (Slurm state, local_exit_code). Before, it ended
+        normally and a crashed job read as COMPLETED."""
+        engine = _make_engine()
+        missing = {"0": {"path": "/nonexistent/wrapper.py"}}
+        config = {
+            "global_options": {"numnodes": "1"},
+            "experiments": {"a_first": {"apps": missing}, "b_second": {"apps": missing}},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("crab.core.engine.write_provenance"):
+                with self.assertRaises(RuntimeError) as ctx:
+                    engine._run_worker(config, {"CRAB_SCHEDULER": "local"}, tmpdir)
+        self.assertIn("2 of 2 experiments failed: a_first, b_second", str(ctx.exception))
+        engine.log.info.assert_any_call("Starting experiment [2/2]: b_second")

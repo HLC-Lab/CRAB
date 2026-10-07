@@ -378,6 +378,7 @@ class Engine:
             sorted_exp_ids = sorted(experiments.keys())
             total_exps = len(sorted_exp_ids)
 
+            failed: list[str] = []
             for idx, exp_id in enumerate(sorted_exp_ids, 1):
                 exp_config = experiments[exp_id]
                 self.log.info(f"Starting experiment [{idx}/{total_exps}]: {exp_id}")
@@ -399,11 +400,18 @@ class Engine:
                     import traceback
 
                     traceback.print_exc()
+                    failed.append(exp_id)
                 finally:
                     runner.teardown()
                     time.sleep(2)
 
             self.log.info("All experiments finished")
+            # The other experiments still ran; the job itself must end failed (its exit status
+            # is the Slurm job state and the local job's local_exit_code).
+            if failed:
+                raise RuntimeError(
+                    f"{len(failed)} of {total_exps} experiments failed: {', '.join(failed)}"
+                )
 
         finally:
             os.environ.clear()
