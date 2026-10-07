@@ -326,6 +326,30 @@ async def _resolve_via_history(
     return worst_status(statuses)
 
 
+async def _refresh_cluster(
+    transport: Transport, profile: Profile, recs: list[JobRecord]
+) -> dict[str, str]:
+    """Fresh state per record id for one cluster's active jobs (only the changed ones)."""
+    status = await run_crab_json(
+        transport, profile, ["status", *(r.job_id for r in recs), "--json"], timeout=30.0
+    )
+    by_job_id = {j["job_id"]: j["state"] for j in status["jobs"]}
+    resolved: dict[str, str] = {}
+    for rec in recs:
+        state = by_job_id.get(rec.job_id, "UNKNOWN")
+        # `recs` only ever holds jobs whose stored state isn't terminal yet
+        # (see list_jobs' filter), so a fresh COMPLETED here is the one and
+        # only moment to catch a failed experiment before this job is
+        # never polled again.
+        if state in ("UNKNOWN", "COMPLETED"):
+            via_history = await _resolve_via_history(transport, profile, rec, timeout=30.0)
+            if via_history is not None:
+                state = via_history
+        if state != rec.last_known_state:
+            resolved[rec.id] = state
+    return resolved
+
+
 @router.get("")
 async def list_jobs(request: Request) -> list[JobListItem]:
     """Registry ⨝ live `crab status`, batched one call per cluster with active jobs.
@@ -353,22 +377,7 @@ async def list_jobs(request: Request) -> list[JobListItem]:
         except NotFoundError:
             continue  # profile removed after the job was recorded
 
-        status = await run_crab_json(
-            transport, profile, ["status", *(r.job_id for r in recs), "--json"], timeout=30.0
-        )
-        by_job_id = {j["job_id"]: j["state"] for j in status["jobs"]}
-        for rec in recs:
-            state = by_job_id.get(rec.job_id, "UNKNOWN")
-            # `recs` only ever holds jobs whose stored state isn't terminal yet
-            # (see the filter above), so a fresh COMPLETED here is the one and
-            # only moment to catch a failed experiment before this job is
-            # never polled again.
-            if state in ("UNKNOWN", "COMPLETED"):
-                via_history = await _resolve_via_history(transport, profile, rec, timeout=30.0)
-                if via_history is not None:
-                    state = via_history
-            if state != rec.last_known_state:
-                resolved_states[rec.id] = state
+        resolved_states.update(await _refresh_cluster(transport, profile, recs))
 
     for record_id, state in resolved_states.items():
         store.update(record_id, last_known_state=state)
