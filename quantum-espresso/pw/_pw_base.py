@@ -6,6 +6,7 @@ from abc import abstractmethod
 from crab.wrappers.base import base
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from _qe_binary import pw_from_receipt  # noqa: E402
 from _qe_output import read_wall_time  # noqa: E402
 
 
@@ -30,24 +31,7 @@ class pw_base(base):
         return read_wall_time(content, "PWSCF")
 
     def get_binary_path(self):
-        receipt = self.get_receipt()
-        if not receipt:
-            return None
-
-        base_path = receipt.get("binary_path", "")
-        install_type = receipt.get("type", "source")
-
-        if install_type == "module":
-            return base_path
-
-        if install_type == "binary":
-            return os.path.join(base_path, "pw.x")
-
-        # source: binary_path = target_dir/bin (CMake install prefix stub)
-        # actual build output is at target_dir/build/bin/pw.x
-        if base_path.endswith("bin"):
-            base_path = os.path.dirname(base_path)
-        return os.path.join(base_path, "build", "bin", "pw.x")
+        return pw_from_receipt(self.get_receipt())
 
     def run_app(self):
         input_file = getattr(self, 'input_file', None)
@@ -77,10 +61,6 @@ class pw_base(base):
                 else:
                     f_out.write(line)
 
-        binary = self.get_binary_path()
-        if binary is None:
-            raise RuntimeError(
-                f"No receipt found for benchmark_id='{self.benchmark_id}'. "
-                "Run 'crab setup' first."
-            )
+        # The binary the engine's pre-flight checked: the config's 'binary', else the receipt.
+        binary = self.resolve_binary()
         return f"{binary} < {modified_in}"

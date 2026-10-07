@@ -26,3 +26,7 @@ jobs:
           PY
       - name: Sample cases
         run: CRAB_PATH_WRAPPERS="$PWD" crab wrappers test --strict
+      - name: Unit tests
+        run: |
+          pip install pytest
+          python -m pytest -q
