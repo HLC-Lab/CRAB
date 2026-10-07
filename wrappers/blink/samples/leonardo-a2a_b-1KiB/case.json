@@ -1,0 +1,1 @@
+{"wrapper": "a2a_b.py", "args": "-msgsize 1024 -iter 100", "source": "leonardo", "note": "Leonardo booster, 2 nodes x 16 ranks, openmpi 4.1.6, captured 2026-10-07 with the CRAB sample kit"}

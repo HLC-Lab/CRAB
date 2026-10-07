@@ -1,0 +1,1 @@
+{"wrapper": "a2a_b.py", "args": "-msgsize 1024 -iter 100", "source": "synthetic", "note": "leonardo-a2a_b-1KiB with UCX warning lines added before the table and inside it"}

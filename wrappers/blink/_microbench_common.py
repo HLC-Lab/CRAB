@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 from crab.wrappers.base import base, sizeof_fmt
 
 class microbench(base):
@@ -32,14 +33,37 @@ class microbench(base):
                 return os.path.join(os.path.dirname(stored), name)
         return os.path.join(stored, name)
 
-    def read_data(self):
-        out_string = self.stdout
-        tmp_list = []
+    # The CSV header the benchmark prints before its samples (common.h write_results). Its
+    # columns map, in order, to the metrics in `metadata`.
+    table_header = "Average,Minimum,Maximum,Median,MainRank"
 
-        for line in out_string.splitlines()[2:-1]:
-            tmp_list += [[float(x) for x in line.split(',')]]
-        data_list = [list(x) for x in zip(*tmp_list)]
-        return data_list
+    def read_data(self):
+        # The table is found by its header, not by line position: MPI/UCX warnings and extra
+        # preamble lines (pw-ping-pong_b prints its targets) can come before it. Lines in the
+        # table that don't start with a digit are such warnings and are skipped; the trailer's
+        # sample count catches anything lost.
+        lines = [line.strip() for line in self.stdout.splitlines()]
+        if self.table_header not in lines:
+            raise ValueError(f"no '{self.table_header}' header line in the output")
+        names = [m['name'] for m in self.metadata]
+        rows = []
+        measured = None
+        for line in lines[lines.index(self.table_header) + 1:]:
+            match = re.match(r"Ran \d+ iterations\. Measured (\d+) iterations\.$", line)
+            if match:
+                measured = int(match.group(1))
+                break
+            if not line[:1].isdigit():
+                continue
+            values = line.split(',')
+            if len(values) != len(names):
+                raise ValueError(f"expected {len(names)} comma-separated numbers, got {line!r}")
+            rows.append(dict(zip(names, (float(v) for v in values))))
+        if measured is None:
+            raise ValueError("output ends before the 'Ran N iterations. Measured M iterations.' line (the run did not finish?)")
+        if len(rows) != measured:
+            raise ValueError(f"table has {len(rows)} rows but the benchmark measured {measured} iterations")
+        return rows
 
     def get_bench_input(self):
         if "-msgsize" not in self.args:

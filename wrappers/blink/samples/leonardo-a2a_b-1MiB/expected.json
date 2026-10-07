@@ -1,0 +1,702 @@
+[
+  {
+    "Avg-Duration": 0.019021647,
+    "Min-Duration": 0.016137425,
+    "Max-Duration": 0.019274258,
+    "Median-Duration": 0.019203273,
+    "MainRank-Duration": 0.019244141
+  },
+  {
+    "Avg-Duration": 0.01903853,
+    "Min-Duration": 0.016737162,
+    "Max-Duration": 0.019283719,
+    "Median-Duration": 0.01924686,
+    "MainRank-Duration": 0.019278965
+  },
+  {
+    "Avg-Duration": 0.019041731,
+    "Min-Duration": 0.017650429,
+    "Max-Duration": 0.019225778,
+    "Median-Duration": 0.019178926,
+    "MainRank-Duration": 0.01831912
+  },
+  {
+    "Avg-Duration": 0.017157052,
+    "Min-Duration": 0.016852367,
+    "Max-Duration": 0.017225322,
+    "Median-Duration": 0.017197562,
+    "MainRank-Duration": 0.017184394
+  },
+  {
+    "Avg-Duration": 0.019187136,
+    "Min-Duration": 0.01855699,
+    "Max-Duration": 0.020188199,
+    "Median-Duration": 0.019232949,
+    "MainRank-Duration": 0.019254199
+  },
+  {
+    "Avg-Duration": 0.018956509,
+    "Min-Duration": 0.016244071,
+    "Max-Duration": 0.019166277,
+    "Median-Duration": 0.019145683,
+    "MainRank-Duration": 0.019155438
+  },
+  {
+    "Avg-Duration": 0.01907888,
+    "Min-Duration": 0.017919134,
+    "Max-Duration": 0.019267186,
+    "Median-Duration": 0.019212416,
+    "MainRank-Duration": 0.017919134
+  },
+  {
+    "Avg-Duration": 0.018864046,
+    "Min-Duration": 0.014817017,
+    "Max-Duration": 0.019126158,
+    "Median-Duration": 0.01910791,
+    "MainRank-Duration": 0.019099787
+  },
+  {
+    "Avg-Duration": 0.017235636,
+    "Min-Duration": 0.016598085,
+    "Max-Duration": 0.017278022,
+    "Median-Duration": 0.017261836,
+    "MainRank-Duration": 0.01727434
+  },
+  {
+    "Avg-Duration": 0.019059184,
+    "Min-Duration": 0.016432523,
+    "Max-Duration": 0.019264441,
+    "Median-Duration": 0.01922374,
+    "MainRank-Duration": 0.019261479
+  },
+  {
+    "Avg-Duration": 0.019011867,
+    "Min-Duration": 0.018498548,
+    "Max-Duration": 0.019146233,
+    "Median-Duration": 0.019107389,
+    "MainRank-Duration": 0.019106708
+  },
+  {
+    "Avg-Duration": 0.01910961,
+    "Min-Duration": 0.014928595,
+    "Max-Duration": 0.019338851,
+    "Median-Duration": 0.019307277,
+    "MainRank-Duration": 0.014928595
+  },
+  {
+    "Avg-Duration": 0.017270579,
+    "Min-Duration": 0.016707367,
+    "Max-Duration": 0.017333348,
+    "Median-Duration": 0.017323009,
+    "MainRank-Duration": 0.017315987
+  },
+  {
+    "Avg-Duration": 0.018979015,
+    "Min-Duration": 0.014913654,
+    "Max-Duration": 0.019215316,
+    "Median-Duration": 0.019204571,
+    "MainRank-Duration": 0.019209031
+  },
+  {
+    "Avg-Duration": 0.019024684,
+    "Min-Duration": 0.017191885,
+    "Max-Duration": 0.019212299,
+    "Median-Duration": 0.019190306,
+    "MainRank-Duration": 0.018992439
+  },
+  {
+    "Avg-Duration": 0.019054243,
+    "Min-Duration": 0.017064159,
+    "Max-Duration": 0.01925803,
+    "Median-Duration": 0.019213128,
+    "MainRank-Duration": 0.019215048
+  },
+  {
+    "Avg-Duration": 0.019033785,
+    "Min-Duration": 0.015269052,
+    "Max-Duration": 0.019242247,
+    "Median-Duration": 0.019210819,
+    "MainRank-Duration": 0.019239261
+  },
+  {
+    "Avg-Duration": 0.017185228,
+    "Min-Duration": 0.016707711,
+    "Max-Duration": 0.017251039,
+    "Median-Duration": 0.017243826,
+    "MainRank-Duration": 0.017244383
+  },
+  {
+    "Avg-Duration": 0.019043375,
+    "Min-Duration": 0.017155315,
+    "Max-Duration": 0.019233949,
+    "Median-Duration": 0.019173118,
+    "MainRank-Duration": 0.019231962
+  },
+  {
+    "Avg-Duration": 0.017149086,
+    "Min-Duration": 0.016927901,
+    "Max-Duration": 0.017202496,
+    "Median-Duration": 0.017185742,
+    "MainRank-Duration": 0.017179039
+  },
+  {
+    "Avg-Duration": 0.018864182,
+    "Min-Duration": 0.014964431,
+    "Max-Duration": 0.019101207,
+    "Median-Duration": 0.019082239,
+    "MainRank-Duration": 0.019095683
+  },
+  {
+    "Avg-Duration": 0.018868899,
+    "Min-Duration": 0.014918058,
+    "Max-Duration": 0.019167416,
+    "Median-Duration": 0.019114254,
+    "MainRank-Duration": 0.019163893
+  },
+  {
+    "Avg-Duration": 0.019095659,
+    "Min-Duration": 0.016244524,
+    "Max-Duration": 0.019295736,
+    "Median-Duration": 0.019260317,
+    "MainRank-Duration": 0.019288089
+  },
+  {
+    "Avg-Duration": 0.019002442,
+    "Min-Duration": 0.014960686,
+    "Max-Duration": 0.019270934,
+    "Median-Duration": 0.019232395,
+    "MainRank-Duration": 0.014960686
+  },
+  {
+    "Avg-Duration": 0.018974281,
+    "Min-Duration": 0.015613353,
+    "Max-Duration": 0.019245407,
+    "Median-Duration": 0.019215043,
+    "MainRank-Duration": 0.01924002
+  },
+  {
+    "Avg-Duration": 0.019047714,
+    "Min-Duration": 0.016784328,
+    "Max-Duration": 0.019241912,
+    "Median-Duration": 0.019174837,
+    "MainRank-Duration": 0.019230216
+  },
+  {
+    "Avg-Duration": 0.018944527,
+    "Min-Duration": 0.017299304,
+    "Max-Duration": 0.019166477,
+    "Median-Duration": 0.019137782,
+    "MainRank-Duration": 0.019142687
+  },
+  {
+    "Avg-Duration": 0.019004422,
+    "Min-Duration": 0.014794338,
+    "Max-Duration": 0.019294691,
+    "Median-Duration": 0.019234059,
+    "MainRank-Duration": 0.014794338
+  },
+  {
+    "Avg-Duration": 0.018988742,
+    "Min-Duration": 0.015719528,
+    "Max-Duration": 0.019203095,
+    "Median-Duration": 0.019165726,
+    "MainRank-Duration": 0.019186025
+  },
+  {
+    "Avg-Duration": 0.019019707,
+    "Min-Duration": 0.014868958,
+    "Max-Duration": 0.019250103,
+    "Median-Duration": 0.019164488,
+    "MainRank-Duration": 0.019101849
+  },
+  {
+    "Avg-Duration": 0.018977343,
+    "Min-Duration": 0.014961067,
+    "Max-Duration": 0.019226773,
+    "Median-Duration": 0.019210564,
+    "MainRank-Duration": 0.019205699
+  },
+  {
+    "Avg-Duration": 0.019044235,
+    "Min-Duration": 0.017564396,
+    "Max-Duration": 0.019241418,
+    "Median-Duration": 0.019197852,
+    "MainRank-Duration": 0.017668533
+  },
+  {
+    "Avg-Duration": 0.017040212,
+    "Min-Duration": 0.0168882,
+    "Max-Duration": 0.017091103,
+    "Median-Duration": 0.017057775,
+    "MainRank-Duration": 0.01693992
+  },
+  {
+    "Avg-Duration": 0.019048054,
+    "Min-Duration": 0.015178851,
+    "Max-Duration": 0.019239923,
+    "Median-Duration": 0.019223141,
+    "MainRank-Duration": 0.019197601
+  },
+  {
+    "Avg-Duration": 0.017149036,
+    "Min-Duration": 0.016743717,
+    "Max-Duration": 0.017286196,
+    "Median-Duration": 0.017249121,
+    "MainRank-Duration": 0.016743717
+  },
+  {
+    "Avg-Duration": 0.017129716,
+    "Min-Duration": 0.016857059,
+    "Max-Duration": 0.017173926,
+    "Median-Duration": 0.017148026,
+    "MainRank-Duration": 0.017138339
+  },
+  {
+    "Avg-Duration": 0.019016981,
+    "Min-Duration": 0.014938057,
+    "Max-Duration": 0.01927374,
+    "Median-Duration": 0.019237379,
+    "MainRank-Duration": 0.01759404
+  },
+  {
+    "Avg-Duration": 0.018989981,
+    "Min-Duration": 0.01662061,
+    "Max-Duration": 0.019134573,
+    "Median-Duration": 0.019114749,
+    "MainRank-Duration": 0.019110448
+  },
+  {
+    "Avg-Duration": 0.018992386,
+    "Min-Duration": 0.014883729,
+    "Max-Duration": 0.019626446,
+    "Median-Duration": 0.019159047,
+    "MainRank-Duration": 0.019158624
+  },
+  {
+    "Avg-Duration": 0.017949488,
+    "Min-Duration": 0.015883911,
+    "Max-Duration": 0.018199134,
+    "Median-Duration": 0.018162664,
+    "MainRank-Duration": 0.01589273
+  },
+  {
+    "Avg-Duration": 0.019146715,
+    "Min-Duration": 0.018357075,
+    "Max-Duration": 0.01923799,
+    "Median-Duration": 0.019207191,
+    "MainRank-Duration": 0.019233084
+  },
+  {
+    "Avg-Duration": 0.017953738,
+    "Min-Duration": 0.01582372,
+    "Max-Duration": 0.018204266,
+    "Median-Duration": 0.018171086,
+    "MainRank-Duration": 0.015861278
+  },
+  {
+    "Avg-Duration": 0.019012434,
+    "Min-Duration": 0.018346323,
+    "Max-Duration": 0.019089128,
+    "Median-Duration": 0.019057937,
+    "MainRank-Duration": 0.019080096
+  },
+  {
+    "Avg-Duration": 0.018996224,
+    "Min-Duration": 0.014804951,
+    "Max-Duration": 0.019278663,
+    "Median-Duration": 0.019256901,
+    "MainRank-Duration": 0.019140727
+  },
+  {
+    "Avg-Duration": 0.019214254,
+    "Min-Duration": 0.01871682,
+    "Max-Duration": 0.019304199,
+    "Median-Duration": 0.019261138,
+    "MainRank-Duration": 0.01871682
+  },
+  {
+    "Avg-Duration": 0.019157948,
+    "Min-Duration": 0.018834206,
+    "Max-Duration": 0.019207111,
+    "Median-Duration": 0.019195249,
+    "MainRank-Duration": 0.019206132
+  },
+  {
+    "Avg-Duration": 0.017970351,
+    "Min-Duration": 0.016058093,
+    "Max-Duration": 0.018174575,
+    "Median-Duration": 0.018088689,
+    "MainRank-Duration": 0.016058093
+  },
+  {
+    "Avg-Duration": 0.018997442,
+    "Min-Duration": 0.015840521,
+    "Max-Duration": 0.019224819,
+    "Median-Duration": 0.019208798,
+    "MainRank-Duration": 0.019220083
+  },
+  {
+    "Avg-Duration": 0.017908449,
+    "Min-Duration": 0.015800294,
+    "Max-Duration": 0.018166011,
+    "Median-Duration": 0.0181149,
+    "MainRank-Duration": 0.018161699
+  },
+  {
+    "Avg-Duration": 0.019041026,
+    "Min-Duration": 0.014887162,
+    "Max-Duration": 0.019281419,
+    "Median-Duration": 0.019259601,
+    "MainRank-Duration": 0.014887162
+  },
+  {
+    "Avg-Duration": 0.01900445,
+    "Min-Duration": 0.016740232,
+    "Max-Duration": 0.019260114,
+    "Median-Duration": 0.019222531,
+    "MainRank-Duration": 0.019258621
+  },
+  {
+    "Avg-Duration": 0.019129035,
+    "Min-Duration": 0.018298485,
+    "Max-Duration": 0.01925392,
+    "Median-Duration": 0.019240707,
+    "MainRank-Duration": 0.01924021
+  },
+  {
+    "Avg-Duration": 0.019065841,
+    "Min-Duration": 0.016760936,
+    "Max-Duration": 0.019299043,
+    "Median-Duration": 0.019238448,
+    "MainRank-Duration": 0.016760936
+  },
+  {
+    "Avg-Duration": 0.017012466,
+    "Min-Duration": 0.016847626,
+    "Max-Duration": 0.017067244,
+    "Median-Duration": 0.017044165,
+    "MainRank-Duration": 0.016905921
+  },
+  {
+    "Avg-Duration": 0.019078798,
+    "Min-Duration": 0.01836519,
+    "Max-Duration": 0.019224127,
+    "Median-Duration": 0.019203061,
+    "MainRank-Duration": 0.019211178
+  },
+  {
+    "Avg-Duration": 0.019105718,
+    "Min-Duration": 0.018740949,
+    "Max-Duration": 0.019202839,
+    "Median-Duration": 0.019172506,
+    "MainRank-Duration": 0.019196415
+  },
+  {
+    "Avg-Duration": 0.017993247,
+    "Min-Duration": 0.016820347,
+    "Max-Duration": 0.018191115,
+    "Median-Duration": 0.018129107,
+    "MainRank-Duration": 0.017628322
+  },
+  {
+    "Avg-Duration": 0.019057964,
+    "Min-Duration": 0.016666567,
+    "Max-Duration": 0.019238141,
+    "Median-Duration": 0.01921864,
+    "MainRank-Duration": 0.016666567
+  },
+  {
+    "Avg-Duration": 0.018016603,
+    "Min-Duration": 0.016125275,
+    "Max-Duration": 0.018242966,
+    "Median-Duration": 0.018183197,
+    "MainRank-Duration": 0.016125275
+  },
+  {
+    "Avg-Duration": 0.019069011,
+    "Min-Duration": 0.016239709,
+    "Max-Duration": 0.019244231,
+    "Median-Duration": 0.019220333,
+    "MainRank-Duration": 0.019205023
+  },
+  {
+    "Avg-Duration": 0.017040924,
+    "Min-Duration": 0.016900502,
+    "Max-Duration": 0.017095486,
+    "Median-Duration": 0.017080488,
+    "MainRank-Duration": 0.016909625
+  },
+  {
+    "Avg-Duration": 0.019052221,
+    "Min-Duration": 0.01640595,
+    "Max-Duration": 0.019258424,
+    "Median-Duration": 0.019223043,
+    "MainRank-Duration": 0.019250006
+  },
+  {
+    "Avg-Duration": 0.019016032,
+    "Min-Duration": 0.015361012,
+    "Max-Duration": 0.019300478,
+    "Median-Duration": 0.019223501,
+    "MainRank-Duration": 0.015361012
+  },
+  {
+    "Avg-Duration": 0.018962424,
+    "Min-Duration": 0.015299296,
+    "Max-Duration": 0.019244977,
+    "Median-Duration": 0.019228758,
+    "MainRank-Duration": 0.019238161
+  },
+  {
+    "Avg-Duration": 0.019043599,
+    "Min-Duration": 0.018226105,
+    "Max-Duration": 0.019189371,
+    "Median-Duration": 0.019163104,
+    "MainRank-Duration": 0.01916925
+  },
+  {
+    "Avg-Duration": 0.017985756,
+    "Min-Duration": 0.015847918,
+    "Max-Duration": 0.018173071,
+    "Median-Duration": 0.018154882,
+    "MainRank-Duration": 0.015847918
+  },
+  {
+    "Avg-Duration": 0.018029455,
+    "Min-Duration": 0.015823837,
+    "Max-Duration": 0.018226803,
+    "Median-Duration": 0.018199255,
+    "MainRank-Duration": 0.015823837
+  },
+  {
+    "Avg-Duration": 0.01894637,
+    "Min-Duration": 0.014826979,
+    "Max-Duration": 0.019214513,
+    "Median-Duration": 0.019180201,
+    "MainRank-Duration": 0.019208764
+  },
+  {
+    "Avg-Duration": 0.019002913,
+    "Min-Duration": 0.014978023,
+    "Max-Duration": 0.019242588,
+    "Median-Duration": 0.019218743,
+    "MainRank-Duration": 0.019234529
+  },
+  {
+    "Avg-Duration": 0.018968887,
+    "Min-Duration": 0.018030003,
+    "Max-Duration": 0.019144896,
+    "Median-Duration": 0.019092888,
+    "MainRank-Duration": 0.019081815
+  },
+  {
+    "Avg-Duration": 0.017961255,
+    "Min-Duration": 0.016274095,
+    "Max-Duration": 0.018185118,
+    "Median-Duration": 0.018148439,
+    "MainRank-Duration": 0.016274095
+  },
+  {
+    "Avg-Duration": 0.019136141,
+    "Min-Duration": 0.018281166,
+    "Max-Duration": 0.019269468,
+    "Median-Duration": 0.019243442,
+    "MainRank-Duration": 0.018392651
+  },
+  {
+    "Avg-Duration": 0.017942381,
+    "Min-Duration": 0.016084839,
+    "Max-Duration": 0.018164021,
+    "Median-Duration": 0.018110494,
+    "MainRank-Duration": 0.016084839
+  },
+  {
+    "Avg-Duration": 0.019112202,
+    "Min-Duration": 0.01728731,
+    "Max-Duration": 0.019253284,
+    "Median-Duration": 0.019224399,
+    "MainRank-Duration": 0.019248265
+  },
+  {
+    "Avg-Duration": 0.019081701,
+    "Min-Duration": 0.018146741,
+    "Max-Duration": 0.019208734,
+    "Median-Duration": 0.019172269,
+    "MainRank-Duration": 0.019129678
+  },
+  {
+    "Avg-Duration": 0.018934729,
+    "Min-Duration": 0.014932261,
+    "Max-Duration": 0.019241993,
+    "Median-Duration": 0.019217407,
+    "MainRank-Duration": 0.017576679
+  },
+  {
+    "Avg-Duration": 0.019033815,
+    "Min-Duration": 0.017018595,
+    "Max-Duration": 0.019223901,
+    "Median-Duration": 0.019196163,
+    "MainRank-Duration": 0.019170585
+  },
+  {
+    "Avg-Duration": 0.017982629,
+    "Min-Duration": 0.01584917,
+    "Max-Duration": 0.018174125,
+    "Median-Duration": 0.018162552,
+    "MainRank-Duration": 0.01584917
+  },
+  {
+    "Avg-Duration": 0.019100568,
+    "Min-Duration": 0.017419864,
+    "Max-Duration": 0.019268256,
+    "Median-Duration": 0.019204781,
+    "MainRank-Duration": 0.019206681
+  },
+  {
+    "Avg-Duration": 0.019160808,
+    "Min-Duration": 0.018719616,
+    "Max-Duration": 0.019252044,
+    "Median-Duration": 0.019206516,
+    "MainRank-Duration": 0.01923373
+  },
+  {
+    "Avg-Duration": 0.018934692,
+    "Min-Duration": 0.016913147,
+    "Max-Duration": 0.019129588,
+    "Median-Duration": 0.019082918,
+    "MainRank-Duration": 0.019124037
+  },
+  {
+    "Avg-Duration": 0.019056682,
+    "Min-Duration": 0.016098658,
+    "Max-Duration": 0.019236951,
+    "Median-Duration": 0.019214113,
+    "MainRank-Duration": 0.019209132
+  },
+  {
+    "Avg-Duration": 0.019008841,
+    "Min-Duration": 0.016258618,
+    "Max-Duration": 0.019173484,
+    "Median-Duration": 0.019147785,
+    "MainRank-Duration": 0.019158633
+  },
+  {
+    "Avg-Duration": 0.017933742,
+    "Min-Duration": 0.015941753,
+    "Max-Duration": 0.018162453,
+    "Median-Duration": 0.018122103,
+    "MainRank-Duration": 0.015951496
+  },
+  {
+    "Avg-Duration": 0.019040916,
+    "Min-Duration": 0.016332763,
+    "Max-Duration": 0.019259497,
+    "Median-Duration": 0.019197459,
+    "MainRank-Duration": 0.018665212
+  },
+  {
+    "Avg-Duration": 0.01896542,
+    "Min-Duration": 0.016421743,
+    "Max-Duration": 0.019171665,
+    "Median-Duration": 0.019130941,
+    "MainRank-Duration": 0.019166197
+  },
+  {
+    "Avg-Duration": 0.019107742,
+    "Min-Duration": 0.018537981,
+    "Max-Duration": 0.019215423,
+    "Median-Duration": 0.019204184,
+    "MainRank-Duration": 0.01908682
+  },
+  {
+    "Avg-Duration": 0.019161792,
+    "Min-Duration": 0.018775346,
+    "Max-Duration": 0.019244012,
+    "Median-Duration": 0.019222162,
+    "MainRank-Duration": 0.019225596
+  },
+  {
+    "Avg-Duration": 0.019109615,
+    "Min-Duration": 0.017562992,
+    "Max-Duration": 0.019220441,
+    "Median-Duration": 0.019195204,
+    "MainRank-Duration": 0.017562992
+  },
+  {
+    "Avg-Duration": 0.019134728,
+    "Min-Duration": 0.0187559,
+    "Max-Duration": 0.019215054,
+    "Median-Duration": 0.019183249,
+    "MainRank-Duration": 0.019202038
+  },
+  {
+    "Avg-Duration": 0.018033133,
+    "Min-Duration": 0.015831703,
+    "Max-Duration": 0.018183701,
+    "Median-Duration": 0.018167251,
+    "MainRank-Duration": 0.01751036
+  },
+  {
+    "Avg-Duration": 0.019053948,
+    "Min-Duration": 0.016555523,
+    "Max-Duration": 0.019251382,
+    "Median-Duration": 0.019206654,
+    "MainRank-Duration": 0.019209004
+  },
+  {
+    "Avg-Duration": 0.018934244,
+    "Min-Duration": 0.017114817,
+    "Max-Duration": 0.019161074,
+    "Median-Duration": 0.019128805,
+    "MainRank-Duration": 0.019149971
+  },
+  {
+    "Avg-Duration": 0.019015646,
+    "Min-Duration": 0.016082854,
+    "Max-Duration": 0.019207042,
+    "Median-Duration": 0.019160365,
+    "MainRank-Duration": 0.016082854
+  },
+  {
+    "Avg-Duration": 0.019012297,
+    "Min-Duration": 0.01483941,
+    "Max-Duration": 0.019198225,
+    "Median-Duration": 0.019182796,
+    "MainRank-Duration": 0.019165282
+  },
+  {
+    "Avg-Duration": 0.018940182,
+    "Min-Duration": 0.014912426,
+    "Max-Duration": 0.01924276,
+    "Median-Duration": 0.019174038,
+    "MainRank-Duration": 0.014912426
+  },
+  {
+    "Avg-Duration": 0.018958205,
+    "Min-Duration": 0.016092783,
+    "Max-Duration": 0.019218847,
+    "Median-Duration": 0.019135711,
+    "MainRank-Duration": 0.01906329
+  },
+  {
+    "Avg-Duration": 0.017386634,
+    "Min-Duration": 0.01663849,
+    "Max-Duration": 0.017498649,
+    "Median-Duration": 0.017488965,
+    "MainRank-Duration": 0.017487624
+  },
+  {
+    "Avg-Duration": 0.019079741,
+    "Min-Duration": 0.01867705,
+    "Max-Duration": 0.019142546,
+    "Median-Duration": 0.019124424,
+    "MainRank-Duration": 0.019108219
+  },
+  {
+    "Avg-Duration": 0.019063696,
+    "Min-Duration": 0.017439949,
+    "Max-Duration": 0.019242937,
+    "Median-Duration": 0.019205439,
+    "MainRank-Duration": 0.019234299
+  }
+]
