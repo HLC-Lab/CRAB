@@ -24,6 +24,11 @@ const emit = defineEmits<{
 // AllocationEditor's `props.alloc` wrapping) without tripping
 // vue/no-mutating-props.
 const app = computed(() => props.app);
+// An app that starts after another one and names no group runs on that app's nodes (ADR-032).
+// Display only: the server-side config check owns the rule and its errors.
+const reuseLabel = computed(() =>
+  props.app.startKind === "after" ? `on #${props.app.startAfter || "0"}'s nodes` : "",
+);
 </script>
 
 <template>
@@ -50,7 +55,7 @@ const app = computed(() => props.app);
           :style="{ background: app.partition ? colorForGroup(app.partition) : 'var(--text3)' }"
         />
         <select v-model="app.partition">
-          <option value="">no group</option>
+          <option value="">{{ reuseLabel || "no group" }}</option>
           <option v-for="g in groupNames" :key="g" :value="g">{{ g }}</option>
         </select>
       </span>
@@ -96,6 +101,7 @@ const app = computed(() => props.app);
           <option v-for="j in otherIndices" :key="j" :value="String(j)">#{{ j }}</option>
         </select>
       </label>
+      <span v-if="reuseLabel && !groupNames.length" class="reuse">{{ reuseLabel }}</span>
       <label
         >Ends
         <select v-model="app.endKind">
@@ -219,6 +225,12 @@ select:focus {
   color: var(--warn);
   font-size: 0.9rem;
   cursor: help;
+}
+.reuse {
+  padding-bottom: 0.35rem;
+  color: var(--text3);
+  font-family: var(--sans);
+  font-size: var(--t-sm);
 }
 .timing {
   display: flex;
