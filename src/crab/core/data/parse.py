@@ -148,15 +148,15 @@ def collect_run(apps: list[Any], containers: list[DataContainer], log: Any, *, r
     declared check was false (those rows are still recorded, but not used for convergence).
 
     There is one container per (app, metric, key values); new key values get a new container,
-    appended to `containers`. Apps that exited non-zero are skipped here (the caller already
-    failed the run).
+    appended to `containers`. Apps that did not run or exited non-zero are skipped here (the
+    caller already failed the run).
     """
     index = {(c.app_id, c.label, c.key): c for c in containers}
     all_parsed = True
     for app in apps:
         if not app.collect_flag:
             continue
-        if not (hasattr(app, "process") and app.process.returncode == 0):
+        if not (getattr(app, "process", None) is not None and app.process.returncode == 0):
             continue
         try:
             parsed = parse_output(app)

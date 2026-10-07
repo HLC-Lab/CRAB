@@ -251,6 +251,12 @@ class ExperimentRunner:
                 for app in self.apps:
                     app.run_dir = os.path.join(run_root, f"app_{app.id_num}")
                     os.makedirs(app.run_dir, exist_ok=True)
+                    # An app that does not run (or whose output can't be read) in this run
+                    # must not be collected again with the previous run's output.
+                    app.process = None
+                    app.stdout = None
+                    app.stderr = None
+                    app.raw_stdout_buffer = []
 
                 # Reset ephemeral schedule for this run
                 curr_schedule = sorted(static_schedule, key=lambda x: x[2])
@@ -360,6 +366,10 @@ class ExperimentRunner:
 
                             except Exception as e:
                                 app_log.error(f"Failed reading output: {e}")
+                                run_successful = False
+                                if experiment_status != "TIMEOUT":
+                                    experiment_status = "FAILED"
+                                self.apps[aid].process = None  # nothing readable to collect
 
                             running.remove(aid)
                             finished.add(aid)
@@ -415,7 +425,7 @@ class ExperimentRunner:
                 # Kill "f" apps now that all other work is done
                 for app in self.apps:
                     if str(app.config_end) == "f":
-                        if hasattr(app, "process") and app.process.poll() is None:
+                        if app.process is not None and app.process.poll() is None:
                             end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
