@@ -27,7 +27,7 @@
             "description": "PingPong baseline: small messages (1KB). All nodes.",
             "apps": {
                 "0": {
-                    "path": "ping-pong_b.py",
+                    "path": "blink/ping-pong_b.py",
                     "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "start": "0",
@@ -44,7 +44,7 @@
             "description": "PingPong baseline: large messages (1MB). Bandwidth-bound reference.",
             "apps": {
                 "0": {
-                    "path": "ping-pong_b.py",
+                    "path": "blink/ping-pong_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "start": "0",
@@ -57,7 +57,7 @@
             "description": "PingPong victim on half the nodes vs Incast aggressor on the other half. 50/50 split.",
             "apps": {
                 "0": {
-                    "path": "ping-pong_b.py",
+                    "path": "blink/ping-pong_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -65,7 +65,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "inc_b.py",
+                    "path": "blink/inc_b.py",
                     "args": "-msgsize 65536 -iter 1000",
                     "collect": false,
                     "partition": "aggressor",
@@ -78,7 +78,7 @@
             "description": "Traffic pattern change: Ring benchmark on all nodes.",
             "apps": {
                 "0": {
-                    "path": "ring_b.py",
+                    "path": "blink/ring_bsnbr.py",
                     "args": "-msgsize 4096 -iter 500",
                     "collect": true,
                     "start": "0",
@@ -95,7 +95,7 @@
             "description": "Stress test: A2A victim vs Incast aggressor on a 50/50 split.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 2048 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -103,7 +103,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "inc_b.py",
+                    "path": "blink/inc_b.py",
                     "args": "-msgsize 2048 -iter 1000",
                     "collect": false,
                     "partition": "aggressor",

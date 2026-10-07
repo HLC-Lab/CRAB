@@ -27,7 +27,7 @@
             "description": "A2A scalability 1/8: 256 nodes, 1KB message size.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "partition": "victim",
@@ -40,7 +40,7 @@
             "description": "A2A scalability 2/8: 4KB message size.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 4096 -iter 1000",
                     "collect": true,
                     "partition": "victim",
@@ -53,7 +53,7 @@
             "description": "A2A scalability 3/8: 64KB message size.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 65536 -iter 500",
                     "collect": true,
                     "partition": "victim",
@@ -66,7 +66,7 @@
             "description": "A2A scalability 4/8: 1MB message size.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -79,7 +79,7 @@
             "description": "A2A scalability 5/8: 4MB message size.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 4194304 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -92,7 +92,7 @@
             "description": "A2A scalability 6/8: 16MB message size.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 16777216 -iter 50",
                     "collect": true,
                     "partition": "victim",
@@ -105,7 +105,7 @@
             "description": "A2A scalability 7/8: 64MB message size.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 67108864 -iter 20",
                     "collect": true,
                     "partition": "victim",
@@ -118,7 +118,7 @@
             "description": "A2A scalability 8/8: 1GB message size. Stress bandwidth limit.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1073741824 -iter 10",
                     "collect": true,
                     "partition": "victim",
@@ -131,7 +131,7 @@
             "description": "Sequential dependency: Ring starts only after A2A finishes (chain).",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
                     "partition": "victim",
@@ -139,7 +139,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "ring_nb.py",
+                    "path": "blink/ring_nb.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
                     "partition": "victim",
@@ -152,7 +152,7 @@
             "description": "Time-offset parallel: A2A at T=0, Incast at T=5s.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -160,7 +160,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "inc_b.py",
+                    "path": "blink/inc_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -173,7 +173,7 @@
             "description": "Aggressor kill: Incast aggressor is killed when A2A victim finishes.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -181,7 +181,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "inc_b.py",
+                    "path": "blink/inc_b.py",
                     "args": "-msgsize 65536 -iter 1000000",
                     "collect": false,
                     "partition": "victim",
@@ -194,7 +194,7 @@
             "description": "Chain killer: Barrier first, then A2A victim starts; Incast aggressor lives while A2A is active.",
             "apps": {
                 "0": {
-                    "path": "barrier.py",
+                    "path": "blink/barrier.py",
                     "args": "-iter 1000",
                     "collect": false,
                     "partition": "victim",
@@ -202,7 +202,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
                     "partition": "victim",
@@ -210,7 +210,7 @@
                     "end": ""
                 },
                 "2": {
-                    "path": "inc_b.py",
+                    "path": "blink/inc_b.py",
                     "args": "-msgsize 65536 -iter 1000000",
                     "collect": false,
                     "partition": "aggressor",
@@ -223,7 +223,7 @@
             "description": "Interference 128 vs 128: A2A victim vs Incast aggressor.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 4194304 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -231,7 +231,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "inc_b.py",
+                    "path": "blink/inc_b.py",
                     "args": "-msgsize 4194304 -iter 1000",
                     "collect": false,
                     "partition": "aggressor",
@@ -244,7 +244,7 @@
             "description": "Interference 128 vs 128: Ring victim vs A2A aggressor.",
             "apps": {
                 "0": {
-                    "path": "ring_nb.py",
+                    "path": "blink/ring_nb.py",
                     "args": "-msgsize 4194304 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -252,7 +252,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 4194304 -iter 1000",
                     "collect": false,
                     "partition": "aggressor",
@@ -265,7 +265,7 @@
             "description": "Collective comparison: AllReduce Doubling (P0) vs Binomial Doubling (P1) running concurrently.",
             "apps": {
                 "0": {
-                    "path": "ardc_b.py",
+                    "path": "blink/ardc_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -273,7 +273,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "bdc_b.py",
+                    "path": "blink/bdc_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "aggressor",
@@ -286,7 +286,7 @@
             "description": "Quiet neighbor baseline: A2A on 128 nodes, remaining 128 idle.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -299,7 +299,7 @@
             "description": "Functionality: AllReduce Doubling benchmark on 256 nodes.",
             "apps": {
                 "0": {
-                    "path": "ardc_b.py",
+                    "path": "blink/ardc_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -312,7 +312,7 @@
             "description": "Functionality: Binomial Doubling benchmark on 256 nodes.",
             "apps": {
                 "0": {
-                    "path": "bdc_b.py",
+                    "path": "blink/bdc_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -325,7 +325,7 @@
             "description": "Functionality: Incast benchmark on 256 nodes.",
             "apps": {
                 "0": {
-                    "path": "inc_b.py",
+                    "path": "blink/inc_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "partition": "victim",
@@ -338,7 +338,7 @@
             "description": "Functionality: Non-blocking Ring benchmark on 256 nodes.",
             "apps": {
                 "0": {
-                    "path": "ring_nb.py",
+                    "path": "blink/ring_nb.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -355,7 +355,7 @@
             },
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/a2a_b.py",
                     "args": "-msgsize 1048576 -iter 5000",
                     "collect": true,
                     "partition": "victim",

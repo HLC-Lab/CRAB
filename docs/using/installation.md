@@ -120,5 +120,9 @@ wrappers.
 
 ## Next steps
 
+- On a cluster CRAB already knows (such as `leonardo`), set your project account before the first
+  run: the shipped presets carry the placeholder `--account=YOUR_PROJECT_ACCOUNT`. Copy the
+  preset's block into `local/presets.json` and change the account
+  ([how](presets.md#keep-your-presets-out-of-git)).
 - On a cluster CRAB doesn't already know, define a preset: [Configuring your cluster](presets.md).
 - Then write an experiment: [Configuration schema](../reference/configuration.md).
