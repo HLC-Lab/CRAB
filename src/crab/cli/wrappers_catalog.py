@@ -4,7 +4,8 @@ A sample case is a folder `<app>/samples/<case>/` holding `case.json` (`{"wrappe
 "args": "...", "set": {...}}`), the application's `stdout.txt` (and optionally `stderr.txt` and
 any files it wrote), and either `expected.json`, the rows the wrapper must produce, or
 `expected_error.txt`, text the ParseError message must contain. Cases run through the same
-parser a real run uses.
+parser a real run uses, with `run_dir` set to a temporary copy of the case folder, so a wrapper
+that writes into its run directory leaves the sample unchanged.
 """
 
 from __future__ import annotations
@@ -12,6 +13,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,6 +24,8 @@ from crab.core.wrapper_paths import load_module, wrapper_search_path
 
 _NAME = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
 UNVERIFIED_LIST = "unverified.txt"
+# Case files that describe the test rather than the run; everything else is copied to run_dir.
+_CASE_ONLY_FILES = ("case.json", "expected.json", "expected_error.txt")
 
 
 def parse_saved_output(
@@ -174,14 +179,24 @@ def _run_case(app_dir: Path, case_dir: Path) -> tuple[CaseResult, str | None]:
         wrapper = str(app_dir / case["wrapper"])
         expected, expected_error = _expectation(case_dir)
         stderr_file = case_dir / "stderr.txt"
-        _app, parsed = parse_saved_output(
-            wrapper,
-            (case_dir / "stdout.txt").read_bytes(),
-            stderr_file.read_bytes() if stderr_file.exists() else b"",
-            str(case_dir),
-            case.get("args", ""),
-            case.get("set"),
-        )
+        # A fresh run_dir per case: wrappers may write into it, and the sample must not change.
+        with tempfile.TemporaryDirectory(prefix="crab-case-") as run_dir:
+            shutil.copytree(
+                case_dir,
+                run_dir,
+                dirs_exist_ok=True,
+                ignore=lambda folder, names: (
+                    [n for n in names if n in _CASE_ONLY_FILES] if Path(folder) == case_dir else []
+                ),
+            )
+            _app, parsed = parse_saved_output(
+                wrapper,
+                (case_dir / "stdout.txt").read_bytes(),
+                stderr_file.read_bytes() if stderr_file.exists() else b"",
+                run_dir,
+                case.get("args", ""),
+                case.get("set"),
+            )
     except ParseError as exc:
         if expected_error is None:
             return CaseResult("ERROR", label, str(exc)), None
