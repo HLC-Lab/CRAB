@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from crab.core.allocation.allocator import NodeAllocator
+from crab.core.allocation.chains import resolve_chains
 
 ALLOCATION_MODES = ("linear", "interleaved", "random")
 OUTPUT_FORMATS = ("csv",)
@@ -74,17 +75,24 @@ def _has_token(value: Any) -> bool:
     return False
 
 
-def _check_split(split: Any, num_apps: int, field: str, exp: str, warnings: list[str]) -> None:
-    """A percentage list: one entry per app, at most 100 (the allocator's tolerance).
+def _check_split(
+    split: Any, num_apps: int, field: str, exp: str, warnings: list[str], reused: list[str]
+) -> None:
+    """A percentage list: one entry per app that gets a share, at most 100 (the allocator's
+    tolerance). `reused` names the apps that run on another app's nodes and take no share.
 
     Under 100 is allowed (a solo baseline on part of the nodes) but warned about.
     """
     if not isinstance(split, list):
         return
     if len(split) != num_apps:
+        note = ""
+        if reused:
+            who = f"apps {', '.join(reused)} run" if len(reused) > 1 else f"app {reused[0]} runs"
+            note = f" ({who} on another app's nodes after it and take no share)"
         raise ValueError(
             f"experiment {exp}: {field} has {len(split)} entries for {num_apps} apps; "
-            "give one percentage per app, in app order"
+            f"give one percentage per app, in app order{note}"
         )
     if _has_token(split):
         return
@@ -153,17 +161,33 @@ def _check_allocation(
             f"partitions: {', '.join(names)}"
         )
 
+    # Apps that run on another app's nodes (start sN, ADR-032) take no share of any split.
+    reuse: dict[int, int] = {}
+    if not _has_token(app_starts):
+        try:
+            reuse = resolve_chains(app_starts, app_partitions)
+        except ValueError as exc:
+            raise ValueError(f"experiment {exp}: {exc}") from exc
+    reused = [keys[i] for i in sorted(reuse)]
+    head_partitions = [p for i, p in enumerate(app_partitions) if i not in reuse]
+
     if names:
         for name in names:
             part = partitions[name]
-            members = app_partitions.count(name)
+            members = head_partitions.count(name)
             # The allocator uses a partition's split only when it holds two or more apps.
             if isinstance(part, dict) and members > 1:
                 _check_split(
-                    part.get("split"), members, f"allocation.partitions.{name}.split", exp, warnings
+                    part.get("split"),
+                    members,
+                    f"allocation.partitions.{name}.split",
+                    exp,
+                    warnings,
+                    [keys[i] for i in sorted(reuse) if app_partitions[reuse[i]] == name],
                 )
     else:
-        _check_split(allocation.get("split"), len(keys), "allocation.split", exp, warnings)
+        split = allocation.get("split")
+        _check_split(split, len(head_partitions), "allocation.split", exp, warnings, reused)
 
     if _has_token(allocation) or not keys:
         return
@@ -179,8 +203,8 @@ def _check_allocation(
         if count == 0:
             raise ValueError(
                 f"experiment {exp}: app {key} would get 0 of {total} nodes. Raise numnodes or "
-                "change the split/partitions; under partitions every app needs one, and apps "
-                "chained with start sN still need their own nodes (CRAB does not reuse nodes yet)"
+                "change the split/partitions; under partitions every app needs one, unless it "
+                "starts after another app (start sN) and runs on that app's nodes"
             )
 
 

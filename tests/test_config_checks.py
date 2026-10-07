@@ -295,3 +295,58 @@ def test_legitimate_allocations_pass(
     from crab.core.config_checks import check_config
 
     assert check_config(_alloc_config(allocation, apps, numnodes=numnodes, local=local)) == []
+
+
+def test_split_counts_only_apps_that_get_a_share() -> None:
+    """ADR-032: an app that reuses its predecessor's nodes takes no share of the split."""
+    from crab.core.config_checks import check_config
+
+    apps = [{"path": "a.py"}, {"path": "a.py", "start": "s0"}, {"path": "a.py"}]
+    assert check_config(_alloc_config({"split": [75, 25]}, apps, numnodes="4")) == []
+
+
+def test_split_listing_a_chained_app_names_it() -> None:
+    from crab.core.config_checks import check_config
+
+    apps = [{"path": "a.py"}, {"path": "a.py", "start": "s0"}]
+    with pytest.raises(ValueError, match=r"2 entries for 1 apps.*app 1 runs on another app's"):
+        check_config(_alloc_config({"split": [50, 50]}, apps, numnodes="4"))
+
+
+def test_partition_split_counts_only_members_that_get_a_share() -> None:
+    from crab.core.config_checks import check_config
+
+    alloc = {"partitions": {"victim": {"split": [60, 40]}, "aggressor": {}}}
+    apps = [
+        {"path": "a.py", "partition": "victim"},
+        {"path": "a.py", "partition": "victim", "start": "s0"},
+        {"path": "a.py", "partition": "victim"},
+        {"path": "a.py", "partition": "aggressor"},
+    ]
+    assert check_config(_alloc_config(alloc, apps, numnodes="10")) == []
+
+
+@pytest.mark.parametrize(
+    ("starts", "message"),
+    [
+        (["0", "s0", "s0"], r"experiment e1: apps 1 and 2 both start after app 0"),
+        (["0", "s7"], r"experiment e1: app 1: start 's7' names no app"),
+        (["s1", "s0"], r"experiment e1: start values form a cycle"),
+    ],
+)
+def test_chain_errors_name_the_experiment(starts: list[str], message: str) -> None:
+    from crab.core.config_checks import check_config
+
+    apps = [{"path": "a.py", "start": s} for s in starts]
+    with pytest.raises(ValueError, match=message):
+        check_config(_alloc_config({"mode": "linear"}, apps, numnodes="4"))
+
+
+def test_zero_node_message_no_longer_blames_chains() -> None:
+    from crab.core.config_checks import check_config
+
+    alloc = {"partitions": {"victim": {}, "aggressor": {}}}
+    apps = [{"path": "a.py"}]
+    with pytest.raises(ValueError, match=r"app 0 would get 0 of 4 nodes") as info:
+        check_config(_alloc_config(alloc, apps, numnodes="4"))
+    assert "does not reuse" not in str(info.value)
