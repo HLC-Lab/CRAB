@@ -174,8 +174,11 @@ async def get_results_index(request: Request) -> ResultsIndex:
             history, _stale, _cached_at = await _live_or_cached(
                 request, "history", f"cluster:{profile.name}", fetch, _HISTORY_TTL_SECONDS
             )
-        except RemoteConnectionError:
-            return []  # nothing live or cached for this cluster's history at all
+        except CrabWebError:
+            # Unreachable, a failing `crab history` or unparseable output, with
+            # nothing cached: this cluster only contributes its on-disk trees
+            # (below), and the other clusters are unaffected.
+            return []
 
         connected = manager.get(profile.name) is not None
         by_group: dict[tuple[str, str], set[str]] = {}
@@ -219,9 +222,9 @@ async def get_results_index(request: Request) -> ResultsIndex:
 
     # Every connected cluster's `crab history` in flight at once -- with N
     # clusters this was N sequential SSH round-trips before (plan 079).
-    # `RemoteConnectionError` is already handled per-profile above (returns
-    # []); any OTHER exception must still surface, not be swallowed by
-    # `gather`, so it's re-raised here after every task has settled.
+    # Cluster-side errors (`CrabWebError`) are already handled per-profile
+    # above (returns []); any OTHER exception is a bug and must still surface,
+    # not be swallowed by `gather`, so it's re-raised after every task settled.
     fanned_out = await asyncio.gather(
         *(entries_for_profile(profile) for profile in _profiles(request).list()),
         return_exceptions=True,

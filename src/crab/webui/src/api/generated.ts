@@ -370,8 +370,10 @@ export interface paths {
      * List Jobs
      * @description Registry ⨝ live `crab status`, batched one call per cluster with active jobs.
      *
-     *     A disconnected cluster's jobs are returned as-is (last known state,
-     *     `connected: false`) rather than failing the whole list.
+     *     Clusters are refreshed concurrently. A disconnected cluster's jobs are
+     *     returned as-is (last known state, `connected: false`), and a connected
+     *     cluster whose refresh fails keeps its last known states and carries the
+     *     error in `cluster_error`; neither fails the whole list.
      */
     get: operations["list_jobs_api_jobs_get"];
     put?: never;
@@ -756,6 +758,9 @@ export interface components {
     /**
      * JobListItem
      * @description A job record annotated with whether its cluster is currently connected.
+     *
+     *     `cluster_error` is set when the cluster is connected but refreshing its jobs
+     *     failed this time; the record then keeps its last known state.
      */
     JobListItem: {
       /** Id */
@@ -790,6 +795,8 @@ export interface components {
        * @default false
        */
       connected: boolean;
+      /** Cluster Error */
+      cluster_error?: string | null;
     };
     /** JobRecord */
     JobRecord: {

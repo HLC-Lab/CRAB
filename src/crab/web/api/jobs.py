@@ -280,9 +280,14 @@ async def get_submission(submission_id: str, request: Request) -> SubmissionStat
 
 
 class JobListItem(JobRecord):
-    """A job record annotated with whether its cluster is currently connected."""
+    """A job record annotated with whether its cluster is currently connected.
+
+    `cluster_error` is set when the cluster is connected but refreshing its jobs
+    failed this time; the record then keeps its last known state.
+    """
 
     connected: bool = False
+    cluster_error: str | None = None
 
 
 def worst_status(statuses: Iterable[str]) -> str | None:
@@ -354,8 +359,10 @@ async def _refresh_cluster(
 async def list_jobs(request: Request) -> list[JobListItem]:
     """Registry ⨝ live `crab status`, batched one call per cluster with active jobs.
 
-    A disconnected cluster's jobs are returned as-is (last known state,
-    `connected: false`) rather than failing the whole list.
+    Clusters are refreshed concurrently. A disconnected cluster's jobs are
+    returned as-is (last known state, `connected: false`), and a connected
+    cluster whose refresh fails keeps its last known states and carries the
+    error in `cluster_error`; neither fails the whole list.
     """
     store = _jobs_store(request)
     manager = _manager(request)
@@ -367,23 +374,37 @@ async def list_jobs(request: Request) -> list[JobListItem]:
         if rec.last_known_state not in _TERMINAL_STATES:
             active_by_cluster.setdefault(rec.cluster, []).append(rec)
 
-    resolved_states: dict[str, str] = {}
-    for cluster, recs in active_by_cluster.items():
+    cluster_errors: dict[str, str] = {}
+
+    async def refresh(cluster: str, recs: list[JobRecord]) -> dict[str, str]:
         transport = manager.get(cluster)
         if transport is None:
-            continue  # not connected: leave last_known_state as-is
+            return {}  # not connected: leave last_known_state as-is
         try:
             profile = profiles.get(cluster)
         except NotFoundError:
-            continue  # profile removed after the job was recorded
+            return {}  # profile removed after the job was recorded
+        try:
+            return await _refresh_cluster(transport, profile, recs)
+        except CrabWebError as e:
+            # All-or-nothing per cluster: a status already read as COMPLETED must
+            # not be stored when its history cross-check failed.
+            cluster_errors[cluster] = e.message
+            return {}
 
-        resolved_states.update(await _refresh_cluster(transport, profile, recs))
-
-    for record_id, state in resolved_states.items():
-        store.update(record_id, last_known_state=state)
+    refreshed = await asyncio.gather(
+        *(refresh(cluster, recs) for cluster, recs in active_by_cluster.items())
+    )
+    for resolved_states in refreshed:
+        for record_id, state in resolved_states.items():
+            store.update(record_id, last_known_state=state)
 
     return [
-        JobListItem(**rec.model_dump(), connected=manager.get(rec.cluster) is not None)
+        JobListItem(
+            **rec.model_dump(),
+            connected=manager.get(rec.cluster) is not None,
+            cluster_error=cluster_errors.get(rec.cluster),
+        )
         for rec in store.list()
     ]
 
