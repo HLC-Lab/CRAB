@@ -1,0 +1,1 @@
+{"wrapper": "a2a_b.py", "args": "-msgsize 1024 -iter 100", "source": "synthetic", "note": "leonardo-a2a_b-1KiB cut after 60 rows, as when a job is killed while rank 0 prints"}

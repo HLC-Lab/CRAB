@@ -1,0 +1,6 @@
+Ping-pong with 2 processes, msg-size: 1024, test iterations: 3.
+Time,Bandwidth
+0.000004512,2.269503546
+0.000004498,2.276567597
+0.000004530,2.260485651
+Ran 8 iterations. Measured 3 iterations.

@@ -8,6 +8,7 @@ class app(microbench):
         {'name': 'MainRank-Duration', 'unit': 's', 'conv': True},
         {'name': 'MainRank-Bandwidth', 'unit': 'Gb/s', 'conv': False}
     ]
+    table_header = "Time,Bandwidth"
 
     def get_binary_path(self):
         return self.get_path("ping-pong_b")
