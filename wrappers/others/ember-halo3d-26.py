@@ -1,5 +1,8 @@
 import os
+import sys
+sys.path.append(os.path.dirname(__file__))
 from crab.wrappers.base import base
+from _ember_common import read_result_row
 
 class app(base):
     metadata = [
@@ -11,12 +14,8 @@ class app(base):
     def get_binary_path(self):
         return os.environ["CRAB_ROOT"] + "/src/ember/mpi/halo3d-26/halo3d-26"
 
-    def read_data(self): 
-        data_list = [None]*self.num_metrics
-        data_line = self.stdout.splitlines()[-1].split()
-        for i in range(self.num_metrics):
-            data_list[i] = [float(data_line[i])]
-        return data_list
+    def read_data(self):
+        return read_result_row(self.stdout, self.metadata)
 
     def get_bench_name(self):
         return "Ember - Halo3D-26"

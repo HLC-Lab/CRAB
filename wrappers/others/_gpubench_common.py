@@ -21,6 +21,8 @@ class gpubench(base):
         output = self.stdout
         lines = output.split('\n')
         lines = [x for x in lines if 'Iteration' in x and x.strip() != '' and not '[Average]' in x]
+        if not lines:
+            raise ValueError("no 'Iteration' lines in the output (the run did not finish?)")
         tmp_data = [[float(x.split(',')[1].split(':')[1]), float(x.split(',')[2].split(':')[1])] for x in lines]
         data = [list(x) for x in zip(*tmp_data)]
         return data

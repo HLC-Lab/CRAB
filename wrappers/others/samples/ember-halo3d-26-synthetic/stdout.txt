@@ -1,0 +1,9 @@
+# MPI Nearest Neighbor Communication (26 neighbors)
+# Info:
+# Processor Grid:           4 x    4 x    2
+# Data Grid (per rank):    64 x   64 x   64
+# Iterations:              100
+# Variables:                 1
+# Sleep:                  1000
+#                 Time     KBXchng/Rank-Max            MB/S/Rank
+              0.587302           20787.5000              34.5652

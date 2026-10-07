@@ -1,0 +1,1 @@
+Running comm-cudaaware with 4 ranks

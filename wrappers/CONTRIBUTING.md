@@ -47,6 +47,11 @@ Replace `samples/example/` with output from a real run. Put it in `samples/<case
 wrapper and the `args` it was run with, and `expected.json` with the rows the wrapper must
 return. Say in the app's README where each sample comes from: system, date, application version.
 
+A case can also check that bad output is refused. Put `expected_error.txt` in the case folder
+instead of `expected.json`, holding a piece of the error message the wrapper must raise (for
+example `no rows`). The case passes only if parsing fails with a parse error whose message
+contains that text. A case with both files, or neither, is reported as an error.
+
 Check a single case by hand with:
 
 ```bash

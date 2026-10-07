@@ -1,0 +1,1 @@
+Running pp_Nccl with 2 ranks, message size 2^20 B

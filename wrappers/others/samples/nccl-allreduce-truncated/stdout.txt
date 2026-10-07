@@ -1,0 +1,10 @@
+# nThread 1 nGpus 1 minBytes 1048576 maxBytes 1048576 step: 2(factor) warmup iters: 5 iters: 20 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid  12345 on     node01 device  0 [0x01] NVIDIA A100-SXM-64GB
+#  Rank  1 Group  0 Pid  12346 on     node01 device  1 [0x41] NVIDIA A100-SXM-64GB
+#
+#                                                              out-of-place                       in-place
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)
+node01:12345:12345 [0] NCCL INFO Bootstrap : Using ib0:10.0.0.1<0>

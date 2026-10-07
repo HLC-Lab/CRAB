@@ -1,8 +1,13 @@
 import os
 import re
 import shutil
+import sys
 from abc import abstractmethod
 from crab.wrappers.base import base
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from _qe_binary import ph_next_to, pw_from_receipt  # noqa: E402
+from _qe_output import read_wall_time  # noqa: E402
 
 
 class ph_base(base):
@@ -17,24 +22,17 @@ class ph_base(base):
     def metadata(self) -> list:
         return [{"name": "wall_time", "unit": "seconds", "conv": 1.0}]
 
+    def read_data(self) -> list:
+        content = str(self.stdout)
+        run_dir = getattr(self, 'run_dir', os.getcwd())
+        with open(os.path.join(run_dir, "ph.out"), "w") as f_out:
+            f_out.write(content)
+
+        return read_wall_time(content, "PHONON")
+
     def get_binary_path(self):
-        receipt = self.get_receipt()
-        if not receipt:
-            return None
-
-        base_path = receipt.get("binary_path", "")
-        install_type = receipt.get("type", "source")
-
-        if install_type == "module":
-            return base_path
-
-        if install_type == "binary":
-            return os.path.join(base_path, "ph.x")
-
-        # source: binary_path = target_dir/bin (CMake install prefix stub)
-        if base_path.endswith("bin"):
-            base_path = os.path.dirname(base_path)
-        return os.path.join(base_path, "build", "bin", "ph.x")
+        # The receipt is shared with pw and points at pw.x; ph.x sits next to it.
+        return ph_next_to(pw_from_receipt(self.get_receipt()), self.benchmark_id)
 
     def run_app(self):
         input_file = getattr(self, 'input_file', None)
@@ -65,10 +63,6 @@ class ph_base(base):
                 else:
                     f_out.write(line)
 
-        binary = self.get_binary_path()
-        if binary is None:
-            raise RuntimeError(
-                f"No receipt found for benchmark_id='{self.benchmark_id}'. "
-                "Run 'crab setup' first."
-            )
+        # The binary the engine's pre-flight checked: the config's 'binary', else the receipt.
+        binary = self.resolve_binary()
         return f"{binary} < {modified_in}"

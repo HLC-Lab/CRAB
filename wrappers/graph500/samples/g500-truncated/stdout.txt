@@ -1,0 +1,16 @@
+Graph500 reference BFS (synthetic layout)
+SCALE:                          16
+edgefactor:                     16
+NBFS:                           64
+graph_generation:               0.512
+num_mpi_processes:              4
+construction_time:              0.231
+redistribution_time:            0.044
+bfs  min_time:                  0.0101
+bfs  firstquartile_time:        0.0105
+bfs  median_time:               0.0108
+bfs  thirdquartile_time:        0.0112
+bfs  max_time:                  0.0131
+bfs  mean_time:                 0.0109
+bfs  stddev_time:               0.0006
+min_nedge:                      1048064

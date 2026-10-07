@@ -1,0 +1,1 @@
+{"wrapper": "ember-halo3d.py", "args": "-pex 4 -pey 4 -pez 2 -nx 64 -ny 64 -nz 64 -iterations 100", "source": "synthetic"}

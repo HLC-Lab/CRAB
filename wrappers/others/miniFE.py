@@ -1,9 +1,8 @@
+import glob
 import os
 from crab.wrappers.base import base
 
 class app(base):
-    exists = True
-
     metadata = [
         {'name': 'matrix_structure', 'unit': 's', 'conv': False},
         {'name': 'FE_assambly'     , 'unit': 's', 'conv': False},
@@ -18,30 +17,25 @@ class app(base):
     def get_binary_path(self):
         env_name = "CRAB_PATH_MINIFE"
         if env_name not in os.environ or os.environ[env_name] == "":
-            self.exists = False
             return None
         else:
             return os.environ[env_name]
 
     def read_data(self):  # return list (size num_metrics) of variable size lists
-        if self.exists:
-            path = None
-            for file in os.listdir(self.run_dir):
-                if file[:6] == 'miniFE':
-                    path = os.path.join(self.run_dir, file)
-                    break
-            if path is None:
-                # cannot find a file yaml file created by miniFE
-                print('No yaml file found.')
-                return [[] for _ in range(8)]
-            with open(path, 'r') as file:
-                lines = file.readlines()
-            idxs = [28, 30, 45, 48, 51, 55, 58, 61]
-            data = [[float(lines[idx].split(' ')[-1])] for idx in idxs]
-            os.remove(path)
-            return data
-        else:
-            return [[0]*self.num_metrics]
+        # miniFE writes its report, miniFE.<size>.P<procs>.<date>.yaml, into its working
+        # directory, which is this run's run_dir (the runner cleans it up).
+        reports = sorted(glob.glob(os.path.join(glob.escape(self.run_dir), "miniFE*.yaml")))
+        if not reports:
+            raise ValueError("no miniFE*.yaml report in the run directory (the run did not finish?)")
+        if len(reports) > 1:
+            names = ", ".join(os.path.basename(r) for r in reports)
+            raise ValueError(f"several miniFE reports in the run directory, expected one: {names}")
+        with open(reports[0], 'r') as file:
+            lines = file.readlines()
+        if len(lines) < 62:
+            raise ValueError(f"{os.path.basename(reports[0])} has {len(lines)} lines, expected at least 62")
+        idxs = [28, 30, 45, 48, 51, 55, 58, 61]
+        return [[float(lines[idx].split(' ')[-1])] for idx in idxs]
 
     def get_bench_name(self):
         return "MiniFE"

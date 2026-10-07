@@ -1,0 +1,1 @@
+{"wrapper": "nccl-allreduce.py", "args": "-b 1048576 -e 1048576 -g 1", "source": "synthetic"}
