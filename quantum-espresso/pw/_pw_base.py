@@ -1,8 +1,12 @@
 import os
 import re
 import shutil
+import sys
 from abc import abstractmethod
 from crab.wrappers.base import base
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from _qe_output import read_wall_time  # noqa: E402
 
 
 class pw_base(base):
@@ -16,6 +20,14 @@ class pw_base(base):
     @property
     def metadata(self) -> list:
         return [{"name": "wall_time", "unit": "seconds", "conv": 1.0}]
+
+    def read_data(self) -> list:
+        content = str(self.stdout)
+        run_dir = getattr(self, 'run_dir', os.getcwd())
+        with open(os.path.join(run_dir, "pw.out"), "w") as f_out:
+            f_out.write(content)
+
+        return read_wall_time(content, "PWSCF")
 
     def get_binary_path(self):
         receipt = self.get_receipt()
