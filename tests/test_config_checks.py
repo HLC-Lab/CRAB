@@ -87,14 +87,11 @@ def test_legacy_applications_form_is_checked_too() -> None:
 
 
 # Examples that fail at launch today ("0 allocated nodes"). Remove an entry when its cause is
-# fixed (node reuse for chained apps, or the example itself); strict xfail flags a stale one.
-_CHAINED = "chained apps (start sN) each need their own nodes; CRAB does not reuse nodes yet"
+# fixed; strict xfail flags a stale one.
 _KNOWN_BROKEN: dict[str, str] = {
     "examples/cluster_di/allreduce_interference.json": "baselines have no partition",
     "examples/cluster_di/pingpong_interference.json": "baselines have no partition",
     "examples/local/concurrent_collectives_stress.json": "4 concurrent apps on 1 node",
-    "examples/local/sequential_barrier.json": _CHAINED,
-    "examples/lorenzo/cong_analysis.json": _CHAINED,
 }
 
 
@@ -223,12 +220,12 @@ def test_an_app_with_zero_nodes_is_refused(
         check_config(_alloc_config(allocation, apps, numnodes=numnodes))
 
 
-def test_zero_node_message_explains_chained_apps_need_their_own_nodes() -> None:
+def test_chained_apps_reuse_their_heads_node() -> None:
+    """ADR-032: a chain needs only its head's nodes."""
     from crab.core.config_checks import check_config
 
     apps = [{"path": "a.py", "start": "0"}, {"path": "a.py", "start": "s0"}]
-    with pytest.raises(ValueError, match=r"app 1 would get 0 of 1 nodes.*sN.*own nodes"):
-        check_config(_alloc_config({"mode": "linear"}, apps, numnodes="1"))
+    assert check_config(_alloc_config({"mode": "linear"}, apps, numnodes="1")) == []
 
 
 def test_unknown_partition_name_is_refused() -> None:

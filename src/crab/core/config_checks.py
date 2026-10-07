@@ -106,8 +106,9 @@ def _check_split(split: Any, num_apps: int, field: str, exp: str, warnings: list
 class _Slot:
     """Stands in for an app so the real allocator can be run on paper."""
 
-    def __init__(self, partition_id: Any) -> None:
+    def __init__(self, partition_id: Any, start: str) -> None:
         self.partition_id = partition_id
+        self.start_string = start
         self.nodes: list[str] = []
 
     def set_nodes(self, nodes: list[str]) -> None:
@@ -115,10 +116,10 @@ class _Slot:
 
 
 def _allocate_on_paper(
-    allocation: dict[str, Any], partitions: list[Any], numnodes: int
+    allocation: dict[str, Any], partitions: list[Any], starts: list[str], numnodes: int
 ) -> list[int]:
     """Node count per app, from the same NodeAllocator call as ExperimentRunner.setup."""
-    slots = [_Slot(p) for p in partitions]
+    slots = [_Slot(p, s) for p, s in zip(partitions, starts, strict=True)]
     node_list = [f"n{i}" for i in range(numnodes)]
     NodeAllocator.allocate_experiment(slots, node_list, allocation)
     return [len(s.nodes) for s in slots]
@@ -134,6 +135,7 @@ def _check_allocation(
     """Split shape, partition names, then no app left without nodes."""
     keys = sorted(apps.keys(), key=lambda x: int(x) if x.isdigit() else x)  # runner.py order
     app_partitions = [apps[k].get("partition") or None for k in keys]
+    app_starts = [str(apps[k].get("start", "0")) for k in keys]
 
     partitions = allocation.get("partitions")
     names = list(partitions) if isinstance(partitions, dict) else []
@@ -170,7 +172,7 @@ def _check_allocation(
     except (TypeError, ValueError):
         return  # missing or a {var} token: the engine reports a missing numnodes itself
     try:
-        counts = _allocate_on_paper(allocation, app_partitions, total)
+        counts = _allocate_on_paper(allocation, app_partitions, app_starts, total)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"experiment {exp}: allocation: {exc}") from exc
     for key, count in zip(keys, counts, strict=True):

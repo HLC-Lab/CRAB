@@ -2,6 +2,19 @@ import math
 import random
 from typing import Any
 
+from crab.core.allocation.chains import resolve_chains
+
+
+class _Slot:
+    """A chain head's place in the allocation; its nodes are copied to the real apps after."""
+
+    def __init__(self, partition_id: Any) -> None:
+        self.partition_id = partition_id
+        self.nodes: list[str] = []
+
+    def set_nodes(self, nodes: list[str]) -> None:
+        self.nodes = list(nodes)
+
 
 class NodeAllocator:
     """Encapsulates all strategies for mapping nodes to applications."""
@@ -51,23 +64,37 @@ class NodeAllocator:
     def allocate_experiment(apps: list[Any], node_list: list[str], allocation: dict[str, Any]):
         """Give every app of one experiment its nodes, per the experiment's `allocation`.
 
-        The single entry point used by the runner and by the pre-submit config checks.
+        The single entry point used by the runner and by the pre-submit config checks. Only
+        chain heads get a share; an app that reuses nodes (ADR-032) gets its head's nodes.
+        Apps are read through `start_string` (default "0") and `partition_id`.
         """
-        if "partitions" in allocation:
-            NodeAllocator.allocate_partitioned(apps, node_list, allocation)
-            return
-        mode = allocation.get("mode", "linear")
-        split = NodeAllocator.get_abs_split(
-            allocation.get("split", "even"), len(apps), len(node_list)
+        reuse = resolve_chains(
+            [str(getattr(app, "start_string", "0")) for app in apps],
+            [getattr(app, "partition_id", None) for app in apps],
         )
-        if mode == "interleaved":
-            NodeAllocator.allocate_interleaved(
-                apps, node_list, split, stride=allocation.get("stride", 1)
+        heads = {
+            i: _Slot(getattr(app, "partition_id", None))
+            for i, app in enumerate(apps)
+            if i not in reuse
+        }
+        slots = list(heads.values())
+        if "partitions" in allocation:
+            NodeAllocator.allocate_partitioned(slots, node_list, allocation)
+        else:
+            mode = allocation.get("mode", "linear")
+            split = NodeAllocator.get_abs_split(
+                allocation.get("split", "even"), len(slots), len(node_list)
             )
-        elif mode == "random":
-            NodeAllocator.allocate_random(apps, node_list, split, seed=allocation.get("seed"))
-        else:  # linear (default)
-            NodeAllocator.allocate_linear(apps, node_list, split)
+            if mode == "interleaved":
+                NodeAllocator.allocate_interleaved(
+                    slots, node_list, split, stride=allocation.get("stride", 1)
+                )
+            elif mode == "random":
+                NodeAllocator.allocate_random(slots, node_list, split, seed=allocation.get("seed"))
+            else:  # linear (default)
+                NodeAllocator.allocate_linear(slots, node_list, split)
+        for i, app in enumerate(apps):
+            app.set_nodes(list(heads[reuse.get(i, i)].nodes))
 
     @staticmethod
     def allocate_linear(apps: list[Any], node_list: list[str], split_counts: list[int]):

@@ -205,3 +205,33 @@ def test_get_abs_split_wrong_length_raises(split):
     """Used to pad with 0 % or truncate silently; check_config now rejects it before a run."""
     with pytest.raises(ValueError, match=r"entries for 2 apps"):
         NodeAllocator.get_abs_split(split, 2, 8)
+
+
+class ChainApp(MockApp):
+    def __init__(self, start="0", partition_id=None):
+        super().__init__(partition_id)
+        self.start_string = start
+
+
+def test_chained_app_runs_on_its_heads_nodes():
+    apps = [ChainApp("0"), ChainApp("s0"), ChainApp("s1")]
+    NodeAllocator.allocate_experiment(apps, ["n0", "n1", "n2"], {"mode": "linear"})
+    assert [a.nodes for a in apps] == [["n0", "n1", "n2"]] * 3
+
+
+def test_split_divides_nodes_between_chain_heads_only():
+    apps = [ChainApp("0"), ChainApp("s0"), ChainApp("0")]
+    NodeAllocator.allocate_experiment(apps, ["n0", "n1", "n2", "n3"], {"split": [75, 25]})
+    assert [a.nodes for a in apps] == [["n0", "n1", "n2"], ["n0", "n1", "n2"], ["n3"]]
+
+
+def test_chained_app_in_another_partition_gets_a_share_there():
+    apps = [
+        ChainApp("0", "victim"),
+        ChainApp("0", "aggressor"),
+        ChainApp("s0", "aggressor"),  # starts when the victim ends, on aggressor nodes
+        ChainApp("s0"),  # reuses the victim's nodes
+    ]
+    allocation = {"partitions": {"victim": {}, "aggressor": {}}}
+    NodeAllocator.allocate_experiment(apps, ["n0", "n1", "n2", "n3"], allocation)
+    assert [a.nodes for a in apps] == [["n0", "n1"], ["n2"], ["n3"], ["n0", "n1"]]
