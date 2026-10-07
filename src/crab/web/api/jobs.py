@@ -80,6 +80,17 @@ def _submissions(request: Request) -> dict[str, dict[str, Any]]:
     return request.app.state.submissions
 
 
+def _cached_within(request: Request, scope: str, key: str, ttl_seconds: float) -> dict | None:
+    """The cached data for `(scope, key)` if fetched at most `ttl_seconds` ago, else None."""
+    cached = _cache(request).read(scope, key)
+    if cached is None:
+        return None
+    age = (
+        datetime.now(timezone.utc) - datetime.fromisoformat(cached["fetched_at"])
+    ).total_seconds()
+    return cached["data"] if age <= ttl_seconds else None
+
+
 async def _live_or_cached(
     request: Request,
     scope: str,
@@ -100,13 +111,9 @@ async def _live_or_cached(
     """
     cache = _cache(request)
     if ttl_seconds > 0:
-        cached = cache.read(scope, key)
-        if cached is not None:
-            age = (
-                datetime.now(timezone.utc) - datetime.fromisoformat(cached["fetched_at"])
-            ).total_seconds()
-            if age <= ttl_seconds:
-                return cached["data"], False, None
+        recent = _cached_within(request, scope, key, ttl_seconds)
+        if recent is not None:
+            return recent, False, None
     try:
         result = await fetch()
     except (RemoteConnectionError, RemoteCommandError):
