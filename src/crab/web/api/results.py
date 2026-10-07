@@ -24,7 +24,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from crab.cli.export import collect_result_data
-from crab.web.api.jobs import _live_or_cached, worst_status
+from crab.web.api.jobs import _cached_within, _live_or_cached, worst_status
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import CrabWebError, NotFoundError, RemoteConnectionError, logger
@@ -280,12 +280,12 @@ async def get_results_experiments(
     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
     Results must work identically for CLI-only jobs (plan 077 decision 7),
     and a live/cached `crab history` call already has everything needed
-    without a registry join. Shares `_live_or_cached`'s cache scope and TTL
-    with `get_results_index` (same `f"cluster:{cluster}"` key), so opening a
-    job shortly after the picker loaded often reuses that result instead of a
-    second live round-trip -- the reused history may be UNSCOPED (the
-    picker's own query has no `-s system`), so `row["system"]` is checked
-    explicitly below rather than trusting the query's own scope.
+    without a registry join. Opening a job shortly after the picker loaded
+    reuses the picker's still-fresh UNSCOPED history (`cluster:{cluster}`)
+    instead of a second live round-trip; otherwise this runs its own
+    `-s system` query, cached under its own `cluster:{cluster}:system:{system}`
+    key so it never overwrites the picker's full history. Because the reused
+    history may be unscoped, `row["system"]` is checked explicitly below.
     """
     profile = _profiles(request).get(cluster)
 
@@ -295,12 +295,24 @@ async def get_results_experiments(
             transport, profile, ["history", "-s", system, "--json"], timeout=30.0
         )
 
-    try:
-        history, _stale, _cached_at = await _live_or_cached(
-            request, "history", f"cluster:{cluster}", fetch, _HISTORY_TTL_SECONDS
-        )
-    except RemoteConnectionError:
-        return ExperimentRunStatusList(experiments=[])
+    unscoped_key = f"cluster:{cluster}"
+    history = _cached_within(request, "history", unscoped_key, _HISTORY_TTL_SECONDS)
+    if history is None:
+        try:
+            history, _stale, _cached_at = await _live_or_cached(
+                request,
+                "history",
+                f"cluster:{cluster}:system:{system}",
+                fetch,
+                _HISTORY_TTL_SECONDS,
+            )
+        except RemoteConnectionError:
+            # Offline with no scoped copy: the picker's older full history
+            # still covers this job, if there is one.
+            cached = LocalCache(request.app.state.settings).read("history", unscoped_key)
+            if cached is None:
+                return ExperimentRunStatusList(experiments=[])
+            history = cached["data"]
 
     return ExperimentRunStatusList(
         experiments=[

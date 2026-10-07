@@ -553,7 +553,7 @@ async def job_experiments(record_id: str, request: Request) -> JobDetail:
         )
 
     history, stale, cached_at = await _live_or_cached(
-        request, "history", f"system:{rec.system}", fetch
+        request, "history", f"cluster:{rec.cluster}:system:{rec.system}", fetch
     )
 
     experiments = [

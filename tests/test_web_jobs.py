@@ -1141,6 +1141,38 @@ def test_job_experiments_disconnected_with_prior_cache_returns_stale_copy(tmp_pa
         assert body["experiments"] == first["experiments"]
 
 
+def test_job_experiments_same_system_name_on_two_clusters_keeps_both_caches(tmp_path: Path):
+    """Two clusters can both call their system "shared"; one cluster's cached
+    history must never be served as the other's fallback."""
+    basename = "msgsize_scaling_study_2026-07-04_20-03-37-168111"
+    _seed_job(tmp_path, job_id="1", data_dir=f"/a/{basename}", system="shared")
+    _seed_job(tmp_path, cluster="alps", job_id="1", data_dir=f"/b/{basename}", system="shared")
+    leonardo = ScriptedTransport(
+        history_json=json.dumps(
+            {"schema": 1, "experiments": [_history_row(system="shared", status="COMPLETED")]}
+        )
+    )
+    alps = ScriptedTransport(
+        history_json=json.dumps(
+            {"schema": 1, "experiments": [_history_row(system="shared", status="FAILED")]}
+        )
+    )
+
+    with _two_cluster_client(tmp_path, broken=alps, healthy=leonardo) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes", json=_alps_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes/alps/connect")
+        client.get("/api/jobs/leonardo:1/experiments")
+        client.get("/api/jobs/alps:1/experiments")
+
+        client.post("/api/remotes/leonardo/disconnect")
+        body = client.get("/api/jobs/leonardo:1/experiments").json()
+
+        assert body["stale"] is True
+        assert [e["status"] for e in body["experiments"]] == ["COMPLETED"]
+
+
 # --------------------------------------------------------------------------- #
 # /api/jobs/report/{config_name} (per-use-case experiment report, plan 060)
 # --------------------------------------------------------------------------- #

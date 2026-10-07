@@ -24,6 +24,7 @@ from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import RemoteCommandError, RemoteConnectionError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
+from crab.web.store import cache as cache_module  # noqa: E402
 from crab.web.store.cache import LocalCache  # noqa: E402
 from crab.web.store.jobs import JobsStore  # noqa: E402
 from crab.web.store.results_cache import ResultsCache  # noqa: E402
@@ -695,6 +696,61 @@ def test_results_experiments_filters_by_system_even_when_reusing_unscoped_histor
         experiments = resp.json()["experiments"]
         assert len(experiments) == 1
         assert experiments[0]["status"] == "COMPLETED"
+
+
+class SystemScopedHistoryTransport(FakeFetchTransport):
+    """`crab history -s <system>` returns only that system's rows, like the real CLI."""
+
+    def __init__(self, rows: list[dict]):
+        super().__init__(history_json=_history_json(rows))
+        self._rows = rows
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if "crab history -s " in command:
+            system = command.split("crab history -s ", 1)[1].split()[0]
+            rows = [r for r in self._rows if r["system"] == system]
+            return CmdResult(0, _history_json(rows), "")
+        return await super().run(command, timeout)
+
+
+def test_a_system_scoped_experiments_fetch_does_not_shrink_the_picker(tmp_path: Path):
+    """A job's experiments query runs `crab history -s system`; the picker right
+    after it (within the reuse window) must still list every system's jobs."""
+    rows = [
+        _history_row(JOB_BASENAME, "COMPLETED", system=SYSTEM),
+        _history_row("other_job", "COMPLETED", system="other_system"),
+    ]
+
+    with _client(tmp_path, transport_factory=lambda: SystemScopedHistoryTransport(rows)) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert len(resp.json()["experiments"]) == 1
+
+        jobs = client.get("/api/results").json()["jobs"]
+        assert {(j["system"], j["job_basename"]) for j in jobs} == {
+            (SYSTEM, JOB_BASENAME),
+            ("other_system", "other_job"),
+        }
+
+
+def test_results_experiments_offline_falls_back_to_the_pickers_history(tmp_path: Path, monkeypatch):
+    history = _history_json([_history_row(JOB_BASENAME, "FAILED", failed_runs="1")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        # The picker's fetch happened long before, past the reuse window.
+        monkeypatch.setattr(cache_module, "_now", lambda: "2020-01-01T00:00:00+00:00")
+        assert client.get("/api/results").status_code == 200
+        monkeypatch.undo()
+        client.post("/api/remotes/leonardo/disconnect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert [e["status"] for e in resp.json()["experiments"]] == ["FAILED"]
 
 
 def test_results_experiments_disconnected_cluster_returns_empty(tmp_path: Path):
