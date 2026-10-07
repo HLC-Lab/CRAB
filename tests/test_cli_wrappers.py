@@ -135,6 +135,62 @@ def test_strict_needs_a_sample_per_wrapper_unless_listed_unverified(
     assert code == 0 and "UNVERIFIED  app/old.py" in out
 
 
+def _error_sample(app_dir: Path, case: str, wrapper: str, stdout: str, expected: str) -> Path:
+    d = app_dir / "samples" / case
+    d.mkdir(parents=True)
+    (d / "case.json").write_text(json.dumps({"wrapper": wrapper}))
+    (d / "stdout.txt").write_text(stdout)
+    (d / "expected_error.txt").write_text(expected)
+    return d
+
+
+def test_a_sample_can_expect_a_parse_error(root, monkeypatch, capsys) -> None:
+    _wrapper(root, "app/w.py")
+    _error_sample(root / "wrappers" / "app", "trunc", "w.py", "oops", "could not convert\n")
+    code, out, _ = _crab(monkeypatch, capsys, "wrappers", "test", "--strict")
+    assert code == 0 and "PASS  app/trunc" in out
+
+
+def test_an_expected_error_that_is_not_raised_fails(root, monkeypatch, capsys) -> None:
+    _wrapper(root, "app/w.py")
+    _error_sample(root / "wrappers" / "app", "trunc", "w.py", "1.5", "could not convert")
+    code, out, _ = _crab(monkeypatch, capsys, "wrappers", "test")
+    assert code == 1
+    assert "FAIL  app/trunc" in out and "no parse error" in out and "1.5" in out
+
+
+def test_an_expected_error_with_another_message_fails(root, monkeypatch, capsys) -> None:
+    _wrapper(root, "app/w.py")
+    _error_sample(root / "wrappers" / "app", "trunc", "w.py", "oops", "no rows")
+    code, out, _ = _crab(monkeypatch, capsys, "wrappers", "test")
+    assert code == 1
+    assert "FAIL  app/trunc" in out and "'no rows'" in out and "could not convert" in out
+
+
+def test_an_expected_error_needs_a_parse_error_not_another_exception(
+    root, monkeypatch, capsys
+) -> None:
+    path = _wrapper(root, "app/w.py")
+    path.write_text(GOOD.format(exe="onpath") + "\nraise RuntimeError('cannot load')\n")
+    _error_sample(root / "wrappers" / "app", "trunc", "w.py", "oops", "cannot load")
+    code, out, _ = _crab(monkeypatch, capsys, "wrappers", "test")
+    assert code == 1
+    assert "app/trunc" in out and "PASS" not in out and "RuntimeError" in out
+
+
+@pytest.mark.parametrize("both", [True, False])
+def test_a_case_needs_exactly_one_expectation(root, monkeypatch, capsys, both) -> None:
+    _wrapper(root, "app/w.py")
+    d = _error_sample(root / "wrappers" / "app", "odd", "w.py", "oops", "could not convert")
+    if both:
+        (d / "expected.json").write_text("[]")
+    else:
+        (d / "expected_error.txt").unlink()
+    code, out, _ = _crab(monkeypatch, capsys, "wrappers", "test")
+    assert code == 1
+    assert "ERROR  app/odd" in out and "expected.json" in out and "expected_error.txt" in out
+
+
 # ---- new -----------------------------------------------------------------------------------
 
 

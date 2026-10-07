@@ -2,8 +2,9 @@
 
 A sample case is a folder `<app>/samples/<case>/` holding `case.json` (`{"wrapper": "<file>.py",
 "args": "...", "set": {...}}`), the application's `stdout.txt` (and optionally `stderr.txt` and
-any files it wrote), and `expected.json`, the rows the wrapper must produce. Cases run through
-the same parser a real run uses.
+any files it wrote), and either `expected.json`, the rows the wrapper must produce, or
+`expected_error.txt`, text the ParseError message must contain. Cases run through the same
+parser a real run uses.
 """
 
 from __future__ import annotations
@@ -147,11 +148,31 @@ class CaseResult:
         return self.status in ("PASS", "UNVERIFIED")
 
 
+def _expectation(case_dir: Path) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """The case's expected rows, or the substring its ParseError message must contain.
+
+    Raises:
+        ValueError: if the case has both expectation files or neither.
+    """
+    rows_file, error_file = case_dir / "expected.json", case_dir / "expected_error.txt"
+    if rows_file.exists() == error_file.exists():
+        raise ValueError("a case needs exactly one of expected.json and expected_error.txt")
+    if error_file.exists():
+        return None, error_file.read_text().strip()
+    return json.loads(rows_file.read_text()), None
+
+
+def _brief(rows: list[dict[str, Any]], limit: int = 3) -> str:
+    shown = ", ".join(str(row) for row in rows[:limit])
+    return shown + (f" (+{len(rows) - limit} more)" if len(rows) > limit else "")
+
+
 def _run_case(app_dir: Path, case_dir: Path) -> tuple[CaseResult, str | None]:
     label = f"{app_dir.name}/{case_dir.name}"
     try:
         case = json.loads((case_dir / "case.json").read_text())
         wrapper = str(app_dir / case["wrapper"])
+        expected, expected_error = _expectation(case_dir)
         stderr_file = case_dir / "stderr.txt"
         _app, parsed = parse_saved_output(
             wrapper,
@@ -161,12 +182,20 @@ def _run_case(app_dir: Path, case_dir: Path) -> tuple[CaseResult, str | None]:
             case.get("args", ""),
             case.get("set"),
         )
-        expected = json.loads((case_dir / "expected.json").read_text())
     except ParseError as exc:
-        return CaseResult("ERROR", label, str(exc)), None
+        if expected_error is None:
+            return CaseResult("ERROR", label, str(exc)), None
+        if expected_error in str(exc):
+            return CaseResult("PASS", label), os.path.normpath(wrapper)
+        detail = f"expected a parse error containing {expected_error!r}, got {str(exc)!r}"
+        return CaseResult("FAIL", label, detail), os.path.normpath(wrapper)
     except Exception as exc:  # a broken case or wrapper is a test failure, not a crash
         return CaseResult("ERROR", label, f"{type(exc).__name__}: {exc}"), None
-    diffs = row_differences(parsed.rows, expected)
+    if expected_error is not None:
+        detail = f"expected a parse error containing {expected_error!r}, got no parse error"
+        detail += f"; rows: {_brief(parsed.rows)}"
+        return CaseResult("FAIL", label, detail), os.path.normpath(wrapper)
+    diffs = row_differences(parsed.rows, expected or [])
     status = CaseResult("FAIL", label, "; ".join(diffs)) if diffs else CaseResult("PASS", label)
     return status, os.path.normpath(wrapper)
 
