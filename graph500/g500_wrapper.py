@@ -29,11 +29,17 @@ class app(base):
         return "g500"
 
     def get_binary_path(self):
-        # Retrieve the directory stored in the receipt
-        base_dir = super().get_binary_path()
-        if base_dir:
-            return os.path.join(base_dir, "graph500_reference_bfs")
-        return None
+        # A module receipt holds the executable itself (a command name or a path); a source or
+        # binary receipt holds the directory graph500_reference_bfs was built in.
+        receipt = self.get_receipt()
+        if not receipt:
+            return None
+        stored = receipt.get("binary_path", "")
+        if not stored:
+            return None
+        if receipt.get("type", "source") == "module" or os.path.isfile(stored):
+            return stored
+        return os.path.join(stored, "graph500_reference_bfs")
 
     def read_data(self):
         output = self.stdout

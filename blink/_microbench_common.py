@@ -16,12 +16,21 @@ class microbench(base):
     ]
 
     def get_path(self, name):
-        # Read the directory from the new receipt system
+        # A source or binary receipt holds blink's bin/ directory. A module receipt holds the
+        # executable the user typed: a command name means every microbench is on PATH once the
+        # module loads; a path means the microbenches sit in that file's directory.
         receipt = self.get_receipt()
         if not receipt:
             return None
-        blink_dir = receipt.get("binary_path", "")
-        return os.path.join(blink_dir, name)
+        stored = receipt.get("binary_path", "")
+        if not stored:
+            return None
+        if receipt.get("type", "source") == "module":
+            if not os.path.dirname(stored):
+                return name
+            if not os.path.isdir(stored):
+                return os.path.join(os.path.dirname(stored), name)
+        return os.path.join(stored, name)
 
     def read_data(self):
         out_string = self.stdout
