@@ -86,13 +86,215 @@ def test_legacy_applications_form_is_checked_too() -> None:
         Engine(logger=MagicMock()).run(config=config, environment={}, is_worker=False)
 
 
-def test_every_shipped_example_passes_the_checks() -> None:
+# Examples that fail at launch today ("0 allocated nodes"). Remove an entry when its cause is
+# fixed (node reuse for chained apps, or the example itself); strict xfail flags a stale one.
+_CHAINED = "chained apps (start sN) each need their own nodes; CRAB does not reuse nodes yet"
+_KNOWN_BROKEN: dict[str, str] = {
+    "examples/cluster_di/allreduce_interference.json": "baselines have no partition",
+    "examples/cluster_di/pingpong_interference.json": "baselines have no partition",
+    "examples/local/concurrent_collectives_stress.json": "4 concurrent apps on 1 node",
+    "examples/local/sequential_barrier.json": _CHAINED,
+    "examples/lorenzo/cong_analysis.json": _CHAINED,
+}
+
+
+def _example_params():
+    for f in sorted((REPO / "examples").rglob("*.json")):
+        rel = str(f.relative_to(REPO))
+        marks = []
+        if rel in _KNOWN_BROKEN:
+            marks.append(pytest.mark.xfail(reason=_KNOWN_BROKEN[rel], strict=True))
+        yield pytest.param(f, id=rel, marks=marks)
+
+
+@pytest.mark.parametrize("path", list(_example_params()))
+def test_every_shipped_example_passes_the_checks(path: Path) -> None:
     from crab.core.config_checks import check_config
 
-    failures = {}
-    for f in sorted((REPO / "examples").rglob("*.json")):
-        try:
-            check_config(json.loads(f.read_text()))
-        except ValueError as exc:
-            failures[str(f.relative_to(REPO))] = str(exc)
-    assert failures == {}
+    check_config(json.loads(path.read_text()))
+
+
+# --- Allocations --------------------------------------------------------------------------
+# Before: a split over 100 failed only at setup (allocator.py get_abs_split), one under 100
+# left nodes idle, a split of the wrong length was padded/truncated, a zero-node app aborted
+# the experiment at launch (process/manager.py run_job), and an unknown partition name gave
+# its app no nodes (allocator.py allocate_partitioned matches apps by name).
+
+
+def _alloc_config(
+    allocation: dict | None,
+    apps: list[dict] | int,
+    numnodes: object = "8",
+    local: dict | None = None,
+) -> dict:
+    app_list = [{"path": "a.py"} for _ in range(apps)] if isinstance(apps, int) else apps
+    g: dict = {"numnodes": numnodes}
+    if allocation is not None:
+        g["allocation"] = allocation
+    exp: dict = {"apps": {str(i): a for i, a in enumerate(app_list)}}
+    if local is not None:
+        exp["local_options"] = local
+    return {"global_options": g, "experiments": {"e1": exp}}
+
+
+@pytest.mark.parametrize("split", [[60, 50], [70, 50], ["50", "60"]])
+def test_split_over_100_is_refused(split: list) -> None:
+    from crab.core.config_checks import check_config
+
+    with pytest.raises(ValueError, match=r"experiment e1: allocation\.split sums to \d+.*100"):
+        check_config(_alloc_config({"mode": "linear", "split": split}, 2))
+
+
+def test_partition_split_over_100_is_refused() -> None:
+    from crab.core.config_checks import check_config
+
+    alloc = {"partitions": {"grp": {"split": [60, 60]}}}
+    apps = [{"path": "a.py", "partition": "grp"}, {"path": "a.py", "partition": "grp"}]
+    with pytest.raises(ValueError, match=r"e1: allocation\.partitions\.grp\.split sums to 120"):
+        check_config(_alloc_config(alloc, apps))
+
+
+def test_split_under_100_is_a_warning_not_an_error() -> None:
+    """A solo baseline on half the nodes is legitimate (co_scheduling.json, experiment 02)."""
+    from crab.core.config_checks import check_config
+
+    warnings = check_config(_alloc_config({"mode": "linear", "split": [50]}, 1))
+    assert warnings == ["experiment e1: allocation.split sums to 50; 50% of the nodes stay idle"]
+
+
+def test_partition_split_under_100_is_a_warning() -> None:
+    from crab.core.config_checks import check_config
+
+    alloc = {"partitions": {"grp": {"split": [40, 40]}}}
+    apps = [{"path": "a.py", "partition": "grp"}, {"path": "a.py", "partition": "grp"}]
+    assert check_config(_alloc_config(alloc, apps)) == [
+        "experiment e1: allocation.partitions.grp.split sums to 80; 20% of the nodes stay idle"
+    ]
+
+
+def test_engine_logs_config_warnings_and_goes_on() -> None:
+    logger = MagicMock()
+    config = _alloc_config({"mode": "linear", "split": [50]}, 1, numnodes=None)
+    with pytest.raises(ValueError, match="numnodes is required"):
+        Engine(logger=logger).run(config=config, environment={}, is_worker=False)
+    logger.warning.assert_any_call(
+        "experiment e1: allocation.split sums to 50; 50% of the nodes stay idle"
+    )
+
+
+@pytest.mark.parametrize("split", [[100], [50, 25, 25]])
+def test_split_length_must_match_the_apps(split: list) -> None:
+    from crab.core.config_checks import check_config
+
+    with pytest.raises(
+        ValueError, match=rf"e1: allocation\.split has {len(split)} entries for 2 apps"
+    ):
+        check_config(_alloc_config({"mode": "linear", "split": split}, 2))
+
+
+def test_local_split_length_is_checked_against_that_experiment() -> None:
+    from crab.core.config_checks import check_config
+
+    local = {"allocation": {"mode": "linear", "split": [50, 50]}}
+    with pytest.raises(ValueError, match=r"e1: allocation\.split has 2 entries for 1 apps"):
+        check_config(_alloc_config({"mode": "linear"}, 1, local=local))
+
+
+@pytest.mark.parametrize(
+    ("allocation", "apps", "numnodes", "app"),
+    [
+        ({"mode": "linear"}, 3, "2", "2"),
+        ({"mode": "interleaved", "split": [95, 5]}, 2, 8, "1"),
+        (
+            {"partitions": {"v": {"share": 50}, "a": {"share": 50}}},
+            [{"path": "a.py", "partition": "v"}] * 3,
+            "4",
+            "2",
+        ),
+        ({"partitions": {"v": {}, "a": {}}}, [{"path": "a.py"}], "4", "0"),
+    ],
+)
+def test_an_app_with_zero_nodes_is_refused(
+    allocation: dict, apps: object, numnodes: object, app: str
+) -> None:
+    from crab.core.config_checks import check_config
+
+    with pytest.raises(ValueError, match=rf"experiment e1: app {app} would get 0 of"):
+        check_config(_alloc_config(allocation, apps, numnodes=numnodes))
+
+
+def test_zero_node_message_explains_chained_apps_need_their_own_nodes() -> None:
+    from crab.core.config_checks import check_config
+
+    apps = [{"path": "a.py", "start": "0"}, {"path": "a.py", "start": "s0"}]
+    with pytest.raises(ValueError, match=r"app 1 would get 0 of 1 nodes.*sN.*own nodes"):
+        check_config(_alloc_config({"mode": "linear"}, apps, numnodes="1"))
+
+
+def test_unknown_partition_name_is_refused() -> None:
+    from crab.core.config_checks import check_config
+
+    alloc = {"partitions": {"victim": {}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "agressor"}]
+    with pytest.raises(ValueError, match=r"e1: app 1: partition 'agressor'.*victim, aggressor"):
+        check_config(_alloc_config(alloc, apps))
+
+
+def test_partition_without_partitioned_allocation_is_refused() -> None:
+    """A local allocation replaces the global one, partitions included (shallow merge)."""
+    from crab.core.config_checks import check_config
+
+    alloc = {"partitions": {"victim": {}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}]
+    with pytest.raises(ValueError, match=r"e1: app 0: partition 'victim'.*defines no partitions"):
+        check_config(_alloc_config(alloc, apps, local={"allocation": {"mode": "linear"}}))
+
+
+@pytest.mark.parametrize(
+    ("allocation", "apps", "numnodes", "local"),
+    [
+        # No allocation, or the dashboard's bare linear override.
+        (None, 2, "8", None),
+        ({"mode": "linear"}, 1, "8", {"allocation": {"mode": "linear"}}),
+        # By-app splits, numbers and numeric strings, within the allocator's tolerance.
+        ({"mode": "interleaved", "stride": 2, "split": [60, 40]}, 2, "10", None),
+        ({"mode": "random", "seed": 7, "split": ["33.3", "33.3", "33.4"]}, 3, 3, None),
+        ({"mode": "linear", "split": "even"}, 2, "2", None),
+        # {var} tokens are substituted later by SbatchMan: no numeric checks on them.
+        ({"mode": "linear", "split": ["{left}", 50]}, 2, "8", None),
+        ({"mode": "linear", "split": "{split}"}, 2, "8", None),
+        ({"mode": "linear"}, 4, "{nodes}", None),
+        # Named groups as the dashboard emits them (split normalized to partitions).
+        (
+            {"mode": "linear", "partitions": {"group_1": {}, "group_2": {}}},
+            [{"path": "a.py", "partition": "group_1"}, {"path": "a.py", "partition": "group_2"}],
+            "8",
+            None,
+        ),
+        (
+            {"mode": "interleaved", "partitions": {"v": {"share": 35}, "a": {"share": "{s}"}}},
+            [{"path": "a.py", "partition": "v"}, {"path": "a.py", "partition": "a"}],
+            "16",
+            None,
+        ),
+        (
+            {"partitions": {"grp": {"share": 100, "mode": "interleaved", "split": [50, 50]}}},
+            [{"path": "a.py", "partition": "grp"}, {"path": "a.py", "partition": "grp"}],
+            "8",
+            None,
+        ),
+        # A partition with no apps leaves its nodes idle on purpose (a solo baseline).
+        (
+            {"partitions": {"victim": {"share": 50}, "aggressor": {"share": 50}}},
+            [{"path": "a.py", "partition": "victim"}],
+            "8",
+            None,
+        ),
+    ],
+)
+def test_legitimate_allocations_pass(
+    allocation: dict | None, apps: object, numnodes: object, local: dict | None
+) -> None:
+    from crab.core.config_checks import check_config
+
+    assert check_config(_alloc_config(allocation, apps, numnodes=numnodes, local=local)) == []
