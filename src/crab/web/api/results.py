@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import uuid
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
@@ -35,6 +34,7 @@ from crab.web.store.cache import LocalCache
 from crab.web.store.jobs import JobRecord, JobsStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.store.results_cache import ResultsCache
+from crab.web.trackers import ExpiringTracker
 
 router = APIRouter(prefix="/api/results", tags=["results"])
 
@@ -58,7 +58,7 @@ def _results_cache(request: Request) -> ResultsCache:
     return ResultsCache(request.app.state.settings)
 
 
-def _fetches(request: Request) -> dict[str, dict[str, Any]]:
+def _fetches(request: Request) -> ExpiringTracker:
     return request.app.state.result_fetches
 
 
@@ -162,7 +162,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
         (rec.cluster, rec.system, Path(rec.data_dir).name): rec
         for rec in _jobs_store(request).list()
     }
-    cached_triples = set(cache.list_cached())
+    cached_triples = set(await asyncio.to_thread(cache.list_cached))
     entries: dict[tuple[str, str, str], ResultsJobEntry] = {}
 
     async def entries_for_profile(profile: Profile) -> list[ResultsJobEntry]:
@@ -368,7 +368,7 @@ async def _snapshot_fetch_status(
 
 
 async def _run_fetch(
-    tracker: dict[str, dict[str, Any]],
+    tracker: ExpiringTracker,
     fetch_id: str,
     transport: Transport,
     profile: Profile,
@@ -442,8 +442,8 @@ async def get_fetch_status(
     """Poll a fetch's status; 404 once a terminal result has been fetched.
 
     Entries are dropped from the tracker as soon as a terminal status is
-    returned so it doesn't grow forever (there's no other cleanup — the
-    tracker is in-memory and process-lifetime only, same as jobs.py's).
+    returned; an entry nobody polls expires on its own (`web/trackers.py`),
+    same as jobs.py's.
     """
     tracker = _fetches(request)
     entry = tracker.get(fetch_id)
@@ -483,4 +483,4 @@ async def get_results_cache_size(request: Request) -> CacheSize:
 
 @router.delete("/cache", status_code=204)
 async def clear_results_cache(request: Request) -> None:
-    _results_cache(request).clear()
+    await asyncio.to_thread(_results_cache(request).clear)

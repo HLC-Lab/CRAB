@@ -347,8 +347,7 @@ export interface paths {
      * @description Poll a submission's status; 404 once a terminal result has been fetched.
      *
      *     Entries are dropped from the tracker as soon as a terminal status is
-     *     returned so it doesn't grow forever (there's no other cleanup — the
-     *     tracker is in-memory and process-lifetime only).
+     *     returned; an entry nobody polls expires on its own (`web/trackers.py`).
      */
     get: operations["get_submission_api_jobs_submissions__submission_id__get"];
     put?: never;
@@ -568,8 +567,8 @@ export interface paths {
      * @description Poll a fetch's status; 404 once a terminal result has been fetched.
      *
      *     Entries are dropped from the tracker as soon as a terminal status is
-     *     returned so it doesn't grow forever (there's no other cleanup — the
-     *     tracker is in-memory and process-lifetime only, same as jobs.py's).
+     *     returned; an entry nobody polls expires on its own (`web/trackers.py`),
+     *     same as jobs.py's.
      */
     get: operations["get_fetch_status_api_results__cluster___system___job_basename__fetch__fetch_id__get"];
     put?: never;

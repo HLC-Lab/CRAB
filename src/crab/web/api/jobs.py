@@ -14,7 +14,6 @@ import uuid
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
@@ -36,6 +35,7 @@ from crab.web.store.cache import LocalCache
 from crab.web.store.jobs import JobRecord, JobsStore
 from crab.web.store.library import LibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
+from crab.web.trackers import ExpiringTracker
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -76,7 +76,7 @@ def _cache(request: Request) -> LocalCache:
     return LocalCache(request.app.state.settings)
 
 
-def _submissions(request: Request) -> dict[str, dict[str, Any]]:
+def _submissions(request: Request) -> ExpiringTracker:
     return request.app.state.submissions
 
 
@@ -176,7 +176,7 @@ class SubmissionStatus(BaseModel):
 
 
 async def _run_submission(
-    tracker: dict[str, dict[str, Any]],
+    tracker: ExpiringTracker,
     submission_id: str,
     transport: Transport,
     profile: Profile,
@@ -268,8 +268,7 @@ async def get_submission(submission_id: str, request: Request) -> SubmissionStat
     """Poll a submission's status; 404 once a terminal result has been fetched.
 
     Entries are dropped from the tracker as soon as a terminal status is
-    returned so it doesn't grow forever (there's no other cleanup — the
-    tracker is in-memory and process-lifetime only).
+    returned; an entry nobody polls expires on its own (`web/trackers.py`).
     """
     tracker = _submissions(request)
     entry = tracker.get(submission_id)
