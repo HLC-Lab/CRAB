@@ -275,6 +275,11 @@ class Engine:
             m = re.search(r"Submitted batch job (\d+)", out)
             job_id = m.group(1) if m else None
             self.log.info(out.strip())
+        except subprocess.CalledProcessError as exc:
+            # The output holds Slurm's reason (e.g. an invalid account); without it the user
+            # only sees "exit status 1".
+            reason = (exc.output or "").strip() or "no message"
+            raise RuntimeError(f"sbatch refused the job (exit {exc.returncode}): {reason}") from exc
         except (KeyboardInterrupt, SystemExit):
             if job_id:
                 self.log.warning(f"Interrupted — cancelling Slurm job {job_id}")

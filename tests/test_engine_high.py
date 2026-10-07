@@ -46,6 +46,24 @@ class TestSbatchStderr(unittest.TestCase):
                 "sbatch check_output must pass stderr=subprocess.STDOUT",
             )
 
+    def test_refused_submission_shows_sbatchs_message(self):
+        """A refused sbatch must surface Slurm's reason, not only "exit status 1"."""
+        engine = _make_engine()
+        refusal = subprocess.CalledProcessError(
+            1,
+            ["sbatch", "crab_job.sh"],
+            output="sbatch: error: invalid account or expired budget\n"
+            "sbatch: error: Batch job submission failed: Unspecified error\n",
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = _minimal_config(tmpdir)
+            with patch("subprocess.check_output", side_effect=refusal):
+                with self.assertRaises(RuntimeError) as ctx:
+                    engine._run_orchestrator(config, {})
+        message = str(ctx.exception)
+        self.assertIn("sbatch refused the job (exit 1)", message)
+        self.assertIn("invalid account or expired budget", message)
+
 
 # ---------------------------------------------------------------------------
 # Issue: Submitted Slurm job orphaned on KeyboardInterrupt
