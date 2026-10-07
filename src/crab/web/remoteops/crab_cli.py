@@ -18,6 +18,14 @@ from crab.web.errors import ContractError, RemoteCommandError
 from crab.web.store.profiles import Profile
 
 
+class RemotePath(str):
+    """An argument to ``crab`` that is a path on the cluster, so a leading ``~`` expands.
+
+    Callers wrap only real paths (a staged config, ``--data-dir``, ``--binary``);
+    every other argument is plain text and is quoted literally.
+    """
+
+
 def remote_path_expr(path: str) -> str:
     """Quote a remote path while preserving ``~``/``$HOME`` expansion.
 

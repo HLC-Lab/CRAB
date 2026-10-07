@@ -29,7 +29,7 @@ from crab.web.errors import (
     RemoteConnectionError,
     logger,
 )
-from crab.web.remoteops.crab_cli import run_crab_json
+from crab.web.remoteops.crab_cli import RemotePath, run_crab_json
 from crab.web.remoteops.transfer import stage_config
 from crab.web.settings import Settings
 from crab.web.store.cache import LocalCache
@@ -197,7 +197,7 @@ async def _run_submission(
     """
     try:
         staged_path = await stage_config(transport, profile, config, name, settings=settings)
-        run_args = ["run", staged_path, "-p", preset]
+        run_args = ["run", RemotePath(staged_path), "-p", preset]
         if only:
             run_args += ["--only", ",".join(only)]
         run_args.append("--json")
@@ -450,7 +450,7 @@ async def job_logs(record_id: str, request: Request, experiment: str | None = No
 
     async def fetch() -> dict:
         transport = _live_transport(rec.cluster, request)
-        args = ["logs", "--data-dir", rec.data_dir]
+        args = ["logs", "--data-dir", RemotePath(rec.data_dir)]
         if experiment:
             args += ["--experiment", experiment]
         args.append("--json")
