@@ -114,9 +114,12 @@ class ExperimentRunner:
                     setattr(app_instance, key, value)
             # --------------------------------
 
-            # Wrappers that launch through base.run_app need a binary: find it now so a
-            # missing one fails the experiment before any run starts.
-            if type(app_instance).run_app is base.run_app:
+            # Find the binary now so a missing one fails the experiment before any run
+            # starts. A wrapper that builds its own command (QE) is checked when it names a
+            # binary source; one that names none may not launch a binary at all.
+            launches_via_base = type(app_instance).run_app is base.run_app
+            names_a_binary = bool(app_instance.benchmark_id or app_instance.executable)
+            if launches_via_base or names_a_binary:
                 app_instance.resolve_binary()
 
             # --- ARCHITECTURE GUARDRAIL ---

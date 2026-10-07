@@ -22,18 +22,22 @@ def run_job(
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
 
+    app_command = job.run_app()
+    if not app_command or not str(app_command).strip():
+        raise RuntimeError(
+            f"Wrapper {type(job).__module__} (app {job.id_num}) returned an empty launch "
+            "command; refusing to run it."
+        )
+
     # 1. Get the base launcher command from the workload manager
     cmd_string = wlmanager.run_job(
         job.node_list,
         ppn,
-        job.run_app(),
+        app_command,
         pre_commands=pre_commands,
         data_path=data_path,
         launcher=launcher,
     )
-
-    if not cmd_string:
-        cmd_string = "echo a > /dev/null"
 
     # 2. Write the Execution Wrapper
     # Route the scripts into the isolated run directory to preserve provenance

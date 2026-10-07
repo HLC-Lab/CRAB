@@ -116,8 +116,9 @@ what was tried. A wrapper whose receipt stores a directory rather than the execu
         return os.path.join(receipt.get("binary_path", ""), "my_executable")
 ```
 
-A wrapper can also override `run_app()` to build the whole command itself; CRAB then does not
-check for a binary before the run.
+A wrapper can also override `run_app()` to build the whole command itself. CRAB still checks for
+a binary before the first run when the wrapper names a `benchmark_id` or an `executable`; a wrapper
+that names neither is not checked. An empty command from `run_app()` fails the experiment.
 
 ## Files the application writes
 
