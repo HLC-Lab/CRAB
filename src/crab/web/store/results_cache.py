@@ -47,6 +47,8 @@ class ResultsCache:
         for cluster_dir in sorted(p for p in root.iterdir() if p.is_dir()):
             for system_dir in sorted(p for p in cluster_dir.iterdir() if p.is_dir()):
                 for job_dir in sorted(p for p in system_dir.iterdir() if p.is_dir()):
+                    if job_dir.name.startswith("."):
+                        continue  # a fetch's staging dir (transport.fetch_tree), never a job
                     if any(child.is_dir() for child in job_dir.iterdir()):
                         triples.append((cluster_dir.name, system_dir.name, job_dir.name))
         return triples

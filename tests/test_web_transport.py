@@ -16,6 +16,7 @@ there too.
 from __future__ import annotations
 
 import asyncio
+import shutil
 import sys
 from pathlib import Path
 
@@ -96,6 +97,7 @@ class _FakeSFTPClient:
         if self.get_error is not None:
             raise self.get_error
         self.calls.append((remote_path, local_path, recurse))
+        Path(local_path).mkdir()  # like asyncssh: the destination must not pre-exist
 
 
 class _FakeSFTPConnection:
@@ -113,7 +115,10 @@ def test_ssh_transport_fetch_tree_calls_recursive_get(tmp_path: Path):
 
     asyncio.run(transport.fetch_tree("/remote/results", local_dir))
 
-    assert sftp.calls == [("/remote/results", local_dir, True)]
+    [(remote, staged, recurse)] = sftp.calls
+    assert (remote, recurse) == ("/remote/results", True)
+    assert staged != local_dir  # fetched into staging, then swapped in
+    assert Path(local_dir).is_dir()
 
 
 def test_ssh_transport_fetch_tree_sftp_error_does_not_close_connection(tmp_path: Path):
@@ -327,3 +332,88 @@ async def test_connect_ssh_times_out_on_a_silent_server(tmp_path: Path, monkeypa
             w.close()
         server.close()
         await server.wait_closed()
+
+
+async def test_ssh_transport_fetch_tree_real_server_refetch_replaces_the_tree(tmp_path: Path):
+    """asyncssh's recursive get() copies into ``local_dir/<basename>`` when local_dir already
+    exists (sftp.py _begin_copy: dst_isdir -> compose_path(basename, parent=dstpath)), so a
+    naive re-fetch nested the tree as ``<job>/<job>/...`` and kept files deleted remotely."""
+    remote_root = tmp_path / "remote" / "job1"
+    (remote_root / "sub").mkdir(parents=True)
+    (remote_root / "sub" / "data.csv").write_text("x\n1\n")
+    (remote_root / "gone.csv").write_text("old\n")
+    local_dest = tmp_path / "cache" / "job1"
+
+    async with local_ssh_server() as port:
+        conn = await connect_local(port)
+        transport = SSHTransport(conn)
+        try:
+            await transport.fetch_tree(str(remote_root), str(local_dest))
+            (remote_root / "gone.csv").unlink()
+            (remote_root / "sub" / "data.csv").write_text("x\n2\n")
+            await transport.fetch_tree(str(remote_root), str(local_dest))
+        finally:
+            await transport.close()
+
+    assert not (local_dest / "job1").exists()
+    assert not (local_dest / "gone.csv").exists()
+    assert (local_dest / "sub" / "data.csv").read_text() == "x\n2\n"
+    assert sorted(p.name for p in local_dest.parent.iterdir()) == ["job1"]
+
+
+async def test_ssh_transport_fetch_tree_real_server_failed_refetch_keeps_the_cache(
+    tmp_path: Path,
+):
+    remote_root = tmp_path / "remote" / "job1"
+    remote_root.mkdir(parents=True)
+    (remote_root / "a.csv").write_text("a\n1\n")
+    local_dest = tmp_path / "cache" / "job1"
+
+    async with local_ssh_server() as port:
+        conn = await connect_local(port)
+        transport = SSHTransport(conn)
+        try:
+            await transport.fetch_tree(str(remote_root), str(local_dest))
+            (remote_root / "a.csv").write_text("a\n2\n")
+            unreadable = remote_root / "z.csv"
+            unreadable.write_text("z\n")
+            unreadable.chmod(0)  # the copy fails part-way through the tree
+            try:
+                with pytest.raises(RemoteCommandError):
+                    await transport.fetch_tree(str(remote_root), str(local_dest))
+            finally:
+                unreadable.chmod(0o644)
+        finally:
+            await transport.close()
+
+    assert sorted(p.name for p in local_dest.iterdir()) == ["a.csv"]
+    assert (local_dest / "a.csv").read_text() == "a\n1\n"
+    assert sorted(p.name for p in local_dest.parent.iterdir()) == ["job1"]
+
+
+def test_local_transport_fetch_tree_refetch_drops_files_deleted_at_the_source(tmp_path: Path):
+    source = _make_source_tree(tmp_path)
+    dest = tmp_path / "cache" / "dest"
+    transport = LocalTransport()
+
+    asyncio.run(transport.fetch_tree(str(source), str(dest)))
+    (source / "top.csv").unlink()
+    asyncio.run(transport.fetch_tree(str(source), str(dest)))
+
+    assert not (dest / "top.csv").exists()
+    assert (dest / "lab-a" / "run.csv").read_text() == "x,y\n1,2\n"
+    assert sorted(p.name for p in dest.parent.iterdir()) == ["dest"]
+
+
+def test_local_transport_fetch_tree_failed_refetch_keeps_the_cache(tmp_path: Path):
+    source = _make_source_tree(tmp_path)
+    dest = tmp_path / "cache" / "dest"
+    transport = LocalTransport()
+
+    asyncio.run(transport.fetch_tree(str(source), str(dest)))
+    shutil.rmtree(source)
+    with pytest.raises(RemoteCommandError):
+        asyncio.run(transport.fetch_tree(str(source), str(dest)))
+
+    assert (dest / "top.csv").read_text() == "a,b\n3,4\n"
+    assert sorted(p.name for p in dest.parent.iterdir()) == ["dest"]
