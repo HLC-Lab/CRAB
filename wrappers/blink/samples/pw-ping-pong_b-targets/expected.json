@@ -1,0 +1,30 @@
+[
+  {
+    "Avg-Duration": 6.2232e-05,
+    "Min-Duration": 5.5686e-05,
+    "Max-Duration": 7.1978e-05,
+    "Median-Duration": 6.1958e-05,
+    "MainRank-Duration": 6.2605e-05
+  },
+  {
+    "Avg-Duration": 6.297e-05,
+    "Min-Duration": 5.6632e-05,
+    "Max-Duration": 7.2165e-05,
+    "Median-Duration": 5.9424e-05,
+    "MainRank-Duration": 6.9811e-05
+  },
+  {
+    "Avg-Duration": 5.4545e-05,
+    "Min-Duration": 4.7944e-05,
+    "Max-Duration": 6.3304e-05,
+    "Median-Duration": 5.3861e-05,
+    "MainRank-Duration": 5.5459e-05
+  },
+  {
+    "Avg-Duration": 7.0876e-05,
+    "Min-Duration": 5.999e-05,
+    "Max-Duration": 9.1593e-05,
+    "Median-Duration": 6.8458e-05,
+    "MainRank-Duration": 6.4048e-05
+  }
+]
