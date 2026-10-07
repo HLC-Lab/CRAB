@@ -287,6 +287,8 @@ async def get_results_experiments(
     key so it never overwrites the picker's full history. Because the reused
     history may be unscoped, `row["system"]` is checked explicitly below.
     """
+    # Same identity rules as the cache, so a job key is valid on every route.
+    _results_cache(request).path_for(cluster, system, job_basename)
     profile = _profiles(request).get(cluster)
 
     async def fetch() -> dict:
@@ -404,10 +406,10 @@ async def fetch_results(
     cluster: str, system: str, job_basename: str, request: Request
 ) -> FetchAccepted:
     """Validate synchronously (job resolves, cluster connected), then fetch in the background."""
+    local_dir = _results_cache(request).path_for(cluster, system, job_basename)
     remote_dir = await _resolve_remote_dir(cluster, system, job_basename, request)
     profile = _profiles(request).get(cluster)
     transport = _live_transport(cluster, request)
-    local_dir = _results_cache(request).path_for(cluster, system, job_basename)
 
     fetch_id = str(uuid.uuid4())
     tracker = _fetches(request)

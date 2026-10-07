@@ -15,6 +15,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from crab.web.errors import NotFoundError
 from crab.web.settings import Settings, get_settings
 
 
@@ -25,7 +26,20 @@ class ResultsCache:
         self._settings = settings or get_settings()
 
     def path_for(self, cluster: str, system: str, data_dir_basename: str) -> Path:
-        return self._settings.results_cache_dir / cluster / system / data_dir_basename
+        """The cache folder for one job.
+
+        Raises NotFoundError if any part is not a single plain segment or the
+        result would land outside the cache root (route params arrive
+        URL-decoded, so ``%2E%2E`` reaches here as ``..``).
+        """
+        parts = (cluster, system, data_dir_basename)
+        if any(p in ("", ".", "..") or "/" in p or "\\" in p or "\0" in p for p in parts):
+            raise NotFoundError(f"No results for {'/'.join(parts)!r}.")
+        root = self._settings.results_cache_dir
+        path = root / cluster / system / data_dir_basename
+        if root.resolve() not in path.resolve().parents:
+            raise NotFoundError(f"No results for {'/'.join(parts)!r}.")
+        return path
 
     def list_cached(self) -> list[tuple[str, str, str]]:
         """Every cached (cluster, system, job_basename) triple, ignoring stray

@@ -11,6 +11,7 @@ Stored as ``{"version": 1, "clusters": [ <Profile>, ... ]}`` in
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -20,6 +21,22 @@ from crab.web.errors import ConflictError, InputError, NotFoundError
 from crab.web.settings import Settings, get_settings
 
 PROFILES_VERSION = 1
+
+# A profile name becomes a local folder name (results cache) and part of cache
+# keys, so it must stay a single plain path segment.
+_VALID_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def check_profile_name(name: str) -> None:
+    """Raise InputError unless ``name`` is safe to use as a folder name.
+
+    Only enforced when a name is chosen (add or rename): profiles saved before
+    this rule existed keep loading and working under their old name.
+    """
+    if not _VALID_NAME.match(name) or name in (".", ".."):
+        raise InputError(
+            f"Invalid profile name {name!r}. Use only letters, digits, '.', '_' and '-'."
+        )
 
 
 class Profile(BaseModel):
@@ -107,6 +124,7 @@ class ProfileStore:
         raise NotFoundError(f"No cluster profile named {name!r}.")
 
     def add(self, profile: Profile) -> Profile:
+        check_profile_name(profile.name)
         store = self._load()
         if any(p.name == profile.name for p in store.clusters):
             raise ConflictError(f"A profile named {profile.name!r} already exists.")
@@ -115,6 +133,8 @@ class ProfileStore:
         return profile
 
     def update(self, name: str, profile: Profile) -> Profile:
+        if profile.name != name:
+            check_profile_name(profile.name)
         store = self._load()
         for i, p in enumerate(store.clusters):
             if p.name == name:
