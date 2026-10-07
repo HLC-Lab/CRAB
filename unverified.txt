@@ -1,11 +1,9 @@
 # Wrappers that have no sample case yet (samples/<case>/ with real output and expected.json).
 # `crab wrappers test --strict` accepts these; remove a line when its wrapper gets a sample.
-blink/a2a_b.py
 blink/a2a_comm_only.py
 blink/a2a_man.py
 blink/a2a_nb.py
 blink/agtr_comm_only.py
-blink/ardc_b.py
 blink/ardc_nb.py
 blink/barrier.py
 blink/bdc_b.py
