@@ -70,6 +70,15 @@ class BenchmarkRecipe(ABC):
         """Declares dynamic input requirements. Default requires modules, no parameters."""
         return BuildManifest()
 
+    @property
+    def module_executable(self) -> str:
+        """The command an environment module puts on PATH (e.g. 'pw.x').
+
+        Empty when there is no single obvious one (e.g. a suite of many executables); the
+        wizard then asks for it without a default.
+        """
+        return ""
+
     @abstractmethod
     def check_dependencies(self, env: dict[str, str]) -> tuple[bool, str]:
         """Pre-flight check before building, evaluating a modified environment context."""
@@ -99,7 +108,7 @@ class BenchmarkRecipe(ABC):
         if self.verify_existing(local_target):
             return local_target
 
-        system_path = shutil.which(binary_name)
+        system_path = shutil.which(self.module_executable or binary_name)
         if system_path and self.verify_existing(system_path):
             return system_path
 

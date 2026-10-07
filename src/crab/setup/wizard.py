@@ -119,6 +119,22 @@ def _derive_benchmark_id(name: str) -> str:
     return sanitized.strip("_")
 
 
+def _ask_module_executable(recipe) -> str:
+    """The command the module provides: the recipe's own when it declares one, else asked for.
+
+    The recipe id is not a command, so it is never offered; an empty answer is asked again.
+    """
+    if recipe.module_executable:
+        return Prompt.ask(
+            "Enter the executable the module provides", default=recipe.module_executable
+        )
+    while True:
+        answer = Prompt.ask("Enter the executable the module provides").strip()
+        if answer:
+            return answer
+        console.print("[red]An executable name is required.[/red]")
+
+
 def _collect_pre_run_hooks() -> list[str]:
     """Interactively collects pre-run shell commands until the user submits a blank line."""
     hooks = []
@@ -379,9 +395,7 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
             module_cmd = Prompt.ask(
                 "Enter exact module command (e.g., 'module load quantum-espresso/7.4.1')"
             )
-            binary_name = Prompt.ask(
-                "Enter target executable binary name (e.g., 'pw.x')", default=recipe.benchmark_id
-            )
+            binary_name = _ask_module_executable(recipe)
             pre_run_hooks.insert(0, module_cmd)
             final_path = binary_name
 
