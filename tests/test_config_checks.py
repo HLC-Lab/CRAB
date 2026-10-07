@@ -89,8 +89,6 @@ def test_legacy_applications_form_is_checked_too() -> None:
 # Examples that fail at launch today ("0 allocated nodes"). Remove an entry when its cause is
 # fixed; strict xfail flags a stale one.
 _KNOWN_BROKEN: dict[str, str] = {
-    "examples/cluster_di/allreduce_interference.json": "baselines have no partition",
-    "examples/cluster_di/pingpong_interference.json": "baselines have no partition",
     "examples/local/concurrent_collectives_stress.json": "4 concurrent apps on 1 node",
 }
 

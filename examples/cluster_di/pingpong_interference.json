@@ -33,6 +33,11 @@
                     "start": "0",
                     "end": ""
                 }
+            },
+            "local_options": {
+                "allocation": {
+                    "mode": "linear"
+                }
             }
         },
         "02_baseline_pingpong_large": {
@@ -43,7 +48,8 @@
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 }
             }
         },
@@ -77,6 +83,11 @@
                     "collect": true,
                     "start": "0",
                     "end": ""
+                }
+            },
+            "local_options": {
+                "allocation": {
+                    "mode": "linear"
                 }
             }
         },
