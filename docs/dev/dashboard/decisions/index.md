@@ -38,3 +38,4 @@ marked superseded, never deleted.
 | [029](adr-029-scheduler-and-launcher.md) | Support Slurm and a local backend before v1.0, launcher separate from scheduler | accepted |
 | [030](adr-030-compatibility-and-release-policy.md) | Version what partners keep, tag each partner release, update with one command | accepted |
 | [031](adr-031-wrapper-contract-v1.md) | Wrapper contract v1: rows with declared keys, loud failures, one parse path | accepted |
+| [032](adr-032-chained-apps-reuse-nodes.md) | Chained apps run on their predecessor's nodes; the partition decides | accepted |
