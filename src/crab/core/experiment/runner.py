@@ -431,17 +431,6 @@ class ExperimentRunner:
                             end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
-                # Remove app directories whose only visible content is the hidden
-                # .wrappers/ build artefact (they look empty), then the run directory if
-                # nothing is left in it.
-                for app in self.apps:
-                    _app_dir = getattr(app, "run_dir", None)
-                    if _app_dir and os.path.isdir(_app_dir):
-                        if not any(f for f in os.listdir(_app_dir) if not f.startswith(".")):
-                            shutil.rmtree(_app_dir, ignore_errors=True)
-                if os.path.isdir(run_root) and not os.listdir(run_root):
-                    os.rmdir(run_root)
-
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
                 # Collect Data: a parse failure fails the run like a non-zero exit.
@@ -452,6 +441,17 @@ class ExperimentRunner:
 
                 # Before any cleanup below can remove the run directory.
                 copy_artifacts(self.apps, self.exp_dir, runs + 1, run_log)
+
+                # Remove app directories whose only visible content is the hidden
+                # .wrappers/ build artefact (they look empty), then the run directory if
+                # nothing is left in it.
+                for app in self.apps:
+                    _app_dir = getattr(app, "run_dir", None)
+                    if _app_dir and os.path.isdir(_app_dir):
+                        if not any(f for f in os.listdir(_app_dir) if not f.startswith(".")):
+                            shutil.rmtree(_app_dir, ignore_errors=True)
+                if os.path.isdir(run_root) and not os.listdir(run_root):
+                    os.rmdir(run_root)
 
                 # Clean Dirs Policy
                 # Default to True for maximum data safety if the flag is missing
