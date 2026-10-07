@@ -55,7 +55,8 @@ class Engine:
         only: list[str] | None = None,
     ):
         check_config_schema_version(config)
-        check_config(config)
+        for warning in check_config(config):
+            self.log.warning(warning)
         if is_worker:
             return self._run_worker(config, environment, output_dir)
         else:

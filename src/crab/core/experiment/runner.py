@@ -114,9 +114,12 @@ class ExperimentRunner:
                     setattr(app_instance, key, value)
             # --------------------------------
 
-            # Wrappers that launch through base.run_app need a binary: find it now so a
-            # missing one fails the experiment before any run starts.
-            if type(app_instance).run_app is base.run_app:
+            # Find the binary now so a missing one fails the experiment before any run
+            # starts. A wrapper that builds its own command (QE) is checked when it names a
+            # binary source; one that names none may not launch a binary at all.
+            launches_via_base = type(app_instance).run_app is base.run_app
+            names_a_binary = bool(app_instance.benchmark_id or app_instance.executable)
+            if launches_via_base or names_a_binary:
                 app_instance.resolve_binary()
 
             # --- ARCHITECTURE GUARDRAIL ---
@@ -230,6 +233,7 @@ class ExperimentRunner:
         failed_runs = 0
         global_start = time.time()
         converged = False
+        run_open = False  # a run has started and is not counted yet
 
         try:
             while True:
@@ -240,6 +244,7 @@ class ExperimentRunner:
 
                 run_log = self.log.enter(f"Run {runs + 1}")
                 run_log.info("Started")
+                run_open = True
 
                 run_start = time.time()
 
@@ -251,6 +256,12 @@ class ExperimentRunner:
                 for app in self.apps:
                     app.run_dir = os.path.join(run_root, f"app_{app.id_num}")
                     os.makedirs(app.run_dir, exist_ok=True)
+                    # An app that does not run (or whose output can't be read) in this run
+                    # must not be collected again with the previous run's output.
+                    app.process = None
+                    app.stdout = None
+                    app.stderr = None
+                    app.raw_stdout_buffer = []
 
                 # Reset ephemeral schedule for this run
                 curr_schedule = sorted(static_schedule, key=lambda x: x[2])
@@ -360,6 +371,10 @@ class ExperimentRunner:
 
                             except Exception as e:
                                 app_log.error(f"Failed reading output: {e}")
+                                run_successful = False
+                                if experiment_status != "TIMEOUT":
+                                    experiment_status = "FAILED"
+                                self.apps[aid].process = None  # nothing readable to collect
 
                             running.remove(aid)
                             finished.add(aid)
@@ -415,20 +430,9 @@ class ExperimentRunner:
                 # Kill "f" apps now that all other work is done
                 for app in self.apps:
                     if str(app.config_end) == "f":
-                        if hasattr(app, "process") and app.process.poll() is None:
+                        if app.process is not None and app.process.poll() is None:
                             end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
-
-                # Remove app directories whose only visible content is the hidden
-                # .wrappers/ build artefact (they look empty), then the run directory if
-                # nothing is left in it.
-                for app in self.apps:
-                    _app_dir = getattr(app, "run_dir", None)
-                    if _app_dir and os.path.isdir(_app_dir):
-                        if not any(f for f in os.listdir(_app_dir) if not f.startswith(".")):
-                            shutil.rmtree(_app_dir, ignore_errors=True)
-                if os.path.isdir(run_root) and not os.listdir(run_root):
-                    os.rmdir(run_root)
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
@@ -440,6 +444,17 @@ class ExperimentRunner:
 
                 # Before any cleanup below can remove the run directory.
                 copy_artifacts(self.apps, self.exp_dir, runs + 1, run_log)
+
+                # Remove app directories whose only visible content is the hidden
+                # .wrappers/ build artefact (they look empty), then the run directory if
+                # nothing is left in it.
+                for app in self.apps:
+                    _app_dir = getattr(app, "run_dir", None)
+                    if _app_dir and os.path.isdir(_app_dir):
+                        if not any(f for f in os.listdir(_app_dir) if not f.startswith(".")):
+                            shutil.rmtree(_app_dir, ignore_errors=True)
+                if os.path.isdir(run_root) and not os.listdir(run_root):
+                    os.rmdir(run_root)
 
                 # Clean Dirs Policy
                 # Default to True for maximum data safety if the flag is missing
@@ -453,11 +468,26 @@ class ExperimentRunner:
                 runs += 1
                 if not run_successful:
                     failed_runs += 1
+                run_open = False
                 if runs >= min_runs:
                     converged = check_CI(self.data_containers, alpha, beta, converge_all, runs)
                     if converged:
                         self.log.info(f"Converged at run {runs}")
 
+        except Exception as e:
+            # Keep what the completed runs measured; the run that raised counts as failed.
+            completed_runs = runs
+            if run_open:
+                runs += 1
+                failed_runs += 1
+            self.log.error(f"Experiment stopped in run {runs}: {e}")
+            if completed_runs:
+                try:
+                    self.save_results()
+                except Exception as save_error:
+                    self.log.error(f"Could not save the completed runs: {save_error}")
+            self._write_to_registry(status="FAILED", total_runs=runs, failed_runs=failed_runs)
+            raise
         finally:
             self.teardown()
 

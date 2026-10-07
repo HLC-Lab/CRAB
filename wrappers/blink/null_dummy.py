@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.dirname(__file__))
-from microbench_common import microbench
+from _microbench_common import microbench
 
 class app(microbench):
     metadata = []

@@ -347,8 +347,7 @@ export interface paths {
      * @description Poll a submission's status; 404 once a terminal result has been fetched.
      *
      *     Entries are dropped from the tracker as soon as a terminal status is
-     *     returned so it doesn't grow forever (there's no other cleanup — the
-     *     tracker is in-memory and process-lifetime only).
+     *     returned; an entry nobody polls expires on its own (`web/trackers.py`).
      */
     get: operations["get_submission_api_jobs_submissions__submission_id__get"];
     put?: never;
@@ -370,8 +369,10 @@ export interface paths {
      * List Jobs
      * @description Registry ⨝ live `crab status`, batched one call per cluster with active jobs.
      *
-     *     A disconnected cluster's jobs are returned as-is (last known state,
-     *     `connected: false`) rather than failing the whole list.
+     *     Clusters are refreshed concurrently. A disconnected cluster's jobs are
+     *     returned as-is (last known state, `connected: false`), and a connected
+     *     cluster whose refresh fails keeps its last known states and carries the
+     *     error in `cluster_error`; neither fails the whole list.
      */
     get: operations["list_jobs_api_jobs_get"];
     put?: never;
@@ -518,12 +519,12 @@ export interface paths {
      *     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
      *     Results must work identically for CLI-only jobs (plan 077 decision 7),
      *     and a live/cached `crab history` call already has everything needed
-     *     without a registry join. Shares `_live_or_cached`'s cache scope and TTL
-     *     with `get_results_index` (same `f"cluster:{cluster}"` key), so opening a
-     *     job shortly after the picker loaded often reuses that result instead of a
-     *     second live round-trip -- the reused history may be UNSCOPED (the
-     *     picker's own query has no `-s system`), so `row["system"]` is checked
-     *     explicitly below rather than trusting the query's own scope.
+     *     without a registry join. Opening a job shortly after the picker loaded
+     *     reuses the picker's still-fresh UNSCOPED history (`cluster:{cluster}`)
+     *     instead of a second live round-trip; otherwise this runs its own
+     *     `-s system` query, cached under its own `cluster:{cluster}:system:{system}`
+     *     key so it never overwrites the picker's full history. Because the reused
+     *     history may be unscoped, `row["system"]` is checked explicitly below.
      */
     get: operations["get_results_experiments_api_results__cluster___system___job_basename__experiments_get"];
     put?: never;
@@ -566,8 +567,8 @@ export interface paths {
      * @description Poll a fetch's status; 404 once a terminal result has been fetched.
      *
      *     Entries are dropped from the tracker as soon as a terminal status is
-     *     returned so it doesn't grow forever (there's no other cleanup — the
-     *     tracker is in-memory and process-lifetime only, same as jobs.py's).
+     *     returned; an entry nobody polls expires on its own (`web/trackers.py`),
+     *     same as jobs.py's.
      */
     get: operations["get_fetch_status_api_results__cluster___system___job_basename__fetch__fetch_id__get"];
     put?: never;
@@ -852,6 +853,9 @@ export interface components {
     /**
      * JobListItem
      * @description A job record annotated with whether its cluster is currently connected.
+     *
+     *     `cluster_error` is set when the cluster is connected but refreshing its jobs
+     *     failed this time; the record then keeps its last known state.
      */
     JobListItem: {
       /** Id */
@@ -886,6 +890,8 @@ export interface components {
        * @default false
        */
       connected: boolean;
+      /** Cluster Error */
+      cluster_error?: string | null;
     };
     /** JobRecord */
     JobRecord: {

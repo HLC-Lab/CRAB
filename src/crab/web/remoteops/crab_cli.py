@@ -18,6 +18,14 @@ from crab.web.errors import ContractError, RemoteCommandError
 from crab.web.store.profiles import Profile
 
 
+class RemotePath(str):
+    """An argument to ``crab`` that is a path on the cluster, so a leading ``~`` expands.
+
+    Callers wrap only real paths (a staged config, ``--data-dir``, ``--binary``);
+    every other argument is plain text and is quoted literally.
+    """
+
+
 def remote_path_expr(path: str) -> str:
     """Quote a remote path while preserving ``~``/``$HOME`` expansion.
 
@@ -46,13 +54,14 @@ def crab_dir(profile: Profile) -> str:
 def build_crab_command(profile: Profile, args: list[str]) -> str:
     """Return the shell command that runs ``crab <args>`` for this profile.
 
-    Args are quoted with ``remote_path_expr`` (not plain ``shlex.quote``): a
-    staged config path (``remoteops/transfer.py``) may itself start with
-    ``~``, and quoting a leading ``~`` would break its expansion the same way
-    it would for ``crab_dir``/``venv`` below. ``remote_path_expr`` behaves
-    exactly like ``shlex.quote`` for any arg that isn't a tilde path.
+    A ``RemotePath`` arg is quoted with ``remote_path_expr`` so a leading ``~``
+    still expands, the same as ``crab_dir``/``venv`` below. Every other arg is
+    plain text (an experiment name, a pre-run command) and gets ``shlex.quote``,
+    so a ``~`` in it reaches ``crab`` literally.
     """
-    crab_args = " ".join(remote_path_expr(a) for a in args)
+    crab_args = " ".join(
+        remote_path_expr(a) if isinstance(a, RemotePath) else shlex.quote(a) for a in args
+    )
 
     if profile.is_local():
         # The backend already runs inside CRAB's environment.

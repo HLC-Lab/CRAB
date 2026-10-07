@@ -1,0 +1,6 @@
+# PingPong Communication Pattern
+# Info:
+# Message Size:   65536
+# Iterations:      1000
+#              MsgSize                 Time                KMsgs                   MB               KMsg/S                 MB/S
+                 65536             0.012871               2.0000             131.0720             155.3881           10183.2802

@@ -42,9 +42,9 @@ class NodeAllocator:
         if sum(split_list) > 100.1:
             raise ValueError("Split percentages exceed 100.")
 
-        while len(split_list) < num_apps:
-            split_list.append(0.0)
-        split_list = split_list[:num_apps]
+        # config_checks.check_config rejects a mismatched split before any run.
+        if len(split_list) != num_apps:
+            raise ValueError(f"split has {len(split_list)} entries for {num_apps} apps")
         return NodeAllocator._apply_largest_remainder(num_nodes, split_list)
 
     @staticmethod

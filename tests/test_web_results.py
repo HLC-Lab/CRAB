@@ -21,9 +21,10 @@ pytest.importorskip("fastapi", reason="web extra not installed")
 from conftest import auth_client  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
-from crab.web.errors import RemoteCommandError  # noqa: E402
+from crab.web.errors import RemoteCommandError, RemoteConnectionError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
+from crab.web.store import cache as cache_module  # noqa: E402
 from crab.web.store.cache import LocalCache  # noqa: E402
 from crab.web.store.jobs import JobsStore  # noqa: E402
 from crab.web.store.results_cache import ResultsCache  # noqa: E402
@@ -494,6 +495,49 @@ def test_results_index_queries_clusters_in_parallel_not_sequentially(tmp_path: P
     assert state["peak"] == 2
 
 
+@pytest.mark.parametrize("mode", ["connection", "command", "contract"])
+def test_results_index_one_failing_cluster_does_not_break_the_others(tmp_path: Path, mode: str):
+    """A cluster whose `crab history` drops, exits nonzero or prints non-JSON (with
+    nothing cached to fall back to) contributes only its on-disk cache; every other
+    cluster is listed as usual."""
+    failing_job = ResultsCache(_settings(tmp_path)).path_for("alps", "alps", "alps_job")
+    (failing_job / "e1").mkdir(parents=True)
+    (failing_job / "e1" / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+
+    class BrokenHistoryTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if "crab history" in command:
+                if mode == "connection":
+                    raise RemoteConnectionError("The SSH connection dropped.")
+                if mode == "command":
+                    return CmdResult(1, "", "boom")
+                return CmdResult(0, "not json", "")
+            return await super().run(command, timeout)
+
+    async def connector(profile, password):
+        if profile.name == "alps":
+            return BrokenHistoryTransport()
+        return FakeFetchTransport(history_json=history)
+
+    app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
+    with auth_client(app) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes", json={**_leonardo_profile(), "name": "alps"})
+        client.post("/api/remotes/alps/connect")
+
+        resp = client.get("/api/results")
+
+    assert resp.status_code == 200
+    by_key = _entries_by_key(resp.json())
+    assert by_key[(CLUSTER, SYSTEM, JOB_BASENAME)]["status"] == "COMPLETED"
+    failing = by_key[("alps", "alps", "alps_job")]
+    assert failing["cached"] is True
+    assert failing["possibly_stale"] is True
+    assert failing["status"] is None
+
+
 def test_results_index_reraises_an_unexpected_error_instead_of_swallowing_it(tmp_path: Path):
     """A non-RemoteConnectionError failure from one cluster must still surface
     as a real error, not be silently treated like an unreachable cluster."""
@@ -652,6 +696,61 @@ def test_results_experiments_filters_by_system_even_when_reusing_unscoped_histor
         experiments = resp.json()["experiments"]
         assert len(experiments) == 1
         assert experiments[0]["status"] == "COMPLETED"
+
+
+class SystemScopedHistoryTransport(FakeFetchTransport):
+    """`crab history -s <system>` returns only that system's rows, like the real CLI."""
+
+    def __init__(self, rows: list[dict]):
+        super().__init__(history_json=_history_json(rows))
+        self._rows = rows
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if "crab history -s " in command:
+            system = command.split("crab history -s ", 1)[1].split()[0]
+            rows = [r for r in self._rows if r["system"] == system]
+            return CmdResult(0, _history_json(rows), "")
+        return await super().run(command, timeout)
+
+
+def test_a_system_scoped_experiments_fetch_does_not_shrink_the_picker(tmp_path: Path):
+    """A job's experiments query runs `crab history -s system`; the picker right
+    after it (within the reuse window) must still list every system's jobs."""
+    rows = [
+        _history_row(JOB_BASENAME, "COMPLETED", system=SYSTEM),
+        _history_row("other_job", "COMPLETED", system="other_system"),
+    ]
+
+    with _client(tmp_path, transport_factory=lambda: SystemScopedHistoryTransport(rows)) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert len(resp.json()["experiments"]) == 1
+
+        jobs = client.get("/api/results").json()["jobs"]
+        assert {(j["system"], j["job_basename"]) for j in jobs} == {
+            (SYSTEM, JOB_BASENAME),
+            ("other_system", "other_job"),
+        }
+
+
+def test_results_experiments_offline_falls_back_to_the_pickers_history(tmp_path: Path, monkeypatch):
+    history = _history_json([_history_row(JOB_BASENAME, "FAILED", failed_runs="1")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        # The picker's fetch happened long before, past the reuse window.
+        monkeypatch.setattr(cache_module, "_now", lambda: "2020-01-01T00:00:00+00:00")
+        assert client.get("/api/results").status_code == 200
+        monkeypatch.undo()
+        client.post("/api/remotes/leonardo/disconnect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert [e["status"] for e in resp.json()["experiments"]] == ["FAILED"]
 
 
 def test_results_experiments_disconnected_cluster_returns_empty(tmp_path: Path):

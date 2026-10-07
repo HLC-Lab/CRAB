@@ -1,0 +1,3 @@
+creating/filling mesh...0.0042s, total time: 0.0042
+Starting CG solver ... 
+Final Resid Norm: 0.00123

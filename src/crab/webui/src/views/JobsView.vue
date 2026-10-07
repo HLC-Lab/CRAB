@@ -120,6 +120,13 @@ function requestViewConfig(j: JobListItem) {
 
 const sortedItems = computed(() => jobs.filteredItems); // already newest-first from the backend
 
+// One banner per connected cluster whose refresh failed (its jobs keep their last known state).
+const clusterErrors = computed(() => {
+  const byCluster = new Map<string, string>();
+  for (const j of jobs.items) if (j.cluster_error) byCluster.set(j.cluster, j.cluster_error);
+  return [...byCluster];
+});
+
 // Filter chip options are drawn from the unfiltered list so a chip never
 // disappears just because its own filter narrowed the results to zero.
 const availableClusters = computed(() => [...new Set(jobs.items.map((j) => j.cluster))].sort());
@@ -211,6 +218,9 @@ function toggleStatus(name: string) {
     </div>
 
     <p v-if="jobs.error" class="banner err">{{ jobs.error }}</p>
+    <p v-for="[cluster, message] in clusterErrors" :key="cluster" class="banner warn">
+      Could not refresh {{ cluster }}, showing its last known job states. {{ message }}
+    </p>
 
     <ul v-if="jobs.pendingSubmissionsList.length" class="list">
       <li

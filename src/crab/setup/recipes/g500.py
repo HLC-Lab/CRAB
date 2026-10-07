@@ -16,6 +16,10 @@ class G500Recipe(BenchmarkRecipe):
     def benchmark_id(self) -> str:
         return "g500"
 
+    @property
+    def module_executable(self) -> str:
+        return "graph500_reference_bfs"
+
     def check_dependencies(self, env: dict[str, str]) -> tuple[bool, str]:
         if not shutil.which("mpicc", path=env.get("PATH")):
             return False, "MPI compiler (mpicc) not found inside target environment module."

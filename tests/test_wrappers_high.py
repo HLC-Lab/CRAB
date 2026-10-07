@@ -29,7 +29,7 @@ class TestPwBaseNoneBinary(unittest.TestCase):
             os.path.dirname(__file__), "..", "wrappers", "quantum-espresso", "pw"
         )
         sys.path.insert(0, wrappers_path)
-        from pw_base import pw_base
+        from _pw_base import pw_base
 
         sys.path.pop(0)
 
@@ -69,7 +69,7 @@ class TestPwBaseOutdirRegex(unittest.TestCase):
             os.path.dirname(__file__), "..", "wrappers", "quantum-espresso", "pw"
         )
         sys.path.insert(0, wrappers_path)
-        from pw_base import pw_base
+        from _pw_base import pw_base
 
         sys.path.pop(0)
 
@@ -117,7 +117,7 @@ class TestPwBaseOutdirRegex(unittest.TestCase):
 
 
 def _make_nccl():
-    return _load_wrapper("nccl_common")
+    return _load_wrapper("_nccl_common")
 
 
 class TestNcclCommon(unittest.TestCase):
@@ -159,15 +159,11 @@ class TestNcclCommon(unittest.TestCase):
         self.assertEqual(len(result), 6)
         self.assertEqual(len(result[0]), 2, "read_data must return ALL rows, not just the first")
 
-    def test_error_fallback_shape(self):
-        """Error fallback must return [[0]] * len(metadata), not [[0]*N]."""
+    def test_empty_output_raises_instead_of_recording_zeros(self):
+        """No result rows must fail the parse; zeros would be recorded as real samples."""
         instance = self._make_instance("")
-        result = instance.read_data()
-        # Each inner list should have exactly one element
-        self.assertEqual(len(result), 6)
-        for i, lst in enumerate(result):
-            self.assertIsInstance(lst, list, f"result[{i}] must be a list")
-            # With no data, should return [[0]] * 6 or an empty-ish structure
+        with self.assertRaisesRegex(ValueError, "no result rows"):
+            instance.read_data()
 
 
 # ── ember-incast: path typo ───────────────────────────────────────────────────

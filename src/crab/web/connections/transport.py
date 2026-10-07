@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -133,40 +135,38 @@ class SSHTransport(Transport):
     ) -> None:
         import asyncssh
 
-        # asyncssh's recursive get() creates local_dir itself as a copy of
-        # remote_dir, but (unlike shutil.copytree) does not create local_dir's
-        # missing parent directories first — it raises a plain FileNotFoundError
-        # if they don't exist yet (e.g. the first fetch for a cluster/job pair).
-        try:
-            Path(local_dir).parent.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            raise RemoteCommandError(
-                f"Could not create {local_dir} locally.", detail=str(exc)
-            ) from exc
+        # asyncssh's recursive get() copies INTO local_dir/<basename> when local_dir already
+        # exists, so a re-fetch would nest the tree. It always fetches into a fresh staging
+        # path instead, which _swap_in() then moves into place (see _staging_dir()).
+        staging, fresh = await _staging_dir(local_dir)
 
         async def _fetch() -> None:
             async with self._conn.start_sftp_client() as sftp:
-                await sftp.get(remote_dir, local_dir, recurse=True)
+                await sftp.get(remote_dir, str(fresh), recurse=True)
 
         try:
             await asyncio.wait_for(_fetch(), timeout=timeout)
         except asyncio.TimeoutError:
+            await _discard(staging)
             raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
                 f"Fetching {remote_dir} timed out after {timeout:g}s.",
                 detail=remote_dir,
             )
         except asyncssh.SFTPError as exc:
+            await _discard(staging)
             # A file/permission error, not a dropped connection (e.g. the
             # remote directory doesn't exist) — the connection stays alive.
             raise RemoteCommandError(
                 f"Could not fetch {remote_dir} over SFTP.", detail=str(exc)
             ) from exc
         except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
+            await _discard(staging)
             self._closed = True  # treat any other SFTP/channel error as a drop
             raise RemoteConnectionError(
                 "The SSH connection dropped while fetching results.",
                 detail=f"{type(exc).__name__}: {exc}",
             ) from exc
+        await _swap_in(staging, fresh, local_dir)
 
     async def close(self) -> None:
         self._closed = True
@@ -267,6 +267,49 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
     return SSHTransport(conn)
 
 
+async def _staging_dir(local_dir: str) -> tuple[Path, Path]:
+    """Create a hidden staging directory next to ``local_dir``; return it and the
+    not-yet-existing path a fetch must copy into.
+
+    A fetch never writes into ``local_dir`` directly: the old cache must survive a failed
+    fetch, and files deleted at the source must not linger after a successful one. The
+    staging dir is a sibling so the final rename stays on one filesystem. Its name starts
+    with a dot so ResultsCache.list_cached() never mistakes it for a cached job.
+    """
+    target = Path(local_dir)
+
+    def _make() -> Path:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        return Path(tempfile.mkdtemp(prefix=f".{target.name}.fetch-", dir=target.parent))
+
+    try:
+        staging = await asyncio.to_thread(_make)
+    except OSError as exc:
+        raise RemoteCommandError(f"Could not create {local_dir} locally.", detail=str(exc)) from exc
+    return staging, staging / "tree"
+
+
+async def _discard(staging: Path) -> None:
+    await asyncio.to_thread(shutil.rmtree, staging, True)
+
+
+async def _swap_in(staging: Path, fresh: Path, local_dir: str) -> None:
+    """Replace ``local_dir`` with the freshly fetched tree, then drop the staging dir."""
+    target = Path(local_dir)
+
+    def _swap() -> None:
+        if target.exists():
+            target.rename(staging / "old")
+        fresh.rename(target)
+
+    try:
+        await asyncio.to_thread(_swap)
+    except OSError as exc:
+        raise RemoteCommandError(f"Could not update {local_dir} locally.", detail=str(exc)) from exc
+    finally:
+        await _discard(staging)
+
+
 class LocalTransport(Transport):
     """Run commands on the local machine (the 'local' preset / no SSH)."""
 
@@ -309,19 +352,22 @@ class LocalTransport(Transport):
     async def fetch_tree(
         self, remote_dir: str, local_dir: str, timeout: float | None = DEFAULT_TIMEOUT
     ) -> None:
-        import shutil
+        staging, fresh = await _staging_dir(local_dir)
 
         def _copy() -> None:
-            shutil.copytree(remote_dir, local_dir, dirs_exist_ok=True)
+            shutil.copytree(remote_dir, fresh)
 
         try:
             await asyncio.wait_for(asyncio.to_thread(_copy), timeout)
         except asyncio.TimeoutError:
+            await _discard(staging)
             raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
                 f"Fetching {remote_dir} timed out after {timeout:g}s."
             )
         except OSError as exc:
+            await _discard(staging)
             raise RemoteCommandError(f"Could not fetch {remote_dir}.", detail=str(exc)) from exc
+        await _swap_in(staging, fresh, local_dir)
 
     async def close(self) -> None:
         pass

@@ -1,5 +1,8 @@
 import os
+import sys
+sys.path.append(os.path.dirname(__file__))
 from crab.wrappers.base import base
+from _ember_common import read_result_row
 
 class app(base):
     metadata = [
@@ -15,11 +18,7 @@ class app(base):
         return os.environ["CRAB_ROOT"] + '/src/ember/mpi/pingpong/pingpong'
 
     def read_data(self):
-        data_list = [None]*self.num_metrics
-        data_line = self.stdout.splitlines()[-1].split()
-        for i in range(self.num_metrics):
-            data_list[i] = [float(data_line[i])]
-        return data_list
+        return read_result_row(self.stdout, self.metadata)
     
     def get_bench_name(self):
         return "Ember - PingPong"

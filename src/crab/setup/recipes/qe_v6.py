@@ -23,6 +23,10 @@ class QERecipeV6(BenchmarkRecipe):
         return "qe-v6"
 
     @property
+    def module_executable(self) -> str:
+        return "pw.x"
+
+    @property
     def launcher_override(self) -> str:
         return "mpirun"
 

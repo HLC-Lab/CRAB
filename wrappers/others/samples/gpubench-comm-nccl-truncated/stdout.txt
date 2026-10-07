@@ -1,0 +1,1 @@
+Running comm-nccl with 4 ranks

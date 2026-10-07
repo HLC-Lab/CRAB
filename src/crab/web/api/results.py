@@ -18,13 +18,12 @@ from __future__ import annotations
 import asyncio
 import uuid
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from crab.cli.export import collect_result_data
-from crab.web.api.jobs import _live_or_cached, worst_status
+from crab.web.api.jobs import _cached_within, _live_or_cached, worst_status
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import CrabWebError, NotFoundError, RemoteConnectionError, logger
@@ -35,6 +34,7 @@ from crab.web.store.cache import LocalCache
 from crab.web.store.jobs import JobRecord, JobsStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.store.results_cache import ResultsCache
+from crab.web.trackers import ExpiringTracker
 
 router = APIRouter(prefix="/api/results", tags=["results"])
 
@@ -58,7 +58,7 @@ def _results_cache(request: Request) -> ResultsCache:
     return ResultsCache(request.app.state.settings)
 
 
-def _fetches(request: Request) -> dict[str, dict[str, Any]]:
+def _fetches(request: Request) -> ExpiringTracker:
     return request.app.state.result_fetches
 
 
@@ -162,7 +162,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
         (rec.cluster, rec.system, Path(rec.data_dir).name): rec
         for rec in _jobs_store(request).list()
     }
-    cached_triples = set(cache.list_cached())
+    cached_triples = set(await asyncio.to_thread(cache.list_cached))
     entries: dict[tuple[str, str, str], ResultsJobEntry] = {}
 
     async def entries_for_profile(profile: Profile) -> list[ResultsJobEntry]:
@@ -174,8 +174,11 @@ async def get_results_index(request: Request) -> ResultsIndex:
             history, _stale, _cached_at = await _live_or_cached(
                 request, "history", f"cluster:{profile.name}", fetch, _HISTORY_TTL_SECONDS
             )
-        except RemoteConnectionError:
-            return []  # nothing live or cached for this cluster's history at all
+        except CrabWebError:
+            # Unreachable, a failing `crab history` or unparseable output, with
+            # nothing cached: this cluster only contributes its on-disk trees
+            # (below), and the other clusters are unaffected.
+            return []
 
         connected = manager.get(profile.name) is not None
         by_group: dict[tuple[str, str], set[str]] = {}
@@ -219,9 +222,9 @@ async def get_results_index(request: Request) -> ResultsIndex:
 
     # Every connected cluster's `crab history` in flight at once -- with N
     # clusters this was N sequential SSH round-trips before (plan 079).
-    # `RemoteConnectionError` is already handled per-profile above (returns
-    # []); any OTHER exception must still surface, not be swallowed by
-    # `gather`, so it's re-raised here after every task has settled.
+    # Cluster-side errors (`CrabWebError`) are already handled per-profile
+    # above (returns []); any OTHER exception is a bug and must still surface,
+    # not be swallowed by `gather`, so it's re-raised after every task settled.
     fanned_out = await asyncio.gather(
         *(entries_for_profile(profile) for profile in _profiles(request).list()),
         return_exceptions=True,
@@ -277,13 +280,15 @@ async def get_results_experiments(
     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
     Results must work identically for CLI-only jobs (plan 077 decision 7),
     and a live/cached `crab history` call already has everything needed
-    without a registry join. Shares `_live_or_cached`'s cache scope and TTL
-    with `get_results_index` (same `f"cluster:{cluster}"` key), so opening a
-    job shortly after the picker loaded often reuses that result instead of a
-    second live round-trip -- the reused history may be UNSCOPED (the
-    picker's own query has no `-s system`), so `row["system"]` is checked
-    explicitly below rather than trusting the query's own scope.
+    without a registry join. Opening a job shortly after the picker loaded
+    reuses the picker's still-fresh UNSCOPED history (`cluster:{cluster}`)
+    instead of a second live round-trip; otherwise this runs its own
+    `-s system` query, cached under its own `cluster:{cluster}:system:{system}`
+    key so it never overwrites the picker's full history. Because the reused
+    history may be unscoped, `row["system"]` is checked explicitly below.
     """
+    # Same identity rules as the cache, so a job key is valid on every route.
+    _results_cache(request).path_for(cluster, system, job_basename)
     profile = _profiles(request).get(cluster)
 
     async def fetch() -> dict:
@@ -292,12 +297,24 @@ async def get_results_experiments(
             transport, profile, ["history", "-s", system, "--json"], timeout=30.0
         )
 
-    try:
-        history, _stale, _cached_at = await _live_or_cached(
-            request, "history", f"cluster:{cluster}", fetch, _HISTORY_TTL_SECONDS
-        )
-    except RemoteConnectionError:
-        return ExperimentRunStatusList(experiments=[])
+    unscoped_key = f"cluster:{cluster}"
+    history = _cached_within(request, "history", unscoped_key, _HISTORY_TTL_SECONDS)
+    if history is None:
+        try:
+            history, _stale, _cached_at = await _live_or_cached(
+                request,
+                "history",
+                f"cluster:{cluster}:system:{system}",
+                fetch,
+                _HISTORY_TTL_SECONDS,
+            )
+        except RemoteConnectionError:
+            # Offline with no scoped copy: the picker's older full history
+            # still covers this job, if there is one.
+            cached = LocalCache(request.app.state.settings).read("history", unscoped_key)
+            if cached is None:
+                return ExperimentRunStatusList(experiments=[])
+            history = cached["data"]
 
     return ExperimentRunStatusList(
         experiments=[
@@ -351,7 +368,7 @@ async def _snapshot_fetch_status(
 
 
 async def _run_fetch(
-    tracker: dict[str, dict[str, Any]],
+    tracker: ExpiringTracker,
     fetch_id: str,
     transport: Transport,
     profile: Profile,
@@ -389,10 +406,10 @@ async def fetch_results(
     cluster: str, system: str, job_basename: str, request: Request
 ) -> FetchAccepted:
     """Validate synchronously (job resolves, cluster connected), then fetch in the background."""
+    local_dir = _results_cache(request).path_for(cluster, system, job_basename)
     remote_dir = await _resolve_remote_dir(cluster, system, job_basename, request)
     profile = _profiles(request).get(cluster)
     transport = _live_transport(cluster, request)
-    local_dir = _results_cache(request).path_for(cluster, system, job_basename)
 
     fetch_id = str(uuid.uuid4())
     tracker = _fetches(request)
@@ -425,8 +442,8 @@ async def get_fetch_status(
     """Poll a fetch's status; 404 once a terminal result has been fetched.
 
     Entries are dropped from the tracker as soon as a terminal status is
-    returned so it doesn't grow forever (there's no other cleanup — the
-    tracker is in-memory and process-lifetime only, same as jobs.py's).
+    returned; an entry nobody polls expires on its own (`web/trackers.py`),
+    same as jobs.py's.
     """
     tracker = _fetches(request)
     entry = tracker.get(fetch_id)
@@ -466,4 +483,4 @@ async def get_results_cache_size(request: Request) -> CacheSize:
 
 @router.delete("/cache", status_code=204)
 async def clear_results_cache(request: Request) -> None:
-    _results_cache(request).clear()
+    await asyncio.to_thread(_results_cache(request).clear)

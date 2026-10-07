@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from crab import __version__
 from crab.web.errors import register_exception_handlers
 from crab.web.settings import Settings, get_settings
+from crab.web.trackers import ExpiringTracker
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -75,13 +76,14 @@ def create_app(
     app.state.manager = manager
     # In-memory async-submit tracker (plan 075): submission_id -> status dict.
     # Not persisted — lost on a backend restart mid-submit (documented limitation).
-    app.state.submissions = {}
+    # Unpolled entries expire on their own (see `web/trackers.py`).
+    app.state.submissions = ExpiringTracker()
     # Keeps a strong reference to each submission's background task so it can't
     # be garbage-collected mid-flight; discarded via its own done-callback.
     app.state.pending_submission_tasks = set()
     # In-memory async results-fetch tracker (plan 065), same shape as
     # `submissions` above: fetch_id -> status dict, not persisted.
-    app.state.result_fetches = {}
+    app.state.result_fetches = ExpiringTracker()
     app.state.pending_result_fetch_tasks = set()
     # Per-process API secret: the SPA receives it via a meta tag in the served
     # index.html and echoes it as X-Crab-Token. This app runs SSH commands, so

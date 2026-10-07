@@ -1,0 +1,18 @@
+[
+  {
+    "time-oop": 45.67,
+    "algbw-oop": 22.96,
+    "busbw-oop": 22.96,
+    "time-ip": 44.89,
+    "algbw-ip": 23.36,
+    "busbw-ip": 23.36
+  },
+  {
+    "time-oop": 46.01,
+    "algbw-oop": 22.79,
+    "busbw-oop": 22.79,
+    "time-ip": 45.12,
+    "algbw-ip": 23.24,
+    "busbw-ip": 23.24
+  }
+]

@@ -198,3 +198,10 @@ def test_partitioned_shares_exactly_100_accepted():
     }
     NodeAllocator.allocate_partitioned(apps, nodes, allocation)
     assert len(apps[0].nodes) + len(apps[1].nodes) == 8
+
+
+@pytest.mark.parametrize("split", [[100], [50, 25, 25]])
+def test_get_abs_split_wrong_length_raises(split):
+    """Used to pad with 0 % or truncate silently; check_config now rejects it before a run."""
+    with pytest.raises(ValueError, match=r"entries for 2 apps"):
+        NodeAllocator.get_abs_split(split, 2, 8)

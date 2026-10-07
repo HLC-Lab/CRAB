@@ -45,7 +45,8 @@ class MyBenchRecipe(BenchmarkRecipe):
 | `launcher_override` (property) | `""` | Force a launcher (e.g. `"mpirun"`) regardless of the cluster default. |
 | `pre_run_hooks` (property) | `[]` | Commands recorded into the receipt to run before each launch. |
 | `build_manifest` (property) | `BuildManifest()` | Declares build inputs — whether modules are needed and any `BuildParameter`s (e.g. a `cpu`/`gpu` choice). |
-| `fast_search(dir)` | checks `<dir>/<id>` and `PATH` | Tier-1 auto-detect of an existing install. |
+| `module_executable` (property) | `""` | The command an environment module puts on `PATH` (e.g. `"pw.x"`). The wizard's module option offers it as the default; when empty it asks with no default. |
+| `fast_search(dir)` | checks `<dir>/<id>`, then `PATH` for `module_executable` (or the id) | Tier-1 auto-detect of an existing install. |
 
 The base class also gives you **`run_command_streamed(cmd, cwd, step_name, env, log_callback)`** — run
 a build command with its output streamed live into the wizard UI. Use it for every clone/compile

@@ -1,0 +1,9 @@
+[
+  {
+    "spatial_operator": 0.214733,
+    "IJ_vector_setup": 0.004155,
+    "AMG_setup": 1.38221,
+    "AMG_solve": 0.917634,
+    "total": 2.518732
+  }
+]

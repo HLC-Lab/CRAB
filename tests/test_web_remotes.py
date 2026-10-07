@@ -21,7 +21,11 @@ from crab.web.errors import (  # noqa: E402
     NotFoundError,
     RemoteCommandError,
 )
-from crab.web.remoteops.crab_cli import build_crab_command, run_crab_json  # noqa: E402
+from crab.web.remoteops.crab_cli import (  # noqa: E402
+    RemotePath,
+    build_crab_command,
+    run_crab_json,
+)
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.profiles import Profile, ProfileStore  # noqa: E402
@@ -157,10 +161,12 @@ def test_build_crab_command_local_uses_interpreter():
 
 
 def test_build_crab_command_preserves_tilde_in_args():
-    # A staged config path (transfer.stage_config) may itself start with `~`;
+    # A staged config path (transfer.stage_config) is a RemotePath and may start with `~`;
     # shlex.quote on such an arg would break expansion the same way it would
     # for crab_dir/venv (see remote_path_expr's docstring).
-    cmd = build_crab_command(_leonardo(), ["run", "~/CRAB/.web_staging/demo.json", "--json"])
+    cmd = build_crab_command(
+        _leonardo(), ["run", RemotePath("~/CRAB/.web_staging/demo.json"), "--json"]
+    )
     assert '"$HOME"/CRAB/.web_staging/demo.json' in cmd
     assert "'~/CRAB/.web_staging/demo.json'" not in cmd
 

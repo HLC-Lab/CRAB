@@ -13,7 +13,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from crab.web.api.remotes import _live_transport, _store
-from crab.web.remoteops.crab_cli import run_crab_json
+from crab.web.remoteops.crab_cli import RemotePath, run_crab_json
 
 router = APIRouter(prefix="/api/remotes", tags=["wrappers"])
 
@@ -42,7 +42,7 @@ async def import_binary(name: str, body: ReceiptImport, request: Request) -> dic
     """Record where a benchmark's binary lives on the cluster (`crab receipts set`)."""
     profile = _store(request).get(name)
     transport = _live_transport(name, request)
-    args = ["receipts", "set", body.id, "--binary", body.binary]
+    args = ["receipts", "set", body.id, "--binary", RemotePath(body.binary)]
     for command in body.pre_run:
         if command.strip():
             args += ["--pre-run", command.strip()]

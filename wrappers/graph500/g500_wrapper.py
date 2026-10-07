@@ -4,8 +4,6 @@ import os
 from crab.wrappers.base import base
 
 class app(base):
-    exists = True
-
     metadata = [
         {'name': 'graph_generation'   , 'unit': 's', 'conv': True},
         {'name': 'construction'       , 'unit': 's', 'conv': True},
@@ -31,24 +29,29 @@ class app(base):
         return "g500"
 
     def get_binary_path(self):
-        # Retrieve the directory stored in the receipt
-        base_dir = super().get_binary_path()
-        if base_dir:
-            return os.path.join(base_dir, "graph500_reference_bfs")
-        return None
+        # A module receipt holds the executable itself (a command name or a path); a source or
+        # binary receipt holds the directory graph500_reference_bfs was built in.
+        receipt = self.get_receipt()
+        if not receipt:
+            return None
+        stored = receipt.get("binary_path", "")
+        if not stored:
+            return None
+        if receipt.get("type", "source") == "module" or os.path.isfile(stored):
+            return stored
+        return os.path.join(stored, "graph500_reference_bfs")
 
     def read_data(self):
-        if self.exists:
-            output = self.stdout
-            lines = output.split('\n')
-            lines = [x for x in lines if x.strip() != '']
-            lines = lines[4:15]+lines[-7:]
-            lines = ([lines[0]]+lines[2:])
-            data = [[float(x.split(' ')[-1])] for x in lines]
-            return data
-        else:
-            # Fallback if binary isn't found
-            return [[0] * len(self.metadata)]
+        output = self.stdout
+        lines = output.split('\n')
+        lines = [x for x in lines if x.strip() != '']
+        # Fewer lines would make the two slices below overlap and read the wrong values.
+        if len(lines) < 22:
+            raise ValueError(f"graph500 output has {len(lines)} non-empty lines, expected at least 22 (the run did not finish?)")
+        lines = lines[4:15]+lines[-7:]
+        lines = ([lines[0]]+lines[2:])
+        data = [[float(x.split(' ')[-1])] for x in lines]
+        return data
 
     def get_bench_name(self):
         return "Graph500"

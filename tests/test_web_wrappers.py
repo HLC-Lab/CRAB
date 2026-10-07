@@ -113,6 +113,15 @@ def test_import_binary_sends_every_field_quoted(client_and_fake) -> None:
     ]
 
 
+def test_import_binary_expands_tilde_only_in_the_binary_path(client_and_fake) -> None:
+    client, fake = client_and_fake
+    body = {"id": "hpl", "binary": "~/bin/xhpl", "pre_run": ["~/env.sh"]}
+    assert client.post("/api/remotes/leonardo/receipts", json=body).status_code == 200
+    words = _inner(fake.calls[-1])
+    assert words[words.index("--binary") + 1] == "$HOME/bin/xhpl"
+    assert words[words.index("--pre-run") + 1] == "~/env.sh"
+
+
 @pytest.mark.parametrize(
     "body",
     [

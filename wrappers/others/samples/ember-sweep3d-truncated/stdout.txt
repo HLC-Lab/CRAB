@@ -1,0 +1,11 @@
+# Sweep3D Communication Pattern
+# Info:
+# Px:              8
+# Py:              4
+# Nx:             50
+# Ny:             50
+# Nz:            100
+# kba:            10
+# Variables:       6
+# Iterations:     10
+#                 Time     KBXchng/Rank-Max            MB/S/Rank

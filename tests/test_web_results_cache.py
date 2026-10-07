@@ -142,3 +142,15 @@ def test_list_cached_returns_the_real_job_alongside_a_stale_leftover(tmp_path: P
     (stale_experiment_leaf / "data_app_0.csv").write_text("x", encoding="utf-8")
 
     assert cache.list_cached() == [("leonardo", "leonardo", "msgsize_study_2026-07-05")]
+
+
+def test_list_cached_ignores_an_in_flight_or_abandoned_fetch_staging_dir(tmp_path: Path):
+    """fetch_tree() stages a fetch in a hidden sibling (`.<job>.fetch-*/tree/<exp>/`) before
+    swapping it in; a fetch in flight, or one killed mid-way, must not show up as a job."""
+    cache = ResultsCache(_settings(tmp_path))
+    _make_job_dir(cache, "leonardo", "leonardo", "job-a")
+    staged_exp = cache.path_for("leonardo", "leonardo", ".job-a.fetch-x1y2") / "tree" / "01_b"
+    staged_exp.mkdir(parents=True)
+    (staged_exp / "data_app_0.csv").write_text("x", encoding="utf-8")
+
+    assert cache.list_cached() == [("leonardo", "leonardo", "job-a")]

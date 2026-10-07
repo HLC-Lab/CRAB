@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from conftest import auth_client  # noqa: E402
 from crab.web.api.jobs import _run_submission, worst_status  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
-from crab.web.errors import NotFoundError  # noqa: E402
+from crab.web.errors import NotFoundError, RemoteConnectionError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.jobs import JobsStore  # noqa: E402
@@ -713,6 +714,107 @@ def test_list_jobs_disconnected_cluster_returns_stale_no_error(tmp_path: Path):
         assert rec["last_known_state"] == "RUNNING"  # unchanged, not guessed
 
 
+class _FailingTransport(ScriptedTransport):
+    """`crab status`/`crab history` fail the way a broken cluster does: a dropped
+    connection (RemoteConnectionError), a nonzero exit (RemoteCommandError), or
+    output that isn't JSON (ContractError)."""
+
+    def __init__(self, mode: str, fail_on: str = "crab status", **kwargs):
+        super().__init__(**kwargs)
+        self._mode = mode
+        self._fail_on = fail_on
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if self._fail_on in command:
+            self.calls.append(command)
+            if self._mode == "connection":
+                raise RemoteConnectionError("The SSH connection dropped while running a command.")
+            if self._mode == "command":
+                return CmdResult(1, "", "boom")
+            return CmdResult(0, "not json", "")
+        return await super().run(command, timeout)
+
+
+def _two_cluster_client(tmp_path: Path, broken: Transport, healthy: Transport):
+    async def connector(profile, password):
+        return broken if profile.name == "alps" else healthy
+
+    app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
+    return auth_client(app)
+
+
+@pytest.mark.parametrize("mode", ["connection", "command", "contract"])
+@pytest.mark.parametrize("fail_on", ["crab status", "crab history"])
+def test_list_jobs_one_failing_cluster_does_not_break_the_others(
+    tmp_path: Path, mode: str, fail_on: str
+):
+    _seed_job(tmp_path, job_id="1", last_known_state="RUNNING")
+    _seed_job(tmp_path, cluster="alps", system="alps", job_id="7", last_known_state="RUNNING")
+    healthy = ScriptedTransport(
+        status_json=json.dumps({"schema": 1, "jobs": [{"job_id": "1", "state": "RUNNING"}]})
+    )
+    broken = _FailingTransport(
+        mode,
+        fail_on=fail_on,
+        # Reaching `crab history` needs a COMPLETED status first; the history
+        # failure must not let that unverified COMPLETED be recorded either.
+        status_json=json.dumps({"schema": 1, "jobs": [{"job_id": "7", "state": "COMPLETED"}]}),
+    )
+
+    with _two_cluster_client(tmp_path, broken, healthy) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes", json=_alps_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes/alps/connect")
+
+        resp = client.get("/api/jobs")
+
+    assert resp.status_code == 200
+    by_id = {j["id"]: j for j in resp.json()}
+    assert by_id["leonardo:1"]["last_known_state"] == "RUNNING"
+    assert by_id["leonardo:1"]["cluster_error"] is None
+    assert by_id["alps:7"]["last_known_state"] == "RUNNING"  # last known, not guessed
+    assert by_id["alps:7"]["cluster_error"]
+    assert any(fail_on in c for c in broken.calls)
+
+
+def test_list_jobs_refreshes_clusters_concurrently(tmp_path: Path):
+    """Checked by overlap, not wall time: each cluster's `crab status` waits for the
+    other one to start, so a sequential refresh never sees two in flight."""
+    _seed_job(tmp_path, job_id="1", last_known_state="RUNNING")
+    _seed_job(tmp_path, cluster="alps", system="alps", job_id="7", last_known_state="RUNNING")
+    state = {"in_flight": 0, "peak": 0}
+    both_started: asyncio.Event | None = None
+
+    class SlowStatusTransport(ScriptedTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            nonlocal both_started
+            if "crab status" in command:
+                if both_started is None:
+                    both_started = asyncio.Event()
+                state["in_flight"] += 1
+                state["peak"] = max(state["peak"], state["in_flight"])
+                if state["in_flight"] >= 2:
+                    both_started.set()
+                try:
+                    await asyncio.wait_for(both_started.wait(), timeout=2.0)
+                except TimeoutError:
+                    pass
+                finally:
+                    state["in_flight"] -= 1
+            return await super().run(command, timeout)
+
+    with _two_cluster_client(tmp_path, SlowStatusTransport(), SlowStatusTransport()) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes", json=_alps_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes/alps/connect")
+
+        assert client.get("/api/jobs").status_code == 200
+
+    assert state["peak"] == 2
+
+
 def test_list_jobs_skips_already_terminal_jobs(tmp_path: Path):
     _seed_job(tmp_path, last_known_state="COMPLETED")
 
@@ -1037,6 +1139,38 @@ def test_job_experiments_disconnected_with_prior_cache_returns_stale_copy(tmp_pa
         assert body["stale"] is True
         assert body["cached_at"] is not None
         assert body["experiments"] == first["experiments"]
+
+
+def test_job_experiments_same_system_name_on_two_clusters_keeps_both_caches(tmp_path: Path):
+    """Two clusters can both call their system "shared"; one cluster's cached
+    history must never be served as the other's fallback."""
+    basename = "msgsize_scaling_study_2026-07-04_20-03-37-168111"
+    _seed_job(tmp_path, job_id="1", data_dir=f"/a/{basename}", system="shared")
+    _seed_job(tmp_path, cluster="alps", job_id="1", data_dir=f"/b/{basename}", system="shared")
+    leonardo = ScriptedTransport(
+        history_json=json.dumps(
+            {"schema": 1, "experiments": [_history_row(system="shared", status="COMPLETED")]}
+        )
+    )
+    alps = ScriptedTransport(
+        history_json=json.dumps(
+            {"schema": 1, "experiments": [_history_row(system="shared", status="FAILED")]}
+        )
+    )
+
+    with _two_cluster_client(tmp_path, broken=alps, healthy=leonardo) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes", json=_alps_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes/alps/connect")
+        client.get("/api/jobs/leonardo:1/experiments")
+        client.get("/api/jobs/alps:1/experiments")
+
+        client.post("/api/remotes/leonardo/disconnect")
+        body = client.get("/api/jobs/leonardo:1/experiments").json()
+
+        assert body["stale"] is True
+        assert [e["status"] for e in body["experiments"]] == ["COMPLETED"]
 
 
 # --------------------------------------------------------------------------- #

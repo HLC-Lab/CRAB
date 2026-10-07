@@ -57,7 +57,13 @@ def capture_module_environment(module_cmd: str) -> dict[str, str]:
         return base_env
 
 
-def run_deep_search(binary_name: str) -> str | None:
+def run_deep_search(recipe) -> str | None:
+    """Search ~ for the recipe's executable; return the directory holding it, or None.
+
+    A 'binary' receipt stores that directory (the wrappers join the executable onto it), so
+    a hit only counts when the recipe accepts the directory.
+    """
+    binary_name = recipe.module_executable or recipe.benchmark_id.lower()
     console.print(
         f"[dim]Running deep search for '{binary_name}' in ~/... This might take a minute.[/dim]"
     )
@@ -68,9 +74,9 @@ def run_deep_search(binary_name: str) -> str | None:
             capture_output=True,
             text=True,
         )
-        paths = [p for p in result.stdout.strip().split("\n") if p]
-        if paths:
-            return paths[0]
+        for path in result.stdout.strip().split("\n"):
+            if path and recipe.verify_existing(os.path.dirname(path)):
+                return os.path.dirname(path)
     except Exception as e:
         console.print(f"[red]Deep search failed: {e}[/red]")
     return None
@@ -117,6 +123,22 @@ def _derive_benchmark_id(name: str) -> str:
     sanitized = re.sub(r"[\s\-]+", "_", sanitized)
     sanitized = re.sub(r"[^a-z0-9_]", "", sanitized)
     return sanitized.strip("_")
+
+
+def _ask_module_executable(recipe) -> str:
+    """The command the module provides: the recipe's own when it declares one, else asked for.
+
+    The recipe id is not a command, so it is never offered; an empty answer is asked again.
+    """
+    if recipe.module_executable:
+        return Prompt.ask(
+            "Enter the executable the module provides", default=recipe.module_executable
+        )
+    while True:
+        answer = Prompt.ask("Enter the executable the module provides").strip()
+        if answer:
+            return answer
+        console.print("[red]An executable name is required.[/red]")
 
 
 def _collect_pre_run_hooks() -> list[str]:
@@ -358,7 +380,7 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                     "[yellow]Fast search skipped. Trigger deep home directory search?[/yellow]",
                     default=False,
                 ):
-                    final_path = run_deep_search(recipe.benchmark_id.lower())
+                    final_path = run_deep_search(recipe)
 
         elif choice == "2":
             while True:
@@ -379,9 +401,7 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
             module_cmd = Prompt.ask(
                 "Enter exact module command (e.g., 'module load quantum-espresso/7.4.1')"
             )
-            binary_name = Prompt.ask(
-                "Enter target executable binary name (e.g., 'pw.x')", default=recipe.benchmark_id
-            )
+            binary_name = _ask_module_executable(recipe)
             pre_run_hooks.insert(0, module_cmd)
             final_path = binary_name
 

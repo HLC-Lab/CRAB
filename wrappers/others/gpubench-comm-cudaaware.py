@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(__file__))
 from crab.wrappers.base import sizeof_fmt
-from gpubench_common import gpubench
+from _gpubench_common import gpubench
 
 class app(gpubench):
     metadata = [
@@ -20,6 +20,8 @@ class app(gpubench):
         output = self.stdout
         lines = output.split('\n')
         lines = [x for x in lines if x.startswith("#")]
+        if not lines:
+            raise ValueError("no '#' result lines in the output (the run did not finish?)")
         tmp_data = [[float(x.split(' ')[1]), float(x.split(' ')[2])] for x in lines]
         data = [list(x) for x in zip(*tmp_data)]
         return data
