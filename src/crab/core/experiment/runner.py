@@ -230,6 +230,7 @@ class ExperimentRunner:
         failed_runs = 0
         global_start = time.time()
         converged = False
+        run_open = False  # a run has started and is not counted yet
 
         try:
             while True:
@@ -240,6 +241,7 @@ class ExperimentRunner:
 
                 run_log = self.log.enter(f"Run {runs + 1}")
                 run_log.info("Started")
+                run_open = True
 
                 run_start = time.time()
 
@@ -463,11 +465,26 @@ class ExperimentRunner:
                 runs += 1
                 if not run_successful:
                     failed_runs += 1
+                run_open = False
                 if runs >= min_runs:
                     converged = check_CI(self.data_containers, alpha, beta, converge_all, runs)
                     if converged:
                         self.log.info(f"Converged at run {runs}")
 
+        except Exception as e:
+            # Keep what the completed runs measured; the run that raised counts as failed.
+            completed_runs = runs
+            if run_open:
+                runs += 1
+                failed_runs += 1
+            self.log.error(f"Experiment stopped in run {runs}: {e}")
+            if completed_runs:
+                try:
+                    self.save_results()
+                except Exception as save_error:
+                    self.log.error(f"Could not save the completed runs: {save_error}")
+            self._write_to_registry(status="FAILED", total_runs=runs, failed_runs=failed_runs)
+            raise
         finally:
             self.teardown()
 
