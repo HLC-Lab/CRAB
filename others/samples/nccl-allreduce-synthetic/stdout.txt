@@ -1,0 +1,14 @@
+# nThread 1 nGpus 1 minBytes 1048576 maxBytes 1048576 step: 2(factor) warmup iters: 5 iters: 20 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid  12345 on     node01 device  0 [0x01] NVIDIA A100-SXM-64GB
+#  Rank  1 Group  0 Pid  12346 on     node01 device  1 [0x41] NVIDIA A100-SXM-64GB
+#
+#                                                              out-of-place                       in-place
+#       size         count      type   redop    root     time   algbw   busbw #wrong     time   algbw   busbw #wrong
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)            (us)  (GB/s)  (GB/s)
+     1048576        262144     float     sum      -1    45.67   22.96   22.96      0    44.89   23.36   23.36      0
+     1048576        262144     float     sum      -1    46.01   22.79   22.79      0    45.12   23.24   23.24      0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 23.09
+#

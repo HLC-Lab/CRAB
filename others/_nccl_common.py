@@ -27,7 +27,7 @@ class ncclbase(base):
                 continue
 
         if not rows:
-            return [[0]] * len(self.metadata)
+            raise ValueError("no result rows in the nccl-tests output (the run did not finish?)")
 
         # Transpose: N rows × 6 columns → 6 per-metric value lists
         return [[row[i] for row in rows] for i in range(len(self.metadata))]

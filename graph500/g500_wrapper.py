@@ -4,8 +4,6 @@ import os
 from crab.wrappers.base import base
 
 class app(base):
-    exists = True
-
     metadata = [
         {'name': 'graph_generation'   , 'unit': 's', 'conv': True},
         {'name': 'construction'       , 'unit': 's', 'conv': True},
@@ -38,17 +36,16 @@ class app(base):
         return None
 
     def read_data(self):
-        if self.exists:
-            output = self.stdout
-            lines = output.split('\n')
-            lines = [x for x in lines if x.strip() != '']
-            lines = lines[4:15]+lines[-7:]
-            lines = ([lines[0]]+lines[2:])
-            data = [[float(x.split(' ')[-1])] for x in lines]
-            return data
-        else:
-            # Fallback if binary isn't found
-            return [[0] * len(self.metadata)]
+        output = self.stdout
+        lines = output.split('\n')
+        lines = [x for x in lines if x.strip() != '']
+        # Fewer lines would make the two slices below overlap and read the wrong values.
+        if len(lines) < 22:
+            raise ValueError(f"graph500 output has {len(lines)} non-empty lines, expected at least 22 (the run did not finish?)")
+        lines = lines[4:15]+lines[-7:]
+        lines = ([lines[0]]+lines[2:])
+        data = [[float(x.split(' ')[-1])] for x in lines]
+        return data
 
     def get_bench_name(self):
         return "Graph500"

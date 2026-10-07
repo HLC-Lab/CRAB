@@ -1,0 +1,4 @@
+Running pp_Nccl with 2 ranks, message size 2^20 B
+[Rank 0] Iteration 0, Transfer Time (s): 0.000123, Bandwidth (GB/s): 8.52
+[Rank 0] Iteration 1, Transfer Time (s): 0.000119, Bandwidth (GB/s): 8.81
+[Average] Iteration -, Transfer Time (s): 0.000121, Bandwidth (GB/s): 8.66

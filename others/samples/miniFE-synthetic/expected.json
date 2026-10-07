@@ -1,0 +1,12 @@
+[
+  {
+    "matrix_structure": 0.0123,
+    "FE_assambly": 0.0456,
+    "WAXPY": 0.0789,
+    "DOT": 0.0321,
+    "MATVEC": 0.654,
+    "CG_total": 0.789,
+    "CG_per_iteration": 0.003945,
+    "total": 0.912
+  }
+]

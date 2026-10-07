@@ -1,0 +1,21 @@
+[
+  {
+    "graph_generation": 0.512,
+    "construction": 0.231,
+    "redistribution_time": 0.044,
+    "min_time": 0.0101,
+    "q1_time": 0.0105,
+    "median_time": 0.0108,
+    "q3_time": 0.0112,
+    "max_time": 0.0131,
+    "mean_time": 0.0109,
+    "stddev_time": 0.0006,
+    "min_valid": 0.0402,
+    "q1_valid": 0.0411,
+    "median_valid": 0.0415,
+    "q3_valid": 0.042,
+    "max_valid": 0.0458,
+    "mean_valid": 0.0417,
+    "stddev_valid": 0.0011
+  }
+]
