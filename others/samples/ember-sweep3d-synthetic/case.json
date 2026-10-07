@@ -1,0 +1,1 @@
+{"wrapper": "ember-sweep3d.py", "args": "-pex 8 -pey 4 -nx 50 -ny 50 -nz 100 -kba 10", "source": "synthetic"}

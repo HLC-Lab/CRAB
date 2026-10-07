@@ -1,0 +1,7 @@
+# Incast Communication Pattern
+# Info:
+# Ranks:            64
+# Message Size:   4096
+# Iterations:      1000
+#                 Time                Msg/S                 MB/S
+              0.051204         1230372.6000            4806.1430

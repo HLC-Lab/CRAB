@@ -1,0 +1,10 @@
+[
+  {
+    "MsgSize": 65536.0,
+    "Time": 0.012871,
+    "Msgs": 2.0,
+    "Bytes": 131.072,
+    "Msg-Throughput": 155.3881,
+    "Throughput": 10183.2802
+  }
+]
