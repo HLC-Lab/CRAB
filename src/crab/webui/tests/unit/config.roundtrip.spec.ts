@@ -574,3 +574,45 @@ describe("allocation placeholders (plan 090 S11a)", () => {
     expect(typeof toAllocation(a)?.stride).not.toBe("string");
   });
 });
+
+describe("normalizeSplitToPartitions with chained apps (ADR-032)", () => {
+  // The engine gives a split share only to chain heads: an app with start "sN" runs on app N's
+  // nodes (core/allocation/allocator.py allocate_experiment). Tagging it with a group of its own
+  // would turn the chain into a handoff.
+  const splitWithChain = (split: number[], local = false): AnyObj => {
+    const apps = {
+      0: { path: "a.py", collect: true, start: "0", end: "" },
+      1: { path: "b.py", collect: true, start: "s0", end: "" },
+      2: { path: "c.py", collect: true, start: "0", end: "" },
+    };
+    const allocation = { mode: "linear", split };
+    return local
+      ? {
+          global_options: { numnodes: "4" },
+          experiments: { ex1: { apps, local_options: { allocation } } },
+        }
+      : { global_options: { numnodes: "4", allocation }, experiments: { ex1: { apps } } };
+  };
+
+  it("tags only chain heads, in order, for a global split", () => {
+    const n = normalizeSplitToPartitions(splitWithChain([75, 25]));
+    expect(n.global_options.allocation.partitions).toEqual({
+      group_1: { share: 75 },
+      group_2: { share: 25 },
+    });
+    const parts = Object.values(n.experiments.ex1.apps).map((a: AnyObj) => a.partition);
+    expect(parts).toEqual(["group_1", undefined, "group_2"]);
+  });
+
+  it("tags only chain heads for a per-experiment split", () => {
+    const n = normalizeSplitToPartitions(splitWithChain([75, 25], true));
+    const parts = Object.values(n.experiments.ex1.apps).map((a: AnyObj) => a.partition);
+    expect(parts).toEqual(["group_1", undefined, "group_2"]);
+  });
+
+  it("round-trips a chained split config without giving the chained app a group", () => {
+    const round = toConfig(fromConfig(splitWithChain([75, 25])));
+    const parts = Object.values(round.experiments.ex1.apps).map((a: AnyObj) => a.partition);
+    expect(parts).toEqual(["group_1", undefined, "group_2"]);
+  });
+});

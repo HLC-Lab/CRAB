@@ -112,7 +112,9 @@ All allocation config lives under a single `allocation` key. The minimal form is
 | `"interleaved"` | Nodes are dealt round-robin; supports an optional `stride` (default `1`). |
 | `"random"` | Node list is shuffled (optionally with `seed`), then split linearly. |
 
-**`split`** — percentage share per app (omit for an equal split):
+**`split`** — percentage share per app (omit for an equal split). An app that runs on another
+app's nodes (a chained app, see [Scheduling](#scheduling-start-and-end)) takes no share: give one
+value per remaining app, in app order.
 
 ```json
 "allocation": { "mode": "linear", "split": [60, 40] }
@@ -133,6 +135,7 @@ All allocation config lives under a single `allocation` key. The minimal form is
 - `share` is a percentage. Either all partitions specify `share` (values should sum to 100) or none do (equal split).
 - The top-level `mode` controls how the partition node-blocks are laid out relative to each other.
 - If a partition contains multiple apps, an inner `mode` and `split` can be added inside the partition entry for intra-partition placement.
+- A chained app with no `partition`, or with the same one as the app it waits for, runs on that app's nodes and is not counted as a member of the partition.
 
 **Mode extras:**
 
@@ -192,7 +195,7 @@ The `start` and `end` strings encode the victim/aggressor model and timed/sequen
 | Value | Meaning |
 |-------|---------|
 | `"0"` or a number | Delay in seconds from the start of the run before launching. |
-| `"sN"` | Start only **after application N has finished** (a dependency, enabling sequential chains). |
+| `"sN"` | Start only **after application N has finished** (a dependency, enabling sequential chains). The app runs on application N's nodes; see below. |
 
 **`end` — when the app is stopped:**
 
@@ -201,6 +204,20 @@ The `start` and `end` strings encode the victim/aggressor model and timed/sequen
 | `""` (empty) | Wait for the app to finish on its own. | [Victim](../glossary.md#victim) |
 | `"f"` | Force-terminate once all non-`f` apps have finished. | [Aggressor](../glossary.md#aggressor) |
 | a number | Terminate after that many seconds. | Timed |
+
+**Which nodes a chained app uses.** An app with `start: "sN"` runs on the nodes of application N,
+which have just been released. This carries along a chain: in `0` → `s0` → `s1` all three apps
+run on app 0's nodes, and only app 0 gets a share of the allocation. A chained app that names a
+**different** `partition` than the app it waits for instead gets a share of its own partition:
+use this to start an app when another one ends, but on other nodes.
+
+These are errors, reported before anything is submitted:
+
+- two apps that would both run on the same app's nodes after it (for example two apps with
+  `start: "s0"` and no partition change): they would run at the same time on the same nodes;
+  give one of them a different partition;
+- `"sN"` naming an application that does not exist;
+- start values that wait on each other in a cycle.
 
 ## sbatch directives
 

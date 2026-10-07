@@ -473,17 +473,17 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
     return { partitions, keys };
   };
 
+  // The engine gives split shares to chain heads only: an app with start "sN" runs on app N's
+  // nodes (ADR-032), so it takes no group and the next head takes the next one.
   const tagApps = (apps: Record<string, AppConfig> | undefined, keys: string[]): void => {
     if (!apps) return;
-    Object.values(apps).forEach((app, i) => {
-      if (
-        app &&
-        typeof app === "object" &&
-        (app.partition == null || app.partition === "") &&
-        i < keys.length
-      ) {
-        app.partition = keys[i];
+    let head = 0;
+    Object.values(apps).forEach((app) => {
+      if (!app || typeof app !== "object" || String(app.start ?? "").startsWith("s")) return;
+      if ((app.partition == null || app.partition === "") && head < keys.length) {
+        app.partition = keys[head];
       }
+      head += 1;
     });
   };
 

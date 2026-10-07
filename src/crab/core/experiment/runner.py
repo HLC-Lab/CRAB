@@ -158,23 +158,7 @@ class ExperimentRunner:
 
         # 2. Allocate Nodes
         allocation = self.exp_opts.get("allocation", {})
-
-        if "partitions" in allocation:
-            NodeAllocator.allocate_partitioned(self.apps, self.node_list, allocation)
-        else:
-            mode = allocation.get("mode", "linear")
-            split_val = allocation.get("split", "even")
-            split = NodeAllocator.get_abs_split(split_val, len(self.apps), len(self.node_list))
-            if mode == "interleaved":
-                NodeAllocator.allocate_interleaved(
-                    self.apps, self.node_list, split, stride=allocation.get("stride", 1)
-                )
-            elif mode == "random":
-                NodeAllocator.allocate_random(
-                    self.apps, self.node_list, split, seed=allocation.get("seed")
-                )
-            else:  # linear (default)
-                NodeAllocator.allocate_linear(self.apps, self.node_list, split)
+        NodeAllocator.allocate_experiment(self.apps, self.node_list, allocation)
 
         # 3. Initialize Data Containers
         for app in self.apps:

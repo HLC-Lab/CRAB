@@ -78,6 +78,12 @@ applications in sequence within one experiment.
 Here app 1 starts when app 0 ends, and app 2 when app 1 ends — a message-size sweep run one after
 another. (This is the shape used in `examples/lorenzo/cong_analysis.json`.)
 
+All three run on the same nodes: a chained app reuses the nodes of the app it waits for, so only
+app 0 takes a share of the allocation. To start an app when another one ends but on **other**
+nodes, give it a different `partition`. Two apps cannot both start after the same app on its
+nodes (they would share them at the same time); CRAB reports that before submitting. Details:
+[Scheduling](../reference/configuration.md#scheduling-start-and-end).
+
 ## Pattern 4 — timed termination
 
 Give `end` a number to stop an application after a fixed number of seconds — useful for a

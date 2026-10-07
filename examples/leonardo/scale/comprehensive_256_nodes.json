@@ -213,7 +213,7 @@
                     "path": "inc_b.py",
                     "args": "-msgsize 65536 -iter 1000000",
                     "collect": false,
-                    "partition": "victim",
+                    "partition": "aggressor",
                     "start": "s0",
                     "end": "f"
                 }

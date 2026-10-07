@@ -30,7 +30,8 @@
                     "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 }
             }
         },
@@ -42,7 +43,8 @@
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 }
             }
         },
@@ -76,6 +78,11 @@
                     "collect": true,
                     "start": "0",
                     "end": ""
+                }
+            },
+            "local_options": {
+                "allocation": {
+                    "mode": "linear"
                 }
             }
         },
