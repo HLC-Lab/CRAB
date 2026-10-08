@@ -54,7 +54,7 @@ def build_schedule(apps: list[Any]) -> Schedule:
 
 def run_events(
     apps: list[Any],
-    wlmanager: Any,
+    launch_mode: str,
     ppn: int,
     schedule: Schedule,
     run_log: Any,
@@ -97,7 +97,7 @@ def run_events(
 
                     run_job(
                         apps[aid],
-                        wlmanager,
+                        launch_mode,
                         ppn,
                         logger=app_log,
                         pre_commands=merged_pre_commands,
@@ -180,7 +180,7 @@ def run_events(
 
                 run_job(
                     apps[waiter],
-                    wlmanager,
+                    launch_mode,
                     ppn,
                     logger=dep_log,
                     pre_commands=merged_pre_commands,

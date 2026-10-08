@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from crab.core.process.manager import run_job
-from crab.core.wl_manager.local import wl_manager
 
 
 class _Job:
@@ -30,7 +29,7 @@ def test_the_app_process_starts_in_its_run_dir(tmp_path: Path) -> None:
     run_dir.mkdir(parents=True)
     job = _Job(run_dir, "pwd > where.txt")
 
-    run_job(job, wl_manager(), 1, MagicMock())
+    run_job(job, "local", 1, MagicMock())
     job.process.wait(timeout=10)
 
     assert (run_dir / "where.txt").read_text().strip() == str(run_dir)

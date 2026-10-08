@@ -10,6 +10,7 @@ Some pinned outputs look odd (marked "as it is today"); they are recorded, not e
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +22,8 @@ import pytest
 from crab.cli import contract
 from crab.core import engine as engine_module
 from crab.core.engine import Engine
-from crab.core.wl_manager import slurm
+from crab.core.execution.launcher import Placement, launch_line, launcher_for
+from crab.core.process import manager as process_manager
 
 _LAUNCH_ENV_VARS = (
     "CRAB_MPIRUN",
@@ -345,19 +347,25 @@ def launch_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     return monkeypatch
 
 
+def _slurm_line(nodes: list[str], ppn: int, cmd: str, launcher: str | None = None) -> str:
+    return launch_line(
+        launcher_for("slurm", launcher, os.environ), Placement(tuple(nodes), ppn), cmd
+    )
+
+
 def test_srun_default_one_node(launch_env):
-    line = slurm.wl_manager().run_job(["n1"], 1, "./app")
+    line = _slurm_line(["n1"], 1, "./app")
     assert line == "srun --export=ALL --nodelist n1 -n 1 -N 1 ./app"
 
 
 def test_srun_three_nodes_with_pinning_flags(launch_env):
     launch_env.setenv("CRAB_PINNING_FLAGS", "--cpu-bind=cores")
-    line = slurm.wl_manager().run_job(["n1", "n2", "n3"], 4, "./app -x 1")
+    line = _slurm_line(["n1", "n2", "n3"], 4, "./app -x 1")
     assert line == "srun --export=ALL --nodelist n1,n2,n3 --cpu-bind=cores -n 12 -N 3 ./app -x 1"
 
 
 def test_srun_launcher_argument_with_options(launch_env):
-    line = slurm.wl_manager().run_job(["n1"], 1, "./app", launcher="srun --mpi=pmix")
+    line = _slurm_line(["n1"], 1, "./app", launcher="srun --mpi=pmix")
     assert line == "srun --mpi=pmix --export=ALL --nodelist n1 -n 1 -N 1 ./app"
 
 
@@ -366,7 +374,7 @@ def test_mpirun_from_env_with_flags(launch_env):
     launch_env.setenv("CRAB_MPIRUN_ADDITIONAL_FLAGS", "--bind-to core")
     launch_env.setenv("CRAB_MPIRUN_MAP_BY_NODE_FLAG", "--map-by node")
     launch_env.setenv("CRAB_PINNING_FLAGS", "--cpu-bind=cores")
-    line = slurm.wl_manager().run_job(["n1", "n2"], 4, "./app")
+    line = _slurm_line(["n1", "n2"], 4, "./app")
     # The node list and the pinning flags are not used by mpirun.
     assert line == "mpirun --bind-to core --map-by node -np 8 ./app"
 
@@ -374,15 +382,115 @@ def test_mpirun_from_env_with_flags(launch_env):
 def test_mpirun_launcher_argument_overrides_env(launch_env):
     launch_env.setenv("CRAB_MPIRUN", "srun")
     launch_env.setenv("CRAB_MPIRUN_ADDITIONAL_FLAGS", "--bind-to core")
-    line = slurm.wl_manager().run_job(["n1", "n2"], 2, "./app", launcher="/opt/ompi/bin/mpirun")
+    line = _slurm_line(["n1", "n2"], 2, "./app", launcher="/opt/ompi/bin/mpirun")
     assert line == "/opt/ompi/bin/mpirun --bind-to core -np 4 ./app"
 
 
 def test_launch_string_collapses_whitespace_inside_quotes(launch_env):
     cmd = """./app --msg "hello   world"  'a    b'"""
-    line = slurm.wl_manager().run_job(["n1"], 1, cmd)
+    line = _slurm_line(["n1"], 1, cmd)
     # As it is today: runs of spaces inside quoted arguments are collapsed too.
     assert line == """srun --export=ALL --nodelist n1 -n 1 -N 1 ./app --msg "hello world" 'a b'"""
+
+
+class _FakePopen:
+    """Stands in for `subprocess.Popen`: starts nothing, writes nothing."""
+
+    instances: list[_FakePopen] = []
+
+    def __init__(self, argv: list[str], **kwargs: Any) -> None:
+        self.argv = argv
+        self.pid = 4242
+        self.stdout = MagicMock()
+        self.stdout.readline.return_value = b""
+        _FakePopen.instances.append(self)
+
+
+class _WiringJob:
+    def __init__(self, run_dir: Path, command: str, node_list: list[str]) -> None:
+        self.id_num = 0
+        self.node_list = node_list
+        self.run_dir = str(run_dir)
+        self._command = command
+
+    def run_app(self) -> str:
+        return self._command
+
+    def set_process(self, process: Any) -> None:
+        self.process = process
+
+
+@pytest.fixture
+def fake_popen(monkeypatch: pytest.MonkeyPatch) -> type[_FakePopen]:
+    _FakePopen.instances = []
+    monkeypatch.setattr(process_manager.subprocess, "Popen", _FakePopen)
+    return _FakePopen
+
+
+def _script_through_run_job(
+    tmp_path: Path,
+    launch_mode_arg: Any,
+    nodes: list[str],
+    ppn: int,
+    cmd: str,
+    **kwargs: Any,
+) -> str:
+    job = _WiringJob(tmp_path, cmd, nodes)
+    process_manager.run_job(job, launch_mode_arg, ppn, MagicMock(), **kwargs)
+    return (tmp_path / ".wrappers" / "app_0.sh").read_text()
+
+
+def test_run_job_writes_the_srun_script_through_the_launcher(launch_env, fake_popen, tmp_path):
+    launch_env.setenv("CRAB_PINNING_FLAGS", "--cpu-bind=cores")
+    script = _script_through_run_job(
+        tmp_path,
+        "slurm",
+        ["n1", "n2"],
+        2,
+        "./app -x 1",
+        pre_commands=["module load x"],
+    )
+    assert script == (
+        "#!/bin/bash\n"
+        "if [ -f /etc/profile.d/modules.sh ]; then\n"
+        "    source /etc/profile.d/modules.sh\n"
+        "fi\n"
+        "\n"
+        "module load x\n"
+        "\n"
+        "# Execute workload\n"
+        "srun --export=ALL --nodelist n1,n2 --cpu-bind=cores -n 4 -N 2 ./app -x 1\n"
+    )
+    assert [p.argv for p in fake_popen.instances] == [
+        ["bash", str(tmp_path / ".wrappers" / "app_0.sh")]
+    ]
+
+
+def test_run_job_uses_the_launcher_override_and_mpirun_flags(launch_env, fake_popen, tmp_path):
+    launch_env.setenv("CRAB_MPIRUN_ADDITIONAL_FLAGS", "--bind-to core")
+    script = _script_through_run_job(
+        tmp_path,
+        "slurm",
+        ["n1", "n2"],
+        2,
+        "./app -x 1",
+        launcher="/opt/ompi/bin/mpirun",
+    )
+    assert script.splitlines()[-1] == "/opt/ompi/bin/mpirun --bind-to core -np 4 ./app -x 1"
+
+
+def test_run_job_local_mode_writes_the_command_as_given(launch_env, fake_popen, tmp_path):
+    cmd = '  ./app --msg "a   b"  '
+    script = _script_through_run_job(tmp_path, "local", ["n1"], 1, cmd)
+    assert script.splitlines()[-1] == cmd
+
+
+def test_run_job_in_an_unported_mode_raises_before_starting_anything(
+    launch_env, fake_popen, tmp_path
+):
+    with pytest.raises(NotImplementedError, match="has not been ported"):
+        _script_through_run_job(tmp_path, "mpi", ["n1"], 1, "./app")
+    assert fake_popen.instances == []
 
 
 # --------------------------------------------------------------------------- #

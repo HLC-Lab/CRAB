@@ -3,12 +3,13 @@ import signal
 import subprocess
 import threading
 
+from crab.core.execution.launcher import Placement, launch_line, launcher_for
 from crab.log import CrabLogger
 
 
 def run_job(
     job,
-    wlmanager,
+    launch_mode: str,
     ppn: int,
     logger: CrabLogger,
     pre_commands: list[str] = None,
@@ -17,7 +18,7 @@ def run_job(
     launcher: str = None,
 ):
     """
-    Launch an application process via the workload manager using a physical execution wrapper.
+    Launch an application process under the launch mode using a physical execution wrapper.
     """
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
@@ -29,14 +30,11 @@ def run_job(
             "command; refusing to run it."
         )
 
-    # 1. Get the base launcher command from the workload manager
-    cmd_string = wlmanager.run_job(
-        job.node_list,
-        ppn,
+    # 1. Build the launch line for the job's hosts (read from the environment at launch time)
+    cmd_string = launch_line(
+        launcher_for(launch_mode, launcher, os.environ),
+        Placement(tuple(job.node_list), ppn),
         app_command,
-        pre_commands=pre_commands,
-        data_path=data_path,
-        launcher=launcher,
     )
 
     # 2. Write the Execution Wrapper

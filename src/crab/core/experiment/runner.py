@@ -8,6 +8,7 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
+from crab.core.execution.launcher import launch_mode
 from crab.core.wrapper_paths import load_module, resolve_wrapper_path
 from crab.log import CrabLogger
 from crab.wrappers.base import base
@@ -51,7 +52,7 @@ class ExperimentRunner:
 
         # State
         self.apps = []
-        self.wlmanager = None
+        self.launch_mode: str | None = None
         self.data_containers = []
         # Force PPN to strictly obey the physical global allocation
         self.ppn = int(self.global_opts.get("ppn", 1))
@@ -66,21 +67,8 @@ class ExperimentRunner:
         sorted_keys = sorted(app_configs.keys(), key=lambda x: int(x) if x.isdigit() else x)
 
         # Helper to load modules
-        # WLM Loading
-        wlm_name = os.environ.get("CRAB_WL_MANAGER", "slurm")
-        _ALLOWED_WLM = {"slurm", "mpi", "workerpool", "local"}
-        if wlm_name not in _ALLOWED_WLM:
-            raise ValueError(
-                f"Unknown CRAB_WL_MANAGER value: {wlm_name!r}. Allowed: {sorted(_ALLOWED_WLM)}"
-            )
-
-        # Anchor the path dynamically to this script's location
-        # __file__ is .../src/crab/core/experiment/runner.py
-        # Walking up one level takes us to .../src/crab/core/
-        core_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        wlm_path = os.path.join(core_dir, "wl_manager", f"{wlm_name}.py")
-
-        self.wlmanager = load_module(wlm_path).wl_manager()
+        # Launch mode (raises ValueError on an unknown CRAB_WL_MANAGER)
+        self.launch_mode = launch_mode(os.environ)
 
         # App Instantiation
         idx_counter = 0
@@ -227,7 +215,7 @@ class ExperimentRunner:
 
                 outcome = run_events(
                     self.apps,
-                    self.wlmanager,
+                    self.launch_mode,
                     self.ppn,
                     schedule,
                     run_log,
