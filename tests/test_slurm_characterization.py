@@ -394,7 +394,8 @@ def test_mpirun_with_flags():
     spec = _mpirun("--bind-to", "core", "--map-by", "node")
     line = _slurm_line(["n1", "n2"], 2, "./app", spec)
     # Explicit geometry since C2: -n, then the host list, then the preset flags.
-    assert line == "mpirun -n 4 -H n1,n1,n2,n2 --bind-to core --map-by node ./app"
+    # binding report always on since C4
+    assert line == "mpirun -n 4 -H n1,n1,n2,n2 --report-bindings --bind-to core --map-by node ./app"
 
 
 def test_mpirun_with_its_own_command():
@@ -402,7 +403,8 @@ def test_mpirun_with_its_own_command():
     spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
     line = _slurm_line(["n1", "n2"], 2, "./app", spec)
     # Explicit geometry since C2.
-    assert line == "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --bind-to core ./app"
+    # binding report always on since C4
+    assert line == "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --report-bindings --bind-to core ./app"
 
 
 def test_launch_string_collapses_whitespace_inside_quotes():
@@ -488,8 +490,9 @@ def test_run_job_writes_the_mpirun_line_from_the_spec(fake_popen, tmp_path):
     spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
     script = _script_through_run_job(tmp_path, spec, ["n1", "n2"], 2, "./app -x 1")
     # Explicit geometry since C2.
+    # binding report always on since C4
     assert script.splitlines()[-1] == (
-        "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --bind-to core ./app -x 1"
+        "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --report-bindings --bind-to core ./app -x 1"
     )
 
 

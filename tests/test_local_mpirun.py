@@ -66,8 +66,9 @@ def test_local_mpirun_script_lists_hosts_and_the_computed_exports(
         process_manager.run_job(_Job(tmp_path, ["ws1", "ws2"]), spec, 2, MagicMock())
     script = (tmp_path / ".wrappers" / "app_0.sh").read_text()
     # CRAB_IB_DEVICES is a preset env key but not set in the launching environment: not exported.
+    # binding report always on since C4
     assert script.splitlines()[-1] == (
-        "mpirun -n 4 --host ws1:2,ws2:2 -x UCX_TLS -x PATH -x CRAB_ROOT ./app"
+        "mpirun -n 4 --host ws1:2,ws2:2 -x UCX_TLS -x PATH -x CRAB_ROOT --display bindings ./app"
     )
 
 
@@ -87,4 +88,7 @@ def test_crab_supervisor_fd_is_never_exported(
     with patch.dict(os.environ, {"PATH": "/p", "CRAB_SUPERVISOR_FD": "9"}, clear=True):
         process_manager.run_job(_Job(tmp_path, ["localhost"]), spec, 1, MagicMock())
     script = (tmp_path / ".wrappers" / "app_0.sh").read_text()
-    assert script.splitlines()[-1] == "mpirun -n 1 --host localhost:1 -x PATH ./app"
+    # binding report always on since C4
+    assert (
+        script.splitlines()[-1] == "mpirun -n 1 --host localhost:1 -x PATH --display bindings ./app"
+    )

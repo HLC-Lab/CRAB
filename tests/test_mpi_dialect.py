@@ -9,7 +9,7 @@ from collections.abc import Iterator
 import pytest
 
 from crab.core.execution.launcher import dialect
-from crab.core.execution.launcher.dialect import parse_version_output, probe
+from crab.core.execution.launcher.dialect import parse_version_output, probe, probe_output
 
 OMPI4 = "mpirun (Open MPI) 4.1.8\n\nReport bugs to https://www.open-mpi.org/community/help/\n"
 OPENRTE = "mpiexec (OpenRTE) 4.1.5\n\nReport bugs to https://www.open-mpi.org/community/help/\n"
@@ -104,6 +104,15 @@ def test_probe_caches_per_command() -> None:
     assert calls == [["mpirun", "--version"]]
     assert probe("/opt/mpiexec", runner) == "openmpi5"
     assert len(calls) == 2
+
+
+def test_probe_output_returns_the_cached_version_text() -> None:
+    assert probe_output("mpirun") is None
+    probe("mpirun", lambda argv: (OMPI5, 0))
+    assert probe_output("mpirun") == OMPI5
+    assert probe_output("/opt/other/mpirun") is None
+    dialect.clear_cache()
+    assert probe_output("mpirun") is None
 
 
 def test_probe_missing_binary_names_command() -> None:

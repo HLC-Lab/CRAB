@@ -29,11 +29,13 @@ _LAUNCH_LINES = {
     "cresco8": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nanjing": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "slimfly": (
-        f"{_SLIMFLY_MPIRUN} -n 1 -H n1 -mca plm_rsh_no_tree_spawn 1 --map-by node "
+        # binding report always on since C4
+        f"{_SLIMFLY_MPIRUN} -n 1 -H n1 --report-bindings -mca plm_rsh_no_tree_spawn 1 --map-by node "
         "-mca btl openib,self,sm -mca btl_openib_if_include mlx4_0 "
         "-mca orte_base_help_aggregate 0 --map-by node ./app"
     ),
-    "local": "mpirun -n 1 --host localhost:1 ./app",
+    # binding report always on since C4
+    "local": "mpirun -n 1 --host localhost:1 --display bindings ./app",
 }
 
 

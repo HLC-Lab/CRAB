@@ -229,8 +229,13 @@ def test_an_explicit_dialect_is_used_without_probing(monkeypatch: pytest.MonkeyP
     launcher = launcher_for(
         _spec("openmpi5", "--bind-to", "core", export=("UCX_TLS",)), {"UCX_TLS": "rc"}
     )
+    # binding report always on since C4
     assert launcher == MpirunLauncher(
-        ("/opt/ompi/bin/mpirun",), ("--bind-to", "core"), "openmpi5", ("UCX_TLS",)
+        ("/opt/ompi/bin/mpirun",),
+        ("--bind-to", "core"),
+        "openmpi5",
+        ("UCX_TLS",),
+        report_bindings=True,
     )
 
 
@@ -244,7 +249,8 @@ def test_auto_probes_the_command_once(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(dialect, "probe", fake_probe)
     launcher = launcher_for(_spec("auto"))
     assert calls == ["/opt/ompi/bin/mpirun"]
-    assert launcher == MpirunLauncher(("/opt/ompi/bin/mpirun",), (), "hydra")
+    # binding report always on since C4
+    assert launcher == MpirunLauncher(("/opt/ompi/bin/mpirun",), (), "hydra", report_bindings=True)
 
 
 def test_a_probe_error_propagates_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:

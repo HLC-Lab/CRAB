@@ -517,3 +517,17 @@ class TestFailedExperimentsFailTheJob(unittest.TestCase):
                     engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
         self.assertIn("2 of 2 experiments failed: a_first, b_second", str(ctx.exception))
         engine.log.info.assert_any_call("Starting experiment [2/2]: b_second")
+
+
+class TestWorkerWritesProvenanceWithSettings(unittest.TestCase):
+    def test_write_provenance_gets_the_node_list_and_the_settings(self):
+        engine = _make_engine()
+        config = {"global_options": {}, "experiments": {"a": {"apps": {}}}}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("crab.core.engine.write_provenance") as write,
+                patch("crab.core.engine.time.sleep"),
+                patch("crab.core.engine.ExperimentRunner"),
+            ):
+                engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
+        write.assert_called_once_with(tmpdir, config, ["localhost"], LOCAL_DIRECT)

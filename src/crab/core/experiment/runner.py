@@ -79,6 +79,7 @@ class ExperimentRunner:
         wrapper_paths: list[str] = []
         for key in sorted_keys:
             details = app_configs[key]
+            config_key = str(key)  # `key` is reused below
             path = details.get("path")
             if not path:
                 continue
@@ -144,6 +145,7 @@ class ExperimentRunner:
             app_instance.partition_id = manual_partition  # string name or None
             app_instance.start_string = start_val
             app_instance.config_end = details.get("end", "")
+            app_instance.config_key = config_key  # the key crab_run.json uses for this app
 
             self.apps.append(app_instance)
             wrapper_paths.append(path)
@@ -222,6 +224,9 @@ class ExperimentRunner:
                 run_root = os.path.abspath(os.path.join(self.exp_dir, f"run_{runs + 1}"))
                 for app in self.apps:
                     app.run_dir = os.path.join(run_root, f"app_{app.id_num}")
+                    # Where run_job records the launch and the binding report.
+                    app.exp_dir = self.exp_dir
+                    app.run_number = runs + 1
                     os.makedirs(app.run_dir, exist_ok=True)
                     # An app that does not run (or whose output can't be read) in this run
                     # must not be collected again with the previous run's output.

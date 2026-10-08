@@ -43,15 +43,17 @@ def test_srun_three_nodes_with_flags() -> None:
 def test_mpirun_with_flags() -> None:
     spec = _mpirun("--bind-to", "core", "--map-by", "node")
     # Explicit geometry: every host repeated once per slot (Open MPI 4), preset flags last.
+    # binding report always on since C4
     assert _line(spec, ["n1", "n2"], 2, "./app") == (
-        "mpirun -n 4 -H n1,n1,n2,n2 --bind-to core --map-by node ./app"
+        "mpirun -n 4 -H n1,n1,n2,n2 --report-bindings --bind-to core --map-by node ./app"
     )
 
 
 def test_mpirun_command_from_the_spec() -> None:
     spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
     line = _line(spec, ["n1", "n2"], 2, "./app")
-    assert line == "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --bind-to core ./app"
+    # binding report always on since C4
+    assert line == "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --report-bindings --bind-to core ./app"
 
 
 def test_whitespace_collapses_inside_quotes() -> None:
@@ -83,7 +85,10 @@ def test_an_unknown_kind_raises() -> None:
 
 def test_launcher_for_picks_the_launcher_class() -> None:
     assert launcher_for(SRUN) == SrunLauncher(("srun",), ())
-    assert launcher_for(_mpirun("-x")) == MpirunLauncher(("mpirun",), ("-x",), "openmpi4")
+    # binding report always on since C4
+    assert launcher_for(_mpirun("-x")) == MpirunLauncher(
+        ("mpirun",), ("-x",), "openmpi4", report_bindings=True
+    )
     assert isinstance(launcher_for(DIRECT), DirectLauncher)
 
 

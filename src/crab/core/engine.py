@@ -165,7 +165,7 @@ class Engine:
                 except (KeyError, TypeError, ValueError):
                     pass
             self.log.info(f"Allocated {len(full_node_list)} node(s)")
-            write_provenance(output_dir, config, full_node_list)
+            write_provenance(output_dir, config, full_node_list, settings)
 
             global_opts = config.get("global_options", {})
             experiments = config.get("experiments", {})

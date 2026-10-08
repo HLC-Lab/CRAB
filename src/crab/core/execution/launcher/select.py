@@ -32,6 +32,8 @@ def launcher_for(spec: LauncherSpec, environ: Mapping[str, str] = os.environ) ->
     An mpirun launcher exports the spec's names that are set in `environ`, then every other
     `CRAB_*` variable (the supervisor's descriptor never).
 
+    An mpirun launcher always asks for a binding report (`report_bindings=True`).
+
     An mpirun spec with dialect `auto` asks `dialect.probe` (cached per command) which MPI the
     command belongs to; any other dialect is used as given.
 
@@ -45,7 +47,11 @@ def launcher_for(spec: LauncherSpec, environ: Mapping[str, str] = os.environ) ->
         # Called through the module so tests can replace `dialect.probe`.
         found = dialect.probe(spec.command[0]) if spec.dialect == "auto" else spec.dialect
         return MpirunLauncher(
-            spec.command, spec.flags, cast(dialect.Dialect, found), _exported_names(spec, environ)
+            spec.command,
+            spec.flags,
+            cast(dialect.Dialect, found),
+            _exported_names(spec, environ),
+            report_bindings=True,
         )
     if spec.kind == "direct":
         return DirectLauncher()
