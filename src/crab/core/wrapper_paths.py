@@ -44,9 +44,15 @@ def resolve_wrapper_path(path: str) -> str:
 
 
 def load_module(path: str) -> ModuleType:
-    """Import a Python file (a wrapper or a workload manager) by its path."""
+    """Import a Python file (a wrapper or a workload manager) by its path.
+
+    Raises:
+        ImportError: if the file cannot be imported as Python code.
+    """
     name = pathlib.Path(path).stem
     spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot import {path!r} as Python code (a wrapper must be a .py file).")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
