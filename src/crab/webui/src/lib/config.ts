@@ -1,6 +1,6 @@
 // Pure mapping between the editor's draft model and the engine-shaped config
 // JSON ({global_options, experiments}). Kept free of Vue/IO so it can be unit
-// tested (the Phase 3 round-trip check). See .crab-web-dev/07-phase3-authoring.md.
+// tested (tests/unit/config.roundtrip.spec.ts).
 //
 // Value encoding mirrors the hand-written examples: numeric *options* stay
 // strings, collect is boolean. (More fields land in later increments.)
@@ -706,11 +706,9 @@ export function validateDraft(d: Draft): string[] {
     else if (names.has(nm)) issues.push(`Duplicate experiment name "${nm}".`);
     else names.add(nm);
 
-    // Per-experiment overrides. The merged allocation REPLACES the global one, so
-    // the node groups an app may reference are the local ones when overridden.
     issues.push(...validateOptions(e.options, `Experiment "${label}"`));
-    // When overriding, the local allocation REPLACES the global one entirely
-    // (force-emitted, even bare linear ⇒ no groups), so use its groups, not the global's.
+    // An override REPLACES the global allocation entirely (force-emitted, even bare linear ⇒ no
+    // groups), so an app may only reference the local groups.
     let groups = global.groups;
     if (e.overrideAlloc) {
       const local = validateAllocation(e.allocation, `Experiment "${label}"`);
