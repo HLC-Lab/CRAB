@@ -9,6 +9,7 @@ import {
   fromConfig,
   fromSbatch,
   toConfig,
+  toSbatch,
   validateAllocation,
   validateSbatch,
 } from "@/lib/config";
@@ -97,5 +98,15 @@ describe("sbatch warnings follow the engine's directive merge (core/engine.py pr
 
   it("leaves directives the engine passes through alone", () => {
     expect(warn(["--exclusive", "-J myjob", "--time=00:10:00"])).toEqual([]);
+  });
+});
+
+describe("sbatch list form keeps short flags as written (Slurm takes -J name, -o file)", () => {
+  it("does not add dashes to a directive that already has one", () => {
+    expect(toSbatch(fromSbatch(["-J myjob", "--exclusive", "time=00:10:00"]))).toEqual([
+      "-J myjob",
+      "--exclusive",
+      "--time=00:10:00",
+    ]);
   });
 });

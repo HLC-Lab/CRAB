@@ -340,7 +340,7 @@ function parseDirective(line: string): [string, string | true] | null {
 export function toSbatch(s: SbatchDraft): string[] | Record<string, string | boolean> | undefined {
   const lines = s.lines.map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return undefined;
-  if (s.form === "list") return lines.map((l) => (l.startsWith("--") ? l : `--${l}`));
+  if (s.form === "list") return lines.map((l) => (l.startsWith("-") ? l : `--${l}`));
   const dict: Record<string, string | boolean> = {};
   for (const line of lines) {
     const parsed = parseDirective(line);
