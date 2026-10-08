@@ -16,6 +16,7 @@ import pytest
 import crab.setup.memory as mem
 from crab.core.experiment.runner import ExperimentRunner
 from crab.wrappers.base import MissingBinaryError, base
+from settings_fixtures import LOCAL_DIRECT
 
 
 class _App(base):
@@ -86,7 +87,6 @@ def test_the_runner_fails_the_experiment_before_any_run(
     tmp_path: Path, receipts: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("PATH", "/nonexistent")
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     wrapper = tmp_path / "w.py"
     wrapper.write_text(
         "from crab.wrappers.base import base\n\n"
@@ -101,6 +101,7 @@ def test_the_runner_fails_the_experiment_before_any_run(
         node_list=["localhost"],
         output_dir=str(tmp_path / "out"),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
     with pytest.raises(MissingBinaryError, match="not_installed_anywhere"):
         runner.setup()
@@ -109,7 +110,6 @@ def test_the_runner_fails_the_experiment_before_any_run(
 def test_a_wrapper_with_its_own_run_app_is_not_checked(
     tmp_path: Path, receipts: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     wrapper = tmp_path / "w.py"
     wrapper.write_text(
         "from crab.wrappers.base import base\n\n"
@@ -124,6 +124,7 @@ def test_a_wrapper_with_its_own_run_app_is_not_checked(
         node_list=["localhost"],
         output_dir=str(tmp_path / "out"),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
     runner.setup()
     assert runner.apps[0].run_app() == "echo 1"

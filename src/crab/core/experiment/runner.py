@@ -8,7 +8,12 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
-from crab.core.execution.launcher import launch_mode
+from crab.core.execution.settings import (
+    SLURM_DEFAULT,
+    ExecutionSettings,
+    LauncherSpec,
+    resolve_launcher,
+)
 from crab.core.wrapper_paths import load_module, resolve_wrapper_path
 from crab.log import CrabLogger
 from crab.wrappers.base import base
@@ -34,12 +39,15 @@ class ExperimentRunner:
         node_list: list[str],
         output_dir: str,
         logger: CrabLogger,
+        settings: ExecutionSettings | None = None,
     ):
         self.name = exp_name
         self.config = config
         self.global_opts = global_options
         self.node_list = node_list
         self.log = logger.enter(exp_name)
+        # A worker with no preset launches through Slurm's srun.
+        self.settings = settings if settings is not None else SLURM_DEFAULT
 
         # Paths
         self.exp_dir = os.path.join(output_dir, self.name)
@@ -52,7 +60,7 @@ class ExperimentRunner:
 
         # State
         self.apps = []
-        self.launch_mode: str | None = None
+        self.launchers: list[LauncherSpec] = []
         self.data_containers = []
         # Force PPN to strictly obey the physical global allocation
         self.ppn = int(self.global_opts.get("ppn", 1))
@@ -66,12 +74,9 @@ class ExperimentRunner:
         app_configs = self.config.get("apps", {})
         sorted_keys = sorted(app_configs.keys(), key=lambda x: int(x) if x.isdigit() else x)
 
-        # Helper to load modules
-        # Launch mode (raises ValueError on an unknown CRAB_WL_MANAGER)
-        self.launch_mode = launch_mode(os.environ)
-
         # App Instantiation
         idx_counter = 0
+        wrapper_paths: list[str] = []
         for key in sorted_keys:
             details = app_configs[key]
             path = details.get("path")
@@ -141,7 +146,19 @@ class ExperimentRunner:
             app_instance.config_end = details.get("end", "")
 
             self.apps.append(app_instance)
+            wrapper_paths.append(path)
             idx_counter += 1
+
+        # Resolve each app's launcher now, so a bad override or option fails before any run
+        launchers: list[LauncherSpec] = []
+        for app, wrapper_path in zip(self.apps, wrapper_paths, strict=True):
+            try:
+                launchers.append(
+                    resolve_launcher(self.settings, self.exp_opts, app.get_launcher_override())
+                )
+            except ValueError as error:
+                raise ValueError(f"app {app.id_num} ({wrapper_path}): {error}") from error
+        self.launchers = launchers
 
         # 2. Allocate Nodes
         allocation = self.exp_opts.get("allocation", {})
@@ -215,7 +232,7 @@ class ExperimentRunner:
 
                 outcome = run_events(
                     self.apps,
-                    self.launch_mode,
+                    self.launchers,
                     self.ppn,
                     schedule,
                     run_log,

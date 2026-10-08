@@ -10,7 +10,6 @@ Some pinned outputs look odd (marked "as it is today"); they are recorded, not e
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -23,14 +22,10 @@ from crab.cli import contract
 from crab.core import engine as engine_module
 from crab.core.engine import Engine
 from crab.core.execution.launcher import Placement, launch_line, launcher_for
+from crab.core.execution.settings import LauncherSpec
 from crab.core.process import manager as process_manager
 
-_LAUNCH_ENV_VARS = (
-    "CRAB_MPIRUN",
-    "CRAB_MPIRUN_ADDITIONAL_FLAGS",
-    "CRAB_MPIRUN_MAP_BY_NODE_FLAG",
-    "CRAB_PINNING_FLAGS",
-)
+SRUN = LauncherSpec("srun", ("srun",), "", (), ())
 
 _FIXED_PYTHON = "/opt/venv/bin/python"
 _FIXED_CRAB = "/opt/crab/bin/crab"
@@ -340,53 +335,50 @@ def test_interrupt_after_job_id_runs_scancel(tmp_path, crab_root, sbatch, monkey
 # --------------------------------------------------------------------------- #
 # srun / mpirun launch strings
 # --------------------------------------------------------------------------- #
-@pytest.fixture
-def launch_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
-    for name in _LAUNCH_ENV_VARS:
-        monkeypatch.delenv(name, raising=False)
-    return monkeypatch
+def _srun(*flags: str) -> LauncherSpec:
+    return LauncherSpec("srun", ("srun",), "", flags, ())
 
 
-def _slurm_line(nodes: list[str], ppn: int, cmd: str, launcher: str | None = None) -> str:
-    return launch_line(
-        launcher_for("slurm", launcher, os.environ), Placement(tuple(nodes), ppn), cmd
-    )
+def _mpirun(*flags: str, command: str = "mpirun") -> LauncherSpec:
+    return LauncherSpec("mpirun", (command,), "auto", flags, ())
 
 
-def test_srun_default_one_node(launch_env):
+def _slurm_line(nodes: list[str], ppn: int, cmd: str, spec: LauncherSpec = SRUN) -> str:
+    return launch_line(launcher_for(spec), Placement(tuple(nodes), ppn), cmd)
+
+
+def test_srun_default_one_node():
     line = _slurm_line(["n1"], 1, "./app")
     assert line == "srun --export=ALL --nodelist n1 -n 1 -N 1 ./app"
 
 
-def test_srun_three_nodes_with_pinning_flags(launch_env):
-    launch_env.setenv("CRAB_PINNING_FLAGS", "--cpu-bind=cores")
-    line = _slurm_line(["n1", "n2", "n3"], 4, "./app -x 1")
+def test_srun_three_nodes_with_pinning_flags():
+    line = _slurm_line(["n1", "n2", "n3"], 4, "./app -x 1", _srun("--cpu-bind=cores"))
     assert line == "srun --export=ALL --nodelist n1,n2,n3 --cpu-bind=cores -n 12 -N 3 ./app -x 1"
 
 
-def test_srun_launcher_argument_with_options(launch_env):
-    line = _slurm_line(["n1"], 1, "./app", launcher="srun --mpi=pmix")
-    assert line == "srun --mpi=pmix --export=ALL --nodelist n1 -n 1 -N 1 ./app"
+def test_srun_with_options_in_the_flags():
+    # A receipt override is a kind now (ADR-033), so options such as --mpi live in the preset's
+    # srun flags; they used to be written into the launcher string and came before --export.
+    line = _slurm_line(["n1"], 1, "./app", _srun("--mpi=pmix"))
+    assert line == "srun --export=ALL --nodelist n1 --mpi=pmix -n 1 -N 1 ./app"
 
 
-def test_mpirun_from_env_with_flags(launch_env):
-    launch_env.setenv("CRAB_MPIRUN", "mpirun")
-    launch_env.setenv("CRAB_MPIRUN_ADDITIONAL_FLAGS", "--bind-to core")
-    launch_env.setenv("CRAB_MPIRUN_MAP_BY_NODE_FLAG", "--map-by node")
-    launch_env.setenv("CRAB_PINNING_FLAGS", "--cpu-bind=cores")
-    line = _slurm_line(["n1", "n2"], 4, "./app")
-    # The node list and the pinning flags are not used by mpirun.
+def test_mpirun_with_flags():
+    spec = _mpirun("--bind-to", "core", "--map-by", "node")
+    line = _slurm_line(["n1", "n2"], 4, "./app", spec)
+    # The node list is not used by mpirun.
     assert line == "mpirun --bind-to core --map-by node -np 8 ./app"
 
 
-def test_mpirun_launcher_argument_overrides_env(launch_env):
-    launch_env.setenv("CRAB_MPIRUN", "srun")
-    launch_env.setenv("CRAB_MPIRUN_ADDITIONAL_FLAGS", "--bind-to core")
-    line = _slurm_line(["n1", "n2"], 2, "./app", launcher="/opt/ompi/bin/mpirun")
+def test_mpirun_with_its_own_command():
+    # The command comes from the preset's mpirun launcher now (it was the receipt's override).
+    spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
+    line = _slurm_line(["n1", "n2"], 2, "./app", spec)
     assert line == "/opt/ompi/bin/mpirun --bind-to core -np 4 ./app"
 
 
-def test_launch_string_collapses_whitespace_inside_quotes(launch_env):
+def test_launch_string_collapses_whitespace_inside_quotes():
     cmd = """./app --msg "hello   world"  'a    b'"""
     line = _slurm_line(["n1"], 1, cmd)
     # As it is today: runs of spaces inside quoted arguments are collapsed too.
@@ -429,22 +421,21 @@ def fake_popen(monkeypatch: pytest.MonkeyPatch) -> type[_FakePopen]:
 
 def _script_through_run_job(
     tmp_path: Path,
-    launch_mode_arg: Any,
+    spec: LauncherSpec,
     nodes: list[str],
     ppn: int,
     cmd: str,
     **kwargs: Any,
 ) -> str:
     job = _WiringJob(tmp_path, cmd, nodes)
-    process_manager.run_job(job, launch_mode_arg, ppn, MagicMock(), **kwargs)
+    process_manager.run_job(job, spec, ppn, MagicMock(), **kwargs)
     return (tmp_path / ".wrappers" / "app_0.sh").read_text()
 
 
-def test_run_job_writes_the_srun_script_through_the_launcher(launch_env, fake_popen, tmp_path):
-    launch_env.setenv("CRAB_PINNING_FLAGS", "--cpu-bind=cores")
+def test_run_job_writes_the_srun_script_through_the_launcher(fake_popen, tmp_path):
     script = _script_through_run_job(
         tmp_path,
-        "slurm",
+        _srun("--cpu-bind=cores"),
         ["n1", "n2"],
         2,
         "./app -x 1",
@@ -466,30 +457,25 @@ def test_run_job_writes_the_srun_script_through_the_launcher(launch_env, fake_po
     ]
 
 
-def test_run_job_uses_the_launcher_override_and_mpirun_flags(launch_env, fake_popen, tmp_path):
-    launch_env.setenv("CRAB_MPIRUN_ADDITIONAL_FLAGS", "--bind-to core")
-    script = _script_through_run_job(
-        tmp_path,
-        "slurm",
-        ["n1", "n2"],
-        2,
-        "./app -x 1",
-        launcher="/opt/ompi/bin/mpirun",
-    )
+def test_run_job_writes_the_mpirun_line_from_the_spec(fake_popen, tmp_path):
+    spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
+    script = _script_through_run_job(tmp_path, spec, ["n1", "n2"], 2, "./app -x 1")
     assert script.splitlines()[-1] == "/opt/ompi/bin/mpirun --bind-to core -np 4 ./app -x 1"
 
 
-def test_run_job_local_mode_writes_the_command_as_given(launch_env, fake_popen, tmp_path):
+def test_run_job_direct_writes_the_command_as_given(fake_popen, tmp_path):
     cmd = '  ./app --msg "a   b"  '
-    script = _script_through_run_job(tmp_path, "local", ["n1"], 1, cmd)
+    script = _script_through_run_job(
+        tmp_path, LauncherSpec("direct", (), "", (), ()), ["n1"], 1, cmd
+    )
     assert script.splitlines()[-1] == cmd
 
 
-def test_run_job_in_an_unported_mode_raises_before_starting_anything(
-    launch_env, fake_popen, tmp_path
-):
-    with pytest.raises(NotImplementedError, match="has not been ported"):
-        _script_through_run_job(tmp_path, "mpi", ["n1"], 1, "./app")
+def test_run_job_with_an_unknown_kind_raises_before_starting_anything(fake_popen, tmp_path):
+    with pytest.raises(ValueError, match="'workerpool'"):
+        _script_through_run_job(
+            tmp_path, LauncherSpec("workerpool", (), "", (), ()), ["n1"], 1, "./app"
+        )
     assert fake_popen.instances == []
 
 

@@ -217,6 +217,10 @@ def from_preset(
     )
 
 
+SLURM_DEFAULT: ExecutionSettings = from_preset({"scheduler": "slurm"}, "default")
+"""The settings of a worker that has no preset: Slurm, srun, no flags."""
+
+
 def _host_text(host: Host) -> str:
     return host.name if host.cores is None else f"{host.name}:{host.cores}"
 

@@ -7,7 +7,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from crab.core.execution.settings import LauncherSpec
 from crab.core.process.manager import run_job
+from settings_fixtures import LOCAL_DIRECT
+
+DIRECT = LauncherSpec("direct", (), "", (), ())
 
 
 class _Job:
@@ -29,7 +33,7 @@ def test_the_app_process_starts_in_its_run_dir(tmp_path: Path) -> None:
     run_dir.mkdir(parents=True)
     job = _Job(run_dir, "pwd > where.txt")
 
-    run_job(job, "local", 1, MagicMock())
+    run_job(job, DIRECT, 1, MagicMock())
     job.process.wait(timeout=10)
 
     assert (run_dir / "where.txt").read_text().strip() == str(run_dir)
@@ -49,10 +53,9 @@ def _writer(path: Path, value: int) -> None:
     )
 
 
-def test_co_running_apps_writing_the_same_file_do_not_collide(tmp_path: Path, monkeypatch) -> None:
+def test_co_running_apps_writing_the_same_file_do_not_collide(tmp_path: Path) -> None:
     from crab.core.experiment.runner import ExperimentRunner
 
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     _writer(tmp_path / "w1.py", 1)
     _writer(tmp_path / "w2.py", 2)
     runner = ExperimentRunner(
@@ -68,6 +71,7 @@ def test_co_running_apps_writing_the_same_file_do_not_collide(tmp_path: Path, mo
         node_list=["n1", "n2"],  # the local launcher ignores node names
         output_dir=str(tmp_path / "out"),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
     runner.setup()
     runner.execute(str(tmp_path / "out"))

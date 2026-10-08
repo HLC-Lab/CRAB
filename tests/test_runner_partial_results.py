@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from crab.core.experiment.runner import ExperimentRunner
+from settings_fixtures import LOCAL_DIRECT
 
 
 def _wrapper_failing_at_launch(path: Path, counter: Path, failing_run: int) -> None:
@@ -34,7 +35,6 @@ def _wrapper_failing_at_launch(path: Path, counter: Path, failing_run: int) -> N
 
 
 def _runner(tmp_path: Path, monkeypatch, wrapper: Path) -> ExperimentRunner:
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     output_dir = tmp_path / "system" / "job"
     runner = ExperimentRunner(
         exp_name="exp",
@@ -46,6 +46,7 @@ def _runner(tmp_path: Path, monkeypatch, wrapper: Path) -> ExperimentRunner:
         node_list=["n0"],
         output_dir=str(output_dir),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
     runner.setup()
     return runner

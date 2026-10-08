@@ -18,6 +18,7 @@ import pytest
 import crab.setup.memory as mem
 from crab.core.experiment.runner import ExperimentRunner
 from crab.wrappers.base import MissingBinaryError
+from settings_fixtures import LOCAL_DIRECT
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -31,7 +32,6 @@ def no_receipts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, app: dict) -> ExperimentRunner:
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     return ExperimentRunner(
         exp_name="exp",
         config={"apps": {"0": app}, "local_options": {"minruns": "1", "maxruns": "1"}},
@@ -39,6 +39,7 @@ def _runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, app: dict) -> Exper
         node_list=["n0"],
         output_dir=str(tmp_path / "system" / "job"),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
 
 

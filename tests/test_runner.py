@@ -2,13 +2,14 @@
 Local-only tests for ExperimentRunner critical issues (runner.py).
 """
 
-import os
-import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 from crab.core.data.containers import DataContainer
 from crab.core.data.parse import collect_run
+from settings_fixtures import LOCAL_DIRECT, slurm_settings
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -125,114 +126,79 @@ class TestCIdxAlignment(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Issue: CRAB_WL_MANAGER without allowlist — arbitrary .py file execution
+# The launcher of each app is resolved at setup, from the settings
 # ---------------------------------------------------------------------------
 
+_WRAPPER = (
+    "from crab.wrappers.base import base\n\n"
+    "class app(base):\n"
+    "    metadata = [{'name': 'v', 'unit': 'x', 'conv': True}]\n\n"
+    "    def run_app(self):\n"
+    "        return 'echo 1'\n"
+)
+_MPIRUN_WRAPPER = _WRAPPER + "\n    def get_launcher_override(self):\n        return 'mpirun'\n"
+_BAD_OVERRIDE_WRAPPER = (
+    _WRAPPER + "\n    def get_launcher_override(self):\n        return '/opt/x/mpirun'\n"
+)
 
-class TestWLMAllowlist(unittest.TestCase):
-    def _make_logger(self):
-        log = MagicMock()
-        log.enter.return_value = log
-        log.info = MagicMock()
-        log.warning = MagicMock()
-        log.error = MagicMock()
-        return log
 
-    def test_traversal_path_raises_value_error(self):
-        """CRAB_WL_MANAGER=../../evil must raise ValueError before touching the filesystem."""
-        from crab.core.experiment.runner import ExperimentRunner
+def _runner(tmp_path, wrappers, settings, local_options=None):
+    """A runner whose app i is the wrapper source wrappers[i]."""
+    from crab.core.experiment.runner import ExperimentRunner
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            runner = ExperimentRunner.__new__(ExperimentRunner)
-            runner.name = "test"
-            runner.config = {"apps": {}}
-            runner.global_opts = {}
-            runner.exp_opts = {}
-            runner.node_list = []
-            runner.exp_dir = tmpdir
-            runner.log = self._make_logger()
-            runner.ppn = 1
-            runner.apps = []
-            runner.data_containers = []
+    apps = {}
+    for i, source in enumerate(wrappers):
+        path = tmp_path / f"w{i}.py"
+        path.write_text(source)
+        apps[str(i)] = {"path": str(path), "collect": False}
+    return ExperimentRunner(
+        exp_name="exp",
+        config={"apps": apps, "local_options": local_options or {}},
+        global_options={"numnodes": "1"},
+        node_list=["n0"],
+        output_dir=str(tmp_path / "out"),
+        logger=MagicMock(),
+        settings=settings,
+    )
 
-            with patch.dict(os.environ, {"CRAB_WL_MANAGER": "../../evil"}):
-                with self.assertRaises(ValueError) as ctx:
-                    runner.setup()
 
-        self.assertIn("CRAB_WL_MANAGER", str(ctx.exception))
+def test_setup_gives_every_app_the_presets_launcher(tmp_path):
+    runner = _runner(tmp_path, [_WRAPPER, _WRAPPER], LOCAL_DIRECT)
+    runner.setup()
+    assert [spec.kind for spec in runner.launchers] == ["direct", "direct"]
 
-    def test_unknown_known_wlm_name_raises_value_error(self):
-        """An unknown but non-traversal name must also be rejected."""
-        from crab.core.experiment.runner import ExperimentRunner
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            runner = ExperimentRunner.__new__(ExperimentRunner)
-            runner.name = "test"
-            runner.config = {"apps": {}}
-            runner.global_opts = {}
-            runner.exp_opts = {}
-            runner.node_list = []
-            runner.exp_dir = tmpdir
-            runner.log = self._make_logger()
-            runner.ppn = 1
-            runner.apps = []
-            runner.data_containers = []
+def test_setup_without_settings_falls_back_to_slurm_srun(tmp_path):
+    runner = _runner(tmp_path, [_WRAPPER], None)
+    runner.setup()
+    assert [spec.kind for spec in runner.launchers] == ["srun"]
 
-            with patch.dict(os.environ, {"CRAB_WL_MANAGER": "notreal"}):
-                with self.assertRaises(ValueError):
-                    runner.setup()
 
-    def test_valid_wlm_slurm_does_not_raise(self):
-        """CRAB_WL_MANAGER=slurm (the default) must load without ValueError."""
-        from crab.core.experiment.runner import ExperimentRunner
+def test_setup_uses_mpirun_for_an_app_whose_receipt_says_mpirun(tmp_path):
+    runner = _runner(tmp_path, [_WRAPPER, _MPIRUN_WRAPPER], slurm_settings())
+    runner.setup()
+    assert [spec.kind for spec in runner.launchers] == ["srun", "mpirun"]
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            runner = ExperimentRunner.__new__(ExperimentRunner)
-            runner.name = "test"
-            runner.config = {"apps": {}}
-            runner.global_opts = {}
-            runner.exp_opts = {}
-            runner.node_list = []
-            runner.exp_dir = tmpdir
-            runner.log = self._make_logger()
-            runner.ppn = 1
-            runner.apps = []
-            runner.data_containers = []
 
-            with patch.dict(os.environ, {"CRAB_WL_MANAGER": "slurm"}):
-                try:
-                    runner.setup()
-                except ValueError as e:
-                    if "CRAB_WL_MANAGER" in str(e):
-                        self.fail(f"Valid WLM 'slurm' was incorrectly rejected: {e}")
-                except Exception:
-                    pass  # other errors (missing apps, etc.) are expected in this minimal setup
+def test_setup_refuses_a_receipt_override_that_is_not_a_kind(tmp_path):
+    runner = _runner(tmp_path, [_WRAPPER, _BAD_OVERRIDE_WRAPPER], slurm_settings())
+    with pytest.raises(ValueError, match="launcher_override") as info:
+        runner.setup()
+    # The message names the app (id and wrapper path) whose receipt is bad.
+    assert f"app 1 ({tmp_path / 'w1.py'}): " in str(info.value)
+    assert runner.launchers == []
 
-    def test_valid_wlm_local_does_not_raise(self):
-        """CRAB_WL_MANAGER=local (no-Slurm testing path) must load without ValueError."""
-        from crab.core.experiment.runner import ExperimentRunner
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            runner = ExperimentRunner.__new__(ExperimentRunner)
-            runner.name = "test"
-            runner.config = {"apps": {}}
-            runner.global_opts = {}
-            runner.exp_opts = {}
-            runner.node_list = []
-            runner.exp_dir = tmpdir
-            runner.log = self._make_logger()
-            runner.ppn = 1
-            runner.apps = []
-            runner.data_containers = []
-
-            with patch.dict(os.environ, {"CRAB_WL_MANAGER": "local"}):
-                try:
-                    runner.setup()
-                except ValueError as e:
-                    if "CRAB_WL_MANAGER" in str(e):
-                        self.fail(f"Valid WLM 'local' was incorrectly rejected: {e}")
-                except Exception:
-                    pass  # other errors (missing apps, etc.) are expected in this minimal setup
+def test_setup_applies_the_launcher_flags_option_to_srun(tmp_path):
+    runner = _runner(
+        tmp_path,
+        [_WRAPPER],
+        slurm_settings(launchers={"srun": {"flags": ["--from-preset"]}}),
+        local_options={"launcher_flags": ["--cpu-bind=cores"]},
+    )
+    runner.setup()
+    assert runner.launchers[0].kind == "srun"
+    assert runner.launchers[0].flags == ("--cpu-bind=cores",)
 
 
 if __name__ == "__main__":

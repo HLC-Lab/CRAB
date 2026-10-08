@@ -7,10 +7,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from crab.core.experiment.runner import ExperimentRunner
+from settings_fixtures import LOCAL_DIRECT
 
 
 def test_setup_gives_chained_apps_their_heads_nodes(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     wrapper = tmp_path / "echo.py"
     wrapper.write_text(
         "from crab.wrappers.base import base\n\n"
@@ -33,6 +33,7 @@ def test_setup_gives_chained_apps_their_heads_nodes(tmp_path: Path, monkeypatch)
         node_list=["n0", "n1", "n2", "n3"],
         output_dir=str(tmp_path / "system" / "job"),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
     runner.setup()
 

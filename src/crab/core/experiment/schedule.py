@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from crab.core.execution.settings import LauncherSpec
+
 from ..process import end_job, run_job
 from .failures import write_error_log
 
@@ -54,7 +56,7 @@ def build_schedule(apps: list[Any]) -> Schedule:
 
 def run_events(
     apps: list[Any],
-    launch_mode: str,
+    launchers: list[LauncherSpec],
     ppn: int,
     schedule: Schedule,
     run_log: Any,
@@ -91,19 +93,16 @@ def run_events(
                     app_log = run_log.enter(f"App {aid}")
                     concurrent = len(static_schedule) > 1 or len(dependency_map) > 0
 
-                    # --- Merge Hooks and Override Launcher ---
                     merged_pre_commands = apps[aid].get_pre_commands()
-                    launcher_override = apps[aid].get_launcher_override()
 
                     run_job(
                         apps[aid],
-                        launch_mode,
+                        launchers[aid],
                         ppn,
                         logger=app_log,
                         pre_commands=merged_pre_commands,
                         live_stream=concurrent,
                         data_path=data_path,
-                        launcher=launcher_override,
                     )
 
                     running.add(aid)
@@ -174,19 +173,16 @@ def run_events(
             if target in finished:
                 dep_log = run_log.enter(f"App {waiter}")
 
-                # --- Merge Hooks and Override Launcher ---
                 merged_pre_commands = apps[waiter].get_pre_commands()
-                launcher_override = apps[waiter].get_launcher_override()
 
                 run_job(
                     apps[waiter],
-                    launch_mode,
+                    launchers[waiter],
                     ppn,
                     logger=dep_log,
                     pre_commands=merged_pre_commands,
                     live_stream=True,
                     data_path=data_path,
-                    launcher=launcher_override,
                 )
 
                 running.add(waiter)

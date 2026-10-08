@@ -10,6 +10,7 @@ import pytest
 from crab.core.execution.hosts import Host
 from crab.core.execution.settings import (
     DROPPED_KEYS,
+    SLURM_DEFAULT,
     ExecutionSettings,
     LauncherSpec,
     check_dropped_keys,
@@ -363,3 +364,10 @@ def test_srun_under_local_is_refused() -> None:
         resolve_launcher(LOCAL, {"launcher": "srun"}, None)
     with pytest.raises(ValueError, match="srun.*local"):
         resolve_launcher(LOCAL, {}, "srun")
+
+
+def test_slurm_default_is_slurm_with_srun_and_no_flags() -> None:
+    assert SLURM_DEFAULT.scheduler == "slurm"
+    assert SLURM_DEFAULT.launcher == "srun"
+    assert SLURM_DEFAULT.srun.flags == ()
+    assert resolve_launcher(SLURM_DEFAULT, {}, None).kind == "srun"

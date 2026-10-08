@@ -1,4 +1,4 @@
-"""The mpirun launcher, driven by environment variables."""
+"""The mpirun launcher."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from crab.core.execution.launcher.base import Placement
 
 
 @dataclass(frozen=True)
-class EnvMpirunLauncher:
+class MpirunLauncher:
     """`<command> <flags> -np <ranks>`.
 
     Inside a Slurm allocation mpirun finds the nodes itself, so the host list is not passed.
