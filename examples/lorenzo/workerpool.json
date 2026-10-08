@@ -1,4 +1,5 @@
 {
+    "schema_version": 2,
     "global_options": {
         "numnodes": "16",
         "ppn": "4",

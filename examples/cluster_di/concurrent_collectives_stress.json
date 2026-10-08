@@ -1,4 +1,5 @@
 {
+    "schema_version": 2,
     "global_options": {
         "name": "concurrent_collectives_stress",
         "numnodes": "4",
