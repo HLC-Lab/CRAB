@@ -4,7 +4,14 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { fromAllocation, fromConfig, toConfig, validateAllocation } from "@/lib/config";
+import {
+  fromAllocation,
+  fromConfig,
+  fromSbatch,
+  toConfig,
+  validateAllocation,
+  validateSbatch,
+} from "@/lib/config";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- engine JSON is untyped here
 type AnyObj = Record<string, any>;
@@ -68,5 +75,27 @@ describe("placeholder tokens pass validation where they are saved (toAllocation 
   it("still rejects text that is neither a number nor a token", () => {
     const a = fromAllocation({ mode: "linear", partitions: { v: { share: "half" } } });
     expect(validateAllocation(a).issues).toEqual(['node group "v": share must be a number.']);
+  });
+});
+
+describe("sbatch warnings follow the engine's directive merge (core/engine.py protected_defaults)", () => {
+  const warn = (lines: string[]) => validateSbatch(fromSbatch(lines));
+
+  it("warns that -n is ignored, like --nodes and -N", () => {
+    expect(warn(["-n 4"])).toEqual([
+      'Slurm directive "-n" is computed by CRAB from nodes/ppn and will be ignored.',
+    ]);
+    expect(warn(["--nodes=2", "-N 2"])).toHaveLength(2);
+  });
+
+  it("warns on the short log flags -o and -e like --output and --error", () => {
+    expect(warn(["-o out.log", "-e err.log"])).toEqual([
+      'Slurm directive "-o" overrides CRAB\'s log redirection (allowed, but be aware).',
+      'Slurm directive "-e" overrides CRAB\'s log redirection (allowed, but be aware).',
+    ]);
+  });
+
+  it("leaves directives the engine passes through alone", () => {
+    expect(warn(["--exclusive", "-J myjob", "--time=00:10:00"])).toEqual([]);
   });
 });

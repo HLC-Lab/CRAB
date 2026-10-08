@@ -657,21 +657,28 @@ export function validateAllocation(
 }
 
 // CRAB computes these from numnodes/ppn and ignores user attempts to set them.
-const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "ntasks"]);
+const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "n", "ntasks"]);
+const LOG_SBATCH = new Set(["output", "error", "o", "e"]);
+
+/** A directive's key as the engine's merge reads it: leading dashes off, up to "=" or a space. */
+function engineDirectiveKey(line: string): string {
+  const clean = line.trim().replace(/^-+/, "");
+  return clean.includes("=") ? clean.split("=")[0] : clean.split(/\s+/)[0];
+}
 
 export function validateSbatch(s: SbatchDraft): string[] {
   const issues: string[] = [];
   for (const line of s.lines.map((l) => l.trim()).filter(Boolean)) {
-    const parsed = parseDirective(line);
-    if (!parsed) continue;
-    const key = parsed[0];
+    const key = engineDirectiveKey(line);
+    if (!key) continue;
+    const flag = `${key.length === 1 ? "-" : "--"}${key}`;
     if (PROTECTED_SBATCH.has(key))
       issues.push(
-        `Slurm directive "--${key}" is computed by CRAB from nodes/ppn and will be ignored.`,
+        `Slurm directive "${flag}" is computed by CRAB from nodes/ppn and will be ignored.`,
       );
-    else if (key === "output" || key === "error")
+    else if (LOG_SBATCH.has(key))
       issues.push(
-        `Slurm directive "--${key}" overrides CRAB's log redirection (allowed, but be aware).`,
+        `Slurm directive "${flag}" overrides CRAB's log redirection (allowed, but be aware).`,
       );
   }
   return issues;
