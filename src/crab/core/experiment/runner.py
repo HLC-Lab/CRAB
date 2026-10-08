@@ -1,5 +1,3 @@
-import csv
-import fcntl
 import os
 import re
 import shutil
@@ -16,8 +14,9 @@ from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import check_CI
-from ..process import end_job, run_job
 from .artifacts import copy_artifacts
+from .registry import write_registry_row
+from .schedule import build_schedule, kill_f_apps, run_events
 
 
 class ExperimentRunner:
@@ -192,26 +191,7 @@ class ExperimentRunner:
 
         # Recupera l'header dalle opzioni globali (dove l'Orchestrator lo ha messo)
         # Default a lista vuota se non esiste. Header is strictly global.
-        # Schedule Logic Preparation
-        dependency_map = {}
-        static_schedule = []
-        rel_durations = {}
-
-        # Build Schedule
-        for i, app in enumerate(self.apps):
-            # Start
-            if app.start_string.startswith("s"):
-                dependency_map[i] = int(app.start_string[1:])
-            else:
-                static_schedule.append((i, "s", float(app.start_string)))
-
-            # End
-            if app.config_end and app.config_end != "f":
-                val = float(app.config_end)
-                if app.start_string.startswith("s"):
-                    rel_durations[i] = val
-                else:
-                    static_schedule.append((i, "k", val))
+        schedule = build_schedule(self.apps)
 
         runs = 0
         failed_runs = 0
@@ -232,8 +212,6 @@ class ExperimentRunner:
 
                 run_start = time.time()
 
-                run_successful = True
-
                 # Each app gets its own absolute working directory for this run, so files it
                 # writes relative to its cwd never collide with a co-running app's.
                 run_root = os.path.abspath(os.path.join(self.exp_dir, f"run_{runs + 1}"))
@@ -247,176 +225,23 @@ class ExperimentRunner:
                     app.stderr = None
                     app.raw_stdout_buffer = []
 
-                # Reset ephemeral schedule for this run
-                curr_schedule = sorted(static_schedule, key=lambda x: x[2])
-                curr_deps = dependency_map.copy()
-                running = set()
-                finished = set()
+                outcome = run_events(
+                    self.apps,
+                    self.wlmanager,
+                    self.ppn,
+                    schedule,
+                    run_log,
+                    data_path,
+                    self.exp_dir,
+                    timeout,
+                    global_start,
+                    run_start,
+                    experiment_status,
+                )
+                run_successful = outcome.run_successful
+                experiment_status = outcome.experiment_status
 
-                f_app_ids = {i for i, app in enumerate(self.apps) if str(app.config_end) == "f"}
-
-                # Inner Event Loop
-                while True:
-                    now = time.time() - run_start
-
-                    # 1. Time-based events
-                    while curr_schedule and curr_schedule[0][2] <= now:
-                        aid, action, _ = curr_schedule.pop(0)
-                        if action == "s":
-                            if aid not in running:
-                                app_log = run_log.enter(f"App {aid}")
-                                concurrent = len(static_schedule) > 1 or len(dependency_map) > 0
-
-                                # --- Merge Hooks and Override Launcher ---
-                                merged_pre_commands = self.apps[aid].get_pre_commands()
-                                launcher_override = self.apps[aid].get_launcher_override()
-
-                                run_job(
-                                    self.apps[aid],
-                                    self.wlmanager,
-                                    self.ppn,
-                                    logger=app_log,
-                                    pre_commands=merged_pre_commands,
-                                    live_stream=concurrent,
-                                    data_path=data_path,
-                                    launcher=launcher_override,
-                                )
-
-                                running.add(aid)
-                        elif action == "k":
-                            if aid in running:
-                                end_job(self.apps[aid], run_log)
-                                running.remove(aid)
-                                finished.add(aid)
-                    # 2. Check process status
-                    for aid in list(running):
-                        proc = self.apps[aid].process
-                        if proc.poll() is not None:
-                            app_log = run_log.enter(f"App {aid}")
-                            try:
-                                # Ensure silent thread is finished reading
-                                if (
-                                    hasattr(self.apps[aid], "_stream_thread")
-                                    and self.apps[aid]._stream_thread
-                                ):
-                                    self.apps[aid]._stream_thread.join(timeout=2.0)
-
-                                # stdout is already consumed by the thread, so communicate() only gets stderr
-                                _, err = proc.communicate()
-
-                                # Reconstruct stdout from the buffer
-                                out = b"".join(getattr(self.apps[aid], "raw_stdout_buffer", []))
-
-                                self.apps[aid].set_output(out, err)
-
-                                exit_code = proc.returncode
-                                if exit_code != 0:
-                                    app_log.error(f"FAILED  exit={exit_code}")
-                                    run_successful = False
-
-                                    if experiment_status != "TIMEOUT":
-                                        experiment_status = "FAILED"
-
-                                    # Extract both streams
-                                    stdout_text = (
-                                        out.decode("utf-8", errors="replace")
-                                        if isinstance(out, bytes)
-                                        else out
-                                    )
-                                    stderr_text = (
-                                        err.decode("utf-8", errors="replace")
-                                        if isinstance(err, bytes)
-                                        else err
-                                    )
-
-                                    # Forward BOTH streams to the console if they exist
-                                    if stdout_text.strip():
-                                        app_log.app_output("STDOUT Dump:", stdout_text)
-                                    if stderr_text and stderr_text.strip():
-                                        app_log.app_output("STDERR Dump:", stderr_text)
-
-                                    # Write detailed error log to experiment dir, including both streams
-                                    try:
-                                        err_path = os.path.join(
-                                            self.exp_dir, f"error_app_{aid}.log"
-                                        )
-                                        with open(err_path, "w") as f:
-                                            f.write(f"App {aid} exit={exit_code}\n")
-                                            if stdout_text.strip():
-                                                f.write(f"\n--- STDOUT ---\n{stdout_text}\n")
-                                            if stderr_text and stderr_text.strip():
-                                                f.write(f"\n--- STDERR ---\n{stderr_text}\n")
-                                    except Exception:
-                                        app_log.warning("Could not write error log file")
-                                else:
-                                    app_log.info("FINISHED  exit=0")
-                                    # REMOVED: The logic that forwarded 'out' to app_log.app_output
-                                    # Data is now silently waiting in self.apps[aid].stdout for the CSV parser.
-
-                            except Exception as e:
-                                app_log.error(f"Failed reading output: {e}")
-                                run_successful = False
-                                if experiment_status != "TIMEOUT":
-                                    experiment_status = "FAILED"
-                                self.apps[aid].process = None  # nothing readable to collect
-
-                            running.remove(aid)
-                            finished.add(aid)
-
-                    # 3. Check Dependencies
-                    started_deps = []
-                    for waiter, target in curr_deps.items():
-                        if target in finished:
-                            dep_log = run_log.enter(f"App {waiter}")
-
-                            # --- Merge Hooks and Override Launcher ---
-                            merged_pre_commands = self.apps[waiter].get_pre_commands()
-                            launcher_override = self.apps[waiter].get_launcher_override()
-
-                            run_job(
-                                self.apps[waiter],
-                                self.wlmanager,
-                                self.ppn,
-                                logger=dep_log,
-                                pre_commands=merged_pre_commands,
-                                live_stream=True,
-                                data_path=data_path,
-                                launcher=launcher_override,
-                            )
-
-                            running.add(waiter)
-                            if waiter in rel_durations:
-                                curr_schedule.append((waiter, "k", now + rel_durations[waiter]))
-                                curr_schedule.sort(key=lambda x: x[2])
-                            started_deps.append(waiter)
-                    for s in started_deps:
-                        del curr_deps[s]
-
-                    if not curr_schedule and not curr_deps and not (running - f_app_ids):
-                        break
-
-                    # Check if the global elapsed time has exceeded the timeout
-                    if (time.time() - global_start) >= timeout:
-                        run_log.error(f"HARD TIMEOUT: Experiment exceeded {timeout}s mid-run.")
-                        experiment_status = "TIMEOUT"
-                        for active_aid in list(running):
-                            try:
-                                os.killpg(
-                                    os.getpgid(self.apps[active_aid].process.pid), signal.SIGKILL
-                                )
-                            except OSError:
-                                pass
-                        break  # Break the inner loop, forcing a teardown
-
-                    time.sleep(0.05)
-
-                # ── Lorenzo's modifications ──────────────────────────────
-                # Kill "f" apps now that all other work is done
-                for app in self.apps:
-                    if str(app.config_end) == "f":
-                        if app.process is not None and app.process.poll() is None:
-                            end_job(app, run_log)
-                # ─────────────────────────────────────────────────────────
+                kill_f_apps(self.apps, run_log)
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
@@ -496,103 +321,16 @@ class ExperimentRunner:
             self.log.info(f"Data saved to {self.exp_dir}")
 
     def _write_to_registry(self, status, total_runs, failed_runs):
-        """
-        Appends a data row for this experiment to the system-level metadata.csv.
-        Uses exclusive POSIX file locking to guarantee process safety on shared HPC filesystems.
-
-        `total_runs`/`failed_runs` let a caller distinguish "this experiment's
-        overall status latched to FAILED because of one bad run, but N of M
-        runs actually succeeded and have data" from "every run failed" (plan
-        081). An existing metadata.csv from before this field existed keeps
-        its old header forever (no migration, by design) -- new rows still
-        append fine, they just aren't readable by these column names.
-        """
-        try:
-            # Traversal: self.exp_dir is system/job_name_timestamp/experiment_name
-            job_dir = os.path.dirname(self.exp_dir)
-            system_dir = os.path.dirname(job_dir)
-            registry_path = os.path.join(system_dir, "metadata.csv")
-
-            job_basename = os.path.basename(job_dir)
-            exp_basename = os.path.basename(self.exp_dir)
-
-            # Extract standard ISO-like timestamp from the job folder suffix
-            timestamp = "unknown"
-            ts_match = re.search(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}", job_basename)
-            if ts_match:
-                timestamp = ts_match.group(0)
-
-            # Safely gather metadata parameters
-            job_name = self.global_opts.get("name", "unknown")
-            numnodes = self.global_opts.get("numnodes", 1)
-
-            # Target ppn across common layout dictionary keys
-            ppn = getattr(self, "ppn", "unknown")
-
-            # Space-separated, alphabetically sorted unique application identifiers
-            unique_apps = sorted(
-                list(
-                    set(
-                        [
-                            str(getattr(app, "benchmark_id", getattr(app, "name", "unknown")))
-                            for app in self.apps
-                        ]
-                    )
-                )
-            )
-            apps_list = " ".join(unique_apps)
-
-            tags = self.global_opts.get("tags", "none")
-            relative_path = f"./{job_basename}/{exp_basename}"
-
-            headers = [
-                "job_name",
-                "experiment_name",
-                "timestamp",
-                "numnodes",
-                "ppn",
-                "apps_list",
-                "status",
-                "tags",
-                "relative_path",
-                "total_runs",
-                "failed_runs",
-            ]
-            row = [
-                job_name,
-                exp_basename,
-                timestamp,
-                numnodes,
-                ppn,
-                apps_list,
-                status,
-                tags,
-                relative_path,
-                total_runs,
-                failed_runs,
-            ]
-
-            # Atomic append routine using advisory locking
-            with open(registry_path, "a+", newline="") as f:
-                # Acquire exclusive lock. Blocks execution until other CRAB instances release it.
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-
-                # Move pointer to check if file is completely new/empty
-                f.seek(0, os.SEEK_END)
-                if f.tell() == 0:
-                    writer = csv.writer(f)
-                    writer.writerow(headers)
-
-                writer = csv.writer(f)
-                writer.writerow(row)
-
-                # Force filesystem sync before clearing the block lock
-                f.flush()
-                os.fsync(f.fileno())
-
-                # Release lock explicitly
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
-
-        except Exception as e:
-            # Fallback guardrail to prevent a registry I/O bottleneck from crashing a study
-            self.log.error(f"CRAB Registry execution hook failed: {e}")
+        """Appends a data row for this experiment to the system-level metadata.csv."""
+        # Target ppn across common layout dictionary keys
+        ppn = getattr(self, "ppn", "unknown")
+        write_registry_row(
+            self.exp_dir,
+            self.global_opts,
+            ppn,
+            self.apps,
+            status,
+            total_runs,
+            failed_runs,
+            lambda message: self.log.error(message),
+        )
