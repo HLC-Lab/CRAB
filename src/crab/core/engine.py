@@ -18,7 +18,7 @@ CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", 
 
 # Version of the config.json format this engine reads. A config without the field predates it
 # and is version 1. Bump only with a migration for the previous version.
-CONFIG_SCHEMA_VERSION = 1
+CONFIG_SCHEMA_VERSION = 2
 
 
 def check_config_schema_version(config: dict[str, Any]) -> None:

@@ -9,7 +9,7 @@ import type { AppConfig, CrabConfig, Experiment } from "@/api/types";
 import { sliceColor, sliceName } from "@/lib/slices";
 
 /** config.json format version; matches CONFIG_SCHEMA_VERSION in core/engine.py. */
-export const CONFIG_SCHEMA_VERSION = 1;
+export const CONFIG_SCHEMA_VERSION = 2;
 
 // start: when the app launches. end: when it stops (the victim/aggressor axis).
 export type StartKind = "at_start" | "delay" | "after";

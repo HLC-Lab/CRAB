@@ -14,7 +14,7 @@ def _run(config: dict) -> None:
     Engine(logger=MagicMock()).run(config=config, environment={}, is_worker=False)
 
 
-@pytest.mark.parametrize("version", [2, 99])
+@pytest.mark.parametrize("version", [3, 99])
 def test_newer_schema_version_is_refused_with_an_update_hint(version: int) -> None:
     config = {"schema_version": version, "global_options": {}, "experiments": {}}
     with pytest.raises(ValueError, match=r"schema_version .*crab update"):
@@ -28,8 +28,8 @@ def test_non_integer_schema_version_is_refused(version: object) -> None:
         _run(config)
 
 
-@pytest.mark.parametrize("extra", [{}, {"schema_version": 1}])
-def test_missing_or_current_version_reaches_normal_validation(extra: dict) -> None:
+@pytest.mark.parametrize("extra", [{}, {"schema_version": 1}, {"schema_version": 2}])
+def test_missing_or_supported_version_reaches_normal_validation(extra: dict) -> None:
     # No numnodes: the engine's own "numnodes is required" error proves the version gate let it through.
     config = {**extra, "global_options": {}, "experiments": {"e": {"apps": {}}}}
     with pytest.raises(ValueError, match="numnodes is required"):
