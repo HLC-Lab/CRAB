@@ -120,7 +120,7 @@ Records where a benchmark's binary lives, without the interactive wizard.
 crab receipts set ID --binary PATH [--pre-run CMD ...] [--launcher LAUNCHER] [--allow-missing] [--json]
 ```
 
-Writes `local/receipts/ID.json`. `--launcher` overrides the cluster's launcher for this benchmark (for example `srun` or `mpirun`). It refuses a `PATH` that does not exist unless
+Writes `local/receipts/ID.json`. `--launcher` sets this benchmark's launcher kind, `srun` or `mpirun`, which overrides the preset's `launcher` for this benchmark. Any other value makes runs of this benchmark fail at setup. It refuses a `PATH` that does not exist unless
 `--allow-missing` is given. See [Receipts](../extending/receipts.md).
 
 ## `crab worker` (internal)
