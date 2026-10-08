@@ -323,7 +323,7 @@ def gather_status(
 ) -> dict[str, Any]:
     """Current state of the given job ids.
 
-    A job id with local state (written by ``CRAB_SCHEDULER=local`` submission) is
+    A job id with local state (written by a preset with `scheduler: "local"`) is
     resolved by the local scheduler. Everything else is asked of the Slurm scheduler
     (``squeue`` first, then ``sacct`` for ids not in the queue). Unknown ids report
     ``state: "UNKNOWN"`` rather than failing the whole call.
@@ -348,7 +348,7 @@ def gather_cancel(
 ) -> dict[str, Any]:
     """Cancel a job by id.
 
-    A job id with local state (``CRAB_SCHEDULER=local``) is cancelled by the local scheduler.
+    A job id with local state (a preset with `scheduler: "local"`) is cancelled locally.
     Everything else goes through the real ``scancel`` path.
 
     A missing/already-terminal job reports ``cancelled: false`` with a

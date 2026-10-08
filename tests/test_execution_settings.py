@@ -371,3 +371,11 @@ def test_slurm_default_is_slurm_with_srun_and_no_flags() -> None:
     assert SLURM_DEFAULT.launcher == "srun"
     assert SLURM_DEFAULT.srun.flags == ()
     assert resolve_launcher(SLURM_DEFAULT, {}, None).kind == "srun"
+
+
+def test_dropped_env_key_is_reported_before_the_missing_scheduler() -> None:
+    """An old preset (env keys only) gets the migration message, not "scheduler ... got None"."""
+    refuse(
+        {"env": {"CRAB_MPIRUN": "srun"}},
+        "preset 'lab': env.CRAB_MPIRUN is no longer read; use launchers.mpirun.command",
+    )

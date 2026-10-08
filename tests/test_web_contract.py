@@ -318,7 +318,7 @@ def test_gather_cancel_no_scancel_binary():
 
 
 # --------------------------------------------------------------------------- #
-# status/cancel for CRAB_SCHEDULER=local jobs
+# status/cancel for local-scheduler jobs
 # --------------------------------------------------------------------------- #
 def _write_local_state(crab_root: Path, job_id: str, pid: int, data_dir: Path) -> None:
     local_jobs_dir = crab_root / ".crab_local_jobs"

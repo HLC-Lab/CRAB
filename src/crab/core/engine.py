@@ -9,6 +9,7 @@ from typing import Any
 
 from crab.core.config_checks import check_config
 from crab.core.execution.scheduler.select import scheduler_for
+from crab.core.execution.settings import SLURM_DEFAULT, ExecutionSettings, to_json
 from crab.core.experiment import ExperimentRunner
 from crab.core.provenance import write_provenance
 from crab.log import CrabLogger
@@ -49,17 +50,23 @@ class Engine:
         is_worker: bool = False,
         output_dir: str = None,
         only: list[str] | None = None,
+        settings: ExecutionSettings | None = None,
     ):
         check_config_schema_version(config)
         for warning in check_config(config):
             self.log.warning(warning)
+        settings = settings or SLURM_DEFAULT
         if is_worker:
-            return self._run_worker(config, environment, output_dir)
+            return self._run_worker(config, environment, output_dir, settings=settings)
         else:
-            return self._run_orchestrator(config, environment, only=only)
+            return self._run_orchestrator(config, environment, only=only, settings=settings)
 
     def _run_orchestrator(
-        self, config: dict[str, Any], environment: dict[str, Any], only: list[str] | None = None
+        self,
+        config: dict[str, Any],
+        environment: dict[str, Any],
+        only: list[str] | None = None,
+        settings: ExecutionSettings = SLURM_DEFAULT,
     ):
         self.log.info("Engine running in ORCHESTRATOR mode")
 
@@ -119,8 +126,12 @@ class Engine:
             json.dump(config, f, indent=4)
         with open(os.path.join(data_directory, "environment.json"), "w") as f:
             json.dump(environment, f, indent=4)
+        with open(os.path.join(data_directory, "execution.json"), "w") as f:
+            json.dump(to_json(settings), f, indent=4)
 
-        job_id = scheduler_for(environment, self.log, CRAB_ROOT).submit(data_directory, g_opts)
+        job_id = scheduler_for(settings.scheduler, self.log, CRAB_ROOT).submit(
+            data_directory, g_opts
+        )
 
         # Structured result for programmatic callers (e.g. `crab run --json`).
         return {
@@ -129,7 +140,13 @@ class Engine:
             "system": safe_system,
         }
 
-    def _run_worker(self, config: dict[str, Any], environment: dict[str, Any], output_dir: str):
+    def _run_worker(
+        self,
+        config: dict[str, Any],
+        environment: dict[str, Any],
+        output_dir: str,
+        settings: ExecutionSettings = SLURM_DEFAULT,
+    ):
         self.log.info("Worker started")
 
         orig_env = os.environ.copy()
@@ -140,7 +157,7 @@ class Engine:
         os.environ.update(expanded)
 
         try:
-            full_node_list = scheduler_for(os.environ, self.log, CRAB_ROOT).node_list()
+            full_node_list = scheduler_for(settings.scheduler, self.log, CRAB_ROOT).node_list()
             self.log.info(f"Allocated {len(full_node_list)} node(s)")
             write_provenance(output_dir, config, full_node_list)
 
@@ -161,6 +178,7 @@ class Engine:
                     node_list=full_node_list,
                     output_dir=output_dir,
                     logger=self.log,
+                    settings=settings,
                 )
                 try:
                     runner.setup()

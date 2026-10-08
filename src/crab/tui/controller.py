@@ -2,6 +2,7 @@ import os
 import threading
 from collections.abc import Callable
 
+from ..cli.orchestrator import load_environment_config
 from ..core.engine import Engine
 from ..log import TUIHandler, get_logger
 from ..setup import memory
@@ -52,11 +53,14 @@ class TUIController:
             if "system_header" not in g_opts:
                 g_opts["system_header"] = tui_settings.get("header", [])
 
+            settings = load_environment_config(selected_preset)["settings"]
+
             self.logger.info("Starting benchmark engine")
             engine = Engine(logger=self.logger)
             engine.run(
                 config=benchmark_config,
                 environment=execution_env,
+                settings=settings,
             )
             self.logger.info("Benchmark finished successfully")
 

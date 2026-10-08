@@ -1,8 +1,8 @@
 """The local scheduler: a detached local subprocess instead of a cluster job.
 
-Dev/testing-only (`CRAB_SCHEDULER=local`). A job is a `bash -c` running the worker, with a state
-file under `<crab_root>/.crab_local_jobs/<pid>.json`; a later `crab status` is a fresh process, so
-the finished state is read back from an exit-code file next to the job's logs.
+Dev/testing-only (a preset with `scheduler: "local"`). A job is a `bash -c` running the worker,
+with a state file under `<crab_root>/.crab_local_jobs/<pid>.json`; a later `crab status` is a
+fresh process, so the finished state is read back from an exit-code file next to the job's logs.
 """
 
 from __future__ import annotations

@@ -9,6 +9,20 @@ from textual.widgets import Button, Input, Select, Static, TabbedContent, TabPan
 from ..constants import PRESETS_FILE
 from .variable_row import VariableRow
 
+EXECUTION_FIELDS = ("scheduler", "exclusive", "hosts", "hostfile", "launcher", "launchers")
+
+
+def build_saved_preset(loaded: dict | None, state: dict) -> dict:
+    """The preset the Save button writes: the edited env, sbatch and header, plus the execution
+    fields of the preset currently loaded (Slurm when there is none), so it parses on `crab run`.
+    """
+    saved: dict = {"scheduler": "slurm"}
+    for field in EXECUTION_FIELDS:
+        if loaded and field in loaded:
+            saved[field] = loaded[field]
+    saved.update(state)
+    return saved
+
 
 class EnvironmentSettings(Container):
     class EnvChanged(Message):
@@ -40,7 +54,7 @@ class EnvironmentSettings(Container):
             with open(PRESETS_FILE) as f:
                 return json.load(f)
         except Exception:
-            return {"local": {"env": {}, "sbatch": [], "header": []}}
+            return {"local": {"scheduler": "local", "env": {}, "sbatch": [], "header": []}}
 
     def _save_presets(self):
         with open(PRESETS_FILE, "w") as f:
@@ -142,7 +156,8 @@ class EnvironmentSettings(Container):
             return
 
         # Salviamo la struttura completa
-        self.presets[new_name] = self._gather_current_state()
+        loaded = self.presets.get(self.current_preset_name)
+        self.presets[new_name] = build_saved_preset(loaded, self._gather_current_state())
         self._save_presets()
         # ... update UI options ...
         self.app.notify(f"Preset '{new_name}' saved.")

@@ -183,6 +183,7 @@ def from_preset(
             raise ValueError(
                 f"{where}: unknown key {key!r}; allowed keys: {', '.join(ALLOWED_PRESET_KEYS)}."
             )
+    env = _parse_env(preset.get("env", {}), where)
     scheduler = preset.get("scheduler")
     if scheduler not in SCHEDULERS:
         raise ValueError(
@@ -213,7 +214,7 @@ def from_preset(
         launcher=launcher,
         srun=_parse_srun(launchers.get("srun", {}), f"{where}: launchers.srun"),
         mpirun=_parse_mpirun(launchers.get("mpirun", {}), f"{where}: launchers.mpirun"),
-        env=_parse_env(preset.get("env", {}), where),
+        env=env,
     )
 
 

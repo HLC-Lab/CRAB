@@ -39,21 +39,26 @@ def _write_state(root: Path, job_id: str, state: dict[str, Any]) -> None:
 # --------------------------------------------------------------------------- #
 # selector
 # --------------------------------------------------------------------------- #
-def test_selector_local_value_gives_local_scheduler() -> None:
+def test_selector_local_gives_local_scheduler() -> None:
     logger = CrabLogger()
-    sched = scheduler_for({"CRAB_SCHEDULER": "local"}, logger, "/some/root")
+    sched = scheduler_for("local", logger, "/some/root")
     assert isinstance(sched, LocalScheduler)
     assert sched.log is logger
     assert sched.crab_root == "/some/root"
 
 
-@pytest.mark.parametrize("environ", [{}, {"CRAB_SCHEDULER": "slurm"}, {"CRAB_SCHEDULER": ""}])
-def test_selector_anything_else_gives_slurm_scheduler(environ: dict[str, str]) -> None:
+def test_selector_slurm_gives_slurm_scheduler() -> None:
     logger = CrabLogger()
-    sched = scheduler_for(environ, logger, "/some/root")
+    sched = scheduler_for("slurm", logger, "/some/root")
     assert isinstance(sched, SlurmScheduler)
     assert sched.log is logger
     assert sched.crab_root == "/some/root"
+
+
+@pytest.mark.parametrize("value", ["", "pbs"])
+def test_selector_refuses_any_other_value(value: str) -> None:
+    with pytest.raises(ValueError, match="scheduler"):
+        scheduler_for(value, CrabLogger(), "/some/root")
 
 
 # --------------------------------------------------------------------------- #
