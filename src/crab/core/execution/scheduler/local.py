@@ -31,6 +31,11 @@ def _signal_target(pid: object) -> int | None:
     return None
 
 
+def _exit_code_path(state: dict[str, Any]) -> Path:
+    """Where the finished job's exit code is written, from its state file."""
+    return Path(state.get("data_dir", "")) / "local_exit_code"
+
+
 class LocalScheduler:
     """Runs CRAB jobs as detached local processes.
 
@@ -92,12 +97,17 @@ class LocalScheduler:
     def cancel(self, job_id: str) -> CancelResult:
         """Signal the job's process group with SIGTERM.
 
+        A job whose exit-code file exists is never signalled: it has finished, and its pid may
+        have been reused by an unrelated process group.
+
         A finished job (no state file, or a state file with no pid) reports `cancelled=False`
         with a detail hint rather than raising. A recorded pid that is not a plausible job pid
         (see `_signal_target`) is never signalled and reports `cancelled=False` too.
         """
         state = self._read_state(job_id) or {}
         if "pid" not in state:
+            return CancelResult(False, "local job already finished.")
+        if _exit_code_path(state).is_file():
             return CancelResult(False, "local job already finished.")
         pid = _signal_target(state["pid"])
         if pid is None:
@@ -135,7 +145,7 @@ class LocalScheduler:
         its PID has since been recycled by the OS.
         """
         state = self._read_state(job_id) or {}
-        exit_code_path = Path(state.get("data_dir", "")) / "local_exit_code"
+        exit_code_path = _exit_code_path(state)
         if exit_code_path.is_file():
             code = exit_code_path.read_text().strip()
             return JobStatus(job_id, "COMPLETED" if code == "0" else "FAILED", "local", code)

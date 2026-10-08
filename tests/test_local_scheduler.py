@@ -321,6 +321,49 @@ def test_describe_nodes_reports_localhost(tmp_path: Path) -> None:
     }
 
 
+@pytest.mark.parametrize("code", ["0", "1"])
+def test_cancel_finished_job_is_never_signalled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: str
+) -> None:
+    """An exit file means the job finished: its pid may already belong to someone else."""
+    calls = _forbid_signals(monkeypatch)
+    data_dir = tmp_path / "job"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text(f"{code}\n")
+    _write_state(tmp_path / "root", "8", {"pid": 424242, "data_dir": str(data_dir)})
+
+    assert _scheduler(tmp_path).cancel("8") == CancelResult(False, "local job already finished.")
+    assert calls == []
+
+
+def test_cancel_without_exit_file_signals_the_group_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _forbid_signals(monkeypatch)
+    data_dir = tmp_path / "job"
+    data_dir.mkdir()
+    _write_state(tmp_path / "root", "8", {"pid": 424242, "data_dir": str(data_dir)})
+
+    assert _scheduler(tmp_path).cancel("8") == CancelResult(True, None)
+    assert calls == [("killpg", 424242, signal.SIGTERM)]
+
+
+def test_own_process_group_is_never_signalled_or_probed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pins `os.getpgrp`, which is 0 in a PID namespace and would hide the own-group clause."""
+    calls = _forbid_signals(monkeypatch)
+    monkeypatch.setattr(os, "getpgrp", lambda: 424242)
+    data_dir = tmp_path / "job"
+    data_dir.mkdir()
+    _write_state(tmp_path / "root", "8", {"pid": 424242, "data_dir": str(data_dir)})
+    sched = _scheduler(tmp_path)
+
+    assert sched.cancel("8") == CancelResult(False, _NO_PID_MESSAGE)
+    assert sched.status(["8"]) == [JobStatus("8", "UNKNOWN", "local")]
+    assert calls == []
+
+
 def test_cancel_kills_through_the_os_module(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
