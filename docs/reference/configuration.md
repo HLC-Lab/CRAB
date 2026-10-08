@@ -167,7 +167,9 @@ say, `allocation` or `timeout` between experiments in the same run.
 
 ### The `apps` block
 
-A dictionary keyed by **numeric string IDs** (`"0"`, `"1"`, …). Each value describes one
+A dictionary keyed by **numeric string IDs** (`"0"`, `"1"`, …). CRAB takes the apps in numeric
+key order, and `start: "sN"` counts positions in that order from 0, so number the apps from
+`"0"` without gaps: then N is also the key of the app being waited for. Each value describes one
 application:
 
 | Key | Type | Default | Meaning |
