@@ -28,6 +28,9 @@ from typing import Any
 
 from crab import __version__
 from crab.cli.presets import load_all_presets
+from crab.core.execution.scheduler.base import Scheduler
+from crab.core.execution.scheduler.slurm import CommandRunner, SlurmScheduler
+from crab.log import CrabLogger
 
 # Bump on any breaking change to the shapes below. Reported by `crab info` so
 # the backend can detect laptop<->cluster skew (ContractError).
@@ -280,103 +283,23 @@ def gather_benchmarks(
 
 
 # --------------------------------------------------------------------------- #
+# scheduler (Slurm commands run behind the Scheduler interface)
+# --------------------------------------------------------------------------- #
+def _slurm_scheduler(runner: CommandRunner | None) -> Scheduler:
+    # A logger with no handlers writes nothing: stdout stays clean JSON.
+    return SlurmScheduler(CrabLogger(), str(_CRAB_ROOT), runner=runner)
+
+
+# --------------------------------------------------------------------------- #
 # nodes (sinfo)
 # --------------------------------------------------------------------------- #
-# A command runner returns stdout as text. It raises FileNotFoundError when the
-# binary is absent and subprocess.CalledProcessError on a non-zero exit — both
-# are caught by callers for graceful degradation. Injectable for tests.
-CommandRunner = Callable[[list[str]], str]
-
-
-def _default_runner(cmd: list[str]) -> str:
-    import subprocess
-
-    return subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
-
-
-def _split_nodelist(s: str) -> list[str]:
-    """Split a sinfo nodelist on top-level commas only (not inside brackets)."""
-    result, depth, current = [], 0, []
-    for ch in s:
-        if ch == "[":
-            depth += 1
-            current.append(ch)
-        elif ch == "]":
-            depth -= 1
-            current.append(ch)
-        elif ch == "," and depth == 0:
-            if current:
-                result.append("".join(current))
-            current = []
-        else:
-            current.append(ch)
-    if current:
-        result.append("".join(current))
-    return result
-
-
-def _expand_nodelist_token(token: str) -> list[str]:
-    """Expand 'prefix[r1,r2]' into ['prefix[r1]', 'prefix[r2]']; pass plain tokens through."""
-    start, end = token.find("["), token.rfind("]")
-    if start == -1 or end == -1 or end < start:
-        return [token]
-    prefix, inner = token[:start], token[start + 1 : end]
-    return [f"{prefix}[{r}]" for r in inner.split(",") if r]
-
-
 def gather_nodes(runner: CommandRunner | None = None) -> dict[str, Any]:
     """Partitions and node tokens from ``sinfo``.
 
     Degrades to ``available: false`` (with a note) when ``sinfo`` is missing or
     fails — e.g. on the ``local`` preset or a non-Slurm host.
     """
-    import subprocess
-
-    run = runner or _default_runner
-    result: dict[str, Any] = {
-        "schema": CONTRACT_SCHEMA,
-        "available": False,
-        "partitions": [],
-        "nodes": [],
-    }
-
-    try:
-        part_out = run(["sinfo", "-h", "-o", "%R|%a|%D"])
-    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
-        result["note"] = f"sinfo unavailable: {type(exc).__name__}"
-        return result
-
-    result["available"] = True
-    seen: set[str] = set()
-    for line in part_out.splitlines():
-        parts = line.split("|")
-        if not parts or not parts[0].strip():
-            continue
-        name = parts[0].strip()
-        if name in seen:
-            continue
-        seen.add(name)
-        entry: dict[str, str | int] = {"name": name}
-        if len(parts) > 1:
-            entry["avail"] = parts[1].strip()
-        if len(parts) > 2:
-            try:
-                entry["nodes"] = int(parts[2].strip())
-            except ValueError:
-                pass
-        result["partitions"].append(entry)
-
-    try:
-        node_out = run(["sinfo", "-h", "-o", "%N"])
-        tokens: list[str] = []
-        for line in node_out.splitlines():
-            for top in _split_nodelist(line.strip()):
-                tokens.extend(_expand_nodelist_token(top))
-        result["nodes"] = tokens
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        pass  # partitions still useful without the node breakdown
-
-    return result
+    return {"schema": CONTRACT_SCHEMA, **_slurm_scheduler(runner).describe_nodes()}
 
 
 # --------------------------------------------------------------------------- #
@@ -425,14 +348,10 @@ def gather_status(
     """Current state of the given job ids.
 
     A job id with local state (written by ``CRAB_SCHEDULER=local`` submission) is
-    resolved from that state directly. Everything else goes through the real Slurm path: tries
-    ``squeue`` first (active/pending jobs); for ids not in the queue, falls back to ``sacct``
-    (completed/purged). Unknown ids report ``state: "UNKNOWN"`` rather than failing the whole
-    call.
+    resolved from that state directly. Everything else is asked of the Slurm scheduler
+    (``squeue`` first, then ``sacct`` for ids not in the queue). Unknown ids report
+    ``state: "UNKNOWN"`` rather than failing the whole call.
     """
-    import subprocess
-
-    run = runner or _default_runner
     root = Path(crab_root) if crab_root else _CRAB_ROOT
     local_jobs_dir = root / ".crab_local_jobs"
     states: dict[str, dict[str, Any]] = {}
@@ -446,36 +365,12 @@ def gather_status(
             remaining_ids.append(jid)
 
     if remaining_ids:
-        try:
-            out = run(["squeue", "-h", "-o", "%i|%T", "-j", ",".join(remaining_ids)])
-            for line in out.splitlines():
-                jid, _, state = line.strip().partition("|")
-                if jid:
-                    states[jid] = {"job_id": jid, "state": state or "UNKNOWN", "source": "squeue"}
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            pass
-
-    for jid in remaining_ids:
-        if jid in states:
-            continue
-        try:
-            out = run(["sacct", "-j", jid, "-n", "-P", "-o", "JobID,State,ExitCode"])
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            states[jid] = {"job_id": jid, "state": "UNKNOWN", "source": "none"}
-            continue
-        found = None
-        for line in out.splitlines():
-            cols = line.split("|")
-            # The primary job row has JobID exactly == jid (not jid.batch/.extern).
-            if cols and cols[0].strip() == jid:
-                found = {
-                    "job_id": jid,
-                    "state": cols[1].strip() if len(cols) > 1 else "UNKNOWN",
-                    "exit_code": cols[2].strip() if len(cols) > 2 else None,
-                    "source": "sacct",
-                }
-                break
-        states[jid] = found or {"job_id": jid, "state": "UNKNOWN", "source": "none"}
+        for status in _slurm_scheduler(runner).status(remaining_ids):
+            job: dict[str, Any] = {"job_id": status.job_id, "state": status.state}
+            if status.exit_code is not None:
+                job["exit_code"] = status.exit_code
+            job["source"] = status.source
+            states[status.job_id] = job
 
     return {"schema": CONTRACT_SCHEMA, "jobs": [states[j] for j in job_ids]}
 
@@ -493,7 +388,6 @@ def gather_cancel(
     without treating "nothing to cancel" as a request failure.
     """
     import signal
-    import subprocess
 
     root = Path(crab_root) if crab_root else _CRAB_ROOT
     local_state = _local_job_state(root / ".crab_local_jobs", job_id)
@@ -519,24 +413,13 @@ def gather_cancel(
             }
         return {"schema": CONTRACT_SCHEMA, "job_id": job_id, "cancelled": True, "detail": None}
 
-    run = runner or _default_runner
-    try:
-        run(["scancel", job_id])
-    except FileNotFoundError:
-        return {
-            "schema": CONTRACT_SCHEMA,
-            "job_id": job_id,
-            "cancelled": False,
-            "detail": "scancel is not available on this host.",
-        }
-    except subprocess.CalledProcessError as exc:
-        return {
-            "schema": CONTRACT_SCHEMA,
-            "job_id": job_id,
-            "cancelled": False,
-            "detail": f"scancel exited {exc.returncode}; the job may already be gone.",
-        }
-    return {"schema": CONTRACT_SCHEMA, "job_id": job_id, "cancelled": True, "detail": None}
+    result = _slurm_scheduler(runner).cancel(job_id)
+    return {
+        "schema": CONTRACT_SCHEMA,
+        "job_id": job_id,
+        "cancelled": result.cancelled,
+        "detail": result.detail,
+    }
 
 
 # --------------------------------------------------------------------------- #

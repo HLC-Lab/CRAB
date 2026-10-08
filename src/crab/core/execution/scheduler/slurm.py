@@ -1,4 +1,4 @@
-"""Slurm: the `#SBATCH` header, the job script, `sbatch`, and the worker's node list."""
+"""Slurm: the `#SBATCH` header, the job script, `sbatch`, job status and cancel, and node lists."""
 
 from __future__ import annotations
 
@@ -7,9 +7,50 @@ import re
 import shlex
 import subprocess
 import sys
+from collections.abc import Callable
 from typing import Any
 
+from crab.core.execution.scheduler.base import CancelResult, JobStatus
 from crab.log import CrabLogger
+
+# A command runner returns stdout as text. It raises FileNotFoundError when the
+# binary is absent and subprocess.CalledProcessError on a non-zero exit — both
+# are caught by the scheduler methods for graceful degradation. Injectable for tests.
+CommandRunner = Callable[[list[str]], str]
+
+
+def _default_runner(cmd: list[str]) -> str:
+    return subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+
+
+def _split_nodelist(s: str) -> list[str]:
+    """Split a sinfo nodelist on top-level commas only (not inside brackets)."""
+    result, depth, current = [], 0, []
+    for ch in s:
+        if ch == "[":
+            depth += 1
+            current.append(ch)
+        elif ch == "]":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            if current:
+                result.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        result.append("".join(current))
+    return result
+
+
+def _expand_nodelist_token(token: str) -> list[str]:
+    """Expand 'prefix[r1,r2]' into ['prefix[r1]', 'prefix[r2]']; pass plain tokens through."""
+    start, end = token.find("["), token.rfind("]")
+    if start == -1 or end == -1 or end < start:
+        return [token]
+    prefix, inner = token[:start], token[start + 1 : end]
+    return [f"{prefix}[{r}]" for r in inner.split(",") if r]
 
 
 class SlurmScheduler:
@@ -19,11 +60,16 @@ class SlurmScheduler:
         logger: receives the submit messages and the header warnings.
         crab_root: the checkout root; its `.venv/bin/activate`, when present, is sourced by the
             job script.
+        runner: runs the status, cancel and node-description commands (`squeue`, `sacct`,
+            `scancel`, `sinfo`) and returns stdout; defaults to a real subprocess call.
     """
 
-    def __init__(self, logger: CrabLogger, crab_root: str) -> None:
+    def __init__(
+        self, logger: CrabLogger, crab_root: str, runner: CommandRunner | None = None
+    ) -> None:
         self.log = logger
         self.crab_root = crab_root
+        self._run = runner or _default_runner
 
     def generate_header(self, global_opts: dict[str, Any], data_directory: str) -> list[str]:
         """Generates the list of #SBATCH lines handling defaults, overrides, and security."""
@@ -209,3 +255,112 @@ class SlurmScheduler:
         if not nodes:
             raise RuntimeError(f"`scontrol show hostnames {nodelist}` printed no hostname")
         return nodes
+
+    def status(self, ids: list[str]) -> list[JobStatus]:
+        """The state of each job id, in input order.
+
+        Tries `squeue` first (active/pending jobs); for ids not in the queue, falls back to
+        `sacct` (completed/purged). Unknown ids report state "UNKNOWN" (source "none") rather
+        than failing the whole call.
+        """
+        states: dict[str, JobStatus] = {}
+
+        if ids:
+            try:
+                out = self._run(["squeue", "-h", "-o", "%i|%T", "-j", ",".join(ids)])
+                for line in out.splitlines():
+                    jid, _, state = line.strip().partition("|")
+                    if jid:
+                        states[jid] = JobStatus(jid, state or "UNKNOWN", "squeue")
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                pass
+
+        for jid in ids:
+            if jid in states:
+                continue
+            try:
+                out = self._run(["sacct", "-j", jid, "-n", "-P", "-o", "JobID,State,ExitCode"])
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                states[jid] = JobStatus(jid, "UNKNOWN", "none")
+                continue
+            found = None
+            for line in out.splitlines():
+                cols = line.split("|")
+                # The primary job row has JobID exactly == jid (not jid.batch/.extern).
+                if cols and cols[0].strip() == jid:
+                    found = JobStatus(
+                        jid,
+                        cols[1].strip() if len(cols) > 1 else "UNKNOWN",
+                        "sacct",
+                        cols[2].strip() if len(cols) > 2 else None,
+                    )
+                    break
+            states[jid] = found or JobStatus(jid, "UNKNOWN", "none")
+
+        return [states[j] for j in ids]
+
+    def cancel(self, job_id: str) -> CancelResult:
+        """Cancel one job with `scancel`.
+
+        A missing or already-terminal job reports `cancelled=False` with a detail hint rather
+        than raising.
+        """
+        try:
+            self._run(["scancel", job_id])
+        except FileNotFoundError:
+            return CancelResult(False, "scancel is not available on this host.")
+        except subprocess.CalledProcessError as exc:
+            return CancelResult(
+                False, f"scancel exited {exc.returncode}; the job may already be gone."
+            )
+        return CancelResult(True, None)
+
+    def describe_nodes(self) -> dict[str, Any]:
+        """Partitions and node tokens from `sinfo`.
+
+        Degrades to `available: False` (with a `note`) when `sinfo` is missing or fails, e.g. on
+        a non-Slurm host.
+        """
+        result: dict[str, Any] = {
+            "available": False,
+            "partitions": [],
+            "nodes": [],
+        }
+
+        try:
+            part_out = self._run(["sinfo", "-h", "-o", "%R|%a|%D"])
+        except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+            result["note"] = f"sinfo unavailable: {type(exc).__name__}"
+            return result
+
+        result["available"] = True
+        seen: set[str] = set()
+        for line in part_out.splitlines():
+            parts = line.split("|")
+            if not parts or not parts[0].strip():
+                continue
+            name = parts[0].strip()
+            if name in seen:
+                continue
+            seen.add(name)
+            entry: dict[str, str | int] = {"name": name}
+            if len(parts) > 1:
+                entry["avail"] = parts[1].strip()
+            if len(parts) > 2:
+                try:
+                    entry["nodes"] = int(parts[2].strip())
+                except ValueError:
+                    pass
+            result["partitions"].append(entry)
+
+        try:
+            node_out = self._run(["sinfo", "-h", "-o", "%N"])
+            tokens: list[str] = []
+            for line in node_out.splitlines():
+                for top in _split_nodelist(line.strip()):
+                    tokens.extend(_expand_nodelist_token(top))
+            result["nodes"] = tokens
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            pass  # partitions still useful without the node breakdown
+
+        return result
