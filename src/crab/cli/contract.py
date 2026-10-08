@@ -12,8 +12,6 @@ Every gatherer:
 * degrades gracefully (missing files, unloadable wrappers, absent ``sinfo``)
   rather than raising — partial data beats a crash for an introspection call.
 
-See ``.crab-web-dev/01-architecture.md`` for the documented shapes and
-``.crab-web-dev/05-instructions.md`` for the standards.
 """
 
 from __future__ import annotations
@@ -382,7 +380,7 @@ def gather_nodes(runner: CommandRunner | None = None) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# local jobs (CRAB_SCHEDULER=local, plan 087 — dev/testing-only, no Slurm)
+# local jobs (CRAB_SCHEDULER=local, dev/testing-only, no Slurm)
 # --------------------------------------------------------------------------- #
 def _local_job_state(local_jobs_dir: Path, job_id: str) -> dict[str, Any] | None:
     """The state written by ``Engine._submit_local`` for this job id, if any."""
@@ -426,7 +424,7 @@ def gather_status(
 ) -> dict[str, Any]:
     """Current state of the given job ids.
 
-    A job id with local state (written by ``CRAB_SCHEDULER=local`` submission, plan 087) is
+    A job id with local state (written by ``CRAB_SCHEDULER=local`` submission) is
     resolved from that state directly. Everything else goes through the real Slurm path: tries
     ``squeue`` first (active/pending jobs); for ids not in the queue, falls back to ``sacct``
     (completed/purged). Unknown ids report ``state: "UNKNOWN"`` rather than failing the whole
@@ -487,7 +485,7 @@ def gather_cancel(
 ) -> dict[str, Any]:
     """Cancel a job by id.
 
-    A job id with local state (``CRAB_SCHEDULER=local``, plan 087) is cancelled by signalling
+    A job id with local state (``CRAB_SCHEDULER=local``) is cancelled by signalling
     its process group directly. Everything else goes through the real ``scancel`` path.
 
     A missing/already-terminal job reports ``cancelled: false`` with a

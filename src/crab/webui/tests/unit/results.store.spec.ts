@@ -1,5 +1,5 @@
 /**
- * Fetch/poll/cache-size/clear behavior for the results store (plan 077 re-key:
+ * Fetch/poll/cache-size/clear behavior for the results store (keyed by
  * (cluster, system, jobBasename) instead of a registry record id), mirroring
  * jobs.store.spec.ts's async-submit fake-timer technique. Mocks the API client, the
  * true I/O boundary, not store internals.
@@ -95,7 +95,7 @@ describe("results store: loading cached data", () => {
     expect(store.loadError[KEY]).toBe("Cannot reach the dashboard backend.");
   });
 
-  it("skips a second unforced call once the data is already loaded (plan 079)", async () => {
+  it("skips a second unforced call once the data is already loaded", async () => {
     getMock.mockResolvedValueOnce(SAMPLE_DATA);
     const store = useResultsStore();
     await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
@@ -105,7 +105,7 @@ describe("results store: loading cached data", () => {
     expect(getMock).toHaveBeenCalledTimes(1);
   });
 
-  it("skips a second unforced call once a 404 is already confirmed (plan 079)", async () => {
+  it("skips a second unforced call once a 404 is already confirmed", async () => {
     getMock.mockRejectedValueOnce(new ApiError("No results cached yet.", 404));
     const store = useResultsStore();
     await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
@@ -115,7 +115,7 @@ describe("results store: loading cached data", () => {
     expect(getMock).toHaveBeenCalledTimes(1);
   });
 
-  it("force=true always calls through even when already loaded (plan 079)", async () => {
+  it("force=true always calls through even when already loaded", async () => {
     getMock.mockResolvedValue(SAMPLE_DATA);
     const store = useResultsStore();
     await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
@@ -125,7 +125,7 @@ describe("results store: loading cached data", () => {
     expect(getMock).toHaveBeenCalledTimes(2);
   });
 
-  it("a prior load error still allows an unforced retry (plan 079)", async () => {
+  it("a prior load error still allows an unforced retry", async () => {
     getMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
     const store = useResultsStore();
     await store.loadResults(CLUSTER, SYSTEM, JOB_BASENAME);
@@ -139,7 +139,7 @@ describe("results store: loading cached data", () => {
   });
 });
 
-describe("results store: loadExperiments (plan 081)", () => {
+describe("results store: loadExperiments", () => {
   const SAMPLE_EXPERIMENTS = [
     { experiment_name: "01_baseline", status: "FAILED", total_runs: "10", failed_runs: "3" },
   ];
@@ -289,7 +289,7 @@ describe("results store: index", () => {
     expect(store.index).toEqual(jobs);
   });
 
-  it("skips a second unforced call once the index is already loaded (plan 079)", async () => {
+  it("skips a second unforced call once the index is already loaded", async () => {
     indexMock.mockResolvedValueOnce({ jobs: [] });
     const store = useResultsStore();
     await store.loadIndex();
@@ -299,7 +299,7 @@ describe("results store: index", () => {
     expect(indexMock).toHaveBeenCalledTimes(1);
   });
 
-  it("a prior index load error still allows an unforced retry (plan 079)", async () => {
+  it("a prior index load error still allows an unforced retry", async () => {
     indexMock.mockRejectedValueOnce(new ApiError("Cannot reach the dashboard backend.", 0));
     const store = useResultsStore();
     await store.loadIndex();

@@ -1,6 +1,6 @@
 """A missing preset must be an error, never a silent fallback.
 
-Since the ``local`` preset skips Slurm (plan 087), silently defaulting to it meant a
+Since the ``local`` preset skips Slurm, silently defaulting to it meant a
 forgotten ``-p`` on a cluster ran benchmarks on the login node.
 """
 

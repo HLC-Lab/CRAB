@@ -32,7 +32,7 @@ const FALLBACK_TOTAL = 8;
 // Name truncation (ellipsis, by design on `.nm`) starts at 8 slices and is
 // fine; at 9 the per-slice content gets tight enough that "N nodes" wraps
 // onto two lines, which reads as broken rather than truncated (verified via
-// render screenshots during development; see .crab-web-dev/ for prior notes).
+// render screenshots during development).
 const COMPACT_THRESHOLD = 8; // groups beyond this switch to the compact list layout
 
 const barRef = ref<HTMLElement | null>(null);

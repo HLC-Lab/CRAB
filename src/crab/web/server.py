@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("crab.web")
 
-# Version of the laptop<->browser API surface. Bump on breaking changes (see
-# .crab-web-dev/05-instructions.md §9). Distinct from the CRAB package version.
+# Version of the laptop<->browser API surface. Bump on breaking changes.
+# Distinct from the CRAB package version.
 API_SCHEMA_VERSION = 1
 
 
@@ -74,14 +74,14 @@ def create_app(
     # Shared state for routes (settings drive the per-request stores).
     app.state.settings = settings
     app.state.manager = manager
-    # In-memory async-submit tracker (plan 075): submission_id -> status dict.
+    # In-memory async-submit tracker: submission_id -> status dict.
     # Not persisted — lost on a backend restart mid-submit (documented limitation).
     # Unpolled entries expire on their own (see `web/trackers.py`).
     app.state.submissions = ExpiringTracker()
     # Keeps a strong reference to each submission's background task so it can't
     # be garbage-collected mid-flight; discarded via its own done-callback.
     app.state.pending_submission_tasks = set()
-    # In-memory async results-fetch tracker (plan 065), same shape as
+    # In-memory async results-fetch tracker, same shape as
     # `submissions` above: fetch_id -> status dict, not persisted.
     app.state.result_fetches = ExpiringTracker()
     app.state.pending_result_fetch_tasks = set()
@@ -180,7 +180,7 @@ def _install_api_guard(app: FastAPI) -> None:
 
 
 def _install_asset_cache_headers(app: FastAPI) -> None:
-    """Cache `/assets/*` responses for a year (plan 079): Vite content-hashes
+    """Cache `/assets/*` responses for a year: Vite content-hashes
     every filename under that directory, so a changed file is always a new
     URL — a long cache lifetime is safe, unlike the SPA shell (`index.html`),
     which names the current hashed bundle and must stay `no-cache`."""

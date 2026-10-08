@@ -1,6 +1,6 @@
 """Regression coverage for the real repo config/presets.json (not a fixture).
 
-The `"local"` preset is the trigger for CRAB_SCHEDULER=local (plan 087, dev/testing-only
+The `"local"` preset is the trigger for CRAB_SCHEDULER=local (dev/testing-only
 no-Slurm path) — this guards against a future edit silently dropping the two env vars that
 make it work.
 """

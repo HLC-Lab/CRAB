@@ -166,7 +166,7 @@ class SubmissionAccepted(BaseModel):
 
 
 class SubmissionStatus(BaseModel):
-    """Polled result of an async submit/rerun (plan 075). `status` is one of
+    """Polled result of an async submit/rerun. `status` is one of
     "pending", "done", "error"."""
 
     status: str
@@ -187,7 +187,7 @@ async def _run_submission(
     settings: Settings,
     rerun_of: str | None = None,
 ) -> None:
-    """The actual staging/run work, off the request cycle (plan 075's async submit).
+    """The actual staging/run work, off the request cycle (async submit).
 
     Takes plain values, not the request, since `request` is request-scoped and
     this keeps running after the response that created it has been sent.
@@ -222,7 +222,7 @@ async def _run_submission(
 
 @router.post("/submit", status_code=202)
 async def submit_job(body: SubmitRequest, request: Request) -> SubmissionAccepted:
-    """Validate synchronously, then stage/run in the background (plan 075).
+    """Validate synchronously, then stage/run in the background.
 
     Everything that can fail instantly (profile exists, connected, config
     resolves, a preset is chosen) still happens before responding, same as
@@ -438,7 +438,7 @@ async def cancel_job(record_id: str, request: Request) -> CancelResponse:
 async def job_logs(record_id: str, request: Request, experiment: str | None = None) -> dict:
     """Job-level slurm logs, or one experiment's per-app error logs if `experiment` is given.
 
-    Live-first with a local-cache fallback (plan 075): a disconnected cluster or
+    Live-first with a local-cache fallback: a disconnected cluster or
     a failed remote command falls back to the last successfully fetched copy
     for this exact key, marked `stale`, instead of blanking the logs panel.
     A key miss (never fetched before) still raises exactly as before.
@@ -473,7 +473,7 @@ class ReportExperiment(BaseModel):
     status: str
     tags: str
     relative_path: str
-    # Plan 081: how many of this experiment's internal runs (min/maxruns
+    # How many of this experiment's internal runs (min/maxruns
     # retry loop) failed, vs how many were attempted -- lets a client tell
     # "one bad run tainted the overall status, but most runs succeeded and
     # have real data" apart from "everything failed." Empty string (not
@@ -508,7 +508,7 @@ def _job_basename(relative_path: str) -> str:
 
 
 class JobDetail(BaseModel):
-    """Every `crab history` row for one exact submission (plan 075's detail view)."""
+    """Every `crab history` row for one exact submission."""
 
     record_id: str
     config_name: str
@@ -593,7 +593,7 @@ async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
     disconnected cluster is skipped and named in `clusters_skipped` rather than
     silently omitted, same convention as `list_jobs`'s `connected` flag. A
     disconnected cluster with a prior cached fetch falls back to it instead of
-    being skipped, named in `clusters_stale` (plan 075) rather than
+    being skipped, named in `clusters_stale` rather than
     `clusters_skipped` — the caller can still tell the two cases apart.
     """
     records_by_cluster: dict[str, dict[str, JobRecord]] = {}

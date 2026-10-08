@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Results as its own top-level destination (plan 077, decision 1): keyed on
+// Results as its own top-level destination: keyed on
 // (cluster, system, jobBasename) instead of a registry record id, so a
 // CLI-only job (no JobsStore record) works identically to a
 // dashboard-submitted one. A matching JobsStore record is an optional join,

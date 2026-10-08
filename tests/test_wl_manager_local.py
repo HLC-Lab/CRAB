@@ -1,5 +1,5 @@
 """
-core/wl_manager/local.py: no-launcher workload manager for CRAB_SCHEDULER=local (plan 087).
+core/wl_manager/local.py: no-launcher workload manager for CRAB_SCHEDULER=local.
 
 Single-process, no MPI (owner's explicit "skip MPI" answer) — run_job must return the raw
 command unchanged regardless of node_list/ppn/launcher, unlike slurm.py which prefixes an

@@ -4,7 +4,7 @@ import { api, ApiError } from "@/api/client";
 import type { CancelResponse, CrabConfig, JobListItem, JobLogs } from "@/api/types";
 
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
-// Status-poll cadence for an in-flight submit/rerun (plan 075) — a genuine
+// Status-poll cadence for an in-flight submit/rerun — a genuine
 // poll, not a "wait N seconds then reveal" timer: the pending card resolves
 // the instant the backend does, whether that's the next tick or the 10th.
 const SUBMISSION_POLL_INTERVAL_MS = 1_000;
@@ -59,7 +59,7 @@ export const useJobsStore = defineStore("jobs", () => {
   const cancelBusy = ref<Record<string, boolean>>({});
   const cancelError = ref<Record<string, string>>({});
 
-  // Jobs view filters (plan 060): all client-side over the already-fetched
+  // Jobs view filters: all client-side over the already-fetched
   // list, no extra API calls. An empty selection/string means "no filter".
   const clusterFilter = ref<string[]>([]);
   const statusFilter = ref<string[]>([]);

@@ -1,4 +1,4 @@
-"""In-memory async trackers and cache walks (plan 092 S20).
+"""In-memory async trackers and cache walks.
 
 The submit and results-fetch trackers used to drop an entry only when a
 terminal status was polled, so an entry nobody polled lived for the whole

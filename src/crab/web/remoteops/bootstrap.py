@@ -1,4 +1,4 @@
-"""Guided CRAB install on a remote cluster (Phase 2b, decision D5).
+"""Guided CRAB install on a remote cluster.
 
 If a remote has no usable CRAB, this installs it: clone the repository, then
 build it with ``make venv`` plus an editable install. The build skips the plain
@@ -33,7 +33,6 @@ CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
 # TODO(pre-v1): the `--json` CLI seam this dashboard depends on only exists on
 # the feature branch, not master yet. Clone that branch for now. Once it is
 # merged, change this back to the default branch (master) and drop --branch.
-# Tracked in .crab-web-dev/06-pre-v1-todos.md.
 # On the sbatchman branch this clones `sbatchman` itself, the branch the SbatchMan
 # guide (docs/using/sbatchman-integration.md) tells partners to run on the cluster.
 CRAB_REPO_BRANCH = "sbatchman"

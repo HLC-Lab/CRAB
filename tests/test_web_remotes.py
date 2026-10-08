@@ -1,7 +1,7 @@
-"""Phase 2 tests: profile store, connection manager, remote crab command, API.
+"""Tests for profile store, connection manager, remote crab command, API.
 
 No real SSH — a fake transport/connector stands in. The real asyncssh + agent
-path against Leonardo is user-verified (see .crab-web-dev/02-phases.md).
+path against Leonardo is user-verified.
 """
 
 from __future__ import annotations

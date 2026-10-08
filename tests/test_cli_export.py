@@ -2,7 +2,7 @@
 
 No test file existed for this module before this plan (confirmed by search); these tests
 pin the current behavior across the three directory shapes _collect_data handles, so the
-_collect_data -> collect_result_data / _parse_csv -> parse_csv rename (plan 065 S2) is a
+_collect_data -> collect_result_data / _parse_csv -> parse_csv rename is a
 provably pure rename. Written first against the private names, then the imports below are
 updated to the public names once the rename lands, with assertions left unchanged.
 """

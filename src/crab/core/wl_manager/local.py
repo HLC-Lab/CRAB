@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 class wl_manager:
-    """No-launcher workload manager for CRAB_SCHEDULER=local (plan 087, dev/testing-only).
+    """No-launcher workload manager for CRAB_SCHEDULER=local (dev/testing-only).
 
     Single-process, no MPI: runs the wrapper command directly, no srun/mpirun prefix.
     """

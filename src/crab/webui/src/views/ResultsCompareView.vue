@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// Cross-job, cross-cluster Compare workbench (plan 077 decision 10): the tree
+// Cross-job, cross-cluster Compare workbench: the tree
 // browser (CompareJobTree.vue) adds any (job, experiment, app) row-set to
-// one comparison canvas. Overlay/small-multiples both render through S10's
-// resultsPlot.ts theme and S14's resultsCompare.ts trace builders, so both
-// modes always share one axis unit (decision 11).
+// one comparison canvas. Overlay/small-multiples both render through the
+// resultsPlot.ts theme and resultsCompare.ts trace builders, so both
+// modes always share one axis unit.
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import Plotly from "@/lib/plotlyBundle";
 import { useResultsStore } from "@/stores/results";

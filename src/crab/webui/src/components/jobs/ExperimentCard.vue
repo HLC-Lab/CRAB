@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One experiment row from a report (per-use-case history or, later, a
 // per-job detail view): status, per-app logs toggle, rerun selection.
-// Extracted from ReportView.vue (plan 075 S1) so a future per-job view can
+// Extracted from ReportView.vue so a future per-job view can
 // reuse the same card without duplicating this markup.
 import { useReportStore } from "@/stores/report";
 import { runFailureNote, stateClass } from "@/lib/jobStatus";

@@ -15,6 +15,7 @@ What was decided, stated plainly.
 
 - Option — why not (one line each).
 
-## Consequences
+## Consequences (optional)
 
-What this makes easier, what it makes harder, what must be revisited if it changes.
+Only when the effects are not obvious: what this makes easier, what it makes harder, what must be
+revisited if it changes.

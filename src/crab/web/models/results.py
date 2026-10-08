@@ -1,4 +1,4 @@
-"""Typed response shape for a job's fetched CSV result tree (plan 065).
+"""Typed response shape for a job's fetched CSV result tree.
 
 Mirrors `cli/export.py`'s `collect_result_data` output ({experiment: {app:
 [rows]}}). `crab_dashboard.html`'s standalone export keeps its own legacy

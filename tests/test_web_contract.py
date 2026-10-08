@@ -1,4 +1,4 @@
-"""Phase 1 tests for the CLI `--json` contract seam (crab.cli.contract).
+"""Tests for the CLI `--json` contract seam (crab.cli.contract).
 
 Pure / injectable — no real cluster, no SSH, no Slurm. Subprocess-backed
 gatherers use a fake command runner.
@@ -142,7 +142,7 @@ def test_gather_history_reports_run_failure_counts(tmp_path: Path):
 
 
 def test_gather_history_missing_run_failure_columns_is_graceful(tmp_path: Path):
-    # A metadata.csv from before plan 081 (owner declined migrating existing
+    # A metadata.csv from before the failure-count fields (owner declined migrating existing
     # files) -- the OLD 9-column header, no total_runs/failed_runs at all.
     system_dir = tmp_path / "leonardo"
     system_dir.mkdir(parents=True)
@@ -318,7 +318,7 @@ def test_gather_cancel_no_scancel_binary():
 
 
 # --------------------------------------------------------------------------- #
-# status/cancel for CRAB_SCHEDULER=local jobs (plan 087)
+# status/cancel for CRAB_SCHEDULER=local jobs
 # --------------------------------------------------------------------------- #
 def _write_local_state(crab_root: Path, job_id: str, pid: int, data_dir: Path) -> None:
     local_jobs_dir = crab_root / ".crab_local_jobs"

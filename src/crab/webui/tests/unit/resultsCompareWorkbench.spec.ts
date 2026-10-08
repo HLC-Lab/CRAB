@@ -46,7 +46,7 @@ describe("resolveCol", () => {
 });
 
 describe("sharedColumns", () => {
-  it("returns only columns present in every series, not a union (S17 regression)", () => {
+  it("returns only columns present in every series, not a union", () => {
     // Series A only has msg_size; series B only has n. A union would let a
     // caller pick msg_size as an axis and silently render series B with no
     // data at all -- the intersection must exclude both msg_size and n.

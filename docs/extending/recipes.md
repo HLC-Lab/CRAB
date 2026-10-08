@@ -25,7 +25,7 @@ class MyBenchRecipe(BenchmarkRecipe):
 
 !!! warning "`benchmark_id` is the link"
     The recipe's `benchmark_id` is what ties the generated receipt to the
-    [wrapper](wrappers.md#1-link-to-the-binary). They must be identical (here, `"mybench"`).
+    [wrapper](wrappers.md#finding-the-binary). They must be identical (here, `"mybench"`).
 
 ## Required methods
 

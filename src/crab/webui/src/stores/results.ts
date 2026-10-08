@@ -14,8 +14,8 @@ function msg(e: unknown): string {
 }
 
 export const useResultsStore = defineStore("results", () => {
-  // Loaded/cached-state per (cluster, system, jobBasename) -- plan 077 moves
-  // job identity off the local registry, so a record id can't key this map
+  // Loaded/cached-state per (cluster, system, jobBasename) -- job identity
+  // is off the local registry, so a record id can't key this map
   // (a CLI-only job has none). `notFetched[key]` distinguishes "we asked and
   // there's genuinely nothing cached yet" from "we haven't asked" or "asking
   // failed" — only the first should show a plain "Fetch results" prompt
@@ -28,7 +28,7 @@ export const useResultsStore = defineStore("results", () => {
   const fetchBusy = ref<Record<string, boolean>>({});
   const fetchError = ref<Record<string, string>>({});
 
-  // Per-experiment status/run-failure counts (plan 081) -- a separate,
+  // Per-experiment status/run-failure counts -- a separate,
   // registry-independent query from `results`, so it loads even for a job
   // whose CSV tree hasn't been fetched yet.
   const experiments = ref<Record<string, ExperimentRunStatus[]>>({});
@@ -41,8 +41,8 @@ export const useResultsStore = defineStore("results", () => {
   const clearBusy = ref(false);
   const clearError = ref<string | null>(null);
 
-  // The picker's cross-cluster index (plan 077 S6/S13) -- every job any
-  // connected-or-previously-cached cluster reports, replacing S8's temporary
+  // The picker's cross-cluster index -- every job any
+  // connected-or-previously-cached cluster reports, replacing the earlier
   // per-job registry loop.
   const index = ref<ResultsJobEntry[]>([]);
   const indexBusy = ref(false);
@@ -54,7 +54,7 @@ export const useResultsStore = defineStore("results", () => {
   // `force=false` (the default) is a no-op once a conclusive answer already
   // exists -- loaded data, or (for loadResults) a confirmed 404 -- so every
   // `onMounted` call site can call these unconditionally without re-hitting
-  // the network on a revisit within the same session (plan 079). A prior
+  // the network on a revisit within the same session. A prior
   // ERROR is never conclusive: it doesn't block a retry, since staying
   // broken forever after a transient blip would be worse than the extra call.
   async function loadIndex(force = false) {

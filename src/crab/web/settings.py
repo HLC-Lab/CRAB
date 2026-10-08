@@ -13,7 +13,7 @@ with environment variables — primarily for tests and power users:
 * ``CRAB_WEB_SBATCHMAN`` — enable the SbatchMan integration mode (the campaign
   generator), equivalent to launching ``crab web --sbatchman`` (plan 084).
 
-Nothing secret is stored here (see ``.crab-web-dev/05-instructions.md`` §7);
+Nothing secret is stored here;
 ``clusters.json`` holds only non-secret connection profile fields.
 """
 
@@ -73,7 +73,7 @@ class Settings:
 
     @property
     def results_cache_dir(self) -> Path:
-        """Fetched result CSV trees, namespaced per cluster (plan 065)."""
+        """Fetched result CSV trees, namespaced per cluster."""
         return self.data_dir / "results_cache"
 
     @property

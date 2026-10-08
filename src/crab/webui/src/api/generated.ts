@@ -320,7 +320,7 @@ export interface paths {
     put?: never;
     /**
      * Submit Job
-     * @description Validate synchronously, then stage/run in the background (plan 075).
+     * @description Validate synchronously, then stage/run in the background.
      *
      *     Everything that can fail instantly (profile exists, connected, config
      *     resolves, a preset is chosen) still happens before responding, same as
@@ -411,7 +411,7 @@ export interface paths {
      * Job Logs
      * @description Job-level slurm logs, or one experiment's per-app error logs if `experiment` is given.
      *
-     *     Live-first with a local-cache fallback (plan 075): a disconnected cluster or
+     *     Live-first with a local-cache fallback: a disconnected cluster or
      *     a failed remote command falls back to the last successfully fetched copy
      *     for this exact key, marked `stale`, instead of blanking the logs panel.
      *     A key miss (never fetched before) still raises exactly as before.
@@ -466,7 +466,7 @@ export interface paths {
      *     disconnected cluster is skipped and named in `clusters_skipped` rather than
      *     silently omitted, same convention as `list_jobs`'s `connected` flag. A
      *     disconnected cluster with a prior cached fetch falls back to it instead of
-     *     being skipped, named in `clusters_stale` (plan 075) rather than
+     *     being skipped, named in `clusters_stale` rather than
      *     `clusters_skipped` — the caller can still tell the two cases apart.
      */
     get: operations["use_case_report_api_jobs_report__config_name__get"];
@@ -517,7 +517,7 @@ export interface paths {
      * @description Per-experiment status/run-failure counts for one job.
      *
      *     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
-     *     Results must work identically for CLI-only jobs (plan 077 decision 7),
+     *     Results must work identically for CLI-only jobs,
      *     and a live/cached `crab history` call already has everything needed
      *     without a registry join. Opening a job shortly after the picker loaded
      *     reuses the picker's still-fresh UNSCOPED history (`cluster:{cluster}`)
@@ -774,7 +774,7 @@ export interface components {
     };
     /**
      * ExperimentRunStatus
-     * @description One experiment's status and run-failure counts (plan 081) -- lets a
+     * @description One experiment's status and run-failure counts -- lets a
      *     caller show "3/10 runs failed" instead of just "FAILED" for an
      *     experiment where most runs actually succeeded and have real data.
      */
@@ -823,7 +823,7 @@ export interface components {
     };
     /**
      * JobDetail
-     * @description Every `crab history` row for one exact submission (plan 075's detail view).
+     * @description Every `crab history` row for one exact submission.
      */
     JobDetail: {
       /** Record Id */
@@ -1222,7 +1222,7 @@ export interface components {
     };
     /**
      * SubmissionStatus
-     * @description Polled result of an async submit/rerun (plan 075). `status` is one of
+     * @description Polled result of an async submit/rerun. `status` is one of
      *     "pending", "done", "error".
      */
     SubmissionStatus: {

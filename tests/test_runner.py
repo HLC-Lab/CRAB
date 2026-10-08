@@ -212,7 +212,7 @@ class TestWLMAllowlist(unittest.TestCase):
                     pass  # other errors (missing apps, etc.) are expected in this minimal setup
 
     def test_valid_wlm_local_does_not_raise(self):
-        """CRAB_WL_MANAGER=local (plan 087, no-Slurm testing path) must load without ValueError."""
+        """CRAB_WL_MANAGER=local (no-Slurm testing path) must load without ValueError."""
         from crab.core.experiment.runner import ExperimentRunner
 
         with tempfile.TemporaryDirectory() as tmpdir:

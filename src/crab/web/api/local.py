@@ -6,7 +6,7 @@ Unlike ``/api/remotes/{name}/benchmarks`` (over SSH to a cluster), this runs
 SSH, no stored profile, no live connection required). Reuses the exact same
 contract (``cli/contract.py``) and command-building path (``LocalTransport`` +
 ``run_crab_json``) already proven by the ``local`` transport profile. Backs the
-wrapper picker's local half (see ``.crab-web-dev/14-authoring-polish-design.md`` §9).
+wrapper picker's local half.
 """
 
 from __future__ import annotations

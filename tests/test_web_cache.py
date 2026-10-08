@@ -1,4 +1,4 @@
-"""Plan 075 S4: local fallback cache for read-only cluster data."""
+"""Local fallback cache for read-only cluster data."""
 
 from __future__ import annotations
 

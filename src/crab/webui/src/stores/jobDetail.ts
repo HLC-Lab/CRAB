@@ -8,7 +8,7 @@ function msg(e: unknown): string {
   return e.detail ? `${e.message}\n${e.detail}` : e.message;
 }
 
-// Per-job detail view (plan 075): every `crab history` row for one exact
+// Per-job detail view: every `crab history` row for one exact
 // submission, primary click target from a Jobs card. Separate from
 // useReportStore (which covers the cross-time "every run of this use case"
 // view) since the two fetch different backend routes and shapes, but a

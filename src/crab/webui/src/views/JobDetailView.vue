@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Per-job detail view (plan 075): every experiment from this exact
+// Per-job detail view: every experiment from this exact
 // submission, sourced from web/api/jobs.py's job_experiments (not the whole
 // use-case history — see ReportView.vue for that secondary view, linked
 // below). Reuses ExperimentCard.vue and useReportStore for the shared
@@ -46,7 +46,7 @@ async function submitRerun(targetRecordId: string, experimentNames: string[]) {
   const rec = jobs.items.find((j) => j.id === targetRecordId);
   if (!rec) {
     rerunLookupError.value =
-      "Could not find this job's details to rerun — try refreshing the Jobs page.";
+      "Could not find this job's details to rerun. Try refreshing the Jobs page.";
     return;
   }
   await jobs.submit({
@@ -74,7 +74,7 @@ async function confirmRerunSelected() {
 }
 
 // One-click rerun for the common case: retry exactly the failed experiments,
-// no selection step (plan 076).
+// no selection step.
 const failedExperimentNames = computed(() =>
   computeFailedNames(detailStore.detail?.experiments ?? []),
 );

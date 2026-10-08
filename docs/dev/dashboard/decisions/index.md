@@ -1,9 +1,11 @@
 # Decision records
 
 Architecture Decision Records for the web dashboard. Each records one significant choice: the
-context that forced it, the decision, the alternatives, and the consequences. New decisions
-with real alternatives get a new ADR (copy [template.md](template.md)); a reversed decision is
-marked superseded, never deleted.
+context that forced it, the decision, the alternatives, and the consequences when they are not
+obvious. A decision gets an ADR when it is hard to reverse, would surprise a reader without the
+context, and came from a real trade-off; smaller choices are explained where they are made.
+Copy [template.md](template.md) for a new one; a reversed decision is marked superseded, never
+deleted.
 
 | ADR | Decision | Status |
 |---|---|---|

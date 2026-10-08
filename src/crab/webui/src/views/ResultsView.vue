@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Top-level Results picker (plan 077 S13), consuming S6's cross-cluster
+// Top-level Results picker, consuming the cross-cluster
 // index -- shows every job crab history reports (dashboard-submitted or
 // CLI-only alike) with real metadata and a staleness badge. Card layout and
-// filters mirror JobsView.vue's established pattern (plan 080), for
+// filters mirror JobsView.vue's established pattern, for
 // consistency across the app rather than a bespoke Results-only style.
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
@@ -55,11 +55,11 @@ function toggleStaleness(label: string) {
   stalenessFilter.value = next;
 }
 
-// Inline "Fetch" on a not-yet-fetched card (plan 080 decision 4): `fetchResults`
+// Inline "Fetch" on a not-yet-fetched card: `fetchResults`
 // only resolves once the initial request is accepted -- the actual fetch
 // finishes later via the store's own background poll, so wait for
 // `fetchBusy[key]` to flip back to false before reloading the index (a
-// deliberate reload, not a violation of plan 079's manual-refresh policy:
+// deliberate reload, not a violation of the manual-refresh policy:
 // the data genuinely just changed because of this action).
 async function fetchNow(entry: ResultsJobEntry) {
   const key = resultsKey(entry.cluster, entry.system, entry.job_basename);
@@ -134,7 +134,7 @@ async function fetchNow(entry: ResultsJobEntry) {
               :title="
                 e.connected
                   ? 'cluster connected'
-                  : 'cluster not connected — showing last known state'
+                  : 'cluster not connected, showing last known state'
               "
             />
             <span class="identity">{{ e.cluster }} / {{ e.system }}</span>

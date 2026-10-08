@@ -1,5 +1,5 @@
 /**
- * Poll-coordinator behavior for the jobs store (plan 050 design: a single
+ * Poll-coordinator behavior for the jobs store (a single
  * frontend timer, in-flight guard against overlapping ticks). Mocks the API
  * client (the true I/O boundary — same principle as the backend's fake
  * Transport), not store internals.
@@ -309,7 +309,7 @@ describe("jobs store error surfacing", () => {
   });
 });
 
-describe("jobs store async submit (plan 075)", () => {
+describe("jobs store async submit", () => {
   it("adds a pending entry immediately, then resolves and refreshes on done", async () => {
     submitMock.mockResolvedValue({ submission_id: "sub-1" });
     submissionStatusMock.mockResolvedValueOnce({ status: "pending" });

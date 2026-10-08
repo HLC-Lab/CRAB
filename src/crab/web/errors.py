@@ -1,8 +1,7 @@
 """Error taxonomy and the stable error envelope for the web backend.
 
 Every failure that crosses an API boundary becomes a structured, actionable
-response — the backend never crashes the process on a remote or user error
-(see ``.crab-web-dev/05-instructions.md`` §5). Each domain error carries:
+response — the backend never crashes the process on a remote or user error. Each domain error carries:
 
 * ``code``    — stable machine string the frontend can switch on,
 * ``message`` — human, actionable text safe to display,

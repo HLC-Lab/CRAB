@@ -1,6 +1,6 @@
 """
 Tests for ExperimentRunner._write_to_registry's per-run failure-count columns
-(plan 081). Calls the method against a minimal stub object rather than a
+(run failure counts). Calls the method against a minimal stub object rather than a
 fully constructed ExperimentRunner, matching test_runner.py's existing
 pattern -- _write_to_registry only touches self.exp_dir/global_opts/ppn/apps.
 """
@@ -61,7 +61,7 @@ class TestWriteToRegistryRunCounts(unittest.TestCase):
 
     def test_appending_to_an_existing_old_shape_file_does_not_crash(self):
         # A pre-existing metadata.csv with the OLD 9-column header (owner
-        # explicitly declined migrating these -- see plan 081's Design).
+        # explicitly declined migrating these).
         old_headers = [
             "job_name",
             "experiment_name",

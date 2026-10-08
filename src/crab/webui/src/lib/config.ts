@@ -1,6 +1,6 @@
 // Pure mapping between the editor's draft model and the engine-shaped config
 // JSON ({global_options, experiments}). Kept free of Vue/IO so it can be unit
-// tested (the Phase 3 round-trip check). See .crab-web-dev/07-phase3-authoring.md.
+// tested (tests/unit/config.roundtrip.spec.ts).
 //
 // Value encoding mirrors the hand-written examples: numeric *options* stay
 // strings, collect is boolean. (More fields land in later increments.)
@@ -132,6 +132,15 @@ const RESERVED_PARTITION_KEYS = new Set(["share"]);
 
 // An exact `{name}` token (a SbatchMan sweep variable) is kept as a string so the
 // campaign generator can place it; anything else goes through Number() as before.
+/**
+ * A config boolean as the engine reads it (core/config_checks.py parse_bool): JSON true/false,
+ * or the text "true"/"false" in any case, which SbatchMan sweeps produce.
+ */
+function engineBool(v: unknown): boolean {
+  if (typeof v === "string") return v.trim().toLowerCase() === "true";
+  return v === true;
+}
+
 const PLACEHOLDER = /^\{\w+\}$/;
 function numOrToken(raw: string): number | string {
   const s = raw.trim();
@@ -286,7 +295,7 @@ export function applyOptions(target: Record<string, unknown>, o: OptionsDraft): 
 export function readOptions(src: Record<string, unknown>): OptionsDraft {
   const o = emptyOptions();
   const str = (v: unknown) => (v == null ? "" : String(v));
-  const tri = (v: unknown): TriBool => (v == null ? "" : v ? "true" : "false");
+  const tri = (v: unknown): TriBool => (v == null ? "" : engineBool(v) ? "true" : "false");
   o.minruns = str(src.minruns);
   o.maxruns = str(src.maxruns);
   o.timeout = str(src.timeout);
@@ -331,7 +340,7 @@ function parseDirective(line: string): [string, string | true] | null {
 export function toSbatch(s: SbatchDraft): string[] | Record<string, string | boolean> | undefined {
   const lines = s.lines.map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return undefined;
-  if (s.form === "list") return lines.map((l) => (l.startsWith("--") ? l : `--${l}`));
+  if (s.form === "list") return lines.map((l) => (l.startsWith("-") ? l : `--${l}`));
   const dict: Record<string, string | boolean> = {};
   for (const line of lines) {
     const parsed = parseDirective(line);
@@ -460,9 +469,12 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
   // engine ("either all partitions specify 'share' or none"), so never emit one.
   const toGroups = (split: unknown[]): { partitions: Record<string, unknown>; keys: string[] } => {
     const n = split.length || 1;
-    const nums = split.map((raw) => Number(raw));
+    const nums = split.map((raw) => numOrToken(String(raw)));
     const even =
-      100 % n === 0 && nums.every((v) => Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9);
+      100 % n === 0 &&
+      nums.every(
+        (v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9,
+      );
     const partitions: Record<string, unknown> = {};
     const keys: string[] = [];
     nums.forEach((v, i) => {
@@ -561,7 +573,7 @@ export function fromConfig(config: CrabConfig): Draft {
         return {
           path: str(app.path),
           args: str(app.args),
-          collect: app.collect === true, // doc default is false
+          collect: engineBool(app.collect), // doc default is false
           partition: str(app.partition),
           rest,
           ...parseStart(str(app.start, "0")),
@@ -579,6 +591,8 @@ export function fromConfig(config: CrabConfig): Draft {
 
 const _posInt = (s: string) => /^[0-9]+$/.test(s.trim()) && parseInt(s, 10) > 0;
 const _numeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
+// A {name} placeholder, kept as text by toAllocation for SbatchMan to substitute.
+const _token = (s: string) => PLACEHOLDER.test(s.trim());
 
 /** Validate the tunable option fields. `where` prefixes messages (e.g. an experiment name). */
 export function validateOptions(o: OptionsDraft, where = ""): string[] {
@@ -612,13 +626,13 @@ export function validateAllocation(
   const groups = new Set<string>();
   const at = where ? `${where}: ` : "";
   if (!hasAllocation(a)) return { issues, groups };
-  if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride))
+  if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride) && !_token(a.stride))
     issues.push(`${at}allocation stride must be a positive integer.`);
-  if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()))
+  if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()) && !_token(a.seed))
     issues.push(`${at}allocation seed must be an integer.`);
   if (a.by === "app" && a.split.trim()) {
     const parts = a.split.split(",").map((s) => s.trim());
-    if (!parts.every((s) => _numeric(s)))
+    if (!parts.every((s) => _numeric(s) || _token(s)))
       issues.push(`${at}allocation split must be a comma-separated list of numbers.`);
   }
   if (a.by === "groups") {
@@ -627,7 +641,7 @@ export function validateAllocation(
     named.forEach((p) => {
       if (groups.has(p.name.trim())) issues.push(`${at}duplicate node group "${p.name.trim()}".`);
       else groups.add(p.name.trim());
-      if (p.share.trim() && !_numeric(p.share))
+      if (p.share.trim() && !_numeric(p.share) && !_token(p.share))
         issues.push(`${at}node group "${p.name.trim()}": share must be a number.`);
     });
     const shared = named.filter((p) => p.share.trim());
@@ -643,21 +657,28 @@ export function validateAllocation(
 }
 
 // CRAB computes these from numnodes/ppn and ignores user attempts to set them.
-const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "ntasks"]);
+const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "n"]);
+const LOG_SBATCH = new Set(["output", "error", "o", "e"]);
+
+/** A directive's key as the engine's merge reads it: leading dashes off, up to "=" or a space. */
+function engineDirectiveKey(line: string): string {
+  const clean = line.trim().replace(/^-+/, "");
+  return clean.includes("=") ? clean.split("=")[0] : clean.split(/\s+/)[0];
+}
 
 export function validateSbatch(s: SbatchDraft): string[] {
   const issues: string[] = [];
   for (const line of s.lines.map((l) => l.trim()).filter(Boolean)) {
-    const parsed = parseDirective(line);
-    if (!parsed) continue;
-    const key = parsed[0];
+    const key = engineDirectiveKey(line);
+    if (!key) continue;
+    const flag = `${key.length === 1 ? "-" : "--"}${key}`;
     if (PROTECTED_SBATCH.has(key))
       issues.push(
-        `Slurm directive "--${key}" is computed by CRAB from nodes/ppn and will be ignored.`,
+        `Slurm directive "${flag}" is computed by CRAB from nodes/ppn and will be ignored.`,
       );
-    else if (key === "output" || key === "error")
+    else if (LOG_SBATCH.has(key))
       issues.push(
-        `Slurm directive "--${key}" overrides CRAB's log redirection (allowed, but be aware).`,
+        `Slurm directive "${flag}" overrides CRAB's log redirection (allowed, but be aware).`,
       );
   }
   return issues;
@@ -685,11 +706,9 @@ export function validateDraft(d: Draft): string[] {
     else if (names.has(nm)) issues.push(`Duplicate experiment name "${nm}".`);
     else names.add(nm);
 
-    // Per-experiment overrides. The merged allocation REPLACES the global one, so
-    // the node groups an app may reference are the local ones when overridden.
     issues.push(...validateOptions(e.options, `Experiment "${label}"`));
-    // When overriding, the local allocation REPLACES the global one entirely
-    // (force-emitted, even bare linear ⇒ no groups), so use its groups, not the global's.
+    // An override REPLACES the global allocation entirely (force-emitted, even bare linear ⇒ no
+    // groups), so an app may only reference the local groups.
     let groups = global.groups;
     if (e.overrideAlloc) {
       const local = validateAllocation(e.allocation, `Experiment "${label}"`);

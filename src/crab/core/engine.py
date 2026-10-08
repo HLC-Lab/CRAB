@@ -295,7 +295,7 @@ class Engine:
 
     def _submit_local(self, data_directory: str, safe_system: str) -> dict[str, Any]:
         """CRAB_SCHEDULER=local: run the worker as a detached local subprocess instead of
-        submitting to Slurm (plan 087, dev/testing-only, not documented for end users).
+        submitting to Slurm (dev/testing-only, not documented for end users).
 
         Redirects stdout/stderr to the same slurm_output.log/slurm_error.log filenames the
         Slurm path uses, so cli/contract.py's gather_logs needs no changes. Wraps the command

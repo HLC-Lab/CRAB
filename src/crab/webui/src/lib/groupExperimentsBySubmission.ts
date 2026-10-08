@@ -1,7 +1,7 @@
 import type { ReportExperiment } from "@/api/types";
 
 // Groups a flat use-case history (GET /api/jobs/report/{config_name}) into one
-// entry per submission (plan 076), instead of one undifferentiated list.
+// entry per submission, instead of one undifferentiated list.
 // Mirrors web/api/jobs.py's `_job_basename` fallback: rows with a known
 // `record_id` group by it; rows with none (a manual `crab run` never
 // submitted through this dashboard) group by their data_dir's basename —

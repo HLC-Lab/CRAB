@@ -162,7 +162,7 @@ def execute_orchestrator(
     When ``as_json`` is True, all logs are routed to stderr and a single JSON
     object ``{job_id, data_dir, system}`` is printed to stdout, so the web
     backend gets a clean, parseable submit result. ``only`` reruns just the
-    given experiment key(s) instead of the whole config (plan 060).
+    given experiment key(s) instead of the whole config.
     """
     from crab.log import get_logger
 

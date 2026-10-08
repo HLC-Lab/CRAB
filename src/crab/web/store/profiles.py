@@ -1,6 +1,6 @@
-"""Cluster connection profiles — the only persistent laptop state for Phase 2.
+"""Cluster connection profiles — the only persistent laptop state for connections.
 
-Profiles are **non-secret** (see ``05-instructions.md`` §7): host, user, paths,
+Profiles are **non-secret**: host, user, paths,
 preset, auth *method*. No passwords or keys are stored — agent auth (the
 Leonardo path) needs no secret, and a password (if ever used) is supplied
 transiently at connect time, never written here.

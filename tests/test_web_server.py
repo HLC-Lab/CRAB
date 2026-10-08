@@ -1,4 +1,4 @@
-"""Phase 0 tests for the web dashboard backend skeleton.
+"""Tests for the web dashboard backend skeleton.
 
 Covered:
 * settings paths derive correctly and ``ensure_dirs`` is idempotent;
@@ -191,7 +191,7 @@ def test_spa_serving_and_fallback(tmp_path: Path):
 
 
 def test_hashed_assets_get_a_long_lived_cache_header(tmp_path: Path):
-    """Plan 079: Vite content-hashes every filename under assets/, so a
+    """Vite content-hashes every filename under assets/, so a
     changed file is always a new URL -- safe to cache for a long time."""
     static = tmp_path / "static"
     (static / "assets").mkdir(parents=True)

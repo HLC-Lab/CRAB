@@ -1,5 +1,5 @@
 /**
- * Contract skew (plan 091 S5): the connect and verify responses carry a fix-it message when
+ * Contract skew: the connect and verify responses carry a fix-it message when
  * the cluster's CRAB speaks a different `--json` contract; the store keeps it per remote.
  * Mocks the API client (the I/O boundary), not store internals.
  */
