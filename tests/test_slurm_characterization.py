@@ -137,7 +137,7 @@ def test_script_preset_defaults_venv_and_system_header(tmp_path, crab_root, sbat
         numnodes=2,
         ppn=4,
         extrainfo="bench",
-        system_sbatch=["--partition=boost", "--account=proj", "--nodes=9"],
+        system_sbatch=["--partition=boost", "--account=proj"],
         system_header=["module load gcc", "module load openmpi", "export X=1\nrm -rf /"],
     )
     assert script == (
@@ -171,8 +171,6 @@ def test_script_user_list_directives_override_preset(tmp_path, crab_root, sbatch
         system_sbatch=["--partition=boost", "--account=proj", "--qos=normal"],
         sbatch_directives=[
             "--partition=dev",
-            "--ntasks-per-node=99",
-            "-N 3",
             "--output=/custom/out.log",
             "--exclusive",
             "--qos=low",
@@ -180,8 +178,9 @@ def test_script_user_list_directives_override_preset(tmp_path, crab_root, sbatch
             "--mem=8G",
         ],
     )
-    # --partition and --qos keep the position of their first definition; --nodes and
-    # --ntasks-per-node stay CRAB's; --output keeps its slot with the user's value.
+    # --partition and --qos keep the position of their first definition; --output keeps its slot
+    # with the user's value. Managed keys (--nodes, --ntasks-per-node) are not given here: the
+    # pre-submit check refuses them (see test_header_drops_managed_directives).
     assert script == (
         "#!/bin/bash\n"
         "\n"
@@ -198,6 +197,33 @@ def test_script_user_list_directives_override_preset(tmp_path, crab_root, sbatch
         "#SBATCH --mem=8G\n"
         "\n" + _WORKER_LINE
     )
+
+
+def test_header_drops_managed_directives():
+    """Managed keys never reach the header, from the preset or the user. Engine.run refuses them
+    before submit (check_config); this pins the header-level drop for callers that skip it."""
+    from crab.core.execution.scheduler.slurm import SlurmScheduler
+
+    scheduler = SlurmScheduler(MagicMock(), "/opt/crab")
+    header = scheduler.generate_header(
+        {
+            "numnodes": 2,
+            "ppn": 4,
+            "system_sbatch": ["--partition=boost", "--nodes=9"],
+            "sbatch_directives": ["--ntasks-per-node=99", "-N 3", "-n 8", "--exclusive"],
+        },
+        "/d",
+    )
+    assert header == [
+        "#SBATCH --job-name=crab_job",
+        "#SBATCH --output=/d/slurm_output.log",
+        "#SBATCH --error=/d/slurm_error.log",
+        "#SBATCH --time=00:10:00",
+        "#SBATCH --nodes=2",
+        "#SBATCH --ntasks-per-node=4",
+        "#SBATCH --partition=boost",
+        "#SBATCH --exclusive",
+    ]
 
 
 def test_script_user_dict_directives(tmp_path, crab_root, sbatch):

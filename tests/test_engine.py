@@ -315,6 +315,22 @@ class TestLocalScheduler(unittest.TestCase):
                     )
         self.assertEqual(result["job_id"], "12345")
 
+    def test_run_refuses_a_config_the_preset_cannot_run_before_any_submit(self):
+        """Engine.run hands its settings to check_config: the direct launcher runs one process,
+        so 2 nodes is refused before anything is spawned."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(tmpdir)
+            config["global_options"]["numnodes"] = 2
+            config["experiments"] = {"e1": {"apps": {"0": {"path": "a.py"}}}}
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.check_output") as mock_sbatch:
+                    with patch("subprocess.Popen") as mock_popen:
+                        with self.assertRaisesRegex(ValueError, "single process"):
+                            engine.run(config, {}, settings=LOCAL_DIRECT)
+        mock_sbatch.assert_not_called()
+        mock_popen.assert_not_called()
+
     def test_local_scheduler_writes_state_file(self):
         """A state file keyed by pid must be written so gather_status/cancel can find it later."""
         engine = _make_engine()
