@@ -6,6 +6,7 @@
  */
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CONFIG_SCHEMA_VERSION } from "@/lib/config";
 
 vi.mock("@/api/client", () => ({
   api: {
@@ -325,7 +326,7 @@ describe("sbatchman store: campaign format version", () => {
     getMock.mockResolvedValueOnce(entry());
     const store = useSbatchmanStore();
     await store.open("a2a-baseline");
-    expect(store.yaml).toContain('"schema_version": 1');
+    expect(store.yaml).toContain(`"schema_version": ${CONFIG_SCHEMA_VERSION}`);
   });
 
   it("a campaign saved by a newer dashboard is refused, not half-loaded", async () => {

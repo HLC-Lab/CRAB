@@ -158,3 +158,52 @@ def test_receipts_set_refuses_a_missing_binary(tmp_path, receipts, monkeypatch, 
     assert code == 2
     assert "does not exist" in err
     assert not (receipts / "hpl.json").exists()
+
+
+def test_receipts_set_refuses_a_launcher_path(tmp_path, receipts, monkeypatch, capsys) -> None:
+    binary = tmp_path / "xhpl"
+    binary.write_text("#!/bin/sh\n")
+    code, _, err = _crab_inprocess(
+        monkeypatch,
+        capsys,
+        "receipts",
+        "set",
+        "hpl",
+        "--binary",
+        str(binary),
+        "--launcher",
+        "/opt/x/mpirun",
+    )
+    assert code == 2
+    assert "srun" in err and "mpirun" in err
+    assert not (receipts / "hpl.json").exists()
+
+
+def test_receipts_set_saves_mpirun_launcher(tmp_path, receipts, monkeypatch, capsys) -> None:
+    binary = tmp_path / "xhpl"
+    binary.write_text("#!/bin/sh\n")
+    code, _, err = _crab_inprocess(
+        monkeypatch,
+        capsys,
+        "receipts",
+        "set",
+        "hpl",
+        "--binary",
+        str(binary),
+        "--launcher",
+        "mpirun",
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["launcher_override"] == "mpirun"
+
+
+def test_receipts_set_without_launcher_saves_no_override(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    binary = tmp_path / "xhpl"
+    binary.write_text("#!/bin/sh\n")
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", str(binary)
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["launcher_override"] == ""

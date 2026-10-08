@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 from crab.core.experiment.artifacts import copy_artifacts
 from crab.core.experiment.runner import ExperimentRunner
+from settings_fixtures import LOCAL_DIRECT
 
 
 class _App:
@@ -52,7 +53,6 @@ def test_missing_or_escaping_paths_only_warn(tmp_path: Path) -> None:
 
 
 def test_artifacts_survive_retain_files_false(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     wrapper = tmp_path / "w.py"
     wrapper.write_text(
         "import os\n"
@@ -77,6 +77,7 @@ def test_artifacts_survive_retain_files_false(tmp_path: Path, monkeypatch) -> No
         node_list=["n1"],
         output_dir=str(tmp_path / "out"),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
     runner.setup()
     runner.execute(str(tmp_path / "out"))

@@ -42,7 +42,7 @@ class MyBenchRecipe(BenchmarkRecipe):
 | Member | Default | Purpose |
 |--------|---------|---------|
 | `suite` (property) | `name` | Groups multiple recipes under one wizard entry (e.g. QE v6 & v7). |
-| `launcher_override` (property) | `""` | Force a launcher (e.g. `"mpirun"`) regardless of the cluster default. |
+| `launcher_override` (property) | `""` | Force a launcher: `""` (use the preset's), `"srun"` or `"mpirun"` (e.g. `"mpirun"`). Any other value makes the experiment fail at setup with an error naming the app. |
 | `pre_run_hooks` (property) | `[]` | Commands recorded into the receipt to run before each launch. |
 | `build_manifest` (property) | `BuildManifest()` | Declares build inputs — whether modules are needed and any `BuildParameter`s (e.g. a `cpu`/`gpu` choice). |
 | `module_executable` (property) | `""` | The command an environment module puts on `PATH` (e.g. `"pw.x"`). The wizard's module option offers it as the default; when empty it asks with no default. |

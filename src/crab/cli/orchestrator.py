@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import sys
+import threading
 import time
 from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from crab.core.execution.settings import ExecutionSettings
     from crab.log import LogLevel
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -18,14 +21,28 @@ CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", 
 
 import crab.setup.memory as memory  # noqa: E402 -- must follow the sys.path setup above
 
+COMMON_KEYS = ("description", "env", "sbatch", "header")
 
-def load_environment_config(preset_arg: str) -> dict[str, Any]:
+
+def load_environment_config(preset_arg: str, crab_root: str | Path | None = None) -> dict[str, Any]:
+    """Merge `_common` and one preset into env, sbatch, header and the parsed execution settings.
+
+    The presets are read from `crab_root` (default: this checkout).
+
+    Raises:
+        FileNotFoundError: the shipped presets file is missing.
+        KeyError: the preset does not exist.
+        ValueError: `_common` holds an execution field, the preset's execution fields are invalid, or a dropped `CRAB_*` launch key
+            is in `env` (the preset's or `_common`'s).
+    """
     from crab.cli.presets import LOCAL_PRESETS, SHIPPED_PRESETS, load_all_presets
+    from crab.core.execution.settings import from_preset
 
+    root = str(crab_root) if crab_root is not None else CRAB_ROOT
     try:
-        all_presets = load_all_presets(Path(CRAB_ROOT))
+        all_presets = load_all_presets(Path(root))
     except FileNotFoundError:
-        shipped = os.path.join(CRAB_ROOT, SHIPPED_PRESETS)
+        shipped = os.path.join(root, SHIPPED_PRESETS)
         raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
 
     if preset_arg not in all_presets:
@@ -35,11 +52,20 @@ def load_environment_config(preset_arg: str) -> dict[str, Any]:
 
     # Carica _common e il preset specifico
     common_preset = all_presets.get("_common", {})
+    for key in common_preset:
+        if key not in COMMON_KEYS:
+            raise ValueError(
+                f"_common: unknown key {key!r}; only {', '.join(COMMON_KEYS)} are shared. "
+                "Execution fields (scheduler, launcher, ...) belong in each preset."
+            )
     target_preset = all_presets[preset_arg]
 
     # 1. Merge Environment Variables (Dict update)
     final_env = common_preset.get("env", {}).copy()
     final_env.update(target_preset.get("env", {}))
+
+    # Parsed before CRAB_SYSTEM is added, so a dropped key in `_common` is caught too.
+    settings = from_preset({**target_preset, "env": final_env}, preset_arg)
 
     # Assicuriamo che CRAB_SYSTEM sia impostato
     if "CRAB_SYSTEM" not in final_env:
@@ -53,7 +79,38 @@ def load_environment_config(preset_arg: str) -> dict[str, Any]:
     final_header = common_preset.get("header", []) + target_preset.get("header", [])
 
     # Restituiamo una struttura configurata completa
-    return {"env": final_env, "sbatch": final_sbatch, "header": final_header}
+    return {
+        "env": final_env,
+        "sbatch": final_sbatch,
+        "header": final_header,
+        "settings": settings,
+    }
+
+
+def worker_settings(work_dir: str, environ: dict[str, str]) -> tuple[ExecutionSettings, str]:
+    """The settings a worker runs with, and where they came from.
+
+    Order: `<work_dir>/execution.json`, else the preset named by `CRAB_PRESET` in `environ`, else
+    the Slurm default.
+
+    Raises:
+        ValueError: `execution.json` or the preset is invalid.
+        OSError: `execution.json` exists but cannot be read.
+    """
+    from crab.core.execution.settings import SLURM_DEFAULT, from_json
+
+    settings_file = os.path.join(work_dir, "execution.json")
+    if os.path.exists(settings_file):
+        with open(settings_file) as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"execution.json: not valid JSON: {error}") from error
+        return from_json(data), "execution.json"
+    name = environ.get("CRAB_PRESET")
+    if name:
+        return load_environment_config(name)["settings"], f"preset '{name}' (CRAB_PRESET)"
+    return SLURM_DEFAULT, "defaults (Slurm with srun; no execution.json, no CRAB_PRESET)"
 
 
 def _parse_log_level(raw: str) -> LogLevel:
@@ -83,12 +140,66 @@ def prepare_execution_environment(env_dict: dict[str, Any]) -> dict[str, str]:
     return processed_env
 
 
+class WorkerTerminated(BaseException):
+    """Raised in the worker by its SIGTERM handler.
+
+    A BaseException, so the engine's per-experiment ``except Exception`` does not swallow it and
+    its ``finally: runner.teardown()`` still stops the apps before the worker exits.
+    """
+
+
+def _raise_worker_terminated(signum: int, frame: Any) -> None:
+    """SIGTERM handler: ignore further SIGTERMs (the teardown must finish), then unwind."""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    raise WorkerTerminated()
+
+
+def _watch_supervisor(logger: Any) -> None:
+    """Stop this worker when its local supervisor dies.
+
+    A local job's supervisor keeps the write end of a pipe it never writes to, and hands the read
+    end to the worker (`CRAB_SUPERVISOR_FD`). A daemon thread blocks on that read: end of file
+    means the supervisor is gone (however it died), so the thread sends SIGTERM to this very
+    process and the usual `WorkerTerminated` path tears the apps down. Without the variable (a
+    Slurm worker) nothing happens.
+    """
+    # Popped, so no app is started with a stale descriptor number in its environment.
+    raw = os.environ.pop("CRAB_SUPERVISOR_FD", None)
+    if raw is None:
+        return
+    try:
+        fd = int(raw)
+        os.set_inheritable(fd, False)  # no app may hold the pipe: it would never see EOF
+    except (ValueError, OSError) as exc:
+        logger.warning(
+            f"CRAB_SUPERVISOR_FD={raw!r} is not a usable descriptor ({exc}); "
+            "not watching the supervisor"
+        )
+        return
+
+    def watch() -> None:
+        try:
+            while True:
+                try:
+                    if os.read(fd, 1) == b"":
+                        break
+                except InterruptedError:
+                    continue
+        except OSError:
+            return  # not a readable pipe: nothing to watch
+        logger.warning("Supervisor is gone; stopping the job")
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    threading.Thread(target=watch, name="supervisor-watch", daemon=True).start()
+
+
 def execute_worker(work_dir: str, log_level_str: str = None):
     """Executes the worker logic directly from provided arguments."""
     from crab.log import get_logger
 
     level = _parse_log_level(log_level_str) if log_level_str else None
     logger = get_logger(level=level)
+    _watch_supervisor(logger)
 
     try:
         config_file = os.path.join(work_dir, "config.json")
@@ -120,6 +231,12 @@ def execute_worker(work_dir: str, log_level_str: str = None):
         # environment when no environment.json exists.
         execution_env = prepare_execution_environment(execution_env)
 
+        from crab.core.execution.settings import check_dropped_keys
+
+        settings, source = worker_settings(work_dir, execution_env)
+        logger.info(f"Execution settings from {source}")
+        check_dropped_keys(execution_env, "worker environment")
+
         logger.info("Environment loaded, starting engine")
 
         start = time.time()
@@ -127,12 +244,21 @@ def execute_worker(work_dir: str, log_level_str: str = None):
         from crab.core.engine import Engine
 
         engine = Engine(logger=logger)
-        engine.run(
-            config=benchmark_config,
-            environment=execution_env,
-            is_worker=True,
-            output_dir=work_dir,
-        )
+        signal.signal(signal.SIGTERM, _raise_worker_terminated)
+        try:
+            engine.run(
+                config=benchmark_config,
+                environment=execution_env,
+                is_worker=True,
+                output_dir=work_dir,
+                settings=settings,
+            )
+        except WorkerTerminated:
+            raise  # SIGTERM stays ignored while the worker stops what is left
+        except BaseException:
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            raise
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
         elapsed_time = time.time() - start
         total = timedelta(seconds=int(elapsed_time))
@@ -142,6 +268,13 @@ def execute_worker(work_dir: str, log_level_str: str = None):
     except KeyboardInterrupt:
         logger.warning("Worker interrupted by user")
         sys.exit(130)
+    except WorkerTerminated:
+        logger.warning("Worker terminated (SIGTERM)")
+        # The stop that the signal interrupted may not have finished: stop what is left.
+        from crab.core.process import stop_all_registered
+
+        stop_all_registered(logger)
+        sys.exit(143)
     except Exception as e:
         logger.critical(f"Worker fatal error: {e}")
         import traceback
@@ -223,7 +356,11 @@ def execute_orchestrator(
 
         engine = Engine(logger=logger)
         result = engine.run(
-            config=benchmark_config, environment=execution_env, is_worker=False, only=only
+            config=benchmark_config,
+            environment=execution_env,
+            is_worker=False,
+            only=only,
+            settings=preset_config["settings"],
         )
 
         logger.info("Orchestration complete — job submitted to SLURM")

@@ -219,7 +219,8 @@ def _run_custom_benchmark_wizard(
         choices=[
             Choice("mpirun  (OpenMPI / MPICH default)", value="mpirun"),
             Choice("srun    (SLURM native launcher)", value="srun"),
-            Choice("none    (run directly, no MPI prefix)", value=""),
+            # "" means no override: the experiment uses the preset's launcher.
+            Choice("preset  (use the preset's launcher, no override)", value=""),
         ],
         style=questionary.Style([("highlighted", "fg:cyan bold")]),
     ).ask()

@@ -450,13 +450,13 @@ describe("output format (csv only)", () => {
 });
 
 describe("config format version", () => {
-  it("every emitted config carries schema_version 1, even from an untouched editor", () => {
-    expect(toConfig(emptyDraft()).schema_version).toBe(1);
+  it("every emitted config carries schema_version 2, even from an untouched editor", () => {
+    expect(toConfig(emptyDraft()).schema_version).toBe(2);
   });
 
-  it("re-emits schema_version 1 for an imported config that had none", () => {
+  it("re-emits schema_version 2 for an imported config that had none", () => {
     const old = fromConfig({ global_options: { numnodes: "2" }, experiments: {} });
-    expect(toConfig(old).schema_version).toBe(1);
+    expect(toConfig(old).schema_version).toBe(2);
   });
 });
 

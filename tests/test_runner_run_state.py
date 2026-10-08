@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from crab.core.experiment.runner import ExperimentRunner
+from settings_fixtures import LOCAL_DIRECT
 
 
 def _wrapper(path: Path, command: str) -> None:
@@ -30,7 +31,6 @@ def _first_run_only(marker: Path, first: str, later: str) -> str:
 
 
 def _run(tmp_path: Path, monkeypatch, apps: dict, local_options: dict) -> ExperimentRunner:
-    monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     output_dir = tmp_path / "system" / "job"
     runner = ExperimentRunner(
         exp_name="exp",
@@ -39,6 +39,7 @@ def _run(tmp_path: Path, monkeypatch, apps: dict, local_options: dict) -> Experi
         node_list=[f"n{i}" for i in range(len(apps))],  # the local launcher ignores node names
         output_dir=str(output_dir),
         logger=MagicMock(),
+        settings=LOCAL_DIRECT,
     )
     runner.setup()
     runner.execute(str(output_dir))

@@ -10,10 +10,21 @@ from typing import Any
 
 from crab.core.allocation.allocator import NodeAllocator
 from crab.core.allocation.chains import resolve_chains
+from crab.core.execution.settings import LAUNCHER_KINDS, ExecutionSettings
 
 ALLOCATION_MODES = ("linear", "interleaved", "random")
 OUTPUT_FORMATS = ("csv",)
 _BOOL_OPTIONS = ("convergeall", "retain_files")
+_TASKS_TAIL = "CRAB sets the task count from numnodes and ppn"
+# Slurm directive keys that CRAB writes itself (SlurmScheduler.generate_header drops them), with
+# what to say instead.
+MANAGED_DIRECTIVES: dict[str, str] = {
+    "nodes": "use numnodes",
+    "N": "use numnodes",
+    "ntasks-per-node": "use ppn",
+    "ntasks": _TASKS_TAIL,
+    "n": _TASKS_TAIL,
+}
 
 
 def parse_bool(value: Any, name: str) -> bool:
@@ -73,6 +84,91 @@ def _has_token(value: Any) -> bool:
     if isinstance(value, list):
         return any(_has_token(v) for v in value)
     return False
+
+
+def _check_launcher_options(opts: dict[str, Any], exp: str) -> None:
+    launcher = opts.get("launcher")
+    if "launcher" in opts and not _has_token(launcher) and launcher not in LAUNCHER_KINDS:
+        raise ValueError(
+            f"experiment {exp}: launcher {launcher!r} must be one of {', '.join(LAUNCHER_KINDS)}"
+        )
+    flags = opts.get("launcher_flags")
+    if "launcher_flags" in opts and not _has_token(flags):
+        if not isinstance(flags, list) or not all(isinstance(f, str) for f in flags):
+            raise ValueError(f"experiment {exp}: launcher_flags must be a list of strings")
+
+
+def _directive_keys(directives: Any) -> list[tuple[str, str]]:
+    """(text, key) per directive, parsed as SlurmScheduler.generate_header parses them."""
+    if isinstance(directives, dict):
+        return [(f"{k}: {v}", str(k).lstrip("-")) for k, v in directives.items() if v is not False]
+    if not isinstance(directives, list):
+        return []
+    found = []
+    for raw in directives:
+        clean = str(raw).strip().lstrip("-")
+        if not clean:
+            continue
+        key = clean.split("=")[0] if "=" in clean else clean.split()[0]
+        found.append((str(raw).strip(), key))
+    return found
+
+
+def _check_managed_directives(global_opts: dict[str, Any]) -> None:
+    """Refuse Slurm directives CRAB sets itself, from the config and from the preset's sbatch."""
+    for option, source in (
+        ("sbatch_directives", "sbatch_directives"),
+        ("system_sbatch", "the preset's sbatch"),
+    ):
+        for text, key in _directive_keys(global_opts.get(option)):
+            if key in MANAGED_DIRECTIVES:
+                raise ValueError(
+                    f"{source}: {text!r} sets {key!r}, which CRAB manages itself: "
+                    f"{MANAGED_DIRECTIVES[key]}"
+                )
+
+
+def _count(value: Any) -> int | None:
+    """An integer option, or None when it is missing or a `{var}` token."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _check_preset_fit(
+    opts: dict[str, Any],
+    global_opts: dict[str, Any],
+    settings: ExecutionSettings,
+    exp: str,
+    warnings: list[str],
+) -> None:
+    """Refuse a config the preset cannot run; warn about options a local preset ignores.
+
+    The launcher is the experiment's option, else the preset's. A receipt's launcher override is
+    checked at setup, not here.
+    """
+    local = settings.scheduler == "local"
+    launcher = opts.get("launcher", settings.launcher)
+    numnodes = _count(global_opts.get("numnodes"))
+    ppn = _count(global_opts.get("ppn", 1))
+    problems = []
+    if launcher == "srun" and local:
+        problems.append("the srun launcher needs a Slurm preset")
+    if launcher == "direct" and ((numnodes or 1) > 1 or (ppn or 1) > 1):
+        problems.append(
+            "the direct launcher runs a single process; use ppn 1 and numnodes 1, "
+            "or the mpirun launcher"
+        )
+    if local and numnodes is not None and numnodes > len(settings.hosts):
+        problems.append(
+            f"numnodes {numnodes} is more than the preset's {len(settings.hosts)} host(s)"
+        )
+    if problems:
+        raise ValueError(f"experiment {exp}: " + "; ".join(problems))
+    note = "sbatch_directives are ignored by the local scheduler"
+    if local and global_opts.get("sbatch_directives") and note not in warnings:
+        warnings.append(note)
 
 
 def _check_split(
@@ -208,18 +304,23 @@ def _check_allocation(
             )
 
 
-def check_config(config: dict[str, Any]) -> list[str]:
+def check_config(config: dict[str, Any], settings: ExecutionSettings | None = None) -> list[str]:
     """Raise ValueError on the first value the engine would ignore or misread.
 
     Returns warnings for allowed but unusual values (e.g. a split leaving nodes idle), for
     the caller to log. Options are checked as each experiment sees them: global options overlaid by its
-    `local_options` (the same shallow merge as the runner).
+    `local_options` (the same shallow merge as the runner). With `settings`, the config is also
+    checked against what the preset can run.
     """
     global_opts = config.get("global_options") or {}
     warnings: list[str] = []
+    _check_managed_directives(global_opts)
     for exp_name, exp in _experiments(config).items():
         opts = {**global_opts, **(exp.get("local_options") or {})}
         _check_options(opts, exp_name)
+        _check_launcher_options(opts, exp_name)
+        if settings is not None:
+            _check_preset_fit(opts, global_opts, settings, exp_name, warnings)
         apps = exp.get("apps") or {}
         _check_allocation(
             opts.get("allocation") or {}, apps, global_opts.get("numnodes"), exp_name, warnings

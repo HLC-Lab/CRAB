@@ -10,6 +10,9 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from crab.core.engine import Engine
+from crab.core.execution.scheduler.slurm import SlurmScheduler
+from crab.core.execution.settings import from_json, to_json
+from settings_fixtures import LOCAL_DIRECT, slurm_settings
 
 
 def _make_engine():
@@ -41,7 +44,7 @@ class TestSlurmNodelistUnset(unittest.TestCase):
         self.assertIn("SLURM_NODELIST", str(ctx.exception))
 
     def test_local_scheduler_uses_localhost_when_nodelist_absent(self):
-        """CRAB_SCHEDULER=local must bypass the SLURM_NODELIST requirement and use a single
+        """A local scheduler must bypass the SLURM_NODELIST requirement and use a single
         'localhost' node instead of raising or calling scontrol."""
         engine = _make_engine()
         config = {"global_options": {}, "experiments": {}}
@@ -52,12 +55,12 @@ class TestSlurmNodelistUnset(unittest.TestCase):
                     patch("crab.core.engine.write_provenance"),
                     patch("subprocess.run") as mock_scontrol,
                 ):
-                    engine._run_worker(config, {"CRAB_SCHEDULER": "local"}, tmpdir)
+                    engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
                 mock_scontrol.assert_not_called()
         engine.log.info.assert_any_call("Allocated 1 node(s)")
 
     def test_scontrol_nonzero_exit_raises(self):
-        """If scontrol exits non-zero the worker must raise, not silently leave an empty file."""
+        """If scontrol exits non-zero the worker must fail."""
         engine = _make_engine()
         config = {"global_options": {}, "experiments": {}}
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -68,47 +71,6 @@ class TestSlurmNodelistUnset(unittest.TestCase):
                     )
                     with self.assertRaises(Exception):  # noqa: B017 -- any failure aborting the worker is the contract
                         engine._run_worker(config, {}, tmpdir)
-
-
-# ---------------------------------------------------------------------------
-# Issue 2: worker_nodelist.txt written to CWD, not output_dir
-# ---------------------------------------------------------------------------
-
-
-class TestNodelistFileLocation(unittest.TestCase):
-    def test_nodelist_written_inside_output_dir(self):
-        """The temporary nodelist file must be created inside output_dir, not CWD."""
-        engine = _make_engine()
-        config = {"global_options": {}, "experiments": {}}
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"SLURM_NODELIST": "node01"}, clear=False):
-                written_paths = []
-
-                original_open = open
-
-                def tracking_open(path, *args, **kwargs):
-                    written_paths.append(str(path))
-                    return original_open(path, *args, **kwargs)
-
-                with patch("builtins.open", side_effect=tracking_open):
-                    with patch("subprocess.run") as mock_run:
-                        mock_run.return_value = MagicMock(returncode=0)
-                        # scontrol writes nothing → pandas.read_csv will fail, but
-                        # we only care about the path the open() call uses
-                        try:
-                            engine._run_worker(config, {}, tmpdir)
-                        except Exception:
-                            pass
-
-                # The nodelist file open should be inside tmpdir, not in CWD
-                nodelist_opens = [p for p in written_paths if "nodelist" in p.lower()]
-                if nodelist_opens:
-                    for p in nodelist_opens:
-                        self.assertTrue(
-                            os.path.abspath(p).startswith(os.path.abspath(tmpdir)),
-                            f"nodelist file opened outside output_dir: {p}",
-                        )
 
 
 # ---------------------------------------------------------------------------
@@ -249,17 +211,17 @@ class TestNumnodesValidation(unittest.TestCase):
         )
 
     def test_nodes_none_not_in_sbatch_header(self):
-        """_generate_sbatch_header must not produce '--nodes=None'."""
-        engine = _make_engine()
+        """SlurmScheduler.generate_header must not produce '--nodes=None'."""
+        scheduler = SlurmScheduler(MagicMock(), crab_root="/tmp")
         # numnodes absent
-        lines = engine._generate_sbatch_header({}, "/tmp/out")
+        lines = scheduler.generate_header({}, "/tmp/out")
         for line in lines:
             self.assertNotIn("None", line, f"'None' literal found in sbatch header line: {line}")
 
     def test_nodes_correct_when_numnodes_set(self):
         """When numnodes is set, --nodes=<value> must appear in the header."""
-        engine = _make_engine()
-        lines = engine._generate_sbatch_header({"numnodes": 4, "ppn": 8}, "/tmp/out")
+        scheduler = SlurmScheduler(MagicMock(), crab_root="/tmp")
+        lines = scheduler.generate_header({"numnodes": 4, "ppn": 8}, "/tmp/out")
         nodes_lines = [line for line in lines if "--nodes=" in line]
         self.assertEqual(len(nodes_lines), 1)
         self.assertIn("--nodes=4", nodes_lines[0])
@@ -317,7 +279,7 @@ class TestOnlyExperimentFilter(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# CRAB_SCHEDULER=local: skip sbatch, submit as a detached local subprocess
+# A local scheduler (preset scheduler "local"): skip sbatch, submit as a detached local subprocess
 # (dev/testing-only no-Slurm path)
 # ---------------------------------------------------------------------------
 
@@ -330,43 +292,62 @@ class TestLocalScheduler(unittest.TestCase):
         }
 
     def test_local_scheduler_never_calls_sbatch(self):
-        """CRAB_SCHEDULER=local must never shell out to sbatch."""
+        """A local scheduler must never shell out to sbatch."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
                 with patch("subprocess.check_output") as mock_sbatch:
                     with patch("subprocess.Popen") as mock_popen:
                         mock_popen.return_value = MagicMock(pid=12345)
-                        engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+                        engine._run_orchestrator(self._config(tmpdir), {}, settings=LOCAL_DIRECT)
             mock_sbatch.assert_not_called()
             mock_popen.assert_called_once()
 
-    def test_local_scheduler_returns_pid_as_job_id(self):
-        """The returned job_id must be the spawned subprocess's PID (as a string)."""
+    def test_local_scheduler_returns_a_local_n_job_id(self):
+        """The returned job_id is `local-<n>` (the counter), not the subprocess pid."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
                 with patch("subprocess.Popen") as mock_popen:
                     mock_popen.return_value = MagicMock(pid=12345)
                     result = engine._run_orchestrator(
-                        self._config(tmpdir), {"CRAB_SCHEDULER": "local"}
+                        self._config(tmpdir), {}, settings=LOCAL_DIRECT
                     )
-        self.assertEqual(result["job_id"], "12345")
+        self.assertEqual(result["job_id"], "local-1")
+
+    def test_run_refuses_a_config_the_preset_cannot_run_before_any_submit(self):
+        """Engine.run hands its settings to check_config: the direct launcher runs one process,
+        so 2 nodes is refused before anything is spawned."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(tmpdir)
+            config["global_options"]["numnodes"] = 2
+            config["experiments"] = {"e1": {"apps": {"0": {"path": "a.py"}}}}
+            with patch("crab.core.engine.CRAB_ROOT", tmpdir):
+                with patch("subprocess.check_output") as mock_sbatch:
+                    with patch("subprocess.Popen") as mock_popen:
+                        with self.assertRaisesRegex(ValueError, "single process"):
+                            engine.run(config, {}, settings=LOCAL_DIRECT)
+        mock_sbatch.assert_not_called()
+        mock_popen.assert_not_called()
 
     def test_local_scheduler_writes_state_file(self):
-        """A state file keyed by pid must be written so gather_status/cancel can find it later."""
+        """A job record must be written under the XDG state dir so gather_status/cancel can find
+        it later; nothing goes into the checkout."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
                 with patch("subprocess.Popen") as mock_popen:
                     mock_popen.return_value = MagicMock(pid=54321)
-                    engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+                    engine._run_orchestrator(self._config(tmpdir), {}, settings=LOCAL_DIRECT)
 
-            state_path = os.path.join(tmpdir, ".crab_local_jobs", "54321.json")
-            self.assertTrue(os.path.isfile(state_path), "no local job state file written")
+            state_path = os.path.join(os.environ["XDG_STATE_HOME"], "crab", "jobs", "local-1.json")
+            self.assertTrue(os.path.isfile(state_path), "no local job record written")
             with open(state_path) as f:
                 state = json.load(f)
-        self.assertEqual(state["pid"], 54321)
+            self.assertFalse(os.path.exists(os.path.join(tmpdir, ".crab_local_jobs")))
+        self.assertEqual(state["supervisor_pid"], 54321)
+        self.assertEqual(state["id"], "local-1")
         self.assertIn("data_dir", state)
 
     def test_local_scheduler_redirects_to_slurm_log_filenames(self):
@@ -378,7 +359,7 @@ class TestLocalScheduler(unittest.TestCase):
                 with patch("subprocess.Popen") as mock_popen:
                     mock_popen.return_value = MagicMock(pid=1)
                     result = engine._run_orchestrator(
-                        self._config(tmpdir), {"CRAB_SCHEDULER": "local"}
+                        self._config(tmpdir), {}, settings=LOCAL_DIRECT
                     )
             _, kwargs = mock_popen.call_args
             self.assertEqual(
@@ -394,21 +375,27 @@ class TestLocalScheduler(unittest.TestCase):
                 "stdout log must live inside the job's own data directory",
             )
 
-    def test_local_scheduler_captures_exit_code_via_bash_trailer(self):
-        """The command must be wrapped so a later, separate CLI invocation can learn the exit
-        code (a live Popen handle does not survive across CLI invocations)."""
+    def test_local_scheduler_hands_the_worker_to_a_supervisor(self):
+        """The Popen'd process is the job's supervisor, which learns the worker's command from
+        `local_job.json` (a live Popen handle does not survive across CLI invocations, so the
+        supervisor writes the exit code and the state files)."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
                 with patch("subprocess.Popen") as mock_popen:
                     mock_popen.return_value = MagicMock(pid=1)
-                    engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+                    result = engine._run_orchestrator(
+                        self._config(tmpdir), {}, settings=LOCAL_DIRECT
+                    )
             args, _ = mock_popen.call_args
             popen_cmd = args[0]
-        self.assertEqual(popen_cmd[0], "bash")
-        self.assertEqual(popen_cmd[1], "-c")
-        self.assertIn("local_exit_code", popen_cmd[2])
-        self.assertIn("worker --workdir", popen_cmd[2])
+            with open(os.path.join(result["data_dir"], "local_job.json")) as f:
+                spec = json.load(f)
+        self.assertEqual(popen_cmd[1:3], ["-m", "crab.core.execution.scheduler.supervisor"])
+        self.assertEqual(popen_cmd[3], result["data_dir"])
+        self.assertEqual(popen_cmd[4], "--lock-fd")
+        self.assertEqual(spec["argv"][-3:], ["worker", "--workdir", result["data_dir"]])
+        self.assertEqual((spec["hosts"], spec["exclusive"]), (["localhost"], True))
 
     def test_local_scheduler_detaches_the_process(self):
         """The child must be launched in its own session so it survives the parent exiting."""
@@ -417,12 +404,12 @@ class TestLocalScheduler(unittest.TestCase):
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
                 with patch("subprocess.Popen") as mock_popen:
                     mock_popen.return_value = MagicMock(pid=1)
-                    engine._run_orchestrator(self._config(tmpdir), {"CRAB_SCHEDULER": "local"})
+                    engine._run_orchestrator(self._config(tmpdir), {}, settings=LOCAL_DIRECT)
             _, kwargs = mock_popen.call_args
         self.assertTrue(kwargs.get("start_new_session"))
 
     def test_slurm_path_unaffected_when_scheduler_unset(self):
-        """Regression: with no CRAB_SCHEDULER, submission must still go through sbatch exactly
+        """Regression: with default settings, submission must still go through sbatch exactly
         as before, never through subprocess.Popen."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -433,6 +420,54 @@ class TestLocalScheduler(unittest.TestCase):
                     engine._run_orchestrator(self._config(tmpdir), {})
             mock_sbatch.assert_called_once()
             mock_popen.assert_not_called()
+
+    def test_environment_scheduler_key_is_no_longer_read(self):
+        """The old `CRAB_SCHEDULER` environment key chooses nothing: with no settings the job
+        goes to Slurm."""
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch(
+                "subprocess.check_output", return_value="Submitted batch job 78"
+            ) as mock_sbatch:
+                with patch("subprocess.Popen") as mock_popen:
+                    result = engine._run_orchestrator(
+                        self._config(tmpdir), {"CRAB_SCHEDULER": "local"}
+                    )
+            mock_sbatch.assert_called_once()
+            mock_popen.assert_not_called()
+        self.assertEqual(result["job_id"], "78")
+
+    def test_orchestrator_writes_execution_json(self):
+        """The settings the job was submitted with are saved next to environment.json, in the
+        shape `from_json` reads back."""
+        settings = slurm_settings(launchers={"srun": {"flags": ["--cpu-bind=socket"]}})
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("subprocess.check_output", return_value="Submitted batch job 79"):
+                result = engine._run_orchestrator(self._config(tmpdir), {}, settings=settings)
+            with open(os.path.join(result["data_dir"], "execution.json")) as f:
+                written = json.load(f)
+        self.assertEqual(written, to_json(settings))
+        self.assertEqual(written["launchers"]["srun"]["flags"], ["--cpu-bind=socket"])
+        self.assertEqual(from_json(written), settings)
+
+    def test_worker_hands_its_settings_to_every_runner(self):
+        """Each ExperimentRunner gets the settings object the worker was started with."""
+        engine = _make_engine()
+        config = {
+            "global_options": {},
+            "experiments": {"a": {"apps": {}}, "b": {"apps": {}}},
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("crab.core.engine.write_provenance"),
+                patch("crab.core.engine.time.sleep"),
+                patch("crab.core.engine.ExperimentRunner") as mock_runner,
+            ):
+                engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
+        self.assertEqual(mock_runner.call_count, 2)
+        for call in mock_runner.call_args_list:
+            self.assertIs(call.kwargs["settings"], LOCAL_DIRECT)
 
 
 if __name__ == "__main__":
@@ -453,6 +488,6 @@ class TestFailedExperimentsFailTheJob(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.write_provenance"):
                 with self.assertRaises(RuntimeError) as ctx:
-                    engine._run_worker(config, {"CRAB_SCHEDULER": "local"}, tmpdir)
+                    engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
         self.assertIn("2 of 2 experiments failed: a_first, b_second", str(ctx.exception))
         engine.log.info.assert_any_call("Starting experiment [2/2]: b_second")

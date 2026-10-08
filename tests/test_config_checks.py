@@ -348,3 +348,146 @@ def test_zero_node_message_no_longer_blames_chains() -> None:
     with pytest.raises(ValueError, match=r"app 0 would get 0 of 4 nodes") as info:
         check_config(_alloc_config(alloc, apps, numnodes="4"))
     assert "does not reuse" not in str(info.value)
+
+
+# --- Launcher options, managed Slurm directives and preset fit ---------------------------
+# Before: an invalid `launcher` failed at setup inside the job, a `--nodes` in sbatch_directives
+# was dropped with only a log warning (slurm.py generate_header), and a config the preset could
+# not run (srun on a local preset, direct with 2 nodes) failed after submit.
+
+
+def _cfg(global_options: dict | None = None, local: dict | None = None) -> dict:
+    exp: dict = {"apps": {"0": {"path": "a.py"}}}
+    if local is not None:
+        exp["local_options"] = local
+    return {"global_options": global_options or {}, "experiments": {"e1": exp}}
+
+
+def _check(config: dict, settings: object = None) -> list[str]:
+    from crab.core.config_checks import check_config
+
+    return check_config(config, settings)  # type: ignore[arg-type]
+
+
+def test_invalid_launcher_is_refused_globally_and_per_experiment() -> None:
+    message = r"experiment e1: launcher 'pbs' must be one of srun, mpirun, direct"
+    with pytest.raises(ValueError, match=message):
+        _check(_cfg({"launcher": "pbs"}))
+    with pytest.raises(ValueError, match=message):
+        _check(_cfg(local={"launcher": "pbs"}))
+
+
+@pytest.mark.parametrize("flags", ["--x", [1], ["-a", None]])
+def test_launcher_flags_must_be_a_list_of_strings(flags: object) -> None:
+    with pytest.raises(
+        ValueError, match=r"experiment e1: launcher_flags must be a list of strings"
+    ):
+        _check(_cfg({"launcher_flags": flags}))
+
+
+@pytest.mark.parametrize("launcher", ["srun", "mpirun", "direct", "{launcher}"])
+def test_valid_launcher_options_pass(launcher: str) -> None:
+    assert _check(_cfg({"launcher": launcher, "launcher_flags": ["--bind-to", "core"]})) == []
+
+
+@pytest.mark.parametrize(
+    ("directive", "key", "field"),
+    [
+        ("--nodes=2", "nodes", "numnodes"),
+        ("-N 2", "N", "numnodes"),
+        ("--ntasks=8", "ntasks", "numnodes and ppn"),
+        ("-n 8", "n", "numnodes and ppn"),
+        ("--ntasks-per-node=4", "ntasks-per-node", "ppn"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("option", "source"),
+    [("sbatch_directives", "sbatch_directives"), ("system_sbatch", "the preset's sbatch")],
+)
+def test_managed_directive_is_refused_with_the_crab_field(
+    option: str, source: str, directive: str, key: str, field: str
+) -> None:
+    with pytest.raises(ValueError, match=rf"{source}.*'{key}'.*manages.*{field}"):
+        _check(_cfg({option: [directive]}))
+
+
+def test_managed_directive_in_dict_form_is_refused() -> None:
+    with pytest.raises(ValueError, match=r"sbatch_directives.*'nodes'.*numnodes"):
+        _check(_cfg({"sbatch_directives": {"nodes": 2}}))
+
+
+@pytest.mark.parametrize("option", ["sbatch_directives", "system_sbatch"])
+def test_unmanaged_directives_pass(option: str) -> None:
+    assert _check(_cfg({option: ["--time=00:10:00", "--exclusive", "-J name", ""]})) == []
+    assert _check(_cfg({option: {"time": "00:10:00", "exclusive": True}})) == []
+
+
+def test_srun_needs_a_slurm_preset() -> None:
+    from settings_fixtures import LOCAL_DIRECT
+
+    with pytest.raises(ValueError, match=r"experiment e1: the srun launcher needs a Slurm preset"):
+        _check(_cfg(local={"launcher": "srun"}), LOCAL_DIRECT)
+
+
+@pytest.mark.parametrize("field", ["numnodes", "ppn"])
+@pytest.mark.parametrize("preset", ["local", "slurm"])
+def test_direct_launcher_runs_one_process(field: str, preset: str) -> None:
+    from settings_fixtures import LOCAL_DIRECT, slurm_settings
+
+    settings = LOCAL_DIRECT if preset == "local" else slurm_settings(launcher="direct")
+    config = _cfg({"numnodes": 1, "ppn": 1, field: 2})
+    with pytest.raises(ValueError, match=r"direct launcher runs a single process.*ppn 1.*mpirun"):
+        _check(config, settings)
+
+
+def test_direct_launcher_from_the_options_runs_one_process() -> None:
+    from settings_fixtures import slurm_settings
+
+    with pytest.raises(ValueError, match=r"direct launcher runs a single process"):
+        _check(_cfg({"numnodes": 2, "launcher": "direct"}), slurm_settings())
+
+
+def test_direct_launcher_with_one_node_and_one_task_passes() -> None:
+    from settings_fixtures import LOCAL_DIRECT
+
+    assert _check(_cfg({"numnodes": "1", "ppn": 1}), LOCAL_DIRECT) == []
+
+
+def test_numnodes_above_the_local_hosts_is_refused() -> None:
+    from settings_fixtures import LOCAL_DIRECT
+
+    with pytest.raises(ValueError, match=r"numnodes 2 is more than the preset's 1 host\(s\)"):
+        _check(_cfg({"numnodes": 2}), LOCAL_DIRECT)
+
+
+def test_numnodes_within_the_local_hosts_passes() -> None:
+    from crab.core.execution.settings import from_preset
+
+    settings = from_preset(
+        {"scheduler": "local", "launcher": "mpirun", "hosts": ["a:4", "b:4"]}, "t"
+    )
+    assert _check(_cfg({"numnodes": 2, "ppn": 4}), settings) == []
+    with pytest.raises(ValueError, match=r"numnodes 3 is more than the preset's 2 host\(s\)"):
+        _check(_cfg({"numnodes": 3}), settings)
+
+
+def test_sbatch_directives_under_a_local_preset_are_a_warning() -> None:
+    from settings_fixtures import LOCAL_DIRECT, slurm_settings
+
+    config = _cfg({"numnodes": 1, "sbatch_directives": ["--time=00:10:00"]})
+    assert _check(config, LOCAL_DIRECT) == ["sbatch_directives are ignored by the local scheduler"]
+    assert _check(config, slurm_settings()) == []
+    assert _check(_cfg({"numnodes": 1, "sbatch_directives": []}), LOCAL_DIRECT) == []
+
+
+def test_without_settings_the_preset_checks_are_skipped() -> None:
+    config = _cfg({"numnodes": 4, "ppn": 4, "launcher": "direct"}, local={"launcher": "srun"})
+    assert _check(config) == []
+
+
+@pytest.mark.parametrize("value", ["{n}", None])
+def test_token_or_missing_numnodes_and_ppn_are_skipped(value: object) -> None:
+    from settings_fixtures import LOCAL_DIRECT
+
+    global_options = {} if value is None else {"numnodes": value, "ppn": value}
+    assert _check(_cfg(global_options), LOCAL_DIRECT) == []

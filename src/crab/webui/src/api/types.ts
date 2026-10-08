@@ -33,7 +33,14 @@ export interface CrabInfo {
   schema: number;
   crab_version: string;
   crab_root: string;
-  presets: { name: string; description: string }[];
+  presets: {
+    name: string;
+    description: string;
+    scheduler?: "slurm" | "local";
+    launcher?: "srun" | "mpirun" | "direct";
+    hosts?: string[];
+    error?: string;
+  }[];
 }
 
 /** POST /api/remotes/{name}/connect */

@@ -73,3 +73,12 @@ def test_list_benchmarks_walks_the_search_path_first_match_wins(root: Path) -> N
         "blink/a2a_b.py": str(root / "local/wrappers/blink/a2a_b.py"),
         "blink/ring_nb.py": str(root / "wrappers/blink/ring_nb.py"),
     }
+
+
+def test_a_path_python_cannot_import_fails_naming_the_file(tmp_path: Path) -> None:
+    """`importlib.util.spec_from_file_location` returns None for a file without a Python suffix;
+    `load_module` used to crash on it with "'NoneType' object has no attribute 'loader'"."""
+    not_python = tmp_path / "a2a_b.txt"
+    not_python.write_text("class app: pass\n")
+    with pytest.raises(ImportError, match=r"a2a_b\.txt"):
+        wp.load_module(str(not_python))

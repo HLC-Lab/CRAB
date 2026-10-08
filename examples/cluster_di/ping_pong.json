@@ -1,4 +1,5 @@
 {
+    "schema_version": 2,
     "global_options": {
         "name": "ping_pong",
         "numnodes": "1",

@@ -829,6 +829,20 @@ def test_list_jobs_skips_already_terminal_jobs(tmp_path: Path):
         assert not any("crab status" in c for c in transport.calls)
 
 
+def test_list_jobs_skips_lost_jobs(tmp_path: Path):
+    _seed_job(tmp_path, last_known_state="LOST")
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/jobs")
+        assert resp.json()[0]["last_known_state"] == "LOST"
+
+        transport = client.app.state.manager.get("leonardo")
+        assert not any("crab status" in c for c in transport.calls)
+
+
 # --------------------------------------------------------------------------- #
 # POST /api/jobs/{id}/cancel, GET /api/jobs/{id}/logs
 # --------------------------------------------------------------------------- #

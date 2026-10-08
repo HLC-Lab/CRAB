@@ -1,4 +1,4 @@
-// Shared Slurm/experiment status classification, used by both the flat Jobs
+// Shared Slurm/local/experiment status classification, used by both the flat Jobs
 // list and the per-use-case experiment report so the two views agree on what
 // counts as terminal/ok/danger/etc.
 
@@ -14,6 +14,7 @@ export const TERMINAL_STATES = new Set([
   "BOOT_FAIL",
   "DEADLINE",
   "REVOKED",
+  "LOST", // local scheduler: supervisor died without a final state
 ]);
 
 export function isTerminal(state: string): boolean {
@@ -22,7 +23,11 @@ export function isTerminal(state: string): boolean {
 
 export function stateClass(state: string): string {
   if (state === "COMPLETED") return "ok";
-  if (["FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "BOOT_FAIL", "DEADLINE"].includes(state))
+  if (
+    ["FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "BOOT_FAIL", "DEADLINE", "LOST"].includes(
+      state,
+    )
+  )
     return "danger";
   if (state === "CANCELLED" || state === "REVOKED") return "muted";
   if (state === "UNKNOWN") return "warn";
@@ -33,9 +38,15 @@ export function stateClass(state: string): string {
 // colors "danger". Deliberately excludes CANCELLED/REVOKED: those were
 // stopped on purpose, not a failure to recover from.
 export function isFailureState(state: string): boolean {
-  return ["FAILED", "TIMEOUT", "OUT_OF_MEMORY", "NODE_FAIL", "BOOT_FAIL", "DEADLINE"].includes(
-    state,
-  );
+  return [
+    "FAILED",
+    "TIMEOUT",
+    "OUT_OF_MEMORY",
+    "NODE_FAIL",
+    "BOOT_FAIL",
+    "DEADLINE",
+    "LOST",
+  ].includes(state);
 }
 
 // The experiment names worth offering a one-click "Rerun failed" for (plan

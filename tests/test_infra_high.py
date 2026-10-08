@@ -58,8 +58,9 @@ class TestOrchestratorOnlyFlag(unittest.TestCase):
     def test_only_is_threaded_through_to_engine_run(self):
         """--only must reach Engine.run, not get dropped along the way."""
         from crab.cli.orchestrator import execute_orchestrator
+        from crab.core.execution.settings import SLURM_DEFAULT
 
-        preset_config = {"env": {}, "sbatch": [], "header": []}
+        preset_config = {"env": {}, "sbatch": [], "header": [], "settings": SLURM_DEFAULT}
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = os.path.join(tmpdir, "config.json")
             with open(config_path, "w") as f:

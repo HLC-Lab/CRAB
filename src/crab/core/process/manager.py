@@ -2,22 +2,177 @@ import os
 import signal
 import subprocess
 import threading
+import time
+from pathlib import Path
 
+from crab.core.execution.launcher import Placement, launch_line, launcher_for
+from crab.core.execution.settings import LauncherSpec
 from crab.log import CrabLogger
+
+# How long stop_processes waits after SIGTERM before it sends SIGKILL (ADR-034, "Cancel order").
+STOP_GRACE_SECONDS = 10.0
+
+# Live app processes by pid, with the label their log lines use. A worker that is terminated
+# stops whatever is left here (stop_all_registered) even when the stop that SIGTERM interrupted
+# was the only thing that knew about them.
+_registry: dict[int, tuple[subprocess.Popen, str]] = {}
+_registry_lock = threading.Lock()
+
+
+def register_process(proc: subprocess.Popen, label: str) -> None:
+    """Remember a live app process; drops entries whose process has already been reaped."""
+    with _registry_lock:
+        for pid in [
+            pid
+            for pid, (known, _) in _registry.items()
+            if getattr(known, "returncode", None) is not None
+        ]:
+            del _registry[pid]
+        _registry[proc.pid] = (proc, label)
+
+
+def unregister_process(proc: subprocess.Popen) -> None:
+    """Forget an app process that has been reaped."""
+    with _registry_lock:
+        _registry.pop(proc.pid, None)
+
+
+def _usable_pgid(pgid: object) -> bool:
+    """Whether `pgid` is a process group id CRAB may signal or probe.
+
+    A pid of 1 or less, or CRAB's own group, would reach every process of the user or CRAB itself
+    (the 2026-10-08 incident), so those are refused whatever a caller passed.
+    """
+    return type(pgid) is int and pgid > 1 and pgid != os.getpgrp()
+
+
+def _group_members(pgid: int) -> bool:
+    """Whether process group `pgid` still has a live member (a zombie is not live).
+
+    On Linux this reads /proc: field 5 of `/proc/<pid>/stat` is the group, field 3 the state. The
+    command name (field 2) may hold spaces or parentheses, so the line is parsed after its last
+    `)`. Where /proc is missing (macOS) it probes with `os.killpg(pgid, 0)`, which also counts a
+    zombie as alive; that only makes a wait run to its grace. An unusable `pgid` has no members.
+    """
+    if not _usable_pgid(pgid):
+        return False
+    proc_root = Path("/proc")
+    if not (proc_root / "self" / "stat").is_file():
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+    for stat in proc_root.glob("[0-9]*/stat"):
+        try:
+            text = stat.read_text()
+        except OSError:
+            continue  # the process exited while we scanned
+        state, _ppid, group = text[text.rindex(")") + 2 :].split()[:3]
+        if int(group) == pgid and state not in ("Z", "X"):
+            return True
+    return False
+
+
+def _signal_group(pgid: int, sig: int) -> None:
+    """Send `sig` to process group `pgid`, a group CRAB started (its leader's pid).
+
+    The pid-reuse argument: on Linux a pid number stays allocated while any process uses it as its
+    group id, so a group that still has members cannot have its id handed to someone else. Callers
+    signal a group only right after `_group_members` saw a live member (SIGTERM: while the leader
+    is unreaped; SIGKILL: just before sending). On macOS the `killpg(pgid, 0)` probe means the same.
+    """
+    if not _usable_pgid(pgid):
+        return
+    try:
+        os.killpg(pgid, sig)
+    except (ProcessLookupError, PermissionError):
+        pass  # already gone, or no longer ours to signal
+
+
+def stop_processes(
+    procs: list[subprocess.Popen],
+    logger: CrabLogger,
+    grace: float | None = None,
+    labels: dict[int, str] | None = None,
+) -> None:
+    """Stop app processes: SIGTERM to each one's group, a shared wait, then SIGKILL for the rest.
+
+    SIGTERM first lets a launcher (mpirun, srun) tear its ranks down; SIGKILL first would orphan
+    them. The `grace` seconds are shared by all processes, not given to each, and the wait lasts
+    until every group is empty, not only until the leader (the bash wrapper, which exits on SIGTERM
+    at once) has exited: a launcher or app child that outlives its wrapper still gets SIGKILL. A
+    process that had already exited before this call is never signalled.
+
+    Args:
+        procs: the app processes (children started with start_new_session=True, so pid == pgid).
+        logger: receives one line per process whose group needed SIGKILL.
+        grace: seconds to wait after SIGTERM before SIGKILL; STOP_GRACE_SECONDS when None.
+        labels: optional pid -> name (such as "App 2") used in the log line instead of the pid.
+    """
+    if grace is None:
+        grace = STOP_GRACE_SECONDS
+    running = [proc for proc in procs if proc.poll() is None]
+    pgids = [proc.pid for proc in running]
+    for pgid in pgids:
+        _signal_group(pgid, signal.SIGTERM)
+
+    deadline = time.monotonic() + grace
+    while True:
+        for proc in running:
+            proc.poll()  # reap an exited leader, so it is no longer a member
+        if not any(_group_members(pgid) for pgid in pgids):
+            break
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.1)
+
+    for proc, pgid in zip(running, pgids, strict=True):
+        # Re-check right before sending: the group may have emptied since the loop ended.
+        if _group_members(pgid):
+            name = (labels or {}).get(pgid, f"PID {pgid}")
+            logger.warning(f"{name}: still running after {grace:g}s, sending SIGKILL")
+            _signal_group(pgid, signal.SIGKILL)
+        proc.wait()
+        unregister_process(proc)
+
+    # Processes that had exited before this call are reaped too (poll() reaps them).
+    for proc in procs:
+        if proc.poll() is not None:
+            unregister_process(proc)
+
+
+def stop_all_registered(logger: CrabLogger, grace: float | None = None) -> None:
+    """Stop every app process still registered, then clear the registry.
+
+    The worker calls this after SIGTERM, so apps are not left running when the stop that the
+    signal interrupted never finished.
+    """
+    with _registry_lock:
+        entries = list(_registry.values())
+    stop_processes(
+        [proc for proc, _ in entries],
+        logger,
+        grace,
+        labels={proc.pid: label for proc, label in entries},
+    )
+    with _registry_lock:
+        _registry.clear()
 
 
 def run_job(
     job,
-    wlmanager,
+    spec: LauncherSpec,
     ppn: int,
     logger: CrabLogger,
     pre_commands: list[str] = None,
     live_stream: bool = False,
     data_path: str = None,
-    launcher: str = None,
 ):
     """
-    Launch an application process via the workload manager using a physical execution wrapper.
+    Launch an application process under the launcher `spec` describes, through a wrapper script.
     """
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
@@ -29,14 +184,11 @@ def run_job(
             "command; refusing to run it."
         )
 
-    # 1. Get the base launcher command from the workload manager
-    cmd_string = wlmanager.run_job(
-        job.node_list,
-        ppn,
+    # 1. Build the launch line for the job's hosts
+    cmd_string = launch_line(
+        launcher_for(spec),
+        Placement(tuple(job.node_list), ppn),
         app_command,
-        pre_commands=pre_commands,
-        data_path=data_path,
-        launcher=launcher,
     )
 
     # 2. Write the Execution Wrapper
@@ -72,6 +224,7 @@ def run_job(
         shell=False,
         cwd=run_dir,
     )
+    register_process(process, f"App {job.id_num}")
     job.set_process(process)
 
     # Initialize the silent buffer
@@ -92,18 +245,14 @@ def run_job(
 
 
 def end_job(job, logger: CrabLogger) -> None:
-    """Forcefully terminates a job and retrieves output."""
+    """Stops a job (SIGTERM first, SIGKILL after the grace) and retrieves output."""
     if not (hasattr(job, "process") and job.process):
         return
 
-    # Kill the entire process group (bash wrapper + srun/mpirun children).
-    # process.kill() only delivers SIGKILL to bash; srun is a grandchild that
-    # inherits the stdout pipe and keeps it open, causing communicate() to block
-    # indefinitely. os.killpg() reaches every process in the group at once.
-    try:
-        os.killpg(os.getpgid(job.process.pid), signal.SIGKILL)
-    except OSError:
-        pass  # already dead
+    # Stop the entire process group (bash wrapper + srun/mpirun children): srun is a grandchild
+    # that inherits the stdout pipe and would keep it open, so signalling only bash is not
+    # enough. The group gets SIGTERM, then SIGKILL if it outlives the grace.
+    stop_processes([job.process], logger, labels={job.process.pid: f"App {job.id_num}"})
 
     # Let the stdout reader thread drain the last bytes and exit cleanly.
     if hasattr(job, "_stream_thread") and job._stream_thread:
@@ -122,7 +271,7 @@ def end_job(job, logger: CrabLogger) -> None:
     job.process.wait()
 
     job.set_output(out, err)
-    logger.debug(f"Killed App {job.id_num}")
+    logger.debug(f"Stopped App {job.id_num}")
 
 
 def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:
@@ -132,6 +281,7 @@ def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:
     except subprocess.TimeoutExpired:
         end_job(job, logger)
         return True
+    unregister_process(job.process)
 
     # Join the silent reader thread to drain any remaining buffered bytes
     if hasattr(job, "_stream_thread") and job._stream_thread:
