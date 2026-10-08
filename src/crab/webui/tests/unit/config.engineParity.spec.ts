@@ -34,3 +34,15 @@ describe("text collect (core/experiment/runner.py reads collect with parse_bool)
     expect(round.experiments.ex1.apps[0].collect).toBe(true);
   });
 });
+
+describe("placeholder tokens in a legacy split (SbatchMan substitutes {name} before the engine)", () => {
+  it("keeps tokens as group shares, in order, next to numbers", () => {
+    const config = oneApp({}, { allocation: { mode: "linear", split: ["{a}", 50] } });
+    config.experiments.ex1.apps[1] = { path: "b.py" };
+    const round = toConfig(fromConfig(config));
+    expect(round.global_options.allocation.partitions).toEqual({
+      group_1: { share: "{a}" },
+      group_2: { share: 50 },
+    });
+  });
+});

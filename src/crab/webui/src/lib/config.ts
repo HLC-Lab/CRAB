@@ -469,9 +469,12 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
   // engine ("either all partitions specify 'share' or none"), so never emit one.
   const toGroups = (split: unknown[]): { partitions: Record<string, unknown>; keys: string[] } => {
     const n = split.length || 1;
-    const nums = split.map((raw) => Number(raw));
+    const nums = split.map((raw) => numOrToken(String(raw)));
     const even =
-      100 % n === 0 && nums.every((v) => Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9);
+      100 % n === 0 &&
+      nums.every(
+        (v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v - 100 / n) < 1e-9,
+      );
     const partitions: Record<string, unknown> = {};
     const keys: string[] = [];
     nums.forEach((v, i) => {
