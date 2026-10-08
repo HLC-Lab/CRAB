@@ -93,7 +93,7 @@ async def stage_text(
 ) -> str:
     """Write raw ``text`` to ``filename`` in the staging dir; return its absolute
     path. Same directory/resolution as ``stage_config``, for content that isn't
-    a CRAB config JSON blob (e.g. a composed SbatchMan campaign YAML, plan 084).
+    a CRAB config JSON blob (e.g. a composed SbatchMan campaign YAML).
     """
     absolute_dir = await _resolve_staging_dir(transport, profile, settings, timeout)
     remote_path = f"{absolute_dir}/{filename}"

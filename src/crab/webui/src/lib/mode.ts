@@ -1,4 +1,4 @@
-// SbatchMan integration mode (plan 084). Enabled per-launch via `crab web
+// SbatchMan integration mode (ADR-025). Enabled per-launch via `crab web
 // --sbatchman`; the backend injects <meta name="crab-sbatchman" content="true">
 // into the served index.html (see web/server.py), mirroring how the session
 // token is delivered. Dev fallback: the Vite dev server serves its own index

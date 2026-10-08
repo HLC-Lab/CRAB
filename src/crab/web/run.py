@@ -59,7 +59,7 @@ def run_server(
         open_browser: open the dashboard in the default browser on startup.
         verbose: emit full INFO logs (startup + per-request access). Off by
             default to keep the console clean.
-        sbatchman: enable the SbatchMan integration mode (plan 084). The flag
+        sbatchman: enable the SbatchMan integration mode (ADR-025). The flag
             wins if set; the CRAB_WEB_SBATCHMAN env var can enable it too.
     """
     import uvicorn

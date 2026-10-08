@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Read-only preview of the composed SbatchMan jobs YAML (mirrors JsonPanel's
-// layout), plus the destination picker and Write action (plan 084 S8; launch
-// removed in plan 085 — SbatchMan owns launch/monitor/results). Presentational
+// layout), plus the destination picker and Write action (launch
+// removed, see ADR-026: SbatchMan owns launch/monitor/results). Presentational
 // only — the campaign store (owned by SbatchmanView) holds the write state
 // and does the API call; its error/notice banners are rendered by the view.
 import { ref } from "vue";

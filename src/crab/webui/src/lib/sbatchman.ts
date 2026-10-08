@@ -1,4 +1,4 @@
-// SbatchMan campaign composer (plan 084). PURE module (no DOM/fetch) so the unit
+// SbatchMan campaign composer. PURE module (no DOM/fetch) so the unit
 // suite can import it, mirroring lib/config.ts.
 //
 // It turns a CampaignSpec into a SbatchMan jobs YAML (`sbatchman launch -f`). Each
@@ -130,7 +130,7 @@ export function sampleTags(
 // The document is built as a plain object and serialized by js-yaml, so any name or
 // value the user types (blank, `:`, `#`, quotes, a leading `{`) comes out as valid,
 // correctly quoted YAML. Hand-built strings produced invalid YAML for e.g. a blank
-// variable name (plan 090 S11b).
+// variable name.
 
 /** Numbers, and strings that look like numbers, become YAML numbers (SbatchMan
  * substitutes them into numeric positions); everything else stays a string. */

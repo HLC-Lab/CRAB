@@ -1,4 +1,4 @@
-"""Local copies of composed SbatchMan campaign YAML files (plan 084 S7).
+"""Local copies of composed SbatchMan campaign YAML files.
 
 Each write is one timestamped ``.yaml`` file in ``settings.sbatchman_dir``, kept
 for the user's own reference/debugging. There is no CRUD beyond writing: the

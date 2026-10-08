@@ -70,7 +70,7 @@ def test_health_handshake(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# SbatchMan mode flag (plan 084)
+# SbatchMan mode flag (ADR-025)
 # --------------------------------------------------------------------------- #
 def test_health_reports_sbatchman_flag(tmp_path: Path):
     off = auth_client(create_app(_settings(tmp_path)))
@@ -102,7 +102,7 @@ def test_spa_shell_injects_sbatchman_meta(tmp_path: Path):
 
 
 def test_get_settings_always_enables_sbatchman(tmp_path: Path, monkeypatch):
-    """This branch is dedicated to the SbatchMan flow (plan 085): `get_settings()`
+    """This branch is dedicated to the SbatchMan flow (ADR-026): `get_settings()`
     always turns the mode on, regardless of `CRAB_WEB_SBATCHMAN` being set, set to
     a falsy value, or unset."""
     from crab.web.settings import get_settings

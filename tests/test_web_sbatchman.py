@@ -1,8 +1,8 @@
-"""Plan 084 S7: local + remote persistence of a composed SbatchMan campaign
+"""Local + remote persistence of a composed SbatchMan campaign
 YAML (``store/sbatchman.py``, ``remoteops/transfer.py::stage_text``), and the
 ``/api/sbatchman`` write route. No real SSH — a fake transport stands in,
 same pattern as test_web_jobs.py/test_web_remotes.py. Launch was removed in
-plan 085 — SbatchMan owns launch/monitor/results, CRAB no longer triggers it.
+ADR-026: SbatchMan owns launch/monitor/results, CRAB no longer triggers it.
 """
 
 from __future__ import annotations
@@ -160,7 +160,7 @@ def test_write_without_connection_fails(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# /api/sbatchman/campaigns — the saved-campaign-draft library (plan 086)
+# /api/sbatchman/campaigns — the saved-campaign-draft library
 # --------------------------------------------------------------------------- #
 _SPEC = {
     "configsPath": "",

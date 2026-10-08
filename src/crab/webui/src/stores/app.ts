@@ -9,7 +9,7 @@ const THEME_KEY = "crab.theme";
 export const useAppStore = defineStore("app", () => {
   const health = ref<Health | null>(null);
   const backendError = ref<string | null>(null);
-  // SbatchMan integration mode (plan 084): read once from the injected meta tag.
+  // SbatchMan integration mode (ADR-025): read once from the injected meta tag.
   const sbatchman = ref(isSbatchmanMode());
   const theme = ref<"dark" | "light">(
     (localStorage.getItem(THEME_KEY) as "dark" | "light") || "dark",

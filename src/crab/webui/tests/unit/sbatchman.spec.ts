@@ -1,5 +1,5 @@
 /**
- * SbatchMan campaign composer (plan 084).
+ * SbatchMan campaign composer.
  *
  * The load-bearing property: the emitted `preprocess` is a YAML block scalar
  * whose heredoc bodies must reach bash at column 0 after YAML dedents the block.
@@ -165,7 +165,7 @@ describe("composeCampaignYaml", () => {
     expect(pre.match(/^JSON$/gm)?.length).toBe(1);
   });
 
-  it("stays valid YAML whatever the user types in names and values (plan 090 S11b)", () => {
+  it("stays valid YAML whatever the user types in names and values", () => {
     const c = campaign();
     c.variables.push({ name: "", values: [1] });
     c.variables.push({ name: "a: b #c", values: ["x: y", "it's", '"q"', "- dash"] });
@@ -183,7 +183,7 @@ describe("composeCampaignYaml", () => {
     expect(doc.variables.n).toEqual([8, 16, "abc"]);
   });
 
-  it("numeric allocation placeholders reach the engine as numbers (plan 090 S11c)", () => {
+  it("numeric allocation placeholders reach the engine as numbers", () => {
     // The engine uses stride/seed/share/split raw (core/allocation/allocator.py
     // compares `stride < 1`), so "{stride}" must not substitute into the string "4".
     const c = campaign();
@@ -217,7 +217,7 @@ describe("composeCampaignYaml", () => {
   });
 });
 
-describe("validateCampaign (plan 090 S11d)", () => {
+describe("validateCampaign", () => {
   it("a well-formed campaign has no issues", () => {
     expect(validateCampaign(campaign())).toEqual([]);
   });

@@ -1,8 +1,8 @@
 /**
- * Campaign library actions on the sbatchman store (plan 086): load/open/save
+ * Campaign library actions on the sbatchman store: load/open/save
  * (create + update)/duplicate/remove/isDirty. Mocks the API client, the true
  * I/O boundary, mirroring results.store.spec.ts's pattern. Write/YAML-preview
- * behavior (plan 084) is covered by lib/sbatchman.spec.ts and is untouched here.
+ * behavior is covered by lib/sbatchman.spec.ts and is untouched here.
  */
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -213,7 +213,7 @@ describe("sbatchman store: campaign library", () => {
   });
 });
 
-describe("sbatchman store: write is gated on validation (plan 090 S11d)", () => {
+describe("sbatchman store: write is gated on validation", () => {
   function makeValid(store: ReturnType<typeof useSbatchmanStore>): void {
     const g = store.groups[0];
     g.tag = "run";
@@ -248,7 +248,7 @@ describe("sbatchman store: write is gated on validation (plan 090 S11d)", () => 
   });
 });
 
-describe("sbatchman store: older saved specs and stale write results (plan 090 S11g)", () => {
+describe("sbatchman store: older saved specs and stale write results", () => {
   it("open() fills in fields an older saved spec does not have", async () => {
     // A spec saved before env/variables/draft options existed.
     getMock.mockResolvedValueOnce({
@@ -300,7 +300,7 @@ describe("sbatchman store: older saved specs and stale write results (plan 090 S
   });
 });
 
-describe("sbatchman store: campaign format version (plan 091 S27)", () => {
+describe("sbatchman store: campaign format version", () => {
   it("save stores version 1 in the spec", async () => {
     createMock.mockResolvedValueOnce(entry());
     const store = useSbatchmanStore();

@@ -7,7 +7,7 @@
  */
 import { expect, test } from "@playwright/test";
 
-// Author is unhooked from nav/routing on this branch (plan 085) -- SbatchMan
+// Author is unhooked from nav/routing on this branch (ADR-026) -- SbatchMan
 // owns run/monitor/results and this dashboard only authors campaigns now.
 // See docs/dev/dashboard/deferred.md for the deferred replacement (a
 // campaign-editor e2e); this spec is kept, not deleted, as a reference.

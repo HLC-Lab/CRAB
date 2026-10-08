@@ -1,4 +1,4 @@
-"""Plan 086 S1: local library of SbatchMan campaign drafts (store only).
+"""Local library of SbatchMan campaign drafts (store only).
 
 Mirrors test_web_library.py's CRUD coverage. `spec` is held opaque here (no
 config-shape validation) since a campaign group's draft intentionally carries

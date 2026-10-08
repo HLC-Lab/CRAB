@@ -1,8 +1,8 @@
 """``/api/sbatchman`` — persist a composed campaign jobs YAML locally and push
-it to the connected cluster (plan 084 S7). Composing the YAML itself is the
-frontend's job (``lib/sbatchman.ts``, S4) — this module treats it as opaque
+it to the connected cluster. Composing the YAML itself is the
+frontend's job (``lib/sbatchman.ts``) — this module treats it as opaque
 text. Launching, monitoring, and results are SbatchMan's own job; CRAB never
-runs `sbatchman launch` (plan 085).
+runs `sbatchman launch` (ADR-026).
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ async def write_campaign(body: WriteRequest, request: Request) -> WriteResponse:
 
 # --------------------------------------------------------------------------- #
 # /api/sbatchman/campaigns — the local library of saved campaign drafts
-# (plan 086). Pure local CRUD, no cluster involved; unlike /api/experiments,
+# Pure local CRUD, no cluster involved; unlike /api/experiments,
 # no shape-validation pass (a group's `{var}` placeholders would fail one).
 # --------------------------------------------------------------------------- #
 class CampaignBody(BaseModel):

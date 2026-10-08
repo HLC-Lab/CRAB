@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Campaign save/load library (plan 086), mirroring components/author/LibraryBar.vue:
+// Campaign save/load library, mirroring components/author/LibraryBar.vue:
 // New / Browse… / Save, a searchable Browse overlay (hover duplicate/delete), and
 // a discard-unsaved-changes guard gated on store.isDirty. Unlike the Author page,
 // the campaign name is an always-visible field here (no Basics tab to hide it in),
@@ -51,7 +51,7 @@ function requestRemoveLibraryEntry(id: string, name: string): void {
   removeLibraryTarget.value = { id, name };
 }
 // Deleting the campaign that is open in the editor also resets the editor, so
-// unsaved edits would go with it: say so in the confirmation (plan 090 S11f).
+// unsaved edits would go with it: say so in the confirmation.
 const removeMessage = computed(() => {
   const t = removeLibraryTarget.value;
   if (!t) return "";

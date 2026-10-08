@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// SbatchMan campaign authoring (plan 084): campaign-level settings, a rail of
+// SbatchMan campaign authoring: campaign-level settings, a rail of
 // job groups, the selected group's SbatchMan fields + its CRAB experiment
-// template (via the now-decoupled ExperimentPane/AllocationEditor, S5), a
-// live YAML preview, and writing it to a connected cluster (S7/S8). Launching
-// is SbatchMan's job (plan 085) — this view never triggers `sbatchman launch`.
+// template (via the now-decoupled ExperimentPane/AllocationEditor), a
+// live YAML preview, and writing it to a connected cluster. Launching
+// is SbatchMan's job (ADR-026): this view never triggers `sbatchman launch`.
 import { computed, onMounted, ref, watchEffect } from "vue";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 import { useRemotesStore } from "@/stores/remotes";
@@ -71,7 +71,7 @@ function confirmRemoveGroup(): void {
   <section class="sbatchman">
     <CampaignLibraryBar @new="afterNew" @opened="afterOpened" />
 
-    <!-- Page-level so they show even with the YAML preview hidden (plan 090 S11e). -->
+    <!-- Page-level so they show even with the YAML preview hidden. -->
     <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
     <p v-if="store.notice" class="banner info" role="status">{{ store.notice }}</p>
 

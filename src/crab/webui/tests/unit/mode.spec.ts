@@ -1,5 +1,5 @@
 /**
- * SbatchMan mode detection (plan 084): the flag is delivered as an injected
+ * SbatchMan mode detection: the flag is delivered as an injected
  * meta tag in production, with a localStorage dev fallback. When the meta is
  * present it is authoritative (localStorage must not override it).
  *

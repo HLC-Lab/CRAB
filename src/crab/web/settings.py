@@ -11,7 +11,7 @@ with environment variables — primarily for tests and power users:
   (see docs/dev/dashboard/decisions/ ADR-014). Existing entries are copied over
   on first run.
 * ``CRAB_WEB_SBATCHMAN`` — enable the SbatchMan integration mode (the campaign
-  generator), equivalent to launching ``crab web --sbatchman`` (plan 084).
+  generator), equivalent to launching ``crab web --sbatchman`` (ADR-025).
 
 Nothing secret is stored here;
 ``clusters.json`` holds only non-secret connection profile fields.
@@ -47,7 +47,7 @@ class Settings:
     # Optional user-chosen home for the experiment library (ADR-014).
     library_dir: Path | None = None
     # SbatchMan integration mode: gates the campaign-generator UI + its API routes
-    # (plan 084). Off by default; enabled per-launch via `crab web --sbatchman`.
+    # (ADR-025). Off by default; enabled per-launch via `crab web --sbatchman`.
     sbatchman: bool = False
 
     # ---- derived locations -------------------------------------------------
@@ -78,12 +78,12 @@ class Settings:
 
     @property
     def sbatchman_dir(self) -> Path:
-        """Local copies of composed SbatchMan campaign YAML files (plan 084)."""
+        """Local copies of composed SbatchMan campaign YAML files."""
         return self.data_dir / "sbatchman_campaigns"
 
     @property
     def campaign_library_dir(self) -> Path:
-        """Library of saved campaign drafts (plan 086). Lives alongside the experiment
+        """Library of saved campaign drafts. Lives alongside the experiment
         library (``library_dir`` if set, else the data dir), in its own ``campaigns/``
         subfolder — unlike ``experiments_dir``, never collapses to the bare library
         root, so campaign files never mix with the experiment library's flat files."""
@@ -133,7 +133,7 @@ def get_settings() -> Settings:
         port = int(port_raw) if port_raw else DEFAULT_PORT
     except ValueError:
         port = DEFAULT_PORT
-    # This branch is dedicated to the SbatchMan flow (plan 085) — always on,
+    # This branch is dedicated to the SbatchMan flow (ADR-026), always on,
     # regardless of `--sbatchman`/`CRAB_WEB_SBATCHMAN` (left in place but dead;
     # see docs/dev/dashboard/deferred.md).
     return Settings(

@@ -1,4 +1,4 @@
-/** Stable v-for keys for removable rows (plan 090 S11h). */
+/** Stable v-for keys for removable rows. */
 import { reactive } from "vue";
 import { describe, expect, it } from "vitest";
 import { rowKey } from "@/lib/rowKey";

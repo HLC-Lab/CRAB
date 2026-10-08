@@ -1,4 +1,4 @@
-"""Local library of SbatchMan campaign drafts (plan 086).
+"""Local library of SbatchMan campaign drafts.
 
 Each saved campaign is one JSON file ``<dir>/<id>.json`` holding
 ``{id, name, updated_at, spec}``. ``spec`` is the frontend's own editable

@@ -1,4 +1,4 @@
-// SbatchMan campaign state (plan 084 S6). One campaign = shared settings
+// SbatchMan campaign state. One campaign = shared settings
 // (SbatchMan configs.yaml reference, remote CRAB root, environment) plus a
 // list of job groups. Each group owns its OWN small `Draft` (from lib/config,
 // exactly one experiment inside) so ExperimentPane/AllocationEditor can be
@@ -57,7 +57,7 @@ function emptyGroup(name: string): GroupState {
   return { tag: "", preset: "", variables: [], draft };
 }
 
-/** The saved/loaded shape of a campaign draft (plan 086) — everything needed to
+/** The saved/loaded shape of a campaign draft: everything needed to
  * reconstruct the editor's state, distinct from `SbatchmanCampaign` (the
  * composed/derived shape used to emit the YAML, where each group's `draft` has
  * already been reduced to a `CrabConfig` via `toConfig`). Persisted as an opaque
@@ -72,8 +72,8 @@ export interface CampaignSpec {
   groups: GroupState[];
 }
 
-// A saved spec is opaque to the backend and may predate fields added since
-// (plan 090 S11g): fill every missing piece from the current empty shapes.
+// A saved spec is opaque to the backend and may predate fields added later:
+// fill every missing piece from the current empty shapes.
 /* eslint-disable @typescript-eslint/no-explicit-any -- walking untyped saved JSON */
 function normalizeDraft(raw: any): Draft {
   const d = raw && typeof raw === "object" ? raw : {};
@@ -133,15 +133,15 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const groups = reactive<GroupState[]>([emptyGroup("run")]);
   const selected = ref(0);
 
-  // Destination + write state (S8): which connected profile to push the
+  // Destination + write state: which connected profile to push the
   // campaign to, and the outcome of the last write round-trip. Launching is
-  // SbatchMan's job now (plan 085) — the store has no launch state.
+  // SbatchMan's job now (ADR-026): the store has no launch state.
   const destination = ref("");
   const busy = ref(false);
   const error = ref<string | null>(null);
   const lastWrite = ref<SbatchmanWriteResult | null>(null);
 
-  // Campaign library (plan 086): save/load, mirroring stores/author.ts.
+  // Campaign library: save/load, mirroring stores/author.ts.
   const library = ref<CampaignEntry[]>([]);
   const entryId = ref<string | null>(null);
   const notice = ref<string | null>(null);
@@ -205,7 +205,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const yaml = computed(() => composeCampaignYaml(campaign.value));
   const totalJobs = computed(() => campaignJobCount(campaign.value));
   // Problems that would break `sbatchman launch` or the CRAB worker; write() refuses
-  // while any exist (plan 090 S11d).
+  // while any exist.
   const issues = computed(() => validateCampaign(campaign.value));
 
   function jobsForGroup(i: number): number {

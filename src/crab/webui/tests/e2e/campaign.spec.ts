@@ -1,4 +1,4 @@
-// Campaign editor flow on the sbatchman branch (plan 090 S11i), against a real
+// Campaign editor flow on the sbatchman branch, against a real
 // `crab web` on throwaway data dirs (playwright.config.ts). No cluster needed:
 // validation, the YAML preview, save, and the delete warning are all local.
 import { expect, test } from "@playwright/test";

@@ -1,4 +1,4 @@
-// Stable v-for keys for editable, removable rows (plan 090 S11h). Index keys make
+// Stable v-for keys for editable, removable rows. Index keys make
 // Vue reuse the wrong row's DOM (focus, half-typed input) after a removal; the
 // rows are plain objects with no id field, so key them by object identity.
 const ids = new WeakMap<object, number>();
