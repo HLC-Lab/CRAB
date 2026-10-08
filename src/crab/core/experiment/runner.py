@@ -1,7 +1,6 @@
 import os
 import re
 import shutil
-import signal
 import time
 from typing import Any
 
@@ -20,6 +19,7 @@ from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import check_CI
+from ..process import stop_processes
 from .artifacts import copy_artifacts
 from .registry import write_registry_row
 from .schedule import build_schedule, kill_f_apps, run_events
@@ -308,14 +308,17 @@ class ExperimentRunner:
         self._write_to_registry(status=experiment_status, total_runs=runs, failed_runs=failed_runs)
 
     def teardown(self):
-        """Ensures all processes are killed before next experiment."""
+        """Stops every app still running (SIGTERM, then SIGKILL after one shared grace)."""
+        running = {}
         for app in self.apps:
-            if hasattr(app, "process") and app.process:
-                if app.process.poll() is None:
-                    try:
-                        os.killpg(os.getpgid(app.process.pid), signal.SIGKILL)
-                    except OSError:
-                        pass
+            process = getattr(app, "process", None)
+            if process and process.poll() is None:
+                running[process.pid] = (process, f"App {app.id_num}")
+        stop_processes(
+            [process for process, _ in running.values()],
+            self.log,
+            labels={pid: name for pid, (_, name) in running.items()},
+        )
 
     def save_results(self):
         """Persists data to disk."""

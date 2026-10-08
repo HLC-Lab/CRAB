@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import sys
 import time
 from datetime import timedelta
@@ -135,6 +136,20 @@ def prepare_execution_environment(env_dict: dict[str, Any]) -> dict[str, str]:
     return processed_env
 
 
+class WorkerTerminated(BaseException):
+    """Raised in the worker by its SIGTERM handler.
+
+    A BaseException, so the engine's per-experiment ``except Exception`` does not swallow it and
+    its ``finally: runner.teardown()`` still stops the apps before the worker exits.
+    """
+
+
+def _raise_worker_terminated(signum: int, frame: Any) -> None:
+    """SIGTERM handler: ignore further SIGTERMs (the teardown must finish), then unwind."""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+    raise WorkerTerminated()
+
+
 def execute_worker(work_dir: str, log_level_str: str = None):
     """Executes the worker logic directly from provided arguments."""
     from crab.log import get_logger
@@ -185,13 +200,21 @@ def execute_worker(work_dir: str, log_level_str: str = None):
         from crab.core.engine import Engine
 
         engine = Engine(logger=logger)
-        engine.run(
-            config=benchmark_config,
-            environment=execution_env,
-            is_worker=True,
-            output_dir=work_dir,
-            settings=settings,
-        )
+        signal.signal(signal.SIGTERM, _raise_worker_terminated)
+        try:
+            engine.run(
+                config=benchmark_config,
+                environment=execution_env,
+                is_worker=True,
+                output_dir=work_dir,
+                settings=settings,
+            )
+        except WorkerTerminated:
+            raise  # SIGTERM stays ignored while the worker stops what is left
+        except BaseException:
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            raise
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
         elapsed_time = time.time() - start
         total = timedelta(seconds=int(elapsed_time))
@@ -201,6 +224,13 @@ def execute_worker(work_dir: str, log_level_str: str = None):
     except KeyboardInterrupt:
         logger.warning("Worker interrupted by user")
         sys.exit(130)
+    except WorkerTerminated:
+        logger.warning("Worker terminated (SIGTERM)")
+        # The stop that the signal interrupted may not have finished: stop what is left.
+        from crab.core.process import stop_all_registered
+
+        stop_all_registered(logger)
+        sys.exit(143)
     except Exception as e:
         logger.critical(f"Worker fatal error: {e}")
         import traceback

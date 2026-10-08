@@ -1,3 +1,17 @@
-from .manager import end_job, run_job, wait_timed
+from .manager import (
+    STOP_GRACE_SECONDS,
+    end_job,
+    run_job,
+    stop_all_registered,
+    stop_processes,
+    wait_timed,
+)
 
-__all__ = ["run_job", "end_job", "wait_timed"]
+__all__ = [
+    "STOP_GRACE_SECONDS",
+    "run_job",
+    "end_job",
+    "stop_all_registered",
+    "stop_processes",
+    "wait_timed",
+]
