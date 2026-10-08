@@ -47,7 +47,7 @@ On success the wizard writes the receipt and prints a confirmation. See
 | `id` | The `benchmark_id`. |
 | `type` | `binary` / `module` / `source` — how it was configured. |
 | `binary_path` | Where the executable (or its directory) lives. What the wrapper reads. |
-| `launcher_override` | A launcher to use instead of the cluster default (e.g. `mpirun` for QE). Empty = use default. |
+| `launcher_override` | `""` (use the preset's launcher), `"srun"` or `"mpirun"` (e.g. `mpirun` for QE). Any other value makes the experiment fail at setup with an error naming the app. |
 | `hooks.pre_run` | Shell commands run before each launch (e.g. module loads). |
 | `target_arch` | (optional) Set from build metadata; used for the GPU/CPU partition guardrail. |
 
@@ -73,7 +73,7 @@ crab receipts set mybench --binary /scratch/me/mybench/bin/mybench \
   --pre-run "module load openmpi" --launcher srun
 ```
 
-`--pre-run` can be repeated; `--launcher` overrides the cluster's launcher (for example `srun` or `mpirun`). The
+`--pre-run` can be repeated; `--launcher` overrides the preset's launcher (for example `srun` or `mpirun`). The
 command refuses a binary path that does not exist unless you pass `--allow-missing`, and
 `--json` prints the saved receipt. The dashboard's Wrappers page uses the same command for its
 "Import binary" action.

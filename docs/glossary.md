@@ -38,8 +38,8 @@ The control core (`src/crab/core/engine.py`) that runs in one of two modes —
 
 Overloaded; two senses:
 
-1. The **preset's `env` block** — environment variables exported for a run (e.g. `CRAB_MPIRUN`,
-   `LD_LIBRARY_PATH`). This is [system-dependent](concepts/system-dependent-vs-independent.md).
+1. The **preset's `env` block** — environment variables exported for a run (e.g. `LD_LIBRARY_PATH`,
+   `UCX_*`). This is [system-dependent](concepts/system-dependent-vs-independent.md).
 2. The serialized `environment.json` the [orchestrator](#orchestrator) writes into the data
    directory and the [worker](#worker) reads back.
 
@@ -54,21 +54,23 @@ block), executed one after another by the [worker](#worker).
 
 ### Job
 
-The top-level container: a single `crab run` invocation — one config file, submitted as one Slurm
-job, producing one output directory under `data/<system>/<name>_<timestamp>/`. Named by
+The top-level container: a single `crab run` invocation — one config file, submitted as one
+job (a Slurm job on a cluster), producing one output directory under `data/<system>/<name>_<timestamp>/`. Named by
 `global_options.name` (recorded as `job_name` in the registry). A job contains one or more
 [experiments](#experiment).
 
 ### Launcher
 
-The command that actually starts an application's processes on the allocated nodes — `srun` (Slurm)
-or `mpirun` (MPI), selected by the preset. A [receipt](#receipt) may specify a `launcher_override`
-for a benchmark that needs a non-default launcher.
+The command that actually starts an application's processes on the allocated nodes: `srun`,
+`mpirun`, or `direct` (the command as is, with no wrapper). The preset's `launcher` field picks the
+kind, and `launchers.srun` and `launchers.mpirun` hold its command and flags. A
+[receipt](#receipt) may set `launcher_override` to `srun` or `mpirun` for a benchmark that needs a
+different launcher than the preset's.
 
 ### Orchestrator
 
 The first execution phase (`Engine._run_orchestrator`), running on the login node. It prepares the
-data directory, generates the Slurm batch script, and submits it with `sbatch`. It does **not** run
+data directory, generates the Slurm batch script, and submits it (with `sbatch` under the `slurm` scheduler). It does **not** run
 benchmarks itself — it hands off to the [worker](#worker). See [Architecture](concepts/architecture.md#the-two-phase-execution-model).
 
 ### Partition
@@ -92,7 +94,7 @@ first. In `sbatch_directives` or preset Slurm flags, it means the second.
 ### Preset
 
 A named, [system-dependent](concepts/system-dependent-vs-independent.md) environment definition in
-`config/presets.json`: workload manager, launcher flags, CPU pinning, modules (`header`), and Slurm
+`config/presets.json`: scheduler, launcher and its flags, CPU pinning, modules (`header`), and Slurm
 directives (`sbatch`). Selected at run time with `-p <name>`. The `_common` block is merged under
 every preset.
 
@@ -100,7 +102,7 @@ every preset.
 
 A JSON file in `local/receipts/<benchmark_id>.json`, produced by `crab setup` building a
 [recipe](#recipe). It records the built `binary_path`, optional `pre_run` hooks, a possible
-`launcher_override`, and `target_arch`. It is the bridge between *building* a benchmark and
+`launcher_override` (`srun` or `mpirun`), and `target_arch`. It is the bridge between *building* a benchmark and
 *running* it: [wrappers](#wrapper) read it at run time. System-dependent.
 
 ### Recipe
@@ -115,6 +117,13 @@ A single execution of all an [experiment's](#experiment) applications. An experi
 runs (from `minruns` up to `maxruns`) to gather enough samples for [convergence](#convergence).
 "Run" (one repetition) and "experiment" (the whole repeated study) are not interchangeable.
 
+### Scheduler
+
+What runs the [job](#job) itself, chosen by the preset's `scheduler` field. `slurm` submits it with
+`sbatch`; `local` starts it as a detached process on this machine, for development and testing
+(no Slurm needed). It is separate from the [launcher](#launcher), which starts each application
+inside the job.
+
 ### Victim
 
 An application that **is being measured**. Marked with `end: ""` — CRAB waits for it to finish
@@ -123,11 +132,10 @@ perturb them.
 
 ### Workload manager (WL manager)
 
-The launch mode that decides how CRAB turns "run this command on these nodes" into a concrete
-launcher invocation. `slurm` (the default) uses `srun`, or `mpirun` when the launcher command
-contains it; `local` runs the command with no launcher. `mpi` and `workerpool` are accepted but
-not implemented yet. Chosen by the preset's `CRAB_WL_MANAGER`; the code lives in
-`core/execution/launcher/`.
+The older name for the launch settings, from when they were `CRAB_*` variables in the
+preset's `env`. A preset now states them as two fields: the [scheduler](#scheduler) and the
+[launcher](#launcher). CRAB no longer reads those variables; see the
+[removed keys](reference/presets.md#removed-keys).
 
 ### Wrapper
 

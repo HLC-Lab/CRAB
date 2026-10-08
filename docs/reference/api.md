@@ -59,7 +59,7 @@ Auto-discovered — no registration.
 | Member | Default | Notes |
 |--------|---------|-------|
 | `suite` | `name` | Group label for the wizard (multiple versions under one entry). |
-| `launcher_override` | `""` | Force a launcher (e.g. `"mpirun"`). Recorded into the receipt. |
+| `launcher_override` | `""` | Force a launcher: `""` (use the preset's), `"srun"` or `"mpirun"`. Recorded into the receipt. Any other value makes the experiment fail at setup with an error naming the app. |
 | `pre_run_hooks` | `[]` | Commands recorded into the receipt's `hooks.pre_run`. |
 | `build_manifest` | `BuildManifest()` | Declares module requirement and build parameters. |
 | `fast_search` | checks `<dir>/<id>` and `PATH` | Tier-1 auto-detect. |

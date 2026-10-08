@@ -44,17 +44,17 @@ flowchart TD
 
 When you bring CRAB to a new cluster, three things — and only these three — are what you adapt:
 
-1. **A preset** (`config/presets.json`) — the environment for that system: which workload manager
-   to use, the launcher and its flags, CPU pinning, modules to load, and the Slurm directives
+1. **A preset** (`config/presets.json`) — the environment for that system: which scheduler and
+   launcher to use, the launcher's flags, CPU pinning, modules to load, and the Slurm directives
    (account, partition) every job needs. You select it at run time with `-p <name>`.
    See [Configuring your cluster](../using/presets.md).
 2. **Receipts** (`local/receipts/*.json`) — produced by running `crab setup`, which builds
    each benchmark on *this* machine and records where the resulting binary lives, plus any
-   pre-run hooks or launcher overrides it needs.
-3. **The launch mode** — `slurm` (uses `srun`, or `mpirun` when the launcher command contains it)
-   or `local` (no launcher), chosen by the preset's `CRAB_WL_MANAGER`. This only affects how
-   individual applications are launched on the allocated nodes; the job itself is always
-   submitted with `sbatch`.
+   pre-run hooks or launcher override it needs.
+3. **The scheduler and launcher** — both chosen by the preset. The `scheduler` decides how the
+   job is run: `slurm` submits it with `sbatch`, and `local` runs it as a detached process on
+   this machine. The `launcher` (`srun`, `mpirun` or `direct`) decides how each application
+   starts on the allocated nodes.
 
 ## The system-independent pieces
 

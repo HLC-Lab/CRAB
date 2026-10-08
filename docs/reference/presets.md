@@ -11,19 +11,73 @@ A single JSON object. Each top-level key is a preset name, plus the special `_co
 ```json
 {
     "_common":  { "description": "...", "env": { ... }, "sbatch": [ ... ], "header": [ ... ] },
-    "leonardo": { "description": "...", "env": { ... }, "sbatch": [ ... ], "header": [ ... ] },
-    "local":    { ... }
+    "leonardo": { "description": "...", "scheduler": "slurm", "launcher": "srun", ... },
+    "local":    { "description": "...", "scheduler": "local", "launcher": "direct", ... }
 }
 ```
 
-Each preset (and `_common`) has the same shape:
+A preset has the fields below. `_common` is not a preset: it holds only `description`, `env`,
+`sbatch` and `header`, which every preset inherits. An execution field (`scheduler`, `launcher`
+and so on) in `_common` stops CRAB with an error, because each machine states its own.
 
 | Field | Type | Meaning |
 |-------|------|---------|
 | `description` | string | Human-readable label. |
-| `env` | object | Environment variables exported for the run. |
-| `sbatch` | array of strings | `#SBATCH` directives added to the generated job script. |
-| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). |
+| `env` | object | Environment variables exported to the applications. They carry no launch settings. |
+| `sbatch` | array of strings | `#SBATCH` directives added to the generated job script. Slurm only. |
+| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only. |
+
+The execution fields, which say how this machine schedules and launches work, are listed next. A
+key that appears in neither table stops CRAB with an error that lists the allowed keys.
+
+## Execution fields
+
+| Field | Meaning | Default | Applies to |
+|-------|---------|---------|------------|
+| `scheduler` | `"slurm"` (submit with `sbatch`) or `"local"` (run a detached process on this machine). | required | both |
+| `launcher` | How each application starts: `"srun"`, `"mpirun"` or `"direct"` (the command as is, one process). | `"srun"` under Slurm, `"direct"` under Local | both; `"srun"` needs `slurm` |
+| `launchers.srun.flags` | Extra `srun` flags, e.g. `["--cpu-bind=socket"]`. | `[]` | `srun` |
+| `launchers.mpirun.command` | The `mpirun` executable, or its full path. | `"mpirun"` | `mpirun` |
+| `launchers.mpirun.flags` | Extra `mpirun` flags (`--map-by`, MCA parameters, …). | `[]` | `mpirun` |
+| `launchers.mpirun.dialect` | `"auto"`, `"openmpi4"`, `"openmpi5"` or `"hydra"`. Intel MPI is not supported. | `"auto"` | `mpirun` |
+| `launchers.mpirun.export` | Names of environment variables to forward to the remote ranks. | `[]` | `mpirun` |
+| `hosts` | List of `"name"` or `"name:cores"`. Only `localhost` may omit the core count. | `["localhost"]` | `local` only |
+| `hostfile` | Path to a file instead of `hosts`, absolute or starting with `~`. A line is `h`, `h:N` or `h slots=N`; `#` starts a comment. | none | `local` only |
+| `exclusive` | `true` or `false`. | `true` | `local` only |
+
+A few details:
+
+- Under `slurm`, `hosts`, `hostfile` and `exclusive` are errors: Slurm picks the nodes.
+- Give `hosts` or `hostfile`, not both. Host names must be distinct.
+- CRAB reads and validates `hosts`, `hostfile` and `exclusive`, but the Local scheduler runs
+  every job on this machine (`localhost`) today, whatever hosts are listed.
+- `launchers.mpirun.dialect` and `launchers.mpirun.export` are validated and recorded with the
+  job, but the `mpirun` line is not built from them yet.
+- The launch lines are:
+    - `srun`: `srun --export=ALL --nodelist <hosts> <flags> -n <ranks> -N <hosts>`
+    - `mpirun`: `<command> <flags> -np <ranks>` (inside a Slurm job `mpirun` finds the nodes itself)
+    - `direct`: the application command, unchanged
+- A receipt's `launcher_override` can switch one benchmark to `srun` or `mpirun`; see
+  [Receipts](../extending/receipts.md).
+
+A Slurm preset and a local one, from the shipped file:
+
+```json
+"leonardo": {
+    "description": "Leonardo Cluster @ CINECA",
+    "scheduler": "slurm",
+    "launcher": "srun",
+    "launchers": { "srun": { "flags": ["--cpu-bind=socket"] } },
+    "env": { "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3" },
+    "sbatch": ["--account=YOUR_PROJECT_ACCOUNT", "--partition=boost_usr_prod"],
+    "header": ["module purge"]
+},
+"local": {
+    "description": "Local (no Slurm, dev/testing only)",
+    "scheduler": "local",
+    "launcher": "direct"
+}
+```
 
 ## Merge semantics
 
@@ -53,15 +107,28 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 |----------|---------|-------|
 | `CRAB_ROOT` | framework | Repository root. Set in `_common` via `__CWD__`. |
 | `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/`. Default: the checkout's `wrappers/`. |
-| `CRAB_WL_MANAGER` | launcher | `slurm` (default) or `local` — selects the launch mode. `mpi` and `workerpool` are accepted but not implemented yet; any other value stops setup with an error. |
-| `CRAB_MPIRUN` | launcher | Launcher command under `slurm`. Defaults to `srun`; a command containing `mpirun` is launched as `mpirun`. A receipt's launcher override wins. |
-| `CRAB_PINNING_FLAGS` | launcher | CPU binding flags for `srun`. Optional. |
-| `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | launcher | Mapping flag (e.g. `--map-by node`), used when launching with `mpirun`. Optional. |
-| `CRAB_MPIRUN_ADDITIONAL_FLAGS` | launcher | Extra flags, used when launching with `mpirun`. Optional. |
-| `CRAB_MPIRUN_HOSTNAMES_FLAG` | none | Currently unused: no code reads it. |
 | `CRAB_SYSTEM` | engine | System label for the output path. Defaults to the preset name. |
 | `CRAB_PRESET` | CLI | If set, selects the preset (overridden by `-p`). |
 | `CRAB_PATH_<ID>` | wrappers | Injected automatically from each receipt's `binary_path` at run time — not set by hand. |
+
+## Removed keys
+
+Launch settings used to be `CRAB_*` variables in a preset's `env`. They are now preset fields and
+the old keys are no longer read. If one is still in a preset's `env`, in `_common`'s `env`, or in
+the environment a worker starts with, CRAB stops with an error that names the replacement.
+
+| Old key | Use instead |
+|---------|-------------|
+| `CRAB_WL_MANAGER` | `launcher` |
+| `CRAB_SCHEDULER` | `scheduler` |
+| `CRAB_MPIRUN` | `launchers.mpirun.command` |
+| `CRAB_MPIRUN_ADDITIONAL_FLAGS` | `launchers.mpirun.flags` |
+| `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | `launchers.mpirun.flags` |
+| `CRAB_MPIRUN_HOSTNAMES_FLAG` | nothing: delete it |
+| `CRAB_PINNING_FLAGS` | `launchers.srun.flags` |
+
+To migrate a preset, add `scheduler` (`"slurm"` for a cluster), set `launcher`, move the flags into
+`launchers` and delete the old keys from `env`.
 
 ## Preset selection precedence
 
@@ -73,6 +140,6 @@ If none of these names a preset, `crab run` stops with an error; it never picks 
 ## A note on `example_preset`
 
 `config/presets.json` contains an `example_preset` entry. It is a **structural placeholder only**
-— it does not define a workload manager or launcher, so it cannot run, and it is excluded from
+— it has no `scheduler`, so CRAB refuses it, and it is excluded from
 `-p` tab-completion. Use it as a shape reference if you like, but build real presets by copying a
 working one (see [Configuring your cluster](../using/presets.md)).

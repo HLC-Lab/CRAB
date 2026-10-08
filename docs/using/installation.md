@@ -89,9 +89,10 @@ overwriting an existing receipt).
 
 !!! info "What a receipt records"
     Each receipt stores the benchmark's `binary_path`, its `type` (`binary` / `module` / `source`),
-    any `pre_run` hooks (e.g. a module load), and an optional `launcher_override`. At run time the
-    orchestrator loads every receipt and also exports each binary path as a `CRAB_PATH_<ID>`
-    environment variable for wrappers to read. See
+    any `pre_run` hooks (e.g. a module load), and an optional `launcher_override` (`""` to use the
+    preset's launcher, or `"srun"` or `"mpirun"`; any other value makes the experiment fail at
+    setup). At run time the orchestrator loads every receipt and also exports each binary path as
+    a `CRAB_PATH_<ID>` environment variable for wrappers to read. See
     [Architecture → wrapper / recipe / receipt](../concepts/architecture.md#the-wrapper-recipe-receipt-model).
 
 ### Applications you installed yourself
