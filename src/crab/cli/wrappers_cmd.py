@@ -227,7 +227,10 @@ def register(subparsers: Any) -> None:
         help="Command to run before each launch (repeatable).",
     )
     parser_set.add_argument(
-        "--launcher", default="", help="Launcher override, e.g. srun or mpirun."
+        "--launcher",
+        default="",
+        choices=["srun", "mpirun"],
+        help="Override the preset's launcher for this benchmark (default: use the preset's).",
     )
     parser_set.add_argument(
         "--allow-missing",
