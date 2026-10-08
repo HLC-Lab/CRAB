@@ -1,14 +1,12 @@
 """Schedule building and the event loop of a single run of an experiment."""
 
-import os
-import signal
 import time
 from dataclasses import dataclass
 from typing import Any
 
 from crab.core.execution.settings import LauncherSpec
 
-from ..process import end_job, run_job
+from ..process import end_job, run_job, stop_processes
 from .failures import write_error_log
 
 
@@ -200,11 +198,8 @@ def run_events(
         if (time.time() - global_start) >= timeout:
             run_log.error(f"HARD TIMEOUT: Experiment exceeded {timeout}s mid-run.")
             experiment_status = "TIMEOUT"
-            for active_aid in list(running):
-                try:
-                    os.killpg(os.getpgid(apps[active_aid].process.pid), signal.SIGKILL)
-                except OSError:
-                    pass
+            labels = {apps[aid].process.pid: f"App {aid}" for aid in running}
+            stop_processes([apps[aid].process for aid in running], run_log, labels=labels)
             break  # Break the inner loop, forcing a teardown
 
         time.sleep(0.05)

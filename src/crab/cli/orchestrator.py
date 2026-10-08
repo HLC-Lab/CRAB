@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import sys
+import threading
 import time
 from datetime import timedelta
 from pathlib import Path
@@ -150,12 +151,52 @@ def _raise_worker_terminated(signum: int, frame: Any) -> None:
     raise WorkerTerminated()
 
 
+def _watch_supervisor(logger: Any) -> None:
+    """Stop this worker when its local supervisor dies.
+
+    A local job's supervisor keeps the write end of a pipe it never writes to, and hands the read
+    end to the worker (`CRAB_SUPERVISOR_FD`). A daemon thread blocks on that read: end of file
+    means the supervisor is gone (however it died), so the thread sends SIGTERM to this very
+    process and the usual `WorkerTerminated` path tears the apps down. Without the variable (a
+    Slurm worker) nothing happens.
+    """
+    # Popped, so no app is started with a stale descriptor number in its environment.
+    raw = os.environ.pop("CRAB_SUPERVISOR_FD", None)
+    if raw is None:
+        return
+    try:
+        fd = int(raw)
+        os.set_inheritable(fd, False)  # no app may hold the pipe: it would never see EOF
+    except (ValueError, OSError) as exc:
+        logger.warning(
+            f"CRAB_SUPERVISOR_FD={raw!r} is not a usable descriptor ({exc}); "
+            "not watching the supervisor"
+        )
+        return
+
+    def watch() -> None:
+        try:
+            while True:
+                try:
+                    if os.read(fd, 1) == b"":
+                        break
+                except InterruptedError:
+                    continue
+        except OSError:
+            return  # not a readable pipe: nothing to watch
+        logger.warning("Supervisor is gone; stopping the job")
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    threading.Thread(target=watch, name="supervisor-watch", daemon=True).start()
+
+
 def execute_worker(work_dir: str, log_level_str: str = None):
     """Executes the worker logic directly from provided arguments."""
     from crab.log import get_logger
 
     level = _parse_log_level(log_level_str) if log_level_str else None
     logger = get_logger(level=level)
+    _watch_supervisor(logger)
 
     try:
         config_file = os.path.join(work_dir, "config.json")

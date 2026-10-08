@@ -90,6 +90,7 @@ class Harness:
         self.tmp_path = tmp_path
         self.jobs = local_state.jobs_dir({"XDG_STATE_HOME": str(tmp_path / "xdg-state")})
         self.supervisors: list[int] = []
+        self.worker_groups: list[int] = []  # workers run in their own group: killed at teardown
 
     def scheduler(self, cmd: list[str] | Callable[[str], list[str]]) -> LocalScheduler:
         return LocalScheduler(
@@ -130,12 +131,13 @@ class Harness:
         return record.supervisor_pid
 
     def kill_all(self) -> None:
-        for pid in self.supervisors:
+        groups = self.supervisors + self.worker_groups
+        for pid in groups:
             try:
                 _killpg(pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-        for pid in self.supervisors:
+        for pid in groups:
             _poll(lambda pid=pid: _group_gone(pid), f"group {pid} to disappear", timeout=5)
 
 
@@ -154,6 +156,11 @@ def _final(h: Harness, job_id: str) -> JobStatus:
         lambda: (s := h.status(job_id)).state not in ("PENDING", "RUNNING") and s,
         f"{job_id} to finish",
     )
+
+
+def _pid_from(path: Path) -> int:
+    """The pid a worker wrote to `path`, once it has (polls)."""
+    return int(_poll(lambda: path.is_file() and path.read_text().strip(), f"{path.name} to exist"))
 
 
 def _state_file(job_dir: Path) -> dict[str, str]:
@@ -217,8 +224,9 @@ def test_jobs_that_are_not_exclusive_run_together(harness: Harness) -> None:
 def test_a_killed_supervisor_reads_lost_and_cannot_be_cancelled(
     harness: Harness, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    job_id, _ = harness.submit("job", ["sleep", "30"])
+    job_id, job_dir = harness.submit("job", ["sh", "-c", "echo $$ > worker.pid; exec sleep 30"])
     _poll(lambda: harness.status(job_id).state == "RUNNING", "the job to run")
+    harness.worker_groups.append(_pid_from(job_dir / "worker.pid"))
     pid = harness.pid(job_id)
 
     os.killpg(pid, signal.SIGKILL)
@@ -234,15 +242,18 @@ def test_a_killed_supervisor_reads_lost_and_cannot_be_cancelled(
 
 
 def test_cancel_stops_a_running_job_and_its_whole_group(harness: Harness) -> None:
-    job_id, _ = harness.submit("job", ["sleep", "30"])
+    job_id, job_dir = harness.submit("job", ["sh", "-c", "echo $$ > worker.pid; exec sleep 30"])
     _poll(lambda: harness.status(job_id).state == "RUNNING", "the job to run")
     pid = harness.pid(job_id)
+    worker_pid = _pid_from(job_dir / "worker.pid")
+    harness.worker_groups.append(worker_pid)
 
     result = harness.scheduler(["true"]).cancel(job_id)
 
     assert result.cancelled is True
-    _poll(lambda: harness.status(job_id).state != "RUNNING", "the job to stop running")
-    _poll(lambda: _group_gone(pid), "the job's process group to disappear")
+    assert _final(harness, job_id).state == "CANCELLED"
+    _poll(lambda: _group_gone(pid), "the supervisor's process group to disappear")
+    _poll(lambda: _group_gone(worker_pid), "the worker's process group to disappear")
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="needs /proc/self/fd")
@@ -312,10 +323,12 @@ def test_the_supervisor_makes_its_lock_descriptor_non_inheritable(
     seen: list[bool] = []
 
     class _Worker:
+        returncode = None
+
         def __init__(self, argv: list[str], **kwargs: Any) -> None:
             seen.append(os.get_inheritable(lock_fd))
 
-        def wait(self) -> int:
+        def wait(self, timeout: float | None = None) -> int:
             return 0
 
     monkeypatch.setattr(subprocess, "Popen", _Worker)
@@ -340,3 +353,175 @@ def test_a_bad_lock_descriptor_fails_the_job_instead_of_crashing(
     assert code == 1
     assert local_state.read_job_state(tmp_path) == "FAILED"
     assert capsys.readouterr().err.startswith("crab local supervisor:")
+
+
+# --------------------------------------------------------------------------- #
+# cancel and teardown
+# --------------------------------------------------------------------------- #
+def _state_or_none(job_dir: Path) -> str | None:
+    try:
+        return _state_file(job_dir)["state"]
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def test_cancel_while_pending_ends_cancelled_and_never_runs(harness: Harness) -> None:
+    holder, _ = harness.submit("holder", ["sleep", "30"])
+    _poll(lambda: harness.status(holder).state == "RUNNING", "the first job to run")
+    waiting, waiting_dir = harness.submit("waiting", ["sh", "-c", "echo x > started"])
+    _poll(lambda: _state_or_none(waiting_dir) == "PENDING", "the second job to wait")
+
+    result = harness.scheduler(["true"]).cancel(waiting)
+
+    assert result.cancelled is True
+    assert _final(harness, waiting) == JobStatus(waiting, "CANCELLED", "local")
+    assert not (waiting_dir / "started").exists()
+    assert not (waiting_dir / "local_exit_code").exists()
+    assert harness.status(holder).state == "RUNNING"
+    _poll(lambda: _group_gone(harness.pid(waiting)), "the cancelled supervisor to exit")
+
+
+def test_the_worker_runs_in_its_own_process_group(harness: Harness) -> None:
+    job_id, job_dir = harness.submit("job", ["sh", "-c", "echo $$ > worker.pid; exec sleep 30"])
+    worker_pid = _pid_from(job_dir / "worker.pid")
+    harness.worker_groups.append(worker_pid)
+    _poll(lambda: harness.status(job_id).state == "RUNNING", "the job to run")
+
+    supervisor_pid = harness.pid(job_id)
+
+    assert os.getpgid(supervisor_pid) == supervisor_pid
+    assert os.getpgid(worker_pid) == worker_pid != supervisor_pid
+    assert _live_members(supervisor_pid) == [supervisor_pid]
+
+
+IGNORING_WORKER = (
+    "import os, signal, time\n"
+    "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+    "open('worker.pid', 'w').write(str(os.getpid()))\n"
+    "time.sleep(60)\n"
+)
+
+
+def test_a_worker_that_ignores_sigterm_is_killed_after_the_deadline(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`CRAB_CANCEL_DEADLINE` (seconds, read only by the supervisor) shortens the wait between the
+    forwarded SIGTERM and the SIGKILL of the worker's group; the default is too long for a test."""
+    monkeypatch.setenv("CRAB_CANCEL_DEADLINE", "1.5")
+    job_id, job_dir = harness.submit("job", [sys.executable, "-c", IGNORING_WORKER])
+    worker_pid = _pid_from(job_dir / "worker.pid")
+    harness.worker_groups.append(worker_pid)
+    _poll(lambda: harness.status(job_id).state == "RUNNING", "the job to run")
+    time.sleep(0.3)  # the pid file is written after SIG_IGN is installed
+
+    started = time.monotonic()
+    assert harness.scheduler(["true"]).cancel(job_id).cancelled is True
+    time.sleep(0.8)
+    assert _live_members(worker_pid), "the worker must survive SIGTERM until the deadline"
+    final = _final(harness, job_id)
+
+    assert final == JobStatus(job_id, "CANCELLED", "local", "-9")
+    assert time.monotonic() - started >= 1.4
+    assert _group_gone(worker_pid)
+    _poll(lambda: _group_gone(harness.pid(job_id)), "the supervisor to exit")
+    errors = (job_dir / "slurm_error.log").read_text()
+    assert "crab local supervisor: the worker did not stop within 1.5s" in errors
+    assert "its apps may still be running" in errors
+
+
+# A "worker" that watches the supervisor pipe the way `execute_worker` does, and records that its
+# SIGTERM handler ran (the real handler unwinds into the app teardown; see test_worker_sigterm.py).
+WATCHING_WORKER = """\
+import os, signal, sys, time
+from crab.cli.orchestrator import _watch_supervisor
+from crab.log import get_logger
+
+def on_term(signum, frame):
+    open('terminated', 'w').close()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(143)
+
+signal.signal(signal.SIGTERM, on_term)
+_watch_supervisor(get_logger())
+open('worker.pid', 'w').write(str(os.getpid()))
+time.sleep(60)
+"""
+
+
+def test_a_worker_stops_by_itself_when_its_supervisor_dies(harness: Harness) -> None:
+    job_id, job_dir = harness.submit("job", [sys.executable, "-c", WATCHING_WORKER])
+    worker_pid = _pid_from(job_dir / "worker.pid")
+    harness.worker_groups.append(worker_pid)
+    _poll(lambda: harness.status(job_id).state == "RUNNING", "the job to run")
+    supervisor_pid = harness.pid(job_id)
+    assert _live_members(worker_pid)
+
+    os.kill(supervisor_pid, signal.SIGKILL)  # the supervisor only, not its group
+
+    _poll(lambda: (job_dir / "terminated").exists(), "the worker to notice and stop", timeout=10)
+    _poll(lambda: _group_gone(worker_pid), "the worker's group to disappear", timeout=10)
+    assert harness.status(job_id) == JobStatus(job_id, "LOST", "local")
+    logs = (job_dir / "slurm_output.log").read_text() + (job_dir / "slurm_error.log").read_text()
+    assert "Supervisor is gone" in logs
+
+
+def test_importing_the_supervisor_does_not_import_the_process_manager() -> None:
+    """The SIGTERM handler is installed in `main`; a heavy import before it would widen the
+    window in which a cancel kills the supervisor with the default action (the job reads LOST)."""
+    code = (
+        "import sys\n"
+        "import crab.core.execution.scheduler.supervisor\n"
+        "heavy = sorted(m for m in sys.modules if m.startswith('crab.core.process'))\n"
+        "print(heavy)\n"
+        "sys.exit(1 if heavy else 0)\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, timeout=60
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_the_final_state_of_a_cancel_is_written_before_its_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With the exit code first, status would show FAILED (143) for a moment."""
+    writes: list[str] = []
+    monkeypatch.setattr(local_state, "write_job_state", lambda d, st: writes.append(f"state:{st}"))
+    monkeypatch.setattr(supervisor, "_write_exit_code", lambda d, c: writes.append(f"exit:{c}"))
+    cancelled = supervisor._Run()
+    cancelled.forwarded_at = 1.0
+
+    supervisor._finish(tmp_path, cancelled, 143)
+    supervisor._finish(tmp_path, supervisor._Run(), 3)
+
+    assert writes == ["state:CANCELLED", "exit:143", "exit:3", "state:FAILED"]
+
+
+def test_a_sigterm_after_the_worker_exited_does_not_turn_its_result_into_cancelled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_spec(tmp_path, ["true"])
+    lock_fd = os.open(tmp_path / "some.lock", os.O_RDWR | os.O_CREAT)
+
+    class _Worker:
+        pid = 0
+        returncode: int | None = None
+
+        def __init__(self, argv: list[str], **kwargs: Any) -> None:
+            pass
+
+        def wait(self, timeout: float | None = None) -> int:
+            self.returncode = 0  # the worker has exited ...
+            signal.raise_signal(signal.SIGTERM)  # ... and a cancel lands before `_finish`
+            return 0
+
+    monkeypatch.setattr(subprocess, "Popen", _Worker)
+    try:
+        code = supervisor.main([str(tmp_path), "--lock-fd", str(lock_fd)])
+    finally:
+        os.close(lock_fd)
+
+    assert code == 0
+    assert local_state.read_job_state(tmp_path) == "COMPLETED"
+    assert (tmp_path / "local_exit_code").read_text() == "0"

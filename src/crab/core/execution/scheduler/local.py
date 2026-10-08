@@ -2,7 +2,7 @@
 
 Dev/testing-only (a preset with `scheduler: "local"`). Each job runs under its own supervisor
 (`scheduler/supervisor.py`), which holds the job's liveness lock, writes `local_state.json` and
-`local_exit_code` in the job's data directory, and runs the worker. The job's id is `local-<n>` and
+`local_exit_code` in the job's data directory, and runs the worker in a session of its own. The job's id is `local-<n>` and
 its record (`local_state.JobRecord`: id, host, data_dir, supervisor pid, creation time) lives under
 `$XDG_STATE_HOME/crab/jobs/`, outside the checkout. A later `crab status` is a fresh process, so
 the state is derived from the files plus the lock: a held lock means the job is alive. A record
@@ -154,12 +154,20 @@ class LocalScheduler:
             )
         except (OSError, ValueError) as exc:
             try:
-                # The supervisor is our own child and a session leader: its group holds the
-                # worker too, if it already started.
+                # The supervisor is our own child and a session leader. It forwards the SIGTERM
+                # to its worker, which has a group of its own.
                 os.killpg(proc.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
-            proc.wait(timeout=5)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                # Still stopping its worker: its death is enough, the worker sees the pipe close.
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                proc.wait()
             raise ValueError(
                 f"could not write the record of local job {job_id} in {self._jobs_dir}: {exc}"
             ) from exc
@@ -203,7 +211,12 @@ class LocalScheduler:
         return [self._job_status(jid) for jid in ids]
 
     def cancel(self, job_id: str) -> CancelResult:
-        """Signal the job's process group with SIGTERM, while its liveness lock is held.
+        """Signal the supervisor's process group with SIGTERM, while its liveness lock is held.
+
+        The supervisor's group holds the supervisor alone: the supervisor forwards the SIGTERM to
+        the worker, which stops its apps (SIGTERM, then SIGKILL after a grace), and then writes
+        `local_exit_code` and the state `CANCELLED`. A job still waiting for its host locks ends
+        `CANCELLED` too. The call returns at once; the job stops some seconds later.
 
         A job whose exit-code file exists is never signalled: it has finished. A job whose lock
         is free is never signalled either: its supervisor is gone and the recorded pid may have
@@ -212,9 +225,6 @@ class LocalScheduler:
         A finished job reports `cancelled=False` with a detail hint rather than raising, and so
         does an id with no record ("no such local job"). A recorded pid that is not a plausible
         job pid (see `_signal_target`) is never signalled and reports `cancelled=False` too.
-
-        Interim (step B7): the job's whole group dies with no final state written, so a cancelled
-        job reads `LOST`. Step B8 makes it `CANCELLED`.
 
         Raises:
             ValueError: an id that is not `local-<n>`, a record of the wrong shape, or a record
@@ -259,19 +269,28 @@ class LocalScheduler:
         """Resolve one job from the lock, the exit-code file and `local_state.json`.
 
         The lock is probed first: once it is free every write of the supervisor is done, so the
-        files read afterwards are final. A live job reports its state file (PENDING before the
-        supervisor wrote one); a dead job reports its final state, or `LOST` when it died without
-        one. The exit-code file wins whenever it exists.
+        files read afterwards are final. A final state in `local_state.json` (COMPLETED, FAILED,
+        CANCELLED, TIMEOUT) wins, with the exit code from the exit-code file when there is one
+        (a cancelled job has both). Otherwise the exit-code file decides COMPLETED or FAILED (the
+        supervisor wrote it a moment before the final state); a live job reports its state file
+        (PENDING before the supervisor wrote one); a dead job with neither is `LOST`.
         """
         record = self._read_record(job_id)
         if record is None:
             return JobStatus(job_id, "UNKNOWN", "local")
         alive = local_state.is_alive(self._jobs_dir, job_id)
         exit_code_path = _exit_code_path(record)
-        if exit_code_path.is_file():
-            code = exit_code_path.read_text().strip()
+        code = exit_code_path.read_text().strip() if exit_code_path.is_file() else None
+        try:
+            state = local_state.read_job_state(Path(record.data_dir))
+        except ValueError:
+            if code is None:
+                raise
+            state = None  # an unreadable state file never hides a finished job
+        if state in _FINAL_STATES:
+            return JobStatus(job_id, state, "local", code)
+        if code is not None:
             return JobStatus(job_id, "COMPLETED" if code == "0" else "FAILED", "local", code)
-        state = local_state.read_job_state(Path(record.data_dir))
         if alive:
             return JobStatus(job_id, state or "PENDING", "local")
-        return JobStatus(job_id, state if state in _FINAL_STATES else "LOST", "local")
+        return JobStatus(job_id, "LOST", "local")

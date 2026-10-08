@@ -312,7 +312,11 @@ def test_status_is_derived_from_the_lock_the_state_file_and_the_exit_file(
         (data_dir / "local_exit_code").write_text(exit_file + "\n")
 
     expected: JobStatus
-    if exit_file is not None:
+    if state in _FINAL:
+        # A final state wins over the exit file (a cancelled job has both); the code comes from
+        # the exit file when there is one.
+        expected = JobStatus("local-7", state, "local", exit_file)
+    elif exit_file is not None:
         expected = JobStatus(
             "local-7", "COMPLETED" if exit_file == "0" else "FAILED", "local", exit_file
         )
@@ -322,6 +326,31 @@ def test_status_is_derived_from_the_lock_the_state_file_and_the_exit_file(
         expected = JobStatus("local-7", state if state in _FINAL else "LOST", "local")
 
     assert _scheduler(tmp_path).status(["local-7"]) == [expected]
+
+
+def test_a_final_state_wins_over_the_exit_file_and_keeps_its_exit_code(tmp_path: Path) -> None:
+    data_dir = tmp_path / "job"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("-9")
+    write_job_state(data_dir, "CANCELLED")
+    _write_state(tmp_path, "local-7", {"data_dir": str(data_dir)})
+
+    assert _scheduler(tmp_path).status(["local-7"]) == [
+        JobStatus("local-7", "CANCELLED", "local", "-9")
+    ]
+
+
+def test_a_running_state_does_not_hide_the_exit_file(tmp_path: Path) -> None:
+    """The window between the exit-code write and the final-state write of the supervisor."""
+    data_dir = tmp_path / "job"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("0")
+    write_job_state(data_dir, "RUNNING")
+    _write_state(tmp_path, "local-7", {"data_dir": str(data_dir)})
+
+    assert _scheduler(tmp_path).status(["local-7"]) == [
+        JobStatus("local-7", "COMPLETED", "local", "0")
+    ]
 
 
 def test_status_of_an_exit_file_needs_no_lock_and_no_state_file(tmp_path: Path) -> None:
