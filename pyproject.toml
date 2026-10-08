@@ -68,6 +68,8 @@ crab = ["crab_dashboard.html", "web/static/**/*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Test this checkout's code even when the editable install points at another worktree.
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 100
