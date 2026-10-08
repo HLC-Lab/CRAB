@@ -375,21 +375,27 @@ class TestLocalScheduler(unittest.TestCase):
                 "stdout log must live inside the job's own data directory",
             )
 
-    def test_local_scheduler_captures_exit_code_via_bash_trailer(self):
-        """The command must be wrapped so a later, separate CLI invocation can learn the exit
-        code (a live Popen handle does not survive across CLI invocations)."""
+    def test_local_scheduler_hands_the_worker_to_a_supervisor(self):
+        """The Popen'd process is the job's supervisor, which learns the worker's command from
+        `local_job.json` (a live Popen handle does not survive across CLI invocations, so the
+        supervisor writes the exit code and the state files)."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
                 with patch("subprocess.Popen") as mock_popen:
                     mock_popen.return_value = MagicMock(pid=1)
-                    engine._run_orchestrator(self._config(tmpdir), {}, settings=LOCAL_DIRECT)
+                    result = engine._run_orchestrator(
+                        self._config(tmpdir), {}, settings=LOCAL_DIRECT
+                    )
             args, _ = mock_popen.call_args
             popen_cmd = args[0]
-        self.assertEqual(popen_cmd[0], "bash")
-        self.assertEqual(popen_cmd[1], "-c")
-        self.assertIn("local_exit_code", popen_cmd[2])
-        self.assertIn("worker --workdir", popen_cmd[2])
+            with open(os.path.join(result["data_dir"], "local_job.json")) as f:
+                spec = json.load(f)
+        self.assertEqual(popen_cmd[1:3], ["-m", "crab.core.execution.scheduler.supervisor"])
+        self.assertEqual(popen_cmd[3], result["data_dir"])
+        self.assertEqual(popen_cmd[4], "--lock-fd")
+        self.assertEqual(spec["argv"][-3:], ["worker", "--workdir", result["data_dir"]])
+        self.assertEqual((spec["hosts"], spec["exclusive"]), (["localhost"], True))
 
     def test_local_scheduler_detaches_the_process(self):
         """The child must be launched in its own session so it survives the parent exiting."""

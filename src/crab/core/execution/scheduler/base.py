@@ -36,6 +36,11 @@ def worker_command(job_dir: str) -> str:
     )
 
 
+def worker_argv(job_dir: str) -> list[str]:
+    """The argv form of `worker_command`: `[<python>, <crab>, "worker", "--workdir", <dir>]`."""
+    return [sys.executable, os.path.abspath(sys.argv[0]), "worker", "--workdir", job_dir]
+
+
 class Scheduler(Protocol):
     """A workload scheduler CRAB can submit to, query and cancel on."""
 

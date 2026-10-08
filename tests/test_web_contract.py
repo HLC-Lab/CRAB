@@ -14,7 +14,13 @@ from pathlib import Path
 import pytest
 
 from crab.cli import contract
-from crab.core.execution.scheduler.local_state import JobRecord, jobs_dir, write_record
+from crab.core.execution.scheduler.local_state import (
+    JobRecord,
+    jobs_dir,
+    open_liveness_lock,
+    write_job_state,
+    write_record,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -337,16 +343,47 @@ def test_gather_status_local_job_running(tmp_path: Path):
     data_dir = tmp_path / "job_data"
     data_dir.mkdir()
     proc = subprocess.Popen(["sleep", "5"])
+    lock_fd = -1
     try:
         _write_local_state("local-1", proc.pid, data_dir)
+        write_job_state(data_dir, "RUNNING")
+        lock_fd = open_liveness_lock(jobs_dir(os.environ), "local-1")
 
         data = contract.gather_status(["local-1"], crab_root=tmp_path)
 
         job = data["jobs"][0]
         assert job == {"job_id": "local-1", "state": "RUNNING", "source": "local"}
     finally:
+        if lock_fd >= 0:
+            os.close(lock_fd)
         proc.terminate()
         proc.wait()
+
+
+def test_gather_status_one_corrupt_local_state_does_not_hide_the_other_jobs(tmp_path: Path):
+    """Local ids resolve one at a time: a corrupt `local_state.json` is that job's error only."""
+    fds = []
+    try:
+        for jid, text in (("local-1", "{not json"), ("local-2", None)):
+            data_dir = tmp_path / jid
+            data_dir.mkdir()
+            _write_local_state(jid, 424242, data_dir)
+            if text is None:
+                write_job_state(data_dir, "RUNNING")
+            else:
+                (data_dir / "local_state.json").write_text(text)
+            fds.append(open_liveness_lock(jobs_dir(os.environ), jid))
+
+        data = contract.gather_status(["local-1", "local-2"], crab_root=tmp_path)
+    finally:
+        for fd in fds:
+            os.close(fd)
+
+    broken, fine = data["jobs"]
+    assert broken["job_id"] == "local-1"
+    assert broken["source"] == "local"
+    assert broken["error"]
+    assert fine == {"job_id": "local-2", "state": "RUNNING", "source": "local"}
 
 
 def test_gather_status_local_job_completed(tmp_path: Path):
@@ -407,8 +444,12 @@ def test_gather_cancel_local_job_kills_the_process(tmp_path: Path):
     data_dir.mkdir()
     proc = subprocess.Popen(["sleep", "30"], start_new_session=True)
     _write_local_state("local-5", proc.pid, data_dir)
+    lock_fd = open_liveness_lock(jobs_dir(os.environ), "local-5")
 
-    data = contract.gather_cancel("local-5", crab_root=tmp_path)
+    try:
+        data = contract.gather_cancel("local-5", crab_root=tmp_path)
+    finally:
+        os.close(lock_fd)
 
     assert data == {
         "schema": contract.CONTRACT_SCHEMA,
