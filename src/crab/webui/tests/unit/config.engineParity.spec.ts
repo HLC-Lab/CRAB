@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { fromConfig, toConfig } from "@/lib/config";
+import { fromAllocation, fromConfig, toConfig, validateAllocation } from "@/lib/config";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- engine JSON is untyped here
 type AnyObj = Record<string, any>;
@@ -44,5 +44,29 @@ describe("placeholder tokens in a legacy split (SbatchMan substitutes {name} bef
       group_1: { share: "{a}" },
       group_2: { share: 50 },
     });
+  });
+});
+
+describe("placeholder tokens pass validation where they are saved (toAllocation keeps them)", () => {
+  it("accepts {name} tokens in group shares", () => {
+    const a = fromAllocation({
+      mode: "linear",
+      partitions: { v: { share: "{s}" }, x: { share: "{t}" } },
+    });
+    expect(validateAllocation(a).issues).toEqual([]);
+  });
+
+  it("accepts {name} tokens in a by-app split, stride and seed", () => {
+    const split = fromAllocation({ mode: "linear", split: ["{a}", 50] });
+    split.by = "app";
+    split.split = "{a}, 50";
+    const stride = fromAllocation({ mode: "interleaved", stride: "{k}" });
+    const seed = fromAllocation({ mode: "random", seed: "{r}" });
+    expect([split, stride, seed].flatMap((a) => validateAllocation(a).issues)).toEqual([]);
+  });
+
+  it("still rejects text that is neither a number nor a token", () => {
+    const a = fromAllocation({ mode: "linear", partitions: { v: { share: "half" } } });
+    expect(validateAllocation(a).issues).toEqual(['node group "v": share must be a number.']);
   });
 });

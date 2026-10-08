@@ -591,6 +591,8 @@ export function fromConfig(config: CrabConfig): Draft {
 
 const _posInt = (s: string) => /^[0-9]+$/.test(s.trim()) && parseInt(s, 10) > 0;
 const _numeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
+// A {name} placeholder, kept as text by toAllocation for SbatchMan to substitute.
+const _token = (s: string) => PLACEHOLDER.test(s.trim());
 
 /** Validate the tunable option fields. `where` prefixes messages (e.g. an experiment name). */
 export function validateOptions(o: OptionsDraft, where = ""): string[] {
@@ -624,13 +626,13 @@ export function validateAllocation(
   const groups = new Set<string>();
   const at = where ? `${where}: ` : "";
   if (!hasAllocation(a)) return { issues, groups };
-  if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride))
+  if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride) && !_token(a.stride))
     issues.push(`${at}allocation stride must be a positive integer.`);
-  if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()))
+  if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()) && !_token(a.seed))
     issues.push(`${at}allocation seed must be an integer.`);
   if (a.by === "app" && a.split.trim()) {
     const parts = a.split.split(",").map((s) => s.trim());
-    if (!parts.every((s) => _numeric(s)))
+    if (!parts.every((s) => _numeric(s) || _token(s)))
       issues.push(`${at}allocation split must be a comma-separated list of numbers.`);
   }
   if (a.by === "groups") {
@@ -639,7 +641,7 @@ export function validateAllocation(
     named.forEach((p) => {
       if (groups.has(p.name.trim())) issues.push(`${at}duplicate node group "${p.name.trim()}".`);
       else groups.add(p.name.trim());
-      if (p.share.trim() && !_numeric(p.share))
+      if (p.share.trim() && !_numeric(p.share) && !_token(p.share))
         issues.push(`${at}node group "${p.name.trim()}": share must be a number.`);
     });
     const shared = named.filter((p) => p.share.trim());
