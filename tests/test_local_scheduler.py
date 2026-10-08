@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -193,6 +194,96 @@ def test_cancel_state_without_int_pid_reports_already_finished(tmp_path: Path) -
     result = _scheduler(tmp_path).cancel("8")
 
     assert result == CancelResult(False, "local job already finished.")
+
+
+# --------------------------------------------------------------------------- #
+# pids that must never be signalled
+# --------------------------------------------------------------------------- #
+# killpg(1) is kill(-1) (every process of the user), 0 is the caller's own group, and a bool is an
+# int in Python. These tests never reach the real os.killpg / os.kill: both are replaced by a
+# recorder, and the tests assert it was never called.
+_NO_PID_MESSAGE = "local job state has no valid pid; nothing was signalled."
+
+
+def _bad_pids() -> list[Any]:
+    return [True, False, 0, 1, -1, -12345, "4242", 4242.0, None, os.getpgrp()]
+
+
+def _forbid_signals(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, int, int]]:
+    calls: list[tuple[str, int, int]] = []
+    monkeypatch.setattr(os, "killpg", lambda pid, sig: calls.append(("killpg", pid, sig)))
+    monkeypatch.setattr(os, "kill", lambda pid, sig: calls.append(("kill", pid, sig)))
+    return calls
+
+
+@pytest.mark.parametrize("pid", _bad_pids(), ids=repr)
+def test_cancel_never_signals_an_invalid_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pid: Any
+) -> None:
+    calls = _forbid_signals(monkeypatch)
+    _write_state(tmp_path / "root", "8", {"pid": pid, "data_dir": str(tmp_path)})
+
+    result = _scheduler(tmp_path).cancel("8")
+
+    assert result == CancelResult(False, _NO_PID_MESSAGE)
+    assert calls == []
+
+
+@pytest.mark.parametrize("pid", _bad_pids(), ids=repr)
+def test_status_never_probes_an_invalid_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pid: Any
+) -> None:
+    calls = _forbid_signals(monkeypatch)
+    data_dir = tmp_path / "job"
+    data_dir.mkdir()
+    _write_state(tmp_path / "root", "7", {"pid": pid, "data_dir": str(data_dir)})
+
+    assert _scheduler(tmp_path).status(["7"]) == [JobStatus("7", "UNKNOWN", "local")]
+    assert calls == []
+
+
+def test_status_exit_file_wins_over_an_invalid_pid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _forbid_signals(monkeypatch)
+    data_dir = tmp_path / "job"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("0\n")
+    _write_state(tmp_path / "root", "7", {"pid": True, "data_dir": str(data_dir)})
+
+    assert _scheduler(tmp_path).status(["7"]) == [JobStatus("7", "COMPLETED", "local", "0")]
+    assert calls == []
+
+
+def test_cancel_missing_state_file_reports_already_finished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _forbid_signals(monkeypatch)
+
+    assert _scheduler(tmp_path).cancel("8") == CancelResult(False, "local job already finished.")
+    assert calls == []
+
+
+def test_cancel_valid_pid_that_is_gone_reports_already_finished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def gone(pid: int, sig: int) -> None:
+        raise ProcessLookupError
+
+    monkeypatch.setattr(os, "killpg", gone)
+    _write_state(tmp_path / "root", "8", {"pid": 424242, "data_dir": str(tmp_path)})
+
+    assert _scheduler(tmp_path).cancel("8") == CancelResult(False, "local job already finished.")
+
+
+def test_cancel_valid_pid_signals_its_group_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = _forbid_signals(monkeypatch)
+    _write_state(tmp_path / "root", "8", {"pid": 424242, "data_dir": str(tmp_path)})
+
+    assert _scheduler(tmp_path).cancel("8") == CancelResult(True, None)
+    assert calls == [("killpg", 424242, signal.SIGTERM)]
 
 
 # --------------------------------------------------------------------------- #

@@ -20,6 +20,17 @@ from crab.core.execution.scheduler.base import CancelResult, JobStatus, worker_c
 from crab.log import CrabLogger
 
 
+def _signal_target(pid: object) -> int | None:
+    """The pid when it is safe to signal, else None.
+
+    The state file is plain JSON, so its pid is untrusted: `killpg(1, ...)` is `kill(-1, ...)`
+    (every process of the user), 0 and CRAB's own group hit CRAB itself, and a bool is an int.
+    """
+    if type(pid) is int and pid > 1 and pid != os.getpgrp():
+        return pid
+    return None
+
+
 class LocalScheduler:
     """Runs CRAB jobs as detached local processes.
 
@@ -81,14 +92,17 @@ class LocalScheduler:
     def cancel(self, job_id: str) -> CancelResult:
         """Signal the job's process group with SIGTERM.
 
-        A finished job (or a state file with no pid) reports `cancelled=False` with a detail
-        hint rather than raising.
+        A finished job (no state file, or a state file with no pid) reports `cancelled=False`
+        with a detail hint rather than raising. A recorded pid that is not a plausible job pid
+        (see `_signal_target`) is never signalled and reports `cancelled=False` too.
         """
         state = self._read_state(job_id) or {}
-        pid = state.get("pid")
+        if "pid" not in state:
+            return CancelResult(False, "local job already finished.")
+        pid = _signal_target(state["pid"])
+        if pid is None:
+            return CancelResult(False, "local job state has no valid pid; nothing was signalled.")
         try:
-            if not isinstance(pid, int):
-                raise ProcessLookupError("no pid recorded for this local job")
             os.killpg(pid, signal.SIGTERM)
         except ProcessLookupError:
             return CancelResult(False, "local job already finished.")
@@ -126,8 +140,8 @@ class LocalScheduler:
             code = exit_code_path.read_text().strip()
             return JobStatus(job_id, "COMPLETED" if code == "0" else "FAILED", "local", code)
 
-        pid = state.get("pid")
-        if isinstance(pid, int):
+        pid = _signal_target(state.get("pid"))
+        if pid is not None:
             try:
                 os.kill(pid, 0)
                 return JobStatus(job_id, "RUNNING", "local")
