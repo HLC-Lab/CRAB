@@ -29,6 +29,7 @@ from typing import Any
 from crab import __version__
 from crab.cli.presets import load_all_presets
 from crab.core.execution.scheduler.base import Scheduler
+from crab.core.execution.scheduler.local import LocalScheduler
 from crab.core.execution.scheduler.slurm import CommandRunner, SlurmScheduler
 from crab.log import CrabLogger
 
@@ -303,74 +304,41 @@ def gather_nodes(runner: CommandRunner | None = None) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# local jobs (CRAB_SCHEDULER=local, dev/testing-only, no Slurm)
+# status and cancel (local jobs by state file, everything else Slurm)
 # --------------------------------------------------------------------------- #
-def _local_job_state(local_jobs_dir: Path, job_id: str) -> dict[str, Any] | None:
-    """The state written by ``Engine._submit_local`` for this job id, if any."""
-    path = local_jobs_dir / f"{job_id}.json"
-    if not path.is_file():
-        return None
-    try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
+def _job_dicts(scheduler: Scheduler, ids: list[str]) -> list[dict[str, Any]]:
+    """The scheduler's job states as contract dicts, in input order."""
+    jobs: list[dict[str, Any]] = []
+    for status in scheduler.status(ids):
+        job: dict[str, Any] = {"job_id": status.job_id, "state": status.state}
+        if status.exit_code is not None:
+            job["exit_code"] = status.exit_code
+        job["source"] = status.source
+        jobs.append(job)
+    return jobs
 
 
-def _local_job_status(job_id: str, state: dict[str, Any]) -> dict[str, Any]:
-    """Resolve a local job's state from its exit-code file (finished) or PID liveness
-    (still running). The exit-code file is checked first: once it exists the job is
-    definitely finished, regardless of whether its PID has since been recycled by the OS.
-    """
-    data_dir = Path(state.get("data_dir", ""))
-    exit_code_path = data_dir / "local_exit_code"
-    if exit_code_path.is_file():
-        code = exit_code_path.read_text().strip()
-        job_state = "COMPLETED" if code == "0" else "FAILED"
-        return {"job_id": job_id, "state": job_state, "exit_code": code, "source": "local"}
-
-    pid = state.get("pid")
-    if isinstance(pid, int):
-        try:
-            os.kill(pid, 0)
-            return {"job_id": job_id, "state": "RUNNING", "source": "local"}
-        except OSError:
-            pass
-
-    return {"job_id": job_id, "state": "UNKNOWN", "source": "local"}
-
-
-# --------------------------------------------------------------------------- #
-# status (squeue → sacct fallback)
-# --------------------------------------------------------------------------- #
 def gather_status(
     job_ids: list[str], runner: CommandRunner | None = None, crab_root: Path | None = None
 ) -> dict[str, Any]:
     """Current state of the given job ids.
 
     A job id with local state (written by ``CRAB_SCHEDULER=local`` submission) is
-    resolved from that state directly. Everything else is asked of the Slurm scheduler
+    resolved by the local scheduler. Everything else is asked of the Slurm scheduler
     (``squeue`` first, then ``sacct`` for ids not in the queue). Unknown ids report
     ``state: "UNKNOWN"`` rather than failing the whole call.
     """
     root = Path(crab_root) if crab_root else _CRAB_ROOT
-    local_jobs_dir = root / ".crab_local_jobs"
+    local = LocalScheduler(CrabLogger(), str(root))
+    local_ids = [jid for jid in job_ids if local.knows(jid)]
+    remaining_ids = [jid for jid in job_ids if jid not in local_ids]
+
     states: dict[str, dict[str, Any]] = {}
-    remaining_ids: list[str] = []
-
-    for jid in job_ids:
-        local_state = _local_job_state(local_jobs_dir, jid)
-        if local_state is not None:
-            states[jid] = _local_job_status(jid, local_state)
-        else:
-            remaining_ids.append(jid)
-
+    for job in _job_dicts(local, local_ids):
+        states[job["job_id"]] = job
     if remaining_ids:
-        for status in _slurm_scheduler(runner).status(remaining_ids):
-            job: dict[str, Any] = {"job_id": status.job_id, "state": status.state}
-            if status.exit_code is not None:
-                job["exit_code"] = status.exit_code
-            job["source"] = status.source
-            states[status.job_id] = job
+        for job in _job_dicts(_slurm_scheduler(runner), remaining_ids):
+            states[job["job_id"]] = job
 
     return {"schema": CONTRACT_SCHEMA, "jobs": [states[j] for j in job_ids]}
 
@@ -380,40 +348,17 @@ def gather_cancel(
 ) -> dict[str, Any]:
     """Cancel a job by id.
 
-    A job id with local state (``CRAB_SCHEDULER=local``) is cancelled by signalling
-    its process group directly. Everything else goes through the real ``scancel`` path.
+    A job id with local state (``CRAB_SCHEDULER=local``) is cancelled by the local scheduler.
+    Everything else goes through the real ``scancel`` path.
 
     A missing/already-terminal job reports ``cancelled: false`` with a
     ``detail`` hint rather than raising, so the web backend can show it
     without treating "nothing to cancel" as a request failure.
     """
-    import signal
-
     root = Path(crab_root) if crab_root else _CRAB_ROOT
-    local_state = _local_job_state(root / ".crab_local_jobs", job_id)
-    if local_state is not None:
-        pid = local_state.get("pid")
-        try:
-            if not isinstance(pid, int):
-                raise ProcessLookupError("no pid recorded for this local job")
-            os.killpg(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            return {
-                "schema": CONTRACT_SCHEMA,
-                "job_id": job_id,
-                "cancelled": False,
-                "detail": "local job already finished.",
-            }
-        except OSError as exc:
-            return {
-                "schema": CONTRACT_SCHEMA,
-                "job_id": job_id,
-                "cancelled": False,
-                "detail": f"could not cancel local job: {exc}",
-            }
-        return {"schema": CONTRACT_SCHEMA, "job_id": job_id, "cancelled": True, "detail": None}
-
-    result = _slurm_scheduler(runner).cancel(job_id)
+    local = LocalScheduler(CrabLogger(), str(root))
+    scheduler: Scheduler = local if local.knows(job_id) else _slurm_scheduler(runner)
+    result = scheduler.cancel(job_id)
     return {
         "schema": CONTRACT_SCHEMA,
         "job_id": job_id,

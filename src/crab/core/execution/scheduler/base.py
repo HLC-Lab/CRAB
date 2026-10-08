@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import shlex
+import sys
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -22,6 +25,15 @@ class CancelResult:
 
     cancelled: bool
     detail: str | None
+
+
+def worker_command(job_dir: str) -> str:
+    """The shell command that runs a job's worker: `<python> <crab> worker --workdir <dir>`."""
+    return (
+        f"{shlex.quote(sys.executable)} "
+        f"{shlex.quote(os.path.abspath(sys.argv[0]))} "
+        f"worker --workdir {shlex.quote(job_dir)}"
+    )
 
 
 class Scheduler(Protocol):

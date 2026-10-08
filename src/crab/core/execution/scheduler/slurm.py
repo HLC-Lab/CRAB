@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import os
 import re
-import shlex
 import subprocess
-import sys
 from collections.abc import Callable
 from typing import Any
 
-from crab.core.execution.scheduler.base import CancelResult, JobStatus
+from crab.core.execution.scheduler.base import CancelResult, JobStatus, worker_command
 from crab.log import CrabLogger
 
 # A command runner returns stdout as text. It raises FileNotFoundError when the
@@ -181,11 +179,7 @@ class SlurmScheduler:
         sbatch_headers = self.generate_header(global_opts, job_dir)
 
         script_path = os.path.join(job_dir, "crab_job.sh")
-        cmd = (
-            f"{shlex.quote(sys.executable)} "
-            f"{shlex.quote(os.path.abspath(sys.argv[0]))} "
-            f"worker --workdir {shlex.quote(job_dir)}"
-        )
+        cmd = worker_command(job_dir)
 
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n\n")
