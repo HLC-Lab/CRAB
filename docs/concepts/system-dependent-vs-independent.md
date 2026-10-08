@@ -51,9 +51,10 @@ When you bring CRAB to a new cluster, three things — and only these three — 
 2. **Receipts** (`local/receipts/*.json`) — produced by running `crab setup`, which builds
    each benchmark on *this* machine and records where the resulting binary lives, plus any
    pre-run hooks or launcher overrides it needs.
-3. **The workload manager binding** — `slurm` (uses `srun`) or `mpi` (uses `mpirun`), chosen by
-   the preset's `CRAB_WL_MANAGER`. This only affects how individual applications are launched on
-   the allocated nodes; the job itself is always submitted with `sbatch`.
+3. **The launch mode** — `slurm` (uses `srun`, or `mpirun` when the launcher command contains it)
+   or `local` (no launcher), chosen by the preset's `CRAB_WL_MANAGER`. This only affects how
+   individual applications are launched on the allocated nodes; the job itself is always
+   submitted with `sbatch`.
 
 ## The system-independent pieces
 

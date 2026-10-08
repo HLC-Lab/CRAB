@@ -53,12 +53,12 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 |----------|---------|-------|
 | `CRAB_ROOT` | framework | Repository root. Set in `_common` via `__CWD__`. |
 | `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/`. Default: the checkout's `wrappers/`. |
-| `CRAB_WL_MANAGER` | runner | `slurm` (default) or `mpi` — selects the launch binding. |
-| `CRAB_MPIRUN` | wl_manager | Launcher binary. `slurm` defaults to `srun`; `mpi` requires it. |
-| `CRAB_PINNING_FLAGS` | wl_manager | CPU binding flags. Optional under `slurm`, required (may be empty) under `mpi`. |
-| `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | wl_manager | Mapping flag (e.g. `--map-by node`). Required under `mpi`. |
-| `CRAB_MPIRUN_ADDITIONAL_FLAGS` | wl_manager | Extra launcher flags. Required (may be empty) under `mpi`. |
-| `CRAB_MPIRUN_HOSTNAMES_FLAG` | wl_manager (`mpi`) | Host-list flag, e.g. `-H`. Required under `mpi`. |
+| `CRAB_WL_MANAGER` | launcher | `slurm` (default) or `local` — selects the launch mode. `mpi` and `workerpool` are accepted but not implemented yet; any other value stops setup with an error. |
+| `CRAB_MPIRUN` | launcher | Launcher command under `slurm`. Defaults to `srun`; a command containing `mpirun` is launched as `mpirun`. A receipt's launcher override wins. |
+| `CRAB_PINNING_FLAGS` | launcher | CPU binding flags for `srun`. Optional. |
+| `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | launcher | Mapping flag (e.g. `--map-by node`), used when launching with `mpirun`. Optional. |
+| `CRAB_MPIRUN_ADDITIONAL_FLAGS` | launcher | Extra flags, used when launching with `mpirun`. Optional. |
+| `CRAB_MPIRUN_HOSTNAMES_FLAG` | none | Currently unused: no code reads it. |
 | `CRAB_SYSTEM` | engine | System label for the output path. Defaults to the preset name. |
 | `CRAB_PRESET` | CLI | If set, selects the preset (overridden by `-p`). |
 | `CRAB_PATH_<ID>` | wrappers | Injected automatically from each receipt's `binary_path` at run time — not set by hand. |
