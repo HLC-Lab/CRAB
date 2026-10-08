@@ -16,6 +16,11 @@ supervisor handles SIGTERM (ADR-034, "Cancel order"):
   `CRAB_CANCEL_DEADLINE` environment variable overrides that, in seconds; tests use it), and then
   writes `local_exit_code` (the worker's code, `-9` when it was killed) and CANCELLED.
 
+The walltime (`walltime_seconds` in the spec) runs from the moment the job is RUNNING. When it
+runs out, the supervisor stops the worker the same way (SIGTERM forwarded, the deadline, SIGKILL)
+and writes TIMEOUT instead of CANCELLED. A cancel that arrives during that stop changes nothing:
+the timeout came first. A cancel that came before the walltime ran out wins: CANCELLED.
+
 The supervisor also holds the write end of a pipe it never writes to; the worker holds the read
 end (`CRAB_SUPERVISOR_FD`). When the supervisor dies, however it dies, the worker reads EOF and
 stops itself, so no worker keeps its hosts after nobody locks them any more.
@@ -44,8 +49,8 @@ WORKER_EXTRA_SECONDS = 15.0
 
 
 def _read_spec(job_dir: Path) -> dict[str, Any]:
-    """The validated job spec: `argv` (non-empty strings), `hosts` (strings), `exclusive` (bool)
-    and `state_root` (absolute path).
+    """The validated job spec: `argv` (non-empty strings), `hosts` (strings), `exclusive` (bool),
+    `state_root` (absolute path) and `walltime_seconds` (a positive int).
 
     Raises:
         ValueError: the file is missing, not JSON, or has the wrong shape.
@@ -66,6 +71,9 @@ def _read_spec(job_dir: Path) -> dict[str, Any]:
         raise ValueError(f"job spec {path}: exclusive must be true or false")
     if not (isinstance(root, str) and os.path.isabs(root)):
         raise ValueError(f"job spec {path}: state_root must be an absolute path")
+    walltime = spec.get("walltime_seconds")
+    if not (type(walltime) is int and walltime > 0):
+        raise ValueError(f"job spec {path}: walltime_seconds must be a positive integer")
     return spec
 
 
@@ -134,6 +142,7 @@ class _Run:
     def __init__(self) -> None:
         self.phase = "setup"
         self.cancel_requested = False
+        self.timed_out = False
         self.worker: subprocess.Popen | None = None
         self.forwarded_at: float | None = None
 
@@ -154,14 +163,28 @@ class _Run:
             raise _Cancelled
 
 
-def _wait_for_worker(run: _Run, worker: subprocess.Popen) -> int | None:
-    """Wait for the worker. After a forwarded SIGTERM, SIGKILL its group once the deadline has
-    passed. Returns its exit code, or None when it was killed that way."""
+def _wait_for_worker(run: _Run, worker: subprocess.Popen, walltime: int) -> int | None:
+    """Wait for the worker, at most `walltime` seconds before it is stopped.
+
+    When the walltime runs out (and no cancel was forwarded before), SIGTERM goes to the worker's
+    group and `run.timed_out` is set. After a forwarded SIGTERM, whoever sent it, SIGKILL the
+    group once the deadline has passed. Returns the worker's exit code, or None when it was
+    killed that way.
+    """
     deadline = _cancel_deadline()
+    started = time.monotonic()
     while True:
         try:
             return worker.wait(timeout=0.2)
         except subprocess.TimeoutExpired:
+            if run.forwarded_at is None and time.monotonic() - started >= walltime:
+                run.timed_out = True
+                print(
+                    f"crab local supervisor: walltime of {walltime}s reached; stopping the job",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                run.forward()
             if run.forwarded_at is not None and time.monotonic() - run.forwarded_at >= deadline:
                 _signal_worker_group(worker.pid, signal.SIGKILL)
                 worker.wait()
@@ -176,12 +199,17 @@ def _wait_for_worker(run: _Run, worker: subprocess.Popen) -> int | None:
 def _finish(job_dir: Path, run: _Run, code: int | None) -> None:
     """Write the exit code and the final state of a job whose worker has ended.
 
-    The job is cancelled when a SIGTERM was forwarded to its worker (`forwarded_at`) or the worker
-    had to be killed (`code` is None, recorded as `-9`). A SIGTERM that arrived after the worker
-    had exited is no cancel: the worker's own result stands. The cancelled job's state is written
-    first, so status never shows FAILED (the worker's 143) for it; the normal order is exit code,
-    then state.
+    The job timed out when its walltime ran out first (`timed_out`), even if a cancel came while
+    the worker was being stopped. It is cancelled when a SIGTERM was forwarded to its worker
+    (`forwarded_at`) or the worker had to be killed (`code` is None, recorded as `-9`). A SIGTERM
+    that arrived after the worker had exited is no cancel: the worker's own result stands. The
+    state of a timed-out or cancelled job is written first, so status never shows FAILED (the
+    worker's 143) for it; the normal order is exit code, then state.
     """
+    if run.timed_out:
+        local_state.write_job_state(job_dir, "TIMEOUT")
+        _write_exit_code(job_dir, -9 if code is None else code)
+        return
     if run.forwarded_at is not None or code is None:
         local_state.write_job_state(job_dir, "CANCELLED")
         _write_exit_code(job_dir, -9 if code is None else code)
@@ -212,7 +240,7 @@ def _run_worker(job_dir: Path, spec: dict[str, Any], run: _Run) -> int | None:
         run.phase = "running"
         if run.cancel_requested:
             run.forward()  # a SIGTERM that arrived while the worker was being started
-        return _wait_for_worker(run, worker)
+        return _wait_for_worker(run, worker, spec["walltime_seconds"])
     finally:
         os.close(read_fd)
         os.close(write_fd)

@@ -28,6 +28,7 @@ from crab.core.execution.hosts import LOCALHOST
 from crab.core.execution.scheduler import local_state
 from crab.core.execution.scheduler.base import CancelResult, JobStatus, worker_argv
 from crab.core.execution.scheduler.local_state import JobRecord
+from crab.core.execution.scheduler.walltime import parse_walltime
 from crab.core.execution.settings import from_json
 from crab.log import CrabLogger
 
@@ -100,11 +101,16 @@ class LocalScheduler:
         the `slurm_output.log` / `slurm_error.log` names the Slurm job uses, so the log reader
         needs no special case; the supervisor and the worker share them.
 
+        The job is stopped when its `walltime` global option (Slurm's `--time` formats, default
+        `00:10:00`) runs out, and ends `TIMEOUT`.
+
         Raises:
-            ValueError: `execution.json` is invalid, or the record could not be written (the
-                supervisor is terminated first; the message names the state directory).
+            ValueError: `execution.json` is invalid, the walltime is not valid (no job id is
+                used), or the record could not be written (the supervisor is terminated first; the
+                message names the state directory).
         """
         job_dir = os.path.abspath(job_dir)  # the supervisor runs the worker with cwd=job_dir
+        walltime_seconds = parse_walltime(global_opts.get("walltime", "00:10:00"))
         hosts, exclusive = self._hosts_used(job_dir, int(global_opts.get("numnodes", 1)))
         job_id = local_state.allocate_id(self._jobs_dir)
         spec = {
@@ -113,6 +119,7 @@ class LocalScheduler:
             "hosts": hosts,
             "exclusive": exclusive,
             "state_root": str(self._state_root),
+            "walltime_seconds": walltime_seconds,
         }
         (Path(job_dir) / "local_job.json").write_text(json.dumps(spec))
 

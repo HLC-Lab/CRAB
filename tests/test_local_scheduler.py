@@ -183,6 +183,7 @@ def test_submit_spawns_a_detached_supervisor_and_records_state(
         "hosts": ["localhost"],
         "exclusive": True,
         "state_root": str(tmp_path / "xdg-state" / "crab"),
+        "walltime_seconds": 600,
     }
     record = json.loads((jobs_dir(_environ(tmp_path)) / "local-1.json").read_text())
     assert record["id"] == "local-1"
@@ -223,6 +224,36 @@ def test_submit_locks_the_first_numnodes_hosts_of_execution_json(
     spec = json.loads((job_dir / "local_job.json").read_text())
     assert spec["hosts"] == ["a", "b"]
     assert spec["exclusive"] is False
+
+
+def test_submit_writes_the_walltime_in_seconds_to_the_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job_dir = _job_dir(tmp_path)
+    monkeypatch.setattr(subprocess, "Popen", _FakePopen(tmp_path))
+
+    _scheduler(tmp_path).submit(str(job_dir), {"walltime": "1-02:03"})
+
+    assert json.loads((job_dir / "local_job.json").read_text())["walltime_seconds"] == 93780
+
+
+@pytest.mark.parametrize("walltime", ["abc", "0", "1:60", "UNLIMITED", "", 5])
+def test_an_invalid_walltime_raises_and_burns_no_job_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, walltime: object
+) -> None:
+    job_dir = _job_dir(tmp_path)
+    fake = _FakePopen(tmp_path)
+    monkeypatch.setattr(subprocess, "Popen", fake)
+    sched = _scheduler(tmp_path)
+    jobs = jobs_dir(_environ(tmp_path))
+
+    with pytest.raises(ValueError, match="walltime"):
+        sched.submit(str(job_dir), {"walltime": walltime})
+
+    assert fake.argv is None  # no supervisor was started
+    assert not (jobs / "counter").exists()
+    assert not (job_dir / "local_job.json").exists()
+    assert sched.submit(str(job_dir), {}) == "local-1"
 
 
 def test_a_failing_record_write_signals_the_supervisor_group_and_raises(

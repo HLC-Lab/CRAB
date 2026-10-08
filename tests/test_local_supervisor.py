@@ -106,16 +106,18 @@ class Harness:
         cmd: list[str] | Callable[[str], list[str]],
         exclusive: bool | None = None,
         relative: bool = False,
+        global_opts: dict[str, Any] | None = None,
     ) -> tuple[str, Path]:
         """Submit `cmd` as job directory `name`; `exclusive` False writes an `execution.json`.
 
-        `relative` hands the scheduler the name itself (the test chdir-ed into `tmp_path`)."""
+        `relative` hands the scheduler the name itself (the test chdir-ed into `tmp_path`);
+        `global_opts` are the job's global options (such as `walltime`)."""
         job_dir = self.tmp_path / name
         job_dir.mkdir()
         if exclusive is not None:
             preset = {"scheduler": "local", "exclusive": exclusive}
             (job_dir / "execution.json").write_text(json.dumps(to_json(from_preset(preset, "t"))))
-        job_id = self.scheduler(cmd).submit(name if relative else str(job_dir), {})
+        job_id = self.scheduler(cmd).submit(name if relative else str(job_dir), global_opts or {})
         assert job_id is not None
         record = local_state.read_record(self.jobs, job_id)
         assert record is not None
@@ -309,8 +311,14 @@ def test_a_relative_job_dir_still_runs_the_worker_in_its_own_dir(
     assert (tmp_path / "rel" / "out.txt").read_text() == "x\n"
 
 
-def _write_spec(job_dir: Path, argv: list[str]) -> None:
-    spec = {"argv": argv, "hosts": [], "exclusive": False, "state_root": str(job_dir / "state")}
+def _write_spec(job_dir: Path, argv: list[str], walltime_seconds: object = 600) -> None:
+    spec = {
+        "argv": argv,
+        "hosts": [],
+        "exclusive": False,
+        "state_root": str(job_dir / "state"),
+        "walltime_seconds": walltime_seconds,
+    }
     (job_dir / "local_job.json").write_text(json.dumps(spec))
 
 
@@ -525,3 +533,121 @@ def test_a_sigterm_after_the_worker_exited_does_not_turn_its_result_into_cancell
     assert code == 0
     assert local_state.read_job_state(tmp_path) == "COMPLETED"
     assert (tmp_path / "local_exit_code").read_text() == "0"
+
+
+# --------------------------------------------------------------------------- #
+# walltime
+# --------------------------------------------------------------------------- #
+WALLTIME_2S = {"walltime": "0-00:00:02"}
+
+
+@pytest.mark.parametrize("value", [None, 0, -5, "600", 1.5, True])
+def test_a_job_spec_needs_a_positive_integer_walltime(
+    tmp_path: Path, capsys: pytest.CaptureFixture, value: object
+) -> None:
+    _write_spec(tmp_path, ["true"], walltime_seconds=value)
+    lock_fd = os.open(tmp_path / "some.lock", os.O_RDWR | os.O_CREAT)
+    try:
+        code = supervisor.main([str(tmp_path), "--lock-fd", str(lock_fd)])
+    finally:
+        os.close(lock_fd)
+
+    assert code == 1
+    assert local_state.read_job_state(tmp_path) == "FAILED"
+    assert "walltime_seconds must be a positive integer" in capsys.readouterr().err
+
+
+def test_a_job_that_outlives_its_walltime_is_stopped_and_ends_timeout(harness: Harness) -> None:
+    job_id, job_dir = harness.submit(
+        "job", ["sh", "-c", "echo $$ > worker.pid; exec sleep 30"], global_opts=WALLTIME_2S
+    )
+    pid = harness.pid(job_id)
+    worker_pid = _pid_from(job_dir / "worker.pid")
+    harness.worker_groups.append(worker_pid)
+    _poll(lambda: harness.status(job_id).state == "RUNNING", "the job to run")
+    running_since = time.monotonic()
+
+    final = _final(harness, job_id)
+
+    assert time.monotonic() - running_since < 2 + 8
+    assert final.state == "TIMEOUT"
+    assert final.exit_code in ("-15", "-9", "143")
+    assert _state_file(job_dir)["state"] == "TIMEOUT"
+    assert (job_dir / "local_exit_code").read_text() == final.exit_code
+    _poll(lambda: _group_gone(pid), "the supervisor's process group to disappear")
+    _poll(lambda: _group_gone(worker_pid), "the worker's process group to disappear")
+    errors = (job_dir / "slurm_error.log").read_text()
+    assert "crab local supervisor: walltime of 2s reached; stopping the job" in errors
+
+
+def test_a_job_that_finishes_within_its_walltime_stays_completed(harness: Harness) -> None:
+    job_id, job_dir = harness.submit(
+        "job", ["sh", "-c", "sleep 0.3"], global_opts={"walltime": "0-00:00:30"}
+    )
+
+    assert _final(harness, job_id) == JobStatus(job_id, "COMPLETED", "local", "0")
+    assert "walltime" not in (job_dir / "slurm_error.log").read_text()
+
+
+def test_a_worker_that_ignores_sigterm_is_killed_after_the_walltime_deadline(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_CANCEL_DEADLINE", "1.5")
+    job_id, job_dir = harness.submit(
+        "job", [sys.executable, "-c", IGNORING_WORKER], global_opts=WALLTIME_2S
+    )
+    worker_pid = _pid_from(job_dir / "worker.pid")
+    harness.worker_groups.append(worker_pid)
+
+    final = _final(harness, job_id)
+
+    assert final == JobStatus(job_id, "TIMEOUT", "local", "-9")
+    assert _group_gone(worker_pid)
+    errors = (job_dir / "slurm_error.log").read_text()
+    assert "walltime of 2s reached" in errors
+    assert "the worker did not stop within 1.5s" in errors
+
+
+def test_a_cancel_during_the_walltime_stop_keeps_timeout(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The timeout came first: the cancel's SIGTERM changes nothing."""
+    monkeypatch.setenv("CRAB_CANCEL_DEADLINE", "3")
+    job_id, job_dir = harness.submit(
+        "job", [sys.executable, "-c", IGNORING_WORKER], global_opts=WALLTIME_2S
+    )
+    harness.worker_groups.append(_pid_from(job_dir / "worker.pid"))
+    errors = job_dir / "slurm_error.log"
+    _poll(lambda: "walltime of 2s reached" in errors.read_text(), "the walltime to run out")
+
+    assert harness.scheduler(["true"]).cancel(job_id).cancelled is True
+
+    assert _final(harness, job_id) == JobStatus(job_id, "TIMEOUT", "local", "-9")
+
+
+def test_a_cancel_before_the_walltime_is_cancelled_not_timeout(harness: Harness) -> None:
+    job_id, _ = harness.submit(
+        "job",
+        ["sh", "-c", "exec sleep 30"],
+        global_opts={"walltime": "0-00:00:30"},
+    )
+    _poll(lambda: harness.status(job_id).state == "RUNNING", "the job to run")
+    assert harness.scheduler(["true"]).cancel(job_id).cancelled is True
+
+    assert _final(harness, job_id).state == "CANCELLED"
+
+
+def test_the_final_state_of_a_timeout_is_written_before_its_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writes: list[str] = []
+    monkeypatch.setattr(local_state, "write_job_state", lambda d, st: writes.append(f"state:{st}"))
+    monkeypatch.setattr(supervisor, "_write_exit_code", lambda d, c: writes.append(f"exit:{c}"))
+    timed_out = supervisor._Run()
+    timed_out.timed_out = True
+    timed_out.forwarded_at = 1.0
+
+    supervisor._finish(tmp_path, timed_out, -15)
+    supervisor._finish(tmp_path, timed_out, None)
+
+    assert writes == ["state:TIMEOUT", "exit:-15", "state:TIMEOUT", "exit:-9"]
