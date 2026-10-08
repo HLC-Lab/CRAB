@@ -78,7 +78,7 @@ export interface DetectResult {
   skew: string | null;
 }
 
-// -- Experiment authoring (Phase 3) ----------------------------------------
+// -- Experiment authoring ----------------------------------------
 
 /** One application within an experiment (engine-shaped; extra keys allowed). */
 export interface AppConfig {
@@ -114,7 +114,7 @@ export type LibraryEntry = Omit<components["schemas"]["LibraryEntry"], "config">
  * (advisory only — the save always succeeds). */
 export type SavedEntry = LibraryEntry & { warnings: string[] };
 
-// -- Cluster catalog (Phase 3 pickers; crab list-benchmarks / nodes --json) --
+// -- Cluster catalog (pickers; crab list-benchmarks / nodes --json) --
 
 export interface WrapperMetric {
   name: string | null;
@@ -156,7 +156,7 @@ export interface NodesResult {
   note?: string;
 }
 
-// -- Jobs (Phase 4: submit & monitor) ---------------------------------------
+// -- Jobs (submit & monitor) ---------------------------------------
 
 export type JobRecord = components["schemas"]["JobRecord"];
 /** GET /api/jobs item = job record + whether its cluster is currently connected. */
@@ -164,7 +164,7 @@ export type JobListItem = components["schemas"]["JobListItem"];
 /** POST /api/jobs/{id}/cancel — `cancelled` is false when the job was already gone. */
 export type CancelResponse = components["schemas"]["CancelResponse"];
 
-/** POST /api/jobs/submit — accepted immediately, resolved async (plan 075). */
+/** POST /api/jobs/submit — accepted immediately, resolved async. */
 export type SubmissionAccepted = components["schemas"]["SubmissionAccepted"];
 /** GET /api/jobs/submissions/{id} — poll target for an in-flight submit/rerun. */
 export type SubmissionStatus = components["schemas"]["SubmissionStatus"];
@@ -212,7 +212,7 @@ export type JobDetail = components["schemas"]["JobDetail"];
 export type UseCaseReport = components["schemas"]["UseCaseReport"];
 export type ReportExperiment = components["schemas"]["ReportExperiment"];
 
-// -- Results dashboard (plan 065, re-keyed off the registry in plan 077) ----
+// -- Results dashboard -----------------------------------------
 
 /** POST /api/results/{cluster}/{system}/{jobBasename}/fetch — accepted immediately, resolved async. */
 export type FetchAccepted = components["schemas"]["FetchAccepted"];
@@ -225,11 +225,11 @@ export type CacheSize = components["schemas"]["CacheSize"];
 /** GET /api/results — every (cluster, system, job_basename) the picker can show. */
 export type ResultsIndex = components["schemas"]["ResultsIndex"];
 export type ResultsJobEntry = components["schemas"]["ResultsJobEntry"];
-/** GET .../experiments — per-experiment status/run-failure counts for one job (plan 081). */
+/** GET .../experiments — per-experiment status/run-failure counts for one job. */
 export type ExperimentRunStatus = components["schemas"]["ExperimentRunStatus"];
 export type ExperimentRunStatusList = components["schemas"]["ExperimentRunStatusList"];
 
-// -- Wrappers page (plan 091) -------------------------------------------------
+// -- Wrappers page -------------------------------------------------
 
 /** Where a wrapper's binary comes from (`crab wrappers list --json`, cli/wrappers_catalog.py). */
 export type BinaryStatus = "config" | "receipt" | "path" | "missing" | "error" | "unknown";

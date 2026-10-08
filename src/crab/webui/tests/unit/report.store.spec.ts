@@ -1,5 +1,5 @@
 /**
- * Per-use-case experiment report store (plan 060): fetches
+ * Per-use-case experiment report store: fetches
  * GET /api/jobs/report/{config_name} and lazily loads per-app error logs for
  * one experiment at a time. Mocks the API client, same principle as
  * jobs.store.spec.ts.
@@ -164,7 +164,7 @@ describe("report store per-experiment rerun selection", () => {
   });
 });
 
-describe("report store selection mode (plan 076)", () => {
+describe("report store selection mode", () => {
   it("starts off, and toggling turns it on", () => {
     const store = useReportStore();
     expect(store.selectionMode).toBe(false);

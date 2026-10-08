@@ -1,12 +1,12 @@
-"""On-disk cache of CSV result trees fetched from a cluster over SFTP (plan 065).
+"""On-disk cache of CSV result trees fetched from a cluster over SFTP.
 
 Populated on demand when a job's Results tab requests a fetch (``api/results.py``);
 never fetched automatically. One directory per (cluster, system, data_dir basename)
 under ``Settings.results_cache_dir``, mirroring the fetched tree unmodified so
 ``collect_result_data`` can walk it exactly as it would the live cluster directory.
-System-scoped (plan 077 S4) so a CLI-only job -- which has no local registry record,
+System-scoped so a CLI-only job -- which has no local registry record,
 only a (cluster, system, job_basename) identity -- can be cached and found again.
-No automatic eviction (owner decision, plan 065's Context) -- ``total_size()`` and
+No automatic eviction (deliberate) -- ``total_size()`` and
 ``clear()`` back the cache-management UI instead.
 """
 
@@ -43,9 +43,9 @@ class ResultsCache:
 
     def list_cached(self) -> list[tuple[str, str, str]]:
         """Every cached (cluster, system, job_basename) triple, ignoring stray
-        entries and leftover directories from plan 065's 2-level
-        (``<cluster>/<job_basename>``) cache layout, superseded by plan 077 S4's
-        3-level one. Walking a leftover 065 tree with the 3-level assumption
+        entries and leftover directories from the old 2-level
+        (``<cluster>/<job_basename>``) cache layout, superseded by the
+        3-level one. Walking a leftover old-layout tree with the 3-level assumption
         misreads its job_basename as a "system" and one of its experiment
         subfolders as the "job_basename". A genuine job_basename leaf always
         contains experiment SUBFOLDERS (mirroring the fetched tree, which is

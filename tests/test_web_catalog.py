@@ -1,4 +1,4 @@
-"""Phase 3 cluster-catalog routes: /api/remotes/{name}/benchmarks and /nodes.
+"""Cluster-catalog routes: /api/remotes/{name}/benchmarks and /nodes.
 
 No real SSH — a command-aware fake transport returns the right `crab … --json`
 payload per command.

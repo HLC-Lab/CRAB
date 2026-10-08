@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Small in-page tab pair linking the Results picker and the Compare
-// workbench (plan 077 S15) -- not a main-nav entry, Compare stays part of
+// workbench -- not a main-nav entry, Compare stays part of
 // the Results section (decision 10). Also carries the one manual "Refresh"
-// action for the shared cross-cluster index (plan 079): both pages call
+// action for the shared cross-cluster index: both pages call
 // `loadIndex()` on mount, which is now a no-op once already loaded this
 // session (see stores/results.ts), so this button is the only way to force
 // a reload without leaving the page.

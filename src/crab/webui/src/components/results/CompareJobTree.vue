@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Sidebar tree for the Compare workbench (plan 077 S15): Job -> Experiment ->
+// Sidebar tree for the Compare workbench: Job -> Experiment ->
 // App checkboxes. A job's full ResultsData only loads once its node is
 // expanded (lazy -- avoids pulling the whole cache into memory at once).
 import { reactive } from "vue";

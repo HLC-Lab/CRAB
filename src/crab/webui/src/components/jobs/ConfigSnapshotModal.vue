@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Read-only view of the config a job was submitted with (item 6, plan 075).
+// Read-only view of the config a job was submitted with.
 // A job only carries a copy (config_snapshot), not a live link back to a
 // library entry (ad-hoc submits have no entry at all) - so this shows the
 // exact snapshot, not an editable/live config.

@@ -1,4 +1,4 @@
-"""Tests for the on-disk results CSV tree cache (plan 065)."""
+"""Tests for the on-disk results CSV tree cache."""
 
 from __future__ import annotations
 
@@ -111,9 +111,9 @@ def test_list_cached_ignores_stray_files_and_shallow_dirs(tmp_path: Path):
 
 
 def test_list_cached_ignores_a_stale_pre_077_layout_leftover(tmp_path: Path):
-    """Plan 077 S4 changed the on-disk cache layout from
-    `<cluster>/<job_basename>/` (065) to `<cluster>/<system>/<job_basename>/`.
-    A leftover 065-layout directory, walked with the new 3-level assumption,
+    """The on-disk cache layout changed from
+    `<cluster>/<job_basename>/` to `<cluster>/<system>/<job_basename>/`.
+    A leftover old-layout directory, walked with the new 3-level assumption,
     misreads its job_basename as a "system" and one of its experiment
     subfolders as the "job_basename" -- exactly the bogus entries (an
     experiment name like "10_512KiB" with a job name sitting in the system

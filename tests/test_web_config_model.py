@@ -1,4 +1,4 @@
-"""Config shape model (plan 020 / ADR-015): every real example config must
+"""Config shape model (ADR-015): every real example config must
 validate warning-free (they are ground truth for what the engine accepts), and
 genuinely malformed shapes must produce warnings — never exceptions."""
 

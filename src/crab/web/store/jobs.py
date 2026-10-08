@@ -1,4 +1,4 @@
-"""Local registry of submitted jobs (Phase 4: submit & monitor).
+"""Local registry of submitted jobs (submit & monitor).
 
 Live status/logs always come from a fresh ``crab status``/``crab logs --json`` call
 (the API layer's job); this store only persists what the dashboard itself recorded

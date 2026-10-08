@@ -1,11 +1,10 @@
 <script setup lang="ts">
-// The Results body for one job (plan 065, terminology/layout fixed in plan
-// 077 S12): fetch-on-demand, then a two-column layout -- a left sidebar
+// The Results body for one job: fetch-on-demand, then a two-column layout -- a left sidebar
 // listing Experiments (the config's experiment key, expandable to the Apps
 // run within it) and a right-hand Chart/Table area for whichever App is
 // selected. `data`'s absence covers both "never fetched" and "cache just
 // cleared" uniformly -- no need to distinguish them in the UI, both just show
-// the fetch prompt. Compare is temporarily absent (plan 077 S9-S15): the
+// the fetch prompt. Compare is temporarily absent: the
 // generalized cross-job workbench replaces it.
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import { useResultsStore } from "@/stores/results";
@@ -28,7 +27,7 @@ onMounted(() => {
 const data = computed(() => results.results[key.value]);
 const experimentNames = computed(() => (data.value ? Object.keys(data.value.experiments) : []));
 
-// Per-experiment run-failure notes (plan 081), keyed by experiment name --
+// Per-experiment run-failure notes, keyed by experiment name --
 // loaded independently of `data`, so a note can show even before/without the
 // CSV tree being fetched.
 const runFailureNotes = computed(() => {

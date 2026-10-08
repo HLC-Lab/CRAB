@@ -1,5 +1,5 @@
 /**
- * Wrappers page (plan 091 S26): pure helpers in lib/wrappers.ts, and the store's load and
+ * Wrappers page: pure helpers in lib/wrappers.ts, and the store's load and
  * import flow with the API client mocked (the I/O boundary).
  */
 import { createPinia, setActivePinia } from "pinia";

@@ -1,4 +1,4 @@
-"""Localhost API authentication (plan 010): per-session token + host checks.
+"""Localhost API authentication: per-session token + host checks.
 
 The dashboard executes SSH commands, so its localhost API must not be drivable
 by a hostile web page (DNS rebinding / CSRF). Every ``/api/*`` request needs the
@@ -129,7 +129,7 @@ def test_static_assets_do_not_need_the_token(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# Path containment (plan 092 S19): profile names and results-route path
+# Path containment: profile names and results-route path
 # params end up in local paths, so neither may escape its folder.
 # --------------------------------------------------------------------------- #
 _PROFILE = {"name": "leonardo", "host": "login.example.org", "user": "u", "auth": "agent"}

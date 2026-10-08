@@ -266,7 +266,7 @@ class TestNumnodesValidation(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# --only: rerun specific experiment keys from a config (plan 060)
+# --only: rerun specific experiment keys from a config
 # ---------------------------------------------------------------------------
 
 
@@ -318,7 +318,7 @@ class TestOnlyExperimentFilter(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 # CRAB_SCHEDULER=local: skip sbatch, submit as a detached local subprocess
-# (plan 087, dev/testing-only no-Slurm path)
+# (dev/testing-only no-Slurm path)
 # ---------------------------------------------------------------------------
 
 

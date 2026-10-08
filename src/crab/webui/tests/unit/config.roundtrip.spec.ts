@@ -334,7 +334,7 @@ const fixtures: { name: string; config: AnyObj }[] = [
     },
   },
   {
-    // SbatchMan campaigns (plan 090 S11a): an exact {name} token in a numeric
+    // SbatchMan campaigns: an exact {name} token in a numeric
     // allocation field must survive as-is, not become NaN -> null.
     name: "allocation numerics: {var} placeholders in stride, seed, share",
     config: {
@@ -449,7 +449,7 @@ describe("output format (csv only)", () => {
   });
 });
 
-describe("config format version (plan 091)", () => {
+describe("config format version", () => {
   it("every emitted config carries schema_version 1, even from an untouched editor", () => {
     expect(toConfig(emptyDraft()).schema_version).toBe(1);
   });
@@ -561,7 +561,7 @@ describe("allocationSummary badge math", () => {
   });
 });
 
-describe("allocation placeholders (plan 090 S11a)", () => {
+describe("allocation placeholders", () => {
   it("a by-app split keeps {var} tokens next to numbers, in order", () => {
     const a = fromAllocation({ mode: "linear" });
     a.by = "app";

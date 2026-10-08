@@ -1,9 +1,9 @@
-// Pure cross-job compare merge layer (plan 077 decisions 10, 11). Fresh
-// implementation reusing the filename S9 freed when the single-job
+// Pure cross-job compare merge layer. Fresh
+// implementation reusing the filename freed when the single-job
 // Chart.js-based CompareView was deleted -- not a resurrection of that code.
 // `CompareSeries` is deliberately NOT scoped to one job: any
 // (cluster, system, jobBasename, experiment, app) row-set can be added to
-// one comparison canvas (decision 10). `resolveCol` is ported as-is from the
+// one comparison canvas. `resolveCol` is ported as-is from the
 // deleted `resultsCompare.ts` (per-app CSVs number their columns
 // independently, e.g. "1_Avg-Duration_s" vs "2_Avg-Duration_s" for the same
 // metric). `sharedUnit` fixes a real bug found during 077's design: the old
@@ -60,8 +60,8 @@ export function resolveCol(rows: ResultRow[], col: string): string {
 /** The axis-pickable columns: numeric columns present in EVERY selected
  * series, matched by canonical (numeric-prefix-stripped) name -- never a
  * union. A union would let a user pick an axis only some series have,
- * silently rendering the others with no data (found during this plan's own
- * S17 render-verify pass: a series with no matching X column contributed an
+ * silently rendering the others with no data (found during a
+ * render-verify pass: a series with no matching X column contributed an
  * empty, invisible trace instead of an error). */
 export function sharedColumns(series: CompareSeries[]): string[] {
   if (!series.length) return [];

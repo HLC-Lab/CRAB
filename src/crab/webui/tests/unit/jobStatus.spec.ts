@@ -29,7 +29,7 @@ describe("isTerminal / stateClass sanity", () => {
   });
 });
 
-describe("failedExperimentNames (plan 076 quick rerun)", () => {
+describe("failedExperimentNames (quick rerun)", () => {
   it("returns only the names of failing experiments", () => {
     const names = failedExperimentNames([
       { status: "FAILED", experiment_name: "01_baseline" },
@@ -46,7 +46,7 @@ describe("failedExperimentNames (plan 076 quick rerun)", () => {
   });
 });
 
-describe("runFailureNote (plan 081)", () => {
+describe("runFailureNote", () => {
   it("formats N/M when some runs failed", () => {
     expect(runFailureNote({ total_runs: "10", failed_runs: "3" })).toBe("3/10 runs failed");
   });

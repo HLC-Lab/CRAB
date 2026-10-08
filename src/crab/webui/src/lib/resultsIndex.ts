@@ -1,5 +1,4 @@
-// Pure helpers over the Results picker's cross-cluster index (plan 077
-// decision 12): a legible staleness indicator and a stable sort order, no
+// Pure helpers over the Results picker's cross-cluster index: a legible staleness indicator and a stable sort order, no
 // instructional blurb needed once real per-job metadata is on screen.
 import type { ResultsJobEntry } from "@/api/types";
 

@@ -1,7 +1,7 @@
 """
 setup/recipes/g500.py: the build command must not override the Makefile's own CFLAGS.
 
-Found via plan 088 (gcc/MPI compat matrix): a command-line `make CFLAGS=-fcommon` replaces the
+Found via the gcc/MPI compat matrix: a command-line `make CFLAGS=-fcommon` replaces the
 Makefile's own CFLAGS wholesale (GNU Make override semantics), dropping -I../aml and breaking
 the aml.h include -- `-fcommon` must ride on MPICC instead, matching the documented example in
 docs/extending/recipes.md. Also targets graph500_reference_bfs explicitly, not the default

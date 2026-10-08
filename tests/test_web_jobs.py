@@ -1,4 +1,4 @@
-"""Phase 4: local job registry (store/jobs.py) and the /api/jobs routes."""
+"""Local job registry (store/jobs.py) and the /api/jobs routes."""
 
 from __future__ import annotations
 
@@ -332,7 +332,7 @@ async def test_run_submission_records_rerun_lineage(tmp_path: Path):
 
 
 async def test_run_submission_with_only_passes_the_flag_to_crab_run(tmp_path: Path):
-    """`only` (plan 060 rerun) must reach the remote `crab run --only ...` invocation."""
+    """`only` (rerun) must reach the remote `crab run --only ...` invocation."""
     profile = _profile(tmp_path)
     transport = ScriptedTransport()
     tracker: dict = {}
@@ -1001,7 +1001,7 @@ def test_job_logs_disconnected_with_no_prior_cache_still_errors(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# /api/jobs/{record_id}/experiments (per-job detail view, plan 075)
+# /api/jobs/{record_id}/experiments (per-job detail view)
 # --------------------------------------------------------------------------- #
 def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: Path):
     _seed_job(
@@ -1174,7 +1174,7 @@ def test_job_experiments_same_system_name_on_two_clusters_keeps_both_caches(tmp_
 
 
 # --------------------------------------------------------------------------- #
-# /api/jobs/report/{config_name} (per-use-case experiment report, plan 060)
+# /api/jobs/report/{config_name} (per-use-case experiment report)
 # --------------------------------------------------------------------------- #
 def _history_row(**overrides) -> dict:
     row = {
@@ -1374,7 +1374,7 @@ def test_use_case_report_spans_multiple_connected_clusters(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# worst_status (plan 077 S5 extraction of _resolve_via_history's status walk)
+# worst_status (extraction of _resolve_via_history's status walk)
 # --------------------------------------------------------------------------- #
 def test_worst_status_prefers_failed_over_completed():
     assert worst_status(["COMPLETED", "FAILED"]) == "FAILED"

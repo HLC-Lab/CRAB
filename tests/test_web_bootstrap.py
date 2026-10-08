@@ -1,4 +1,4 @@
-"""Phase 2b tests: guided CRAB install (detect / plan / install / verify).
+"""Tests for guided CRAB install (detect / plan / install / verify).
 
 Fake transport only — the real install over SSH is user-verified on Leonardo.
 """

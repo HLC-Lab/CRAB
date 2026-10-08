@@ -1,5 +1,5 @@
 /**
- * Per-job detail store (plan 075): fetches GET /api/jobs/{id}/experiments.
+ * Per-job detail store: fetches GET /api/jobs/{id}/experiments.
  * Mocks the API client, same principle as report.store.spec.ts.
  */
 import { createPinia, setActivePinia } from "pinia";

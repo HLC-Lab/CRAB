@@ -1,4 +1,4 @@
-"""Phase 3 increment 1: local experiment-config library (store + API)."""
+"""Local experiment-config library (store + API)."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def test_experiments_api_flow(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# Custom library location (plan 040 / ADR-014)
+# Custom library location (ADR-014)
 # --------------------------------------------------------------------------- #
 def test_custom_library_dir_is_used(tmp_path: Path):
     lib = tmp_path / "my-configs"
@@ -131,7 +131,7 @@ def test_env_var_sets_library_dir(tmp_path: Path, monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# Save warnings (plan 020 / ADR-015)
+# Save warnings (ADR-015)
 # --------------------------------------------------------------------------- #
 def test_save_reports_shape_warnings_but_still_saves(tmp_path: Path):
     app = create_app(_settings(tmp_path))

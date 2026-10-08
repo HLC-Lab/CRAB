@@ -77,7 +77,7 @@ export const useReportStore = defineStore("report", () => {
     () => new Set([...selected.value].map((key) => key.split("/")[0])),
   );
 
-  // Explicit selection mode (plan 076): checkboxes are anonymous controls
+  // Explicit selection mode: checkboxes are anonymous controls
   // until you understand what they do, so they only render once a user has
   // deliberately opted into "select experiments to rerun" rather than always
   // being visible.

@@ -1,7 +1,7 @@
 """Stage an authored config on the target machine before submitting it.
 
 The config JSON is written to a per-profile staging directory so
-``crab run <staged> -p <preset> --json`` (Phase 4 submit) can read it without
+``crab run <staged> -p <preset> --json`` can read it without
 inventing a separate upload mechanism. For an SSH profile that is
 ``<crab_dir>/.web_staging`` inside the existing CRAB checkout; for the
 ``local`` transport (no checkout concept — see ``crab_cli.build_crab_command``)

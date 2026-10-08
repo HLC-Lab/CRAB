@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// One rerun of a job, summarized (plan 076) — used in a job detail view's
+// One rerun of a job, summarized — used in a job detail view's
 // "Reruns" section. Deliberately not ExperimentCard: this summarizes a whole
 // job record, not one experiment row.
 import { RouterLink } from "vue-router";

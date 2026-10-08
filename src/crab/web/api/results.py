@@ -1,6 +1,6 @@
 """``/api/results`` — fetch and cache a job's CSV result tree.
 
-Job identity is off the local registry (plan 077): a route key is
+Job identity is off the local registry: a route key is
 ``(cluster, system, job_basename)``, resolved registry-first against
 `JobsStore` for a fast path, falling back to a live `crab history` call for a
 job never submitted through this dashboard (CLI-only, per ADR-002 -- the
@@ -9,8 +9,7 @@ engine/CLI stays authoritative, the dashboard never guesses a path).
 Fetching a large result tree over SFTP can take a while, so it runs as a
 background task with its own accept/poll/pop tracker — the same shape as
 `api/jobs.py`'s async-submit tracker (`_submissions`/`_run_submission`/
-`submit_job`/`get_submission`), copied rather than shared (plan 065's Design:
-two small independent trackers, not a premature shared abstraction).
+`submit_job`/`get_submission`), copied rather than shared (two small independent trackers, not a premature shared abstraction).
 """
 
 from __future__ import annotations
@@ -97,7 +96,7 @@ async def _resolve_remote_dir(
     gives `data_dir` directly. Otherwise this job was never submitted through
     this dashboard -- fall back to a live `crab history` call and match by
     job_basename, reading the resolved absolute path a matching row already
-    reports (plan 077 S1) rather than reconstructing one client-side.
+    reports rather than reconstructing one client-side.
     """
     for rec in _jobs_store(request).list():
         if (
@@ -221,7 +220,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
         return profile_entries
 
     # Every connected cluster's `crab history` in flight at once -- with N
-    # clusters this was N sequential SSH round-trips before (plan 079).
+    # clusters this was N sequential SSH round-trips before.
     # Cluster-side errors (`CrabWebError`) are already handled per-profile
     # above (returns []); any OTHER exception is a bug and must still surface,
     # not be swallowed by `gather`, so it's re-raised after every task settled.
@@ -257,7 +256,7 @@ async def get_results_index(request: Request) -> ResultsIndex:
 
 
 class ExperimentRunStatus(BaseModel):
-    """One experiment's status and run-failure counts (plan 081) -- lets a
+    """One experiment's status and run-failure counts -- lets a
     caller show "3/10 runs failed" instead of just "FAILED" for an
     experiment where most runs actually succeeded and have real data."""
 
@@ -278,7 +277,7 @@ async def get_results_experiments(
     """Per-experiment status/run-failure counts for one job.
 
     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
-    Results must work identically for CLI-only jobs (plan 077 decision 7),
+    Results must work identically for CLI-only jobs,
     and a live/cached `crab history` call already has everything needed
     without a registry join. Opening a job shortly after the picker loaded
     reuses the picker's still-fresh UNSCOPED history (`cluster:{cluster}`)
@@ -349,7 +348,7 @@ async def _snapshot_fetch_status(
 ) -> None:
     """Best-effort: record this job's worst `crab history` status at fetch time.
 
-    Lets S6's staleness check notice a status change since the last fetch.
+    Lets the frontend's staleness check notice a status change since the last fetch.
     Never fatal -- a failure here must not affect the fetch's own outcome.
     """
     history = await run_crab_json(

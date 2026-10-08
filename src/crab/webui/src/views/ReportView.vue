@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Per-use-case experiment report (plan 060): every experiment ever run under
+// Per-use-case experiment report: every experiment ever run under
 // one config name, sourced from `crab history --json` (web/api/jobs.py's
 // use_case_report), not just what this dashboard's registry knows about.
 import { computed, onMounted, ref, watch } from "vue";
@@ -22,7 +22,7 @@ onMounted(() => {
   jobs.refresh(); // needed to look up a config_snapshot when rerunning selected experiments
 });
 
-// Grouped by submission (plan 076) instead of one flat list; only the most
+// Grouped by submission instead of one flat list; only the most
 // recent submission starts expanded, since a use case can span many.
 const groups = computed(() =>
   report.report ? groupExperimentsBySubmission(report.report.experiments) : [],
@@ -74,7 +74,7 @@ async function confirmRerunSelected() {
 }
 
 // One-click rerun for the common case: retry exactly a group's failed
-// experiments, no selection step (plan 076). Only meaningful for a group
+// experiments, no selection step. Only meaningful for a group
 // with a known record_id (a manual run has no config_snapshot to resubmit).
 function failedNamesFor(group: {
   recordId: string | null;

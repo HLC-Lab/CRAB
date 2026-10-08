@@ -1,10 +1,10 @@
-"""Tests for /api/results/{cluster}/{system}/{job_basename}/... (plan 077 S5).
+"""Tests for /api/results/{cluster}/{system}/{job_basename}/...
 
 Job identity is off the local registry: a registry-known job resolves its
 remote directory directly from the `JobsStore` record (fast path); a
 CLI-only job (never submitted through this dashboard) falls back to a live
 `crab history` call, matching by job_basename and reading the resolved
-`absolute_path` (plan 077 S1).
+`absolute_path`.
 """
 
 from __future__ import annotations
@@ -267,7 +267,7 @@ def _cache_a_result_tree(tmp_path: Path) -> Path:
     get/cache routes). Nested under an experiment subfolder, matching what a
     real fetch always produces (never CSVs directly at the job level) --
     `ResultsCache.list_cached()` relies on that shape to tell a real job dir
-    apart from a stale pre-077 layout leftover (see test_web_results_cache.py)."""
+    apart from a stale old-layout leftover (see test_web_results_cache.py)."""
     job_dir = ResultsCache(_settings(tmp_path)).path_for(CLUSTER, SYSTEM, JOB_BASENAME)
     exp_dir = job_dir / "e1"
     exp_dir.mkdir(parents=True)
@@ -302,7 +302,7 @@ def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# GET /api/results — cross-cluster index (plan 077 S6)
+# GET /api/results — cross-cluster index
 # --------------------------------------------------------------------------- #
 def _history_row(
     job_basename: str,
@@ -453,7 +453,7 @@ def test_results_index_disconnected_cluster_with_prior_cache_still_lists_its_job
 
 
 def test_results_index_queries_clusters_in_parallel_not_sequentially(tmp_path: Path):
-    """Plan 079: two connected clusters, each slow to answer `crab history`,
+    """Two connected clusters, each slow to answer `crab history`,
     must be queried concurrently. Checked by overlap, not wall time: each
     `crab history` call waits for the other one to start, so a sequential
     index never sees two calls in flight (and would stall until the timeout)."""
@@ -577,7 +577,7 @@ def test_clear_results_cache_removes_everything(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# GET /api/results/{cluster}/{system}/{job_basename}/experiments (plan 081)
+# GET /api/results/{cluster}/{system}/{job_basename}/experiments
 # --------------------------------------------------------------------------- #
 def test_results_experiments_reports_run_failure_counts(tmp_path: Path):
     history = _history_json(
@@ -622,7 +622,7 @@ def test_results_experiments_only_returns_rows_for_this_job(tmp_path: Path):
 
 def test_results_experiments_works_for_a_cli_only_job(tmp_path: Path):
     # No registry record seeded at all -- must still resolve via live history,
-    # matching plan 077 decision 7 (full interoperability).
+    # matching full interoperability.
     history = _history_json([_history_row("cli_job", "FAILED", failed_runs="2")])
 
     with _client(

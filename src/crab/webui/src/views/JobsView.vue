@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Registry ⨝ live crab status (web/api/jobs.py). Auto-poll is a single
-// frontend timer (plan 050 design), default on; the store's in-flight guard
+// frontend timer, default on; the store's in-flight guard
 // keeps ticks from overlapping.
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
@@ -21,7 +21,7 @@ const router = useRouter();
 const showSubmit = ref(false);
 const cancelTarget = ref<{ id: string; label: string } | null>(null);
 
-// The whole card opens the per-job detail view (plan 075) except clicks that
+// The whole card opens the per-job detail view except clicks that
 // land on one of its own interactive controls (Logs/View config/Rerun/Cancel)
 // or inside the expanded log text (so selecting/copying log output doesn't
 // navigate away).

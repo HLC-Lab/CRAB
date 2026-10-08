@@ -56,7 +56,7 @@ class TestOrchestratorKeyboardInterrupt(unittest.TestCase):
 
 class TestOrchestratorOnlyFlag(unittest.TestCase):
     def test_only_is_threaded_through_to_engine_run(self):
-        """--only (plan 060) must reach Engine.run, not get dropped along the way."""
+        """--only must reach Engine.run, not get dropped along the way."""
         from crab.cli.orchestrator import execute_orchestrator
 
         preset_config = {"env": {}, "sbatch": [], "header": []}
@@ -103,7 +103,7 @@ class TestWorkerCwdResolution(unittest.TestCase):
 
 
 class TestWorkerEnvironmentSourcing(unittest.TestCase):
-    """Plan 089 / ADR-027: crab worker sources its environment from environment.json when
+    """ADR-027: crab worker sources its environment from environment.json when
     present (CRAB's own orchestrator/sbatch path, unchanged) or falls back to the real process
     environment when absent (the SbatchMan-launched case, which inherits sbatchman launch's own
     environment plus whatever the partner's preset exported at `configure` time)."""

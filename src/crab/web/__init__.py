@@ -5,7 +5,6 @@ CLI over a reused SSH connection: author experiments, submit them, monitor jobs,
 and fetch/visualise results. The cluster's engine stays authoritative — this package
 never re-implements orchestration or submission logic.
 
-See ``.crab-web-dev/`` (local-only) for the design, phased plan, and standards.
 """
 
 __all__ = ["create_app", "get_settings"]
