@@ -1,39 +1,49 @@
 """The local scheduler: a detached local subprocess instead of a cluster job.
 
-Dev/testing-only (a preset with `scheduler: "local"`). A job is a `bash -c` running the worker,
-with a state file under `<crab_root>/.crab_local_jobs/<pid>.json`; a later `crab status` is a
-fresh process, so the finished state is read back from an exit-code file next to the job's logs.
+Dev/testing-only (a preset with `scheduler: "local"`). A job is a `bash -c` running the worker.
+Its id is `local-<n>` and its record (`local_state.JobRecord`: id, host, data_dir, supervisor pid,
+creation time) lives under `$XDG_STATE_HOME/crab/jobs/`, outside the checkout. A later
+`crab status` is a fresh process, so the finished state is read back from an exit-code file next
+to the job's logs. A record written on another host is an error: its pid means nothing here.
 """
 
 from __future__ import annotations
 
 import datetime
-import json
 import os
 import shlex
 import signal
+import socket
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from crab.core.execution.scheduler import local_state
 from crab.core.execution.scheduler.base import CancelResult, JobStatus, worker_command
+from crab.core.execution.scheduler.local_state import JobRecord
 from crab.log import CrabLogger
+
+# The largest `pid_max` Linux allows (2**22). A larger value is no pid, and 2**31 and above make
+# `os.kill` raise OverflowError before any system call.
+_MAX_PID = 4194304
 
 
 def _signal_target(pid: object) -> int | None:
     """The pid when it is safe to signal, else None.
 
-    The state file is plain JSON, so its pid is untrusted: `killpg(1, ...)` is `kill(-1, ...)`
-    (every process of the user), 0 and CRAB's own group hit CRAB itself, and a bool is an int.
+    The record is plain JSON, so its pid is untrusted: `killpg(1, ...)` is `kill(-1, ...)`
+    (every process of the user), 0 and CRAB's own group hit CRAB itself, a bool is an int, and a
+    value above Linux's maximum `pid_max` (4194304) is no pid and may overflow the system call.
     """
-    if type(pid) is int and pid > 1 and pid != os.getpgrp():
+    if type(pid) is int and 1 < pid <= _MAX_PID and pid != os.getpgrp():
         return pid
     return None
 
 
-def _exit_code_path(state: dict[str, Any]) -> Path:
-    """Where the finished job's exit code is written, from its state file."""
-    return Path(state.get("data_dir", "")) / "local_exit_code"
+def _exit_code_path(record: JobRecord) -> Path:
+    """Where the finished job's exit code is written, from its record."""
+    return Path(record.data_dir) / "local_exit_code"
 
 
 class LocalScheduler:
@@ -41,16 +51,20 @@ class LocalScheduler:
 
     Args:
         logger: receives the submit message.
-        crab_root: the checkout root; job state files live in its `.crab_local_jobs/`.
+        crab_root: the checkout root (kept for the Scheduler interface; job records do not
+            live in it).
+        environ: where `XDG_STATE_HOME` is read from; the process environment by default.
     """
 
-    def __init__(self, logger: CrabLogger, crab_root: str) -> None:
+    def __init__(
+        self, logger: CrabLogger, crab_root: str, environ: Mapping[str, str] | None = None
+    ) -> None:
         self.log = logger
         self.crab_root = crab_root
-        self._jobs_dir = Path(crab_root) / ".crab_local_jobs"
+        self._jobs_dir = local_state.jobs_dir(os.environ if environ is None else environ)
 
     def submit(self, job_dir: str, global_opts: dict[str, Any]) -> str | None:
-        """Start the worker as a detached process and return its pid as the job id.
+        """Start the worker as a detached process and return its `local-<n>` job id.
 
         stdout and stderr go to the same `slurm_output.log` / `slurm_error.log` names the Slurm
         job uses, so the log reader needs no special case. The command is wrapped in
@@ -60,6 +74,7 @@ class LocalScheduler:
         exit_code_path = os.path.join(job_dir, "local_exit_code")
         full_cmd = f"{worker_command(job_dir)}; echo $? > {shlex.quote(exit_code_path)}"
 
+        job_id = local_state.allocate_id(self._jobs_dir)
         stdout_f = open(os.path.join(job_dir, "slurm_output.log"), "wb")
         stderr_f = open(os.path.join(job_dir, "slurm_error.log"), "wb")
         try:
@@ -73,25 +88,27 @@ class LocalScheduler:
             stdout_f.close()
             stderr_f.close()
 
-        job_id = str(proc.pid)
-        self._jobs_dir.mkdir(parents=True, exist_ok=True)
-        state = {
-            "pid": proc.pid,
-            "data_dir": job_dir,
-            "started_at": datetime.datetime.now().isoformat(),
-        }
-        with open(self._jobs_dir / f"{job_id}.json", "w") as f:
-            json.dump(state, f)
+        local_state.write_record(
+            self._jobs_dir,
+            JobRecord(
+                id=job_id,
+                host=socket.gethostname(),
+                data_dir=os.path.abspath(job_dir),
+                supervisor_pid=proc.pid,
+                created=datetime.datetime.now().isoformat(),
+            ),
+        )
 
         self.log.info(f"Submitted local job {job_id} (pid {proc.pid})")
         return job_id
 
-    def knows(self, job_id: str) -> bool:
-        """Whether a readable state file exists for this job id."""
-        return self._read_state(job_id) is not None
-
     def status(self, ids: list[str]) -> list[JobStatus]:
-        """The state of each job id, in input order. An id with no state file is UNKNOWN."""
+        """The state of each job id, in input order. An id with no record is UNKNOWN.
+
+        Raises:
+            ValueError: an id that is not `local-<n>`, a record of the wrong shape, or a record
+                written on another host.
+        """
         return [self._job_status(jid) for jid in ids]
 
     def cancel(self, job_id: str) -> CancelResult:
@@ -100,16 +117,20 @@ class LocalScheduler:
         A job whose exit-code file exists is never signalled: it has finished, and its pid may
         have been reused by an unrelated process group.
 
-        A finished job (no state file, or a state file with no pid) reports `cancelled=False`
-        with a detail hint rather than raising. A recorded pid that is not a plausible job pid
-        (see `_signal_target`) is never signalled and reports `cancelled=False` too.
+        A finished job reports `cancelled=False` with a detail hint rather than raising, and so
+        does an id with no record ("no such local job"). A recorded pid that is not a plausible
+        job pid (see `_signal_target`) is never signalled and reports `cancelled=False` too.
+
+        Raises:
+            ValueError: an id that is not `local-<n>`, a record of the wrong shape, or a record
+                written on another host.
         """
-        state = self._read_state(job_id) or {}
-        if "pid" not in state:
+        record = self._read_record(job_id)
+        if record is None:
+            return CancelResult(False, "no such local job")
+        if _exit_code_path(record).is_file():
             return CancelResult(False, "local job already finished.")
-        if _exit_code_path(state).is_file():
-            return CancelResult(False, "local job already finished.")
-        pid = _signal_target(state["pid"])
+        pid = _signal_target(record.supervisor_pid)
         if pid is None:
             return CancelResult(False, "local job state has no valid pid; nothing was signalled.")
         try:
@@ -128,15 +149,12 @@ class LocalScheduler:
         """The local machine as the cluster's one node."""
         return {"available": True, "partitions": [], "nodes": ["localhost"]}
 
-    def _read_state(self, job_id: str) -> dict[str, Any] | None:
-        path = self._jobs_dir / f"{job_id}.json"
-        if not path.is_file():
-            return None
-        try:
-            state = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            return None
-        return state if isinstance(state, dict) else None
+    def _read_record(self, job_id: str) -> JobRecord | None:
+        """The job's record, or None when there is none; refuses a record from another host."""
+        record = local_state.read_record(self._jobs_dir, job_id)
+        if record is not None:
+            local_state.check_host(record, socket.gethostname())
+        return record
 
     def _job_status(self, job_id: str) -> JobStatus:
         """Resolve one job from its exit-code file (finished) or PID liveness (running).
@@ -144,13 +162,15 @@ class LocalScheduler:
         The exit-code file is checked first: once it exists the job is finished, whether or not
         its PID has since been recycled by the OS.
         """
-        state = self._read_state(job_id) or {}
-        exit_code_path = _exit_code_path(state)
+        record = self._read_record(job_id)
+        if record is None:
+            return JobStatus(job_id, "UNKNOWN", "local")
+        exit_code_path = _exit_code_path(record)
         if exit_code_path.is_file():
             code = exit_code_path.read_text().strip()
             return JobStatus(job_id, "COMPLETED" if code == "0" else "FAILED", "local", code)
 
-        pid = _signal_target(state.get("pid"))
+        pid = _signal_target(record.supervisor_pid)
         if pid is not None:
             try:
                 os.kill(pid, 0)

@@ -7,11 +7,14 @@ gatherers use a fake command runner.
 from __future__ import annotations
 
 import json
+import os
+import socket
 from pathlib import Path
 
 import pytest
 
 from crab.cli import contract
+from crab.core.execution.scheduler.local_state import JobRecord, jobs_dir, write_record
 
 
 # --------------------------------------------------------------------------- #
@@ -320,11 +323,11 @@ def test_gather_cancel_no_scancel_binary():
 # --------------------------------------------------------------------------- #
 # status/cancel for local-scheduler jobs
 # --------------------------------------------------------------------------- #
-def _write_local_state(crab_root: Path, job_id: str, pid: int, data_dir: Path) -> None:
-    local_jobs_dir = crab_root / ".crab_local_jobs"
-    local_jobs_dir.mkdir(parents=True, exist_ok=True)
-    (local_jobs_dir / f"{job_id}.json").write_text(
-        json.dumps({"pid": pid, "data_dir": str(data_dir), "started_at": "2026-09-16T00:00:00"})
+def _write_local_state(job_id: str, pid: int, data_dir: Path, host: str | None = None) -> None:
+    """Write a job record under the per-test XDG state dir (see conftest)."""
+    write_record(
+        jobs_dir(os.environ),
+        JobRecord(job_id, host or socket.gethostname(), str(data_dir), pid, "2026-10-08T00:00:00"),
     )
 
 
@@ -335,12 +338,12 @@ def test_gather_status_local_job_running(tmp_path: Path):
     data_dir.mkdir()
     proc = subprocess.Popen(["sleep", "5"])
     try:
-        _write_local_state(tmp_path, "999", proc.pid, data_dir)
+        _write_local_state("local-1", proc.pid, data_dir)
 
-        data = contract.gather_status(["999"], crab_root=tmp_path)
+        data = contract.gather_status(["local-1"], crab_root=tmp_path)
 
         job = data["jobs"][0]
-        assert job == {"job_id": "999", "state": "RUNNING", "source": "local"}
+        assert job == {"job_id": "local-1", "state": "RUNNING", "source": "local"}
     finally:
         proc.terminate()
         proc.wait()
@@ -350,24 +353,24 @@ def test_gather_status_local_job_completed(tmp_path: Path):
     data_dir = tmp_path / "job_data"
     data_dir.mkdir()
     (data_dir / "local_exit_code").write_text("0\n")
-    _write_local_state(tmp_path, "111", pid=999999, data_dir=data_dir)
+    _write_local_state("local-2", pid=999999, data_dir=data_dir)
 
-    data = contract.gather_status(["111"], crab_root=tmp_path)
+    data = contract.gather_status(["local-2"], crab_root=tmp_path)
 
     job = data["jobs"][0]
-    assert job == {"job_id": "111", "state": "COMPLETED", "exit_code": "0", "source": "local"}
+    assert job == {"job_id": "local-2", "state": "COMPLETED", "exit_code": "0", "source": "local"}
 
 
 def test_gather_status_local_job_failed(tmp_path: Path):
     data_dir = tmp_path / "job_data"
     data_dir.mkdir()
     (data_dir / "local_exit_code").write_text("1\n")
-    _write_local_state(tmp_path, "112", pid=999999, data_dir=data_dir)
+    _write_local_state("local-3", pid=999999, data_dir=data_dir)
 
-    data = contract.gather_status(["112"], crab_root=tmp_path)
+    data = contract.gather_status(["local-3"], crab_root=tmp_path)
 
     job = data["jobs"][0]
-    assert job == {"job_id": "112", "state": "FAILED", "exit_code": "1", "source": "local"}
+    assert job == {"job_id": "local-3", "state": "FAILED", "exit_code": "1", "source": "local"}
 
 
 def test_gather_status_mixes_local_and_slurm_job_ids():
@@ -377,7 +380,7 @@ def test_gather_status_mixes_local_and_slurm_job_ids():
 
     def fake_runner(cmd: list[str]) -> str:
         if cmd[0] == "squeue":
-            assert "222" not in ",".join(cmd)  # local id must never reach squeue
+            assert "local-4" not in ",".join(cmd)  # local id must never reach squeue
             return "555|RUNNING\n"
         raise AssertionError(cmd)
 
@@ -386,13 +389,13 @@ def test_gather_status_mixes_local_and_slurm_job_ids():
         data_dir = crab_root / "job_data"
         data_dir.mkdir()
         (data_dir / "local_exit_code").write_text("0\n")
-        _write_local_state(crab_root, "222", pid=999999, data_dir=data_dir)
+        _write_local_state("local-4", pid=999999, data_dir=data_dir)
 
-        data = contract.gather_status(["222", "555"], runner=fake_runner, crab_root=crab_root)
+        data = contract.gather_status(["local-4", "555"], runner=fake_runner, crab_root=crab_root)
 
-    assert [j["job_id"] for j in data["jobs"]] == ["222", "555"]
+    assert [j["job_id"] for j in data["jobs"]] == ["local-4", "555"]
     states = {j["job_id"]: j for j in data["jobs"]}
-    assert states["222"]["source"] == "local"
+    assert states["local-4"]["source"] == "local"
     assert states["555"]["source"] == "squeue"
 
 
@@ -403,13 +406,13 @@ def test_gather_cancel_local_job_kills_the_process(tmp_path: Path):
     data_dir = tmp_path / "job_data"
     data_dir.mkdir()
     proc = subprocess.Popen(["sleep", "30"], start_new_session=True)
-    _write_local_state(tmp_path, "333", proc.pid, data_dir)
+    _write_local_state("local-5", proc.pid, data_dir)
 
-    data = contract.gather_cancel("333", crab_root=tmp_path)
+    data = contract.gather_cancel("local-5", crab_root=tmp_path)
 
     assert data == {
         "schema": contract.CONTRACT_SCHEMA,
-        "job_id": "333",
+        "job_id": "local-5",
         "cancelled": True,
         "detail": None,
     }
@@ -423,12 +426,12 @@ def test_gather_cancel_local_job_kills_the_process(tmp_path: Path):
 def test_gather_cancel_local_job_already_gone(tmp_path: Path):
     data_dir = tmp_path / "job_data"
     data_dir.mkdir()
-    _write_local_state(tmp_path, "444", pid=999999, data_dir=data_dir)
+    _write_local_state("local-6", pid=999999, data_dir=data_dir)
 
-    data = contract.gather_cancel("444", crab_root=tmp_path)
+    data = contract.gather_cancel("local-6", crab_root=tmp_path)
 
     assert data["cancelled"] is False
-    assert data["job_id"] == "444"
+    assert data["job_id"] == "local-6"
     assert data["detail"]
 
 
@@ -443,6 +446,79 @@ def test_gather_cancel_falls_through_for_non_local_job_id(tmp_path: Path):
     data = contract.gather_cancel("123", runner=fake_runner, crab_root=tmp_path)
     assert calls == [["scancel", "123"]]
     assert data["cancelled"] is True
+
+
+def test_gather_status_routes_by_id_shape_and_survives_a_bad_id(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("0\n")
+    _write_local_state("local-1", pid=999999, data_dir=data_dir)
+    queries: list[list[str]] = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        queries.append(cmd)
+        if cmd[0] == "squeue":
+            return "4242|RUNNING\n"
+        raise AssertionError(cmd)
+
+    data = contract.gather_status(["local-1", "4242", "bogus!"], runner=fake_runner)
+
+    assert [j["job_id"] for j in data["jobs"]] == ["local-1", "4242", "bogus!"]
+    local, slurm, bad = data["jobs"]
+    assert local == {"job_id": "local-1", "state": "COMPLETED", "exit_code": "0", "source": "local"}
+    assert slurm["source"] == "squeue"
+    assert bad["job_id"] == "bogus!"
+    assert bad["state"] == "UNKNOWN"
+    assert bad["source"] == "invalid"
+    assert "bogus!" in bad["error"]
+    assert len(queries) == 1 and queries[0][0] == "squeue"
+    assert "4242" in ",".join(queries[0])
+    assert "bogus!" not in ",".join(queries[0])
+    assert "local-1" not in ",".join(queries[0])
+
+
+def test_gather_status_reports_a_foreign_host_record_without_failing_the_batch(tmp_path: Path):
+    _write_local_state("local-1", pid=999999, data_dir=tmp_path, host="some-other-host")
+
+    data = contract.gather_status(["local-1"], runner=lambda cmd: "")
+
+    [job] = data["jobs"]
+    assert job["job_id"] == "local-1"
+    assert job["state"] == "UNKNOWN"
+    assert job["source"] == "local"
+    assert "some-other-host" in job["error"]
+    assert socket.gethostname() in job["error"]
+
+
+def test_gather_status_unknown_well_formed_local_id_is_unknown_without_error(tmp_path: Path):
+    data = contract.gather_status(["local-9"], runner=lambda cmd: "")
+
+    assert data["jobs"] == [{"job_id": "local-9", "state": "UNKNOWN", "source": "local"}]
+
+
+def test_gather_cancel_bad_id_and_foreign_host_never_reach_scancel(tmp_path: Path):
+    _write_local_state("local-1", pid=999999, data_dir=tmp_path, host="some-other-host")
+    calls: list[list[str]] = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        calls.append(cmd)
+        return ""
+
+    bad = contract.gather_cancel("bogus!", runner=fake_runner)
+    foreign = contract.gather_cancel("local-1", runner=fake_runner)
+
+    assert bad["cancelled"] is False and bad["job_id"] == "bogus!"
+    assert "bogus!" in bad["detail"]
+    assert foreign["cancelled"] is False and foreign["job_id"] == "local-1"
+    assert "some-other-host" in foreign["detail"]
+    assert calls == []
+
+
+def test_gather_cancel_unknown_well_formed_local_id_says_no_such_job(tmp_path: Path):
+    data = contract.gather_cancel("local-9", runner=lambda cmd: "")
+
+    assert data["cancelled"] is False
+    assert data["detail"] == "no such local job"
 
 
 # --------------------------------------------------------------------------- #

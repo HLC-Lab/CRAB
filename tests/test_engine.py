@@ -303,8 +303,8 @@ class TestLocalScheduler(unittest.TestCase):
             mock_sbatch.assert_not_called()
             mock_popen.assert_called_once()
 
-    def test_local_scheduler_returns_pid_as_job_id(self):
-        """The returned job_id must be the spawned subprocess's PID (as a string)."""
+    def test_local_scheduler_returns_a_local_n_job_id(self):
+        """The returned job_id is `local-<n>` (the counter), not the subprocess pid."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
@@ -313,7 +313,7 @@ class TestLocalScheduler(unittest.TestCase):
                     result = engine._run_orchestrator(
                         self._config(tmpdir), {}, settings=LOCAL_DIRECT
                     )
-        self.assertEqual(result["job_id"], "12345")
+        self.assertEqual(result["job_id"], "local-1")
 
     def test_run_refuses_a_config_the_preset_cannot_run_before_any_submit(self):
         """Engine.run hands its settings to check_config: the direct launcher runs one process,
@@ -332,7 +332,8 @@ class TestLocalScheduler(unittest.TestCase):
         mock_popen.assert_not_called()
 
     def test_local_scheduler_writes_state_file(self):
-        """A state file keyed by pid must be written so gather_status/cancel can find it later."""
+        """A job record must be written under the XDG state dir so gather_status/cancel can find
+        it later; nothing goes into the checkout."""
         engine = _make_engine()
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("crab.core.engine.CRAB_ROOT", tmpdir):
@@ -340,11 +341,13 @@ class TestLocalScheduler(unittest.TestCase):
                     mock_popen.return_value = MagicMock(pid=54321)
                     engine._run_orchestrator(self._config(tmpdir), {}, settings=LOCAL_DIRECT)
 
-            state_path = os.path.join(tmpdir, ".crab_local_jobs", "54321.json")
-            self.assertTrue(os.path.isfile(state_path), "no local job state file written")
+            state_path = os.path.join(os.environ["XDG_STATE_HOME"], "crab", "jobs", "local-1.json")
+            self.assertTrue(os.path.isfile(state_path), "no local job record written")
             with open(state_path) as f:
                 state = json.load(f)
-        self.assertEqual(state["pid"], 54321)
+            self.assertFalse(os.path.exists(os.path.join(tmpdir, ".crab_local_jobs")))
+        self.assertEqual(state["supervisor_pid"], 54321)
+        self.assertEqual(state["id"], "local-1")
         self.assertIn("data_dir", state)
 
     def test_local_scheduler_redirects_to_slurm_log_filenames(self):

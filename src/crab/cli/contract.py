@@ -28,8 +28,9 @@ from typing import Any
 
 from crab import __version__
 from crab.cli.presets import load_all_presets
-from crab.core.execution.scheduler.base import Scheduler
+from crab.core.execution.scheduler.base import CancelResult, Scheduler
 from crab.core.execution.scheduler.local import LocalScheduler
+from crab.core.execution.scheduler.local_state import route
 from crab.core.execution.scheduler.slurm import CommandRunner, SlurmScheduler
 from crab.log import CrabLogger
 
@@ -304,7 +305,7 @@ def gather_nodes(runner: CommandRunner | None = None) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# status and cancel (local jobs by state file, everything else Slurm)
+# status and cancel (`local-<n>` ids are local jobs, all-digit ids are Slurm jobs)
 # --------------------------------------------------------------------------- #
 def _job_dicts(scheduler: Scheduler, ids: list[str]) -> list[dict[str, Any]]:
     """The scheduler's job states as contract dicts, in input order."""
@@ -318,26 +319,44 @@ def _job_dicts(scheduler: Scheduler, ids: list[str]) -> list[dict[str, Any]]:
     return jobs
 
 
+def _unresolved_job(job_id: str, source: str, error: ValueError) -> dict[str, Any]:
+    """A job the call could not resolve: UNKNOWN plus the reason, so the batch still answers."""
+    return {"job_id": job_id, "state": "UNKNOWN", "source": source, "error": str(error)}
+
+
 def gather_status(
     job_ids: list[str], runner: CommandRunner | None = None, crab_root: Path | None = None
 ) -> dict[str, Any]:
     """Current state of the given job ids.
 
-    A job id with local state (written by a preset with `scheduler: "local"`) is
-    resolved by the local scheduler. Everything else is asked of the Slurm scheduler
-    (``squeue`` first, then ``sacct`` for ids not in the queue). Unknown ids report
-    ``state: "UNKNOWN"`` rather than failing the whole call.
+    Each id is routed by its shape: `local-<n>` is resolved by the local scheduler (a preset with
+    `scheduler: "local"`), all digits is asked of the Slurm scheduler (``squeue`` first, then
+    ``sacct`` for ids not in the queue). A local id with no record reports ``state: "UNKNOWN"``.
+
+    An id of any other shape, or a local record that cannot be used (written on another host,
+    malformed), reports ``state: "UNKNOWN"`` with an additive ``error`` message (``source`` is
+    ``"invalid"`` for a bad id, ``"local"`` for a bad record) rather than failing the whole call.
     """
     root = Path(crab_root) if crab_root else _CRAB_ROOT
     local = LocalScheduler(CrabLogger(), str(root))
-    local_ids = [jid for jid in job_ids if local.knows(jid)]
-    remaining_ids = [jid for jid in job_ids if jid not in local_ids]
 
     states: dict[str, dict[str, Any]] = {}
-    for job in _job_dicts(local, local_ids):
-        states[job["job_id"]] = job
-    if remaining_ids:
-        for job in _job_dicts(_slurm_scheduler(runner), remaining_ids):
+    slurm_ids: list[str] = []
+    for jid in job_ids:
+        try:
+            kind = route(jid)
+        except ValueError as exc:
+            states[jid] = _unresolved_job(jid, "invalid", exc)
+            continue
+        if kind == "slurm":
+            slurm_ids.append(jid)
+            continue
+        try:
+            [states[jid]] = _job_dicts(local, [jid])
+        except ValueError as exc:
+            states[jid] = _unresolved_job(jid, "local", exc)
+    if slurm_ids:
+        for job in _job_dicts(_slurm_scheduler(runner), slurm_ids):
             states[job["job_id"]] = job
 
     return {"schema": CONTRACT_SCHEMA, "jobs": [states[j] for j in job_ids]}
@@ -348,17 +367,22 @@ def gather_cancel(
 ) -> dict[str, Any]:
     """Cancel a job by id.
 
-    A job id with local state (a preset with `scheduler: "local"`) is cancelled locally.
-    Everything else goes through the real ``scancel`` path.
+    A `local-<n>` id is cancelled locally (a preset with `scheduler: "local"`); an all-digit id
+    goes through the real ``scancel`` path.
 
-    A missing/already-terminal job reports ``cancelled: false`` with a
-    ``detail`` hint rather than raising, so the web backend can show it
-    without treating "nothing to cancel" as a request failure.
+    A missing/already-terminal job, an id of any other shape and a local record that cannot be
+    used (written on another host, malformed) report ``cancelled: false`` with a ``detail`` hint
+    rather than raising, so the web backend can show it without treating "nothing to cancel" as
+    a request failure. ``scancel`` is never run for an id that is not all digits.
     """
     root = Path(crab_root) if crab_root else _CRAB_ROOT
-    local = LocalScheduler(CrabLogger(), str(root))
-    scheduler: Scheduler = local if local.knows(job_id) else _slurm_scheduler(runner)
-    result = scheduler.cancel(job_id)
+    try:
+        if route(job_id) == "local":
+            result = LocalScheduler(CrabLogger(), str(root)).cancel(job_id)
+        else:
+            result = _slurm_scheduler(runner).cancel(job_id)
+    except ValueError as exc:
+        result = CancelResult(False, str(exc))
     return {
         "schema": CONTRACT_SCHEMA,
         "job_id": job_id,
