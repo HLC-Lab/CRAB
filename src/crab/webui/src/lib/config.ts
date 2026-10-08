@@ -657,7 +657,7 @@ export function validateAllocation(
 }
 
 // CRAB computes these from numnodes/ppn and ignores user attempts to set them.
-const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "n", "ntasks"]);
+const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "n"]);
 const LOG_SBATCH = new Set(["output", "error", "o", "e"]);
 
 /** A directive's key as the engine's merge reads it: leading dashes off, up to "=" or a space. */

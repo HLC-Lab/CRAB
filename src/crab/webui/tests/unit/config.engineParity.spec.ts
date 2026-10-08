@@ -96,8 +96,8 @@ describe("sbatch warnings follow the engine's directive merge (core/engine.py pr
     ]);
   });
 
-  it("leaves directives the engine passes through alone", () => {
-    expect(warn(["--exclusive", "-J myjob", "--time=00:10:00"])).toEqual([]);
+  it("leaves directives the engine passes through alone, --ntasks included", () => {
+    expect(warn(["--exclusive", "-J myjob", "--time=00:10:00", "--ntasks=8"])).toEqual([]);
   });
 });
 
