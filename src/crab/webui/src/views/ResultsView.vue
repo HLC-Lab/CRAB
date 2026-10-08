@@ -134,7 +134,7 @@ async function fetchNow(entry: ResultsJobEntry) {
               :title="
                 e.connected
                   ? 'cluster connected'
-                  : 'cluster not connected — showing last known state'
+                  : 'cluster not connected, showing last known state'
               "
             />
             <span class="identity">{{ e.cluster }} / {{ e.system }}</span>

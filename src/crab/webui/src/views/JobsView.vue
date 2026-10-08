@@ -271,7 +271,7 @@ function toggleStatus(name: string) {
             class="dot"
             :class="j.connected ? 'on' : 'off'"
             :title="
-              j.connected ? 'cluster connected' : 'cluster not connected — showing last known state'
+              j.connected ? 'cluster connected' : 'cluster not connected, showing last known state'
             "
           />
           <span class="identity">{{ j.cluster }} / {{ j.system }}</span>
@@ -321,7 +321,7 @@ function toggleStatus(name: string) {
             <div class="stream">
               <span class="stream-label">{{ filename(jobs.logs[j.id].stdout.path) }}</span>
               <p v-if="jobs.logs[j.id].stdout.truncated" class="meta truncated">
-                Showing only the most recent portion — this log is larger than the display limit.
+                Showing only the most recent portion: this log is larger than the display limit.
               </p>
               <pre
                 v-if="jobs.logs[j.id].stdout.exists && jobs.logs[j.id].stdout.content.trim()"
@@ -334,7 +334,7 @@ function toggleStatus(name: string) {
             <div class="stream">
               <span class="stream-label">{{ filename(jobs.logs[j.id].stderr.path) }}</span>
               <p v-if="jobs.logs[j.id].stderr.truncated" class="meta truncated">
-                Showing only the most recent portion — this log is larger than the display limit.
+                Showing only the most recent portion: this log is larger than the display limit.
               </p>
               <pre
                 v-if="jobs.logs[j.id].stderr.exists && jobs.logs[j.id].stderr.content.trim()"

@@ -50,7 +50,7 @@ async function submitRerun(targetRecordId: string, experimentNames: string[]) {
   const rec = jobs.items.find((j) => j.id === targetRecordId);
   if (!rec) {
     rerunLookupError.value =
-      "Could not find this job's details to rerun — try refreshing the Jobs page.";
+      "Could not find this job's details to rerun. Try refreshing the Jobs page.";
     return;
   }
   await jobs.submit({
