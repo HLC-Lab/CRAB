@@ -366,7 +366,7 @@ def _srun(*flags: str) -> LauncherSpec:
 
 
 def _mpirun(*flags: str, command: str = "mpirun") -> LauncherSpec:
-    return LauncherSpec("mpirun", (command,), "auto", flags, ())
+    return LauncherSpec("mpirun", (command,), "openmpi4", flags, ())
 
 
 def _slurm_line(nodes: list[str], ppn: int, cmd: str, spec: LauncherSpec = SRUN) -> str:
@@ -392,16 +392,17 @@ def test_srun_with_options_in_the_flags():
 
 def test_mpirun_with_flags():
     spec = _mpirun("--bind-to", "core", "--map-by", "node")
-    line = _slurm_line(["n1", "n2"], 4, "./app", spec)
-    # The node list is not used by mpirun.
-    assert line == "mpirun --bind-to core --map-by node -np 8 ./app"
+    line = _slurm_line(["n1", "n2"], 2, "./app", spec)
+    # Explicit geometry since C2: -n, then the host list, then the preset flags.
+    assert line == "mpirun -n 4 -H n1,n1,n2,n2 --bind-to core --map-by node ./app"
 
 
 def test_mpirun_with_its_own_command():
     # The command comes from the preset's mpirun launcher now (it was the receipt's override).
     spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
     line = _slurm_line(["n1", "n2"], 2, "./app", spec)
-    assert line == "/opt/ompi/bin/mpirun --bind-to core -np 4 ./app"
+    # Explicit geometry since C2.
+    assert line == "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --bind-to core ./app"
 
 
 def test_launch_string_collapses_whitespace_inside_quotes():
@@ -486,7 +487,10 @@ def test_run_job_writes_the_srun_script_through_the_launcher(fake_popen, tmp_pat
 def test_run_job_writes_the_mpirun_line_from_the_spec(fake_popen, tmp_path):
     spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
     script = _script_through_run_job(tmp_path, spec, ["n1", "n2"], 2, "./app -x 1")
-    assert script.splitlines()[-1] == "/opt/ompi/bin/mpirun --bind-to core -np 4 ./app -x 1"
+    # Explicit geometry since C2.
+    assert script.splitlines()[-1] == (
+        "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --bind-to core ./app -x 1"
+    )
 
 
 def test_run_job_direct_writes_the_command_as_given(fake_popen, tmp_path):

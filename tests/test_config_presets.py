@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from crab.core.execution.launcher import Placement, launch_line, launcher_for
+from crab.core.execution.launcher import Placement, dialect, launch_line, launcher_for
 from crab.core.execution.settings import ExecutionSettings, from_preset, resolve_launcher
 
 _PRESETS_PATH = Path(__file__).resolve().parents[1] / "config" / "presets.json"
@@ -25,9 +25,9 @@ _LAUNCH_LINES = {
     "cresco8": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nanjing": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "slimfly": (
-        f"{_SLIMFLY_MPIRUN} -mca plm_rsh_no_tree_spawn 1 --map-by node -mca btl openib,self,sm "
-        "-mca btl_openib_if_include mlx4_0 -mca orte_base_help_aggregate 0 --map-by node "
-        "-np 1 ./app"
+        f"{_SLIMFLY_MPIRUN} -n 1 -H n1 -mca plm_rsh_no_tree_spawn 1 --map-by node "
+        "-mca btl openib,self,sm -mca btl_openib_if_include mlx4_0 "
+        "-mca orte_base_help_aggregate 0 --map-by node ./app"
     ),
     "local": "./app",
 }
@@ -57,7 +57,10 @@ def test_the_table_covers_every_shipped_preset() -> None:
 
 
 @pytest.mark.parametrize("name", sorted(_LAUNCH_LINES))
-def test_shipped_preset_builds_its_launch_line(name: str) -> None:
+def test_shipped_preset_builds_its_launch_line(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    # slimfly's dialect is auto and its mpirun path does not exist on this machine: answer the
+    # probe with the Open MPI 4 it runs on there.
+    monkeypatch.setattr(dialect, "probe", lambda command: "openmpi4")
     settings = _settings(name)
     launcher = launcher_for(resolve_launcher(settings, {}, None))
     assert launch_line(launcher, Placement(("n1",), 1), "./app") == _LAUNCH_LINES[name]

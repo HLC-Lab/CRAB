@@ -23,7 +23,7 @@ DIRECT = LauncherSpec("direct", (), "", (), ())
 
 
 def _mpirun(*flags: str, command: str = "mpirun") -> LauncherSpec:
-    return LauncherSpec("mpirun", (command,), "auto", flags, ())
+    return LauncherSpec("mpirun", (command,), "openmpi4", flags, ())
 
 
 def _line(spec: LauncherSpec, hosts: list[str], ppn: int, command: str) -> str:
@@ -42,16 +42,16 @@ def test_srun_three_nodes_with_flags() -> None:
 
 def test_mpirun_with_flags() -> None:
     spec = _mpirun("--bind-to", "core", "--map-by", "node")
-    # The node list is not passed to mpirun.
-    assert (
-        _line(spec, ["n1", "n2"], 4, "./app") == "mpirun --bind-to core --map-by node -np 8 ./app"
+    # Explicit geometry: every host repeated once per slot (Open MPI 4), preset flags last.
+    assert _line(spec, ["n1", "n2"], 2, "./app") == (
+        "mpirun -n 4 -H n1,n1,n2,n2 --bind-to core --map-by node ./app"
     )
 
 
 def test_mpirun_command_from_the_spec() -> None:
     spec = _mpirun("--bind-to", "core", command="/opt/ompi/bin/mpirun")
     line = _line(spec, ["n1", "n2"], 2, "./app")
-    assert line == "/opt/ompi/bin/mpirun --bind-to core -np 4 ./app"
+    assert line == "/opt/ompi/bin/mpirun -n 4 -H n1,n1,n2,n2 --bind-to core ./app"
 
 
 def test_whitespace_collapses_inside_quotes() -> None:
@@ -83,7 +83,7 @@ def test_an_unknown_kind_raises() -> None:
 
 def test_launcher_for_picks_the_launcher_class() -> None:
     assert launcher_for(SRUN) == SrunLauncher(("srun",), ())
-    assert launcher_for(_mpirun("-x")) == MpirunLauncher(("mpirun",), ("-x",))
+    assert launcher_for(_mpirun("-x")) == MpirunLauncher(("mpirun",), ("-x",), "openmpi4")
     assert isinstance(launcher_for(DIRECT), DirectLauncher)
 
 
@@ -99,11 +99,13 @@ def test_prefix_is_a_list_without_the_command() -> None:
         "-N",
         "1",
     ]
-    assert MpirunLauncher(("mpirun",), ("--bind-to", "core")).prefix(placement) == [
+    assert MpirunLauncher(("mpirun",), ("--bind-to", "core"), "openmpi4").prefix(placement) == [
         "mpirun",
+        "-n",
+        "1",
+        "-H",
+        "n1",
         "--bind-to",
         "core",
-        "-np",
-        "1",
     ]
     assert DirectLauncher().prefix(placement) == []
