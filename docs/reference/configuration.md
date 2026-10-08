@@ -40,7 +40,7 @@ A config has two main top-level keys, `global_options` and `experiments`, and an
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "global_options": { ... },
   "experiments": {
     "experiment_name": {
@@ -52,15 +52,28 @@ A config has two main top-level keys, `global_options` and `experiments`, and an
 }
 ```
 
-`schema_version` names the format of the file. The dashboard always writes it; a config without it
-is read as version 1. A config with a version newer than the installed CRAB understands is refused
-before anything runs, with a hint to run `crab update`.
+`schema_version` names the format of the file. The dashboard writes `2`. A config without it, or
+with `1`, is read the same way. A config with a version newer than the installed CRAB understands
+is refused before anything runs, with a hint to run `crab update`.
 
 !!! note "Checked before anything runs"
     Values CRAB would otherwise misread are errors before the job starts: `convergeall`,
     `retain_files` and `collect` must be `true` or `false` (the strings `"true"` and `"false"` are
     accepted too), `outformat` must be `csv`, allocation `mode`s must be one of `linear`,
     `interleaved` or `random`, and every app needs a `path`.
+
+    The launcher options and the preset are checked too. These are errors:
+
+    - `launcher` is not `srun`, `mpirun` or `direct`, or `launcher_flags` is not a list of strings;
+    - `sbatch_directives`, or the preset's `sbatch`, set `nodes`, `N`, `ntasks-per-node`, `ntasks`
+      or `n`, which CRAB sets itself from `numnodes` and `ppn`;
+    - the `srun` launcher on a preset whose scheduler is `local` ("the srun launcher needs a Slurm
+      preset");
+    - the `direct` launcher with `ppn` or `numnodes` above 1 ("the direct launcher runs a single
+      process");
+    - `numnodes` above the number of hosts of a `local` preset.
+
+    `sbatch_directives` on a `local` preset only log a warning: the local scheduler ignores them.
 
 !!! note "Legacy single-experiment form"
     A config may instead use a top-level `applications` block in place of `experiments`. CRAB
@@ -88,9 +101,17 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `outformat` | `csv` | `csv` | Output file format. `csv` is the only format. |
 | `retain_files` | bool | `true` | Keep per-run working directories. If `false`, successful runs' scratch dirs are deleted. |
 | `tags` | string | `none` | Free-form label recorded in the run registry (`metadata.csv`). |
+| `launcher` | string | the preset's `launcher` | How each application starts: `"srun"`, `"mpirun"` or `"direct"`. See [Presets](presets.md). |
+| `launcher_flags` | list of strings | the preset's flags for that launcher | Replaces the preset's flags for the chosen launcher; `[]` means no extra flags. |
 | `walltime` | string | `00:10:00` | Base Slurm `--time` value (overridable via `sbatch_directives`). |
 | `extrainfo` | string | `job` | Short token used to build the Slurm job name. |
 | `sbatch_directives` | list \| dict | `[]` | User Slurm directives. See [sbatch directives](#sbatch-directives). |
+
+!!! info "Launcher options"
+    `launcher` and `launcher_flags` can also be set per experiment in `local_options`. A
+    benchmark's [receipt](../extending/receipts.md) `launcher_override` still decides that
+    benchmark's launcher kind; in that case its flags come from the preset, not from
+    `launcher_flags`.
 
 !!! info "`ppn` is global"
     The processes-per-node value is read from `global_options` and applied uniformly; it reflects
@@ -237,11 +258,12 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
 ```
 
 !!! warning "CRAB protects some directives"
-    `--nodes` and `--ntasks-per-node` are computed by the framework from `numnodes`/`ppn` and
-    **cannot** be overridden — user attempts are ignored with a warning. Overriding `--output`/
-    `--error` is allowed but warned about, since it redirects CRAB's standard logs. Directives
-    containing newlines are rejected. System-level directives from the preset are merged in with
-    lower priority than your config's directives.
+    `--nodes` (`-N`), `--ntasks-per-node` and `--ntasks` (`-n`) are computed by the framework from
+    `numnodes` and `ppn`. Setting one in `sbatch_directives`, or in the preset's `sbatch`, stops
+    the run before anything is submitted, with a message that names `numnodes` or `ppn` instead.
+    Overriding `--output`/`--error` is allowed but warned about, since it redirects CRAB's
+    standard logs. Directives containing newlines are rejected. System-level directives from the
+    preset are merged in with lower priority than your config's directives.
 
 ## Worked example: partitioned victim vs aggressor
 

@@ -117,10 +117,10 @@ exits 2 with the reason.
 Records where a benchmark's binary lives, without the interactive wizard.
 
 ```bash
-crab receipts set ID --binary PATH [--pre-run CMD ...] [--launcher LAUNCHER] [--allow-missing] [--json]
+crab receipts set ID --binary PATH [--pre-run CMD ...] [--launcher srun|mpirun] [--allow-missing] [--json]
 ```
 
-Writes `local/receipts/ID.json`. `--launcher` sets this benchmark's launcher kind, `srun` or `mpirun`, which overrides the preset's `launcher` for this benchmark. Any other value makes runs of this benchmark fail at setup. It refuses a `PATH` that does not exist unless
+Writes `local/receipts/ID.json`. `--launcher` sets this benchmark's launcher kind, `srun` or `mpirun`, which overrides the preset's `launcher` for this benchmark. Any other value is refused. Leave it out to use the preset's launcher. It refuses a `PATH` that does not exist unless
 `--allow-missing` is given. See [Receipts](../extending/receipts.md).
 
 ## `crab worker` (internal)
