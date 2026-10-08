@@ -29,8 +29,7 @@ def launch_mode(environ: Mapping[str, str]) -> str:
 def launcher_for(mode: str, override: str | None, environ: Mapping[str, str]) -> Launcher:
     """The launcher for `mode`.
 
-    `override` is the per-job launcher command (it wins over `CRAB_MPIRUN`). Plan 095 step B3
-    replaces the CRAB_MPIRUN* and CRAB_PINNING_FLAGS variables read here with preset fields.
+    `override` is the per-job launcher command (it wins over `CRAB_MPIRUN`).
     """
     if mode == "local":
         return DirectLauncher()
