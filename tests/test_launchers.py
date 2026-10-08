@@ -1,7 +1,7 @@
 """Launchers build today's launch line from the same env vars.
 
 Port of the srun/mpirun cases in tests/test_slurm_characterization.py and of
-tests/test_wl_manager_local.py, run against the launcher package.
+the old local launch mode, run against the launcher package.
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def test_direct_ignores_hosts_ppn_override_and_env() -> None:
 
 
 def test_direct_returns_command_exactly_without_collapsing_whitespace() -> None:
-    # wl_manager/local.py returned `cmd` as is: no strip, no collapse.
+    # The old local launch mode returned `cmd` as is: no strip, no collapse.
     cmd = '  ./app --msg "hello   world"  '
     assert _line(["n1"], 1, cmd, mode="local") == cmd
 

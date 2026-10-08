@@ -153,7 +153,6 @@ class TestWLMAllowlist(unittest.TestCase):
             runner.log = self._make_logger()
             runner.ppn = 1
             runner.apps = []
-            runner.wlmanager = None
             runner.data_containers = []
 
             with patch.dict(os.environ, {"CRAB_WL_MANAGER": "../../evil"}):
@@ -177,7 +176,6 @@ class TestWLMAllowlist(unittest.TestCase):
             runner.log = self._make_logger()
             runner.ppn = 1
             runner.apps = []
-            runner.wlmanager = None
             runner.data_containers = []
 
             with patch.dict(os.environ, {"CRAB_WL_MANAGER": "notreal"}):
@@ -199,7 +197,6 @@ class TestWLMAllowlist(unittest.TestCase):
             runner.log = self._make_logger()
             runner.ppn = 1
             runner.apps = []
-            runner.wlmanager = None
             runner.data_containers = []
 
             with patch.dict(os.environ, {"CRAB_WL_MANAGER": "slurm"}):
@@ -226,7 +223,6 @@ class TestWLMAllowlist(unittest.TestCase):
             runner.log = self._make_logger()
             runner.ppn = 1
             runner.apps = []
-            runner.wlmanager = None
             runner.data_containers = []
 
             with patch.dict(os.environ, {"CRAB_WL_MANAGER": "local"}):
