@@ -132,6 +132,15 @@ const RESERVED_PARTITION_KEYS = new Set(["share"]);
 
 // An exact `{name}` token (a SbatchMan sweep variable) is kept as a string so the
 // campaign generator can place it; anything else goes through Number() as before.
+/**
+ * A config boolean as the engine reads it (core/config_checks.py parse_bool): JSON true/false,
+ * or the text "true"/"false" in any case, which SbatchMan sweeps produce.
+ */
+function engineBool(v: unknown): boolean {
+  if (typeof v === "string") return v.trim().toLowerCase() === "true";
+  return v === true;
+}
+
 const PLACEHOLDER = /^\{\w+\}$/;
 function numOrToken(raw: string): number | string {
   const s = raw.trim();
@@ -286,7 +295,7 @@ export function applyOptions(target: Record<string, unknown>, o: OptionsDraft): 
 export function readOptions(src: Record<string, unknown>): OptionsDraft {
   const o = emptyOptions();
   const str = (v: unknown) => (v == null ? "" : String(v));
-  const tri = (v: unknown): TriBool => (v == null ? "" : v ? "true" : "false");
+  const tri = (v: unknown): TriBool => (v == null ? "" : engineBool(v) ? "true" : "false");
   o.minruns = str(src.minruns);
   o.maxruns = str(src.maxruns);
   o.timeout = str(src.timeout);
@@ -561,7 +570,7 @@ export function fromConfig(config: CrabConfig): Draft {
         return {
           path: str(app.path),
           args: str(app.args),
-          collect: app.collect === true, // doc default is false
+          collect: engineBool(app.collect), // doc default is false
           partition: str(app.partition),
           rest,
           ...parseStart(str(app.start, "0")),
