@@ -2,7 +2,11 @@
 
 ``killpg(1, sig)`` is ``kill(-1, sig)``: every process of the user. ``kill(0, sig)`` and
 ``killpg(os.getpgrp(), sig)`` hit pytest's own group. A bool is an int in Python, so ``True`` is
-pid 1. ``refusal`` names these calls; ``guarded`` wraps a "real" signal function so a refused call
+pid 1. The shell or ``make`` that runs pytest is protected too: ``kill(os.getppid(), sig)``, the
+parent's process group and pytest's session (as ``killpg(g)`` or ``kill(-g)``), and ``kill`` of the
+group leader ``os.getpgrp()``. Signal 0 (a liveness probe) stays allowed on a pid. A lookup that
+raises OSError or returns 0 (the PID-namespace sandbox) is unknown and refuses nothing.
+``refusal`` names these calls; ``guarded`` wraps a "real" signal function so a refused call
 fails the test before the real function is reached.
 """
 
@@ -24,6 +28,44 @@ def _own_group() -> int | None:
     return group if group > 0 else None
 
 
+def _parent_pid() -> int | None:
+    """Return the parent's pid (the shell or make running pytest), or None when unknown."""
+    parent = os.getppid()
+    return parent if parent > 0 else None
+
+
+def _parent_group() -> int | None:
+    """Return the parent's process group, or None when it cannot be told."""
+    parent = _parent_pid()
+    if parent is None:
+        return None
+    try:
+        group = os.getpgid(parent)
+    except OSError:
+        return None
+    return group if group > 0 else None
+
+
+def _session_id() -> int | None:
+    """Return pytest's session id, or None when it cannot be told."""
+    try:
+        session = os.getsid(0)
+    except OSError:
+        return None
+    return session if session > 0 else None
+
+
+def _group_refusal(call: str, group: int, how: str) -> str | None:
+    """Return why signalling process group ``group`` is refused, or None; ``how`` names the call."""
+    if group == _own_group():
+        return f"{call}: {how} of pytest's own process group"
+    if group == _parent_group():
+        return f"{call}: {how} of the parent's process group (the shell or make running pytest)"
+    if group == _session_id():
+        return f"{call}: {how} of pytest's session (the terminal running pytest)"
+    return None
+
+
 def refusal(kind: str, pid: object, sig: object = None) -> str | None:
     """Return why ``os.<kind>(pid, sig)`` must be refused, or None when it is safe.
 
@@ -35,15 +77,14 @@ def refusal(kind: str, pid: object, sig: object = None) -> str | None:
     call = f"test tried os.{kind}({pid!r}, ...)"
     if type(pid) is not int:
         return f"{call}: {kind} needs a plain int, got {type(pid).__name__}"
-    own_group = _own_group()
     if kind == "killpg":
         if pid <= 1:
             return f"{call}: killpg({pid}) is kill(-1), every process of the user"
-        if pid == own_group:
-            return f"{call}: killpg(pid) of pytest's own process group"
-        return None
-    if own_group is not None and -pid == own_group:
-        return f"{call}: kill(-pgid) of pytest's own process group"
+        return _group_refusal(call, pid, "killpg(pgid)")
+    if pid < 0:
+        group_reason = _group_refusal(call, -pid, "kill(-pgid)")
+        if group_reason is not None:
+            return group_reason
     if pid <= 0:
         return f"{call}: kill({pid}) signals a group, and -1 is every process of the user"
     # Own pid first: inside the PID-namespace sandbox pytest is pid 1 and a probe must pass.
@@ -51,6 +92,10 @@ def refusal(kind: str, pid: object, sig: object = None) -> str | None:
         return None if sig == 0 else f"{call}: kill of pytest's own pid, only signal 0 is allowed"
     if pid == 1:
         return f"{call}: kill(1) signals init"
+    if sig != 0 and pid == _parent_pid():
+        return f"{call}: kill of the parent pid (the shell or make running pytest)"
+    if sig != 0 and pid == _own_group():
+        return f"{call}: kill of the process group leader, often an ancestor of pytest"
     return None
 
 

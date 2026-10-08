@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 import pytest
+
 import signal_guard
 from signal_guard import guarded, refusal
 
@@ -98,3 +99,84 @@ def test_a_real_process_group_can_be_signalled_through_the_guard() -> None:
         if proc.poll() is None:
             proc.kill()
         proc.wait()
+
+
+@pytest.fixture
+def fixed_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin pytest's own pid, group leader, parent, the parent's group and the session to numbers."""
+    monkeypatch.setattr(os, "getpid", lambda: 5001)
+    monkeypatch.setattr(os, "getpgrp", lambda: 5000)
+    monkeypatch.setattr(os, "getppid", lambda: 7000)
+    monkeypatch.setattr(os, "getpgid", lambda pid: 7000)
+    monkeypatch.setattr(os, "getsid", lambda pid: 6000)
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_kill_of_the_parent_pid_is_refused_except_signal_zero() -> None:
+    reason = refusal("kill", 7000, 15)
+    assert reason is not None
+    assert "os.kill(7000, ...)" in reason
+    assert "parent" in reason
+    assert refusal("kill", 7000, 0) is None
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_the_parents_process_group_is_refused() -> None:
+    reason = refusal("killpg", 7000, 15)
+    assert reason is not None
+    assert "parent" in reason
+    assert refusal("kill", -7000, 15) is not None
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_the_session_is_refused() -> None:
+    reason = refusal("killpg", 6000, 15)
+    assert reason is not None
+    assert "session" in reason
+    assert refusal("kill", -6000, 15) is not None
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_kill_of_the_group_leader_is_refused_except_signal_zero() -> None:
+    reason = refusal("kill", 5000, 15)
+    assert reason is not None
+    assert "group leader" in reason
+    assert refusal("kill", 5000, 0) is None
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_the_new_rules_leave_an_ordinary_pid_alone() -> None:
+    assert refusal("kill", 424242, 15) is None
+    assert refusal("killpg", 424242, 15) is None
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_group_leader_that_is_pytests_own_pid_keeps_the_own_pid_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(os, "getpid", lambda: 5000)
+    assert refusal("kill", 5000, 0) is None
+    assert refusal("kill", 5000, 15) is not None
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_a_lookup_of_zero_is_unknown_and_does_not_refuse(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(os, "getppid", lambda: 0)
+    monkeypatch.setattr(os, "getsid", lambda pid: 0)
+    assert refusal("killpg", 424242, 15) is None
+    assert refusal("kill", 424242, 15) is None
+
+
+@pytest.mark.usefixtures("fixed_lookups")
+def test_a_lookup_that_raises_is_unknown_and_does_not_refuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raises(pid: int) -> int:
+        raise OSError("no such process")
+
+    monkeypatch.setattr(os, "getpgid", raises)
+    assert refusal("killpg", 424242, 15) is None
+    assert refusal("kill", 424242, 15) is None
+    assert refusal("killpg", 7000, 15) is None
+    monkeypatch.setattr(os, "getsid", raises)
+    assert refusal("killpg", 6000, 15) is None
