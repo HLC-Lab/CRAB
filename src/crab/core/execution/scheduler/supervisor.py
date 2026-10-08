@@ -21,6 +21,9 @@ runs out, the supervisor stops the worker the same way (SIGTERM forwarded, the d
 and writes TIMEOUT instead of CANCELLED. A cancel that arrives during that stop changes nothing:
 the timeout came first. A cancel that came before the walltime ran out wins: CANCELLED.
 
+The worker's environment is the supervisor's without any variable whose name starts with
+`SLURM`: a local job started inside an `salloc` never sees the allocation.
+
 The supervisor also holds the write end of a pipe it never writes to; the worker holds the read
 end (`CRAB_SUPERVISOR_FD`). When the supervisor dies, however it dies, the worker reads EOF and
 stops itself, so no worker keeps its hosts after nobody locks them any more.
@@ -226,7 +229,9 @@ def _run_worker(job_dir: Path, spec: dict[str, Any], run: _Run) -> int | None:
     """
     read_fd, write_fd = os.pipe()  # both non-inheritable; `pass_fds` hands `read_fd` over
     try:
-        env = dict(os.environ)
+        # A job started inside a Slurm allocation must not look like a Slurm job to its apps
+        # (MPI libraries and launchers read SLURM_* and would use the allocation's nodes).
+        env = {k: v for k, v in os.environ.items() if not k.startswith("SLURM")}
         env[SUPERVISOR_FD_ENV] = str(read_fd)
         worker = subprocess.Popen(
             spec["argv"],

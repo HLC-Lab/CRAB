@@ -32,11 +32,12 @@ from crab.core.execution.scheduler.base import CancelResult, Scheduler
 from crab.core.execution.scheduler.local import LocalScheduler
 from crab.core.execution.scheduler.local_state import route
 from crab.core.execution.scheduler.slurm import CommandRunner, SlurmScheduler
+from crab.core.execution.settings import ExecutionSettings
 from crab.log import CrabLogger
 
 # Bump on any breaking change to the shapes below. Reported by `crab info` so
 # the backend can detect laptop<->cluster skew (ContractError).
-CONTRACT_SCHEMA = 1
+CONTRACT_SCHEMA = 2
 
 # Resolve the framework root the same way the rest of the package does.
 # contract.py is at <root>/src/crab/cli/contract.py → parents[3] is <root>.
@@ -50,18 +51,52 @@ def _crab_version() -> str:
 # --------------------------------------------------------------------------- #
 # info
 # --------------------------------------------------------------------------- #
+def _preset_settings(name: str, root: Path) -> ExecutionSettings:
+    """A preset's execution settings, parsed by the loader `crab run` uses, from `root`'s files.
+
+    Raises:
+        KeyError: no such preset.
+        ValueError: the preset or `_common` is invalid.
+        OSError: a presets file or hostfile cannot be read.
+    """
+    # Imported when called: the orchestrator pulls in the receipts memory and is not needed by
+    # the other gatherers.
+    from crab.cli.orchestrator import load_environment_config
+
+    settings: ExecutionSettings = load_environment_config(name, root)["settings"]
+    return settings
+
+
+def _error_text(error: Exception) -> str:
+    """The message of a preset error (a KeyError would quote it)."""
+    return str(error.args[0]) if isinstance(error, KeyError) and error.args else str(error)
+
+
 def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
-    """Version handshake + available presets."""
+    """Version handshake + available presets.
+
+    Each preset carries `scheduler`, `launcher` and `hosts` (names; empty under Slurm). A preset
+    that does not parse keeps its name and description and gets an `error` message instead.
+    """
     root = Path(crab_root) if crab_root else _CRAB_ROOT
 
-    presets: list[dict[str, str]] = []
+    presets: list[dict[str, Any]] = []
     try:
         raw = load_all_presets(root)
         for name, body in raw.items():
             if name in ("_common", "example_preset"):
                 continue
             desc = body.get("description", "") if isinstance(body, dict) else ""
-            presets.append({"name": name, "description": desc})
+            entry: dict[str, Any] = {"name": name, "description": desc}
+            try:
+                settings = _preset_settings(name, root)
+            except (KeyError, ValueError, OSError) as exc:
+                entry["error"] = _error_text(exc)
+            else:
+                entry["scheduler"] = settings.scheduler
+                entry["launcher"] = settings.launcher
+                entry["hosts"] = [host.name for host in settings.hosts]
+            presets.append(entry)
     except (OSError, ValueError):
         # No presets file / malformed → empty list, not a failure.
         presets = []
@@ -295,13 +330,40 @@ def _slurm_scheduler(runner: CommandRunner | None) -> Scheduler:
 # --------------------------------------------------------------------------- #
 # nodes (sinfo)
 # --------------------------------------------------------------------------- #
-def gather_nodes(runner: CommandRunner | None = None) -> dict[str, Any]:
-    """Partitions and node tokens from ``sinfo``.
+def gather_nodes(
+    runner: CommandRunner | None = None,
+    preset: str | None = None,
+    crab_root: Path | None = None,
+) -> dict[str, Any]:
+    """Partitions and node tokens from ``sinfo``, or a local preset's hosts.
 
-    Degrades to ``available: false`` (with a note) when ``sinfo`` is missing or
-    fails — e.g. on the ``local`` preset or a non-Slurm host.
+    Without `preset` (or with a Slurm one) the answer is the ``sinfo`` one, which degrades to
+    ``available: false`` (with a note) when ``sinfo`` is missing or fails; a Slurm preset adds
+    ``scheduler: "slurm"``. A local preset never runs ``sinfo``: it lists its hosts as
+    ``hosts`` (``cores`` is null for a bare localhost) and their names as ``nodes``.
+
+    A preset that is unknown or does not parse gives ``{"schema", "error"}``.
     """
-    return {"schema": CONTRACT_SCHEMA, **_slurm_scheduler(runner).describe_nodes()}
+    if preset is None:
+        return {"schema": CONTRACT_SCHEMA, **_slurm_scheduler(runner).describe_nodes()}
+    try:
+        settings = _preset_settings(preset, Path(crab_root) if crab_root else _CRAB_ROOT)
+    except (KeyError, ValueError, OSError) as exc:
+        return {"schema": CONTRACT_SCHEMA, "error": _error_text(exc)}
+    if settings.scheduler == "local":
+        return {
+            "schema": CONTRACT_SCHEMA,
+            "available": True,
+            "scheduler": "local",
+            "partitions": [],
+            "nodes": [host.name for host in settings.hosts],
+            "hosts": [{"name": host.name, "cores": host.cores} for host in settings.hosts],
+        }
+    return {
+        "schema": CONTRACT_SCHEMA,
+        "scheduler": "slurm",
+        **_slurm_scheduler(runner).describe_nodes(),
+    }
 
 
 # --------------------------------------------------------------------------- #

@@ -24,8 +24,10 @@ import crab.setup.memory as memory  # noqa: E402 -- must follow the sys.path set
 COMMON_KEYS = ("description", "env", "sbatch", "header")
 
 
-def load_environment_config(preset_arg: str) -> dict[str, Any]:
+def load_environment_config(preset_arg: str, crab_root: str | Path | None = None) -> dict[str, Any]:
     """Merge `_common` and one preset into env, sbatch, header and the parsed execution settings.
+
+    The presets are read from `crab_root` (default: this checkout).
 
     Raises:
         FileNotFoundError: the shipped presets file is missing.
@@ -36,10 +38,11 @@ def load_environment_config(preset_arg: str) -> dict[str, Any]:
     from crab.cli.presets import LOCAL_PRESETS, SHIPPED_PRESETS, load_all_presets
     from crab.core.execution.settings import from_preset
 
+    root = str(crab_root) if crab_root is not None else CRAB_ROOT
     try:
-        all_presets = load_all_presets(Path(CRAB_ROOT))
+        all_presets = load_all_presets(Path(root))
     except FileNotFoundError:
-        shipped = os.path.join(CRAB_ROOT, SHIPPED_PRESETS)
+        shipped = os.path.join(root, SHIPPED_PRESETS)
         raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
 
     if preset_arg not in all_presets:

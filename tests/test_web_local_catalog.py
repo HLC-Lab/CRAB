@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from conftest import auth_client  # noqa: E402
+from crab.cli.contract import CONTRACT_SCHEMA
 from crab.web.server import create_app
 from crab.web.settings import Settings
 
@@ -27,7 +28,7 @@ def test_local_benchmarks_runs_the_real_cli(tmp_path: Path):
         resp = client.get("/api/local/benchmarks")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["schema"] == 1
+        assert body["schema"] == CONTRACT_SCHEMA
         assert isinstance(body["wrappers"], list)
         assert len(body["wrappers"]) > 0
         assert {"relpath", "loadable"}.issubset(body["wrappers"][0].keys())

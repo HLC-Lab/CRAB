@@ -182,6 +182,23 @@ def test_a_job_goes_from_submitted_to_completed(harness: Harness) -> None:
     assert harness.pid(job_id) != worker_pid
 
 
+def test_the_worker_never_sees_slurm_variables(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A local job started inside a Slurm allocation must not inherit the allocation's variables."""
+    monkeypatch.setenv("SLURM_JOB_ID", "4242")
+    monkeypatch.setenv("SLURM_NODELIST", "node[01-04]")
+    monkeypatch.setenv("SLURMD_NODENAME", "node01")
+    monkeypatch.setenv("CRAB_TEST_MARKER", "kept")
+    job_id, job_dir = harness.submit("job", ["env"])
+
+    assert _final(harness, job_id).state == "COMPLETED"
+    lines = (job_dir / "slurm_output.log").read_text().splitlines()
+    names = {line.split("=", 1)[0] for line in lines}
+    assert not [name for name in names if name.startswith("SLURM")]
+    assert {"PATH", "CRAB_TEST_MARKER", "CRAB_SUPERVISOR_FD"} <= names
+
+
 def test_a_failing_worker_is_failed_with_its_exit_code(harness: Harness) -> None:
     job_id, job_dir = harness.submit("job", ["sh", "-c", "exit 3"])
 

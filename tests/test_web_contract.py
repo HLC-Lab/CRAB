@@ -10,6 +10,7 @@ import json
 import os
 import socket
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -51,6 +52,62 @@ def test_gather_info_parses_and_filters_presets(tmp_path: Path):
 def test_gather_info_missing_presets_is_graceful(tmp_path: Path):
     data = contract.gather_info(crab_root=tmp_path)  # no config/presets.json
     assert data["presets"] == []
+
+
+def test_the_contract_schema_is_2():
+    assert contract.CONTRACT_SCHEMA == 2
+
+
+def test_gather_info_gives_each_shipped_preset_its_execution_fields():
+    presets = {p["name"]: p for p in contract.gather_info()["presets"]}
+
+    assert presets["local"]["scheduler"] == "local"
+    assert presets["local"]["launcher"] == "direct"
+    assert presets["local"]["hosts"] == ["localhost"]
+    assert presets["leonardo"]["scheduler"] == "slurm"
+    assert presets["leonardo"]["launcher"] == "srun"
+    assert presets["leonardo"]["hosts"] == []
+    assert all("error" not in p for p in presets.values())
+
+
+def test_gather_info_lists_the_hosts_of_a_local_preset():
+    from crab.core.execution.settings import from_preset
+
+    settings = from_preset({"scheduler": "local", "hosts": ["ws1:32", "ws2:16"]}, "lab")
+    with patch(
+        "crab.cli.orchestrator.load_environment_config", return_value={"settings": settings}
+    ):
+        presets = contract.gather_info()["presets"]
+
+    assert next(p for p in presets if p["name"] == "local")["hosts"] == ["ws1", "ws2"]
+
+
+def test_gather_info_keeps_a_preset_that_does_not_parse_and_says_why():
+    from crab.core.execution.settings import SLURM_DEFAULT
+
+    def load(name: str, root: Path):
+        if name == "local":
+            raise ValueError("preset 'local': env.CRAB_WL_MANAGER is no longer read; use launcher")
+        return {"settings": SLURM_DEFAULT}
+
+    with patch("crab.cli.orchestrator.load_environment_config", side_effect=load):
+        data = contract.gather_info()
+
+    by_name = {p["name"]: p for p in data["presets"]}
+    assert by_name["local"]["error"] == (
+        "preset 'local': env.CRAB_WL_MANAGER is no longer read; use launcher"
+    )
+    assert by_name["local"]["description"] == "Local (no Slurm, dev/testing only)"
+    assert "scheduler" not in by_name["local"]
+    assert by_name["leonardo"]["scheduler"] == "slurm"
+    assert "error" not in by_name["leonardo"]
+
+
+def test_a_schema_1_cluster_is_older_than_the_dashboard():
+    pytest.importorskip("fastapi", reason="web extra not installed")
+    from crab.web.remoteops.bootstrap import contract_skew
+
+    assert "older than the dashboard" in (contract_skew({"schema": 1}) or "")
 
 
 # --------------------------------------------------------------------------- #

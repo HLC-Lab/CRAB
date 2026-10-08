@@ -59,4 +59,17 @@ def test_a_malformed_local_file_is_a_clear_error(tmp_path: Path) -> None:
 
 def test_crab_info_lists_local_presets_too(tmp_path: Path) -> None:
     info = gather_info(_root(tmp_path, {"mycluster": {"description": "new"}}))
-    assert {"name": "mycluster", "description": "new"} in info["presets"]
+    assert any(p["name"] == "mycluster" and p["description"] == "new" for p in info["presets"])
+
+
+def test_crab_info_parses_the_presets_of_the_root_it_is_given(tmp_path: Path) -> None:
+    mine = {"description": "lab", "scheduler": "local", "hosts": ["ws1:8"], "launcher": "mpirun"}
+    info = gather_info(_root(tmp_path, {"lab": mine}))
+    lab = next(p for p in info["presets"] if p["name"] == "lab")
+    assert lab == {
+        "name": "lab",
+        "description": "lab",
+        "scheduler": "local",
+        "launcher": "mpirun",
+        "hosts": ["ws1"],
+    }

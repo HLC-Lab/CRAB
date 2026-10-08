@@ -74,9 +74,17 @@ def handle_list_benchmarks(args):
 def handle_nodes(args):
     from crab.cli import contract
 
-    data = contract.gather_nodes()
+    data = contract.gather_nodes(preset=args.preset)
 
     def human(d):
+        if "error" in d:
+            return
+        if d.get("scheduler") == "local":
+            print("hosts:")
+            for h in d["hosts"]:
+                cores = "?" if h["cores"] is None else h["cores"]
+                print(f"  {h['name']:<18} cores={cores}")
+            return
         if not d["available"]:
             print(f"sinfo unavailable: {d.get('note', 'n/a')}")
             return
@@ -86,6 +94,9 @@ def handle_nodes(args):
         print(f"node tokens: {len(d['nodes'])}")
 
     contract.emit(data, args.json, human)
+    if "error" in data:
+        print(f"crab: {data['error']}", file=sys.stderr)
+        sys.exit(1)
 
 
 def handle_status(args):
@@ -343,8 +354,11 @@ def cli_router():
     _add_json_flag(parser_lb).set_defaults(func=handle_list_benchmarks)
 
     parser_nodes = subparsers.add_parser(
-        "nodes", help="Show Slurm partitions and nodes (via sinfo)"
+        "nodes", help="Show Slurm partitions and nodes (via sinfo), or a local preset's hosts"
     )
+    parser_nodes.add_argument(
+        "-p", "--preset", default=None, help="Show this preset's nodes (local: its hosts)."
+    ).completer = _preset_completer
     _add_json_flag(parser_nodes).set_defaults(func=handle_nodes)
 
     parser_status = subparsers.add_parser(
