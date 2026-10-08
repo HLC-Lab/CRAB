@@ -39,8 +39,10 @@ from crab.web.trackers import ExpiringTracker
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
-# Slurm states that will never change again — jobs in one of these are never
+# States that will never change again — jobs in one of these are never
 # re-polled. Anything else (including our own "UNKNOWN") is treated as active.
+# Slurm's terminal states plus the local scheduler's LOST (supervisor gone
+# without a final state).
 _TERMINAL_STATES = {
     "COMPLETED",
     "FAILED",
@@ -52,6 +54,7 @@ _TERMINAL_STATES = {
     "BOOT_FAIL",
     "DEADLINE",
     "REVOKED",
+    "LOST",
 }
 # Worst-first: a purged job's data_dir can hold several experiments' metadata.csv
 # rows (one crab run submission runs many); the job resolves to the worst one.

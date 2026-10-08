@@ -23,6 +23,23 @@ describe("isFailureState", () => {
   });
 });
 
+describe("LOST (local job whose supervisor died)", () => {
+  it("is a terminal failure", () => {
+    expect(isTerminal("LOST")).toBe(true);
+    expect(stateClass("LOST")).toBe("danger");
+    expect(isFailureState("LOST")).toBe(true);
+  });
+
+  it("is offered for rerun with the other failed experiments", () => {
+    expect(
+      failedExperimentNames([
+        { status: "LOST", experiment_name: "01_baseline" },
+        { status: "COMPLETED", experiment_name: "02_variant" },
+      ]),
+    ).toEqual(["01_baseline"]);
+  });
+});
+
 describe("isTerminal / stateClass sanity", () => {
   it("every failure state is terminal", () => {
     expect(isFailureState("FAILED") && isTerminal("FAILED")).toBe(true);
