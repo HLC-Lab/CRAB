@@ -92,6 +92,7 @@ files = [
     "src/crab/cli/contract.py",
     "src/crab/cli/export.py",
     "src/crab/core/wrapper_paths.py",
+    "src/crab/core/execution",
 ]
 python_version = "3.10"
 disallow_untyped_defs = true

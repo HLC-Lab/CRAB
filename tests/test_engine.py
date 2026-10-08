@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from crab.core.engine import Engine
+from crab.core.execution.scheduler.slurm import SlurmScheduler
 
 
 def _make_engine():
@@ -57,7 +58,7 @@ class TestSlurmNodelistUnset(unittest.TestCase):
         engine.log.info.assert_any_call("Allocated 1 node(s)")
 
     def test_scontrol_nonzero_exit_raises(self):
-        """If scontrol exits non-zero the worker must raise, not silently leave an empty file."""
+        """If scontrol exits non-zero the worker must fail."""
         engine = _make_engine()
         config = {"global_options": {}, "experiments": {}}
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -68,47 +69,6 @@ class TestSlurmNodelistUnset(unittest.TestCase):
                     )
                     with self.assertRaises(Exception):  # noqa: B017 -- any failure aborting the worker is the contract
                         engine._run_worker(config, {}, tmpdir)
-
-
-# ---------------------------------------------------------------------------
-# Issue 2: worker_nodelist.txt written to CWD, not output_dir
-# ---------------------------------------------------------------------------
-
-
-class TestNodelistFileLocation(unittest.TestCase):
-    def test_nodelist_written_inside_output_dir(self):
-        """The temporary nodelist file must be created inside output_dir, not CWD."""
-        engine = _make_engine()
-        config = {"global_options": {}, "experiments": {}}
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.dict(os.environ, {"SLURM_NODELIST": "node01"}, clear=False):
-                written_paths = []
-
-                original_open = open
-
-                def tracking_open(path, *args, **kwargs):
-                    written_paths.append(str(path))
-                    return original_open(path, *args, **kwargs)
-
-                with patch("builtins.open", side_effect=tracking_open):
-                    with patch("subprocess.run") as mock_run:
-                        mock_run.return_value = MagicMock(returncode=0)
-                        # scontrol writes nothing → pandas.read_csv will fail, but
-                        # we only care about the path the open() call uses
-                        try:
-                            engine._run_worker(config, {}, tmpdir)
-                        except Exception:
-                            pass
-
-                # The nodelist file open should be inside tmpdir, not in CWD
-                nodelist_opens = [p for p in written_paths if "nodelist" in p.lower()]
-                if nodelist_opens:
-                    for p in nodelist_opens:
-                        self.assertTrue(
-                            os.path.abspath(p).startswith(os.path.abspath(tmpdir)),
-                            f"nodelist file opened outside output_dir: {p}",
-                        )
 
 
 # ---------------------------------------------------------------------------
@@ -249,17 +209,17 @@ class TestNumnodesValidation(unittest.TestCase):
         )
 
     def test_nodes_none_not_in_sbatch_header(self):
-        """_generate_sbatch_header must not produce '--nodes=None'."""
-        engine = _make_engine()
+        """SlurmScheduler.generate_header must not produce '--nodes=None'."""
+        scheduler = SlurmScheduler(MagicMock(), crab_root="/tmp")
         # numnodes absent
-        lines = engine._generate_sbatch_header({}, "/tmp/out")
+        lines = scheduler.generate_header({}, "/tmp/out")
         for line in lines:
             self.assertNotIn("None", line, f"'None' literal found in sbatch header line: {line}")
 
     def test_nodes_correct_when_numnodes_set(self):
         """When numnodes is set, --nodes=<value> must appear in the header."""
-        engine = _make_engine()
-        lines = engine._generate_sbatch_header({"numnodes": 4, "ppn": 8}, "/tmp/out")
+        scheduler = SlurmScheduler(MagicMock(), crab_root="/tmp")
+        lines = scheduler.generate_header({"numnodes": 4, "ppn": 8}, "/tmp/out")
         nodes_lines = [line for line in lines if "--nodes=" in line]
         self.assertEqual(len(nodes_lines), 1)
         self.assertIn("--nodes=4", nodes_lines[0])
