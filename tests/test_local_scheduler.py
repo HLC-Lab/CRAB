@@ -9,6 +9,7 @@ never with processes.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import json
 import os
@@ -36,6 +37,9 @@ from crab.core.execution.scheduler.select import scheduler_for
 from crab.core.execution.scheduler.slurm import SlurmScheduler
 from crab.core.execution.settings import from_preset, to_json
 from crab.log import CrabLogger
+from settings_fixtures import slurm_settings
+
+_LAB = from_preset({"scheduler": "local", "hosts": ["ws1:4", "ws2:4", "ws3:4"]}, "lab")
 
 
 def _environ(tmp_path: Path) -> dict[str, str]:
@@ -81,15 +85,20 @@ def hold_lock(tmp_path: Path) -> Iterator[Callable[[str], None]]:
 # --------------------------------------------------------------------------- #
 def test_selector_local_gives_local_scheduler() -> None:
     logger = CrabLogger()
-    sched = scheduler_for("local", logger, "/some/root")
+    sched = scheduler_for(_LAB, logger, "/some/root")
     assert isinstance(sched, LocalScheduler)
     assert sched.log is logger
     assert sched.crab_root == "/some/root"
+    assert sched.node_list() == ["ws1", "ws2", "ws3"]
+
+
+def test_local_scheduler_without_hosts_is_one_localhost() -> None:
+    assert LocalScheduler(CrabLogger(), "/some/root").node_list() == ["localhost"]
 
 
 def test_selector_slurm_gives_slurm_scheduler() -> None:
     logger = CrabLogger()
-    sched = scheduler_for("slurm", logger, "/some/root")
+    sched = scheduler_for(slurm_settings(), logger, "/some/root")
     assert isinstance(sched, SlurmScheduler)
     assert sched.log is logger
     assert sched.crab_root == "/some/root"
@@ -97,8 +106,9 @@ def test_selector_slurm_gives_slurm_scheduler() -> None:
 
 @pytest.mark.parametrize("value", ["", "pbs"])
 def test_selector_refuses_any_other_value(value: str) -> None:
+    bad = dataclasses.replace(slurm_settings(), scheduler=value)
     with pytest.raises(ValueError, match="scheduler"):
-        scheduler_for(value, CrabLogger(), "/some/root")
+        scheduler_for(bad, CrabLogger(), "/some/root")
 
 
 # --------------------------------------------------------------------------- #

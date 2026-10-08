@@ -75,6 +75,8 @@ class LocalScheduler:
             live in it).
         environ: where `XDG_STATE_HOME` is read from; the process environment by default.
         worker_argv: builds the worker's argv from the job directory; tests inject a short command.
+        hosts: the host names `node_list()` returns; `localhost` alone for a scheduler that only
+            reads status or cancels.
     """
 
     def __init__(
@@ -83,6 +85,7 @@ class LocalScheduler:
         crab_root: str,
         environ: Mapping[str, str] | None = None,
         worker_argv: Callable[[str], list[str]] = worker_argv,
+        hosts: tuple[str, ...] = (LOCALHOST,),
     ) -> None:
         self.log = logger
         self.crab_root = crab_root
@@ -91,6 +94,7 @@ class LocalScheduler:
         )
         self._jobs_dir = self._state_root / "jobs"
         self._worker_argv = worker_argv
+        self.hosts = hosts
 
     def submit(self, job_dir: str, global_opts: dict[str, Any]) -> str | None:
         """Start the job's supervisor, detached, and return its `local-<n>` job id.
@@ -258,8 +262,8 @@ class LocalScheduler:
         return CancelResult(True, None)
 
     def node_list(self) -> list[str]:
-        """The only node of a local job."""
-        return ["localhost"]
+        """The preset's host names, in order."""
+        return list(self.hosts)
 
     def describe_nodes(self) -> dict[str, Any]:
         """The local machine as the cluster's one node."""

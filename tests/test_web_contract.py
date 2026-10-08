@@ -62,7 +62,7 @@ def test_gather_info_gives_each_shipped_preset_its_execution_fields():
     presets = {p["name"]: p for p in contract.gather_info()["presets"]}
 
     assert presets["local"]["scheduler"] == "local"
-    assert presets["local"]["launcher"] == "direct"
+    assert presets["local"]["launcher"] == "mpirun"
     assert presets["local"]["hosts"] == ["localhost"]
     assert presets["leonardo"]["scheduler"] == "slurm"
     assert presets["leonardo"]["launcher"] == "srun"

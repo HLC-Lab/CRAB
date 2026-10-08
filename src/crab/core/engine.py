@@ -129,9 +129,7 @@ class Engine:
         with open(os.path.join(data_directory, "execution.json"), "w") as f:
             json.dump(to_json(settings), f, indent=4)
 
-        job_id = scheduler_for(settings.scheduler, self.log, CRAB_ROOT).submit(
-            data_directory, g_opts
-        )
+        job_id = scheduler_for(settings, self.log, CRAB_ROOT).submit(data_directory, g_opts)
 
         # Structured result for programmatic callers (e.g. `crab run --json`).
         return {
@@ -157,7 +155,15 @@ class Engine:
         os.environ.update(expanded)
 
         try:
-            full_node_list = scheduler_for(settings.scheduler, self.log, CRAB_ROOT).node_list()
+            full_node_list = scheduler_for(settings, self.log, CRAB_ROOT).node_list()
+            if settings.scheduler == "local":
+                # A local job uses the first `numnodes` hosts; a Slurm list is the allocation.
+                try:
+                    full_node_list = full_node_list[
+                        : int(config.get("global_options", {})["numnodes"])
+                    ]
+                except (KeyError, TypeError, ValueError):
+                    pass
             self.log.info(f"Allocated {len(full_node_list)} node(s)")
             write_provenance(output_dir, config, full_node_list)
 
