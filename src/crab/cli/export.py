@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import sys
@@ -51,7 +52,7 @@ def parse_csv(path: Path) -> list[dict]:
     with open(path, newline="", encoding="utf-8", errors="replace") as fh:
         reader = csv.DictReader(fh)
         for row in reader:
-            parsed = {}
+            parsed: dict[str, int | float | str] = {}
             for k, v in row.items():
                 k = (k or "").strip()
                 v = (v or "").strip()
@@ -172,7 +173,7 @@ def export_dashboard(data_dir: Path, output: Path) -> None:
     print(f"[+] Exported to {output}")
 
 
-def handle_export(args):
+def handle_export(args: argparse.Namespace) -> None:
     data_dir = Path(args.data_dir).resolve()
     if not data_dir.is_dir():
         print(f"[ERROR] Not a directory: {data_dir}", file=sys.stderr)

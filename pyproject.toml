@@ -87,7 +87,12 @@ ignore = [
 
 [tool.mypy]
 # Scoped to the fully type-hinted web layer and its CLI seam; widen over time.
-files = ["src/crab/web", "src/crab/cli/contract.py"]
+files = [
+    "src/crab/web",
+    "src/crab/cli/contract.py",
+    "src/crab/cli/export.py",
+    "src/crab/core/wrapper_paths.py",
+]
 python_version = "3.10"
 disallow_untyped_defs = true
 warn_unused_ignores = true
