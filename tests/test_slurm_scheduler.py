@@ -43,10 +43,10 @@ def _fake(monkeypatch: pytest.MonkeyPatch, **kwargs: Any) -> _FakeScontrol:
 
 
 def test_node_list_expands_the_allocation(tmp_path, monkeypatch):
-    monkeypatch.setenv("SLURM_NODELIST", "lrdn[0001-0002]")
-    fake = _fake(monkeypatch, stdout="lrdn0001\nlrdn0002\n")
-    assert _scheduler(tmp_path).node_list() == ["lrdn0001", "lrdn0002"]
-    assert [cmd for cmd, _ in fake.calls] == [["scontrol", "show", "hostnames", "lrdn[0001-0002]"]]
+    monkeypatch.setenv("SLURM_NODELIST", "node[0001-0002]")
+    fake = _fake(monkeypatch, stdout="node0001\nnode0002\n")
+    assert _scheduler(tmp_path).node_list() == ["node0001", "node0002"]
+    assert [cmd for cmd, _ in fake.calls] == [["scontrol", "show", "hostnames", "node[0001-0002]"]]
 
 
 def test_numeric_looking_hostnames_stay_strings(tmp_path, monkeypatch):
