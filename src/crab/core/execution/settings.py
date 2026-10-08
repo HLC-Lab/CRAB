@@ -36,7 +36,7 @@ DROPPED_KEYS: dict[str, str] = {
     "CRAB_MPIRUN": "launchers.mpirun.command",
     "CRAB_MPIRUN_ADDITIONAL_FLAGS": "launchers.mpirun.flags",
     "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "launchers.mpirun.flags",
-    "CRAB_MPIRUN_HOSTNAMES_FLAG": "nothing: CRAB passes the hosts to mpirun itself",
+    "CRAB_MPIRUN_HOSTNAMES_FLAG": "nothing: delete it (mpirun finds the job's nodes itself)",
     "CRAB_PINNING_FLAGS": "launchers.srun.flags",
 }
 
