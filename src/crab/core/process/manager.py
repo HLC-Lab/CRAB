@@ -3,6 +3,7 @@ import signal
 import subprocess
 import threading
 import time
+from pathlib import Path
 
 from crab.core.execution.launcher import Placement, launch_line, launcher_for
 from crab.core.execution.settings import LauncherSpec
@@ -36,19 +37,57 @@ def unregister_process(proc: subprocess.Popen) -> None:
         _registry.pop(proc.pid, None)
 
 
-def _signal_group(proc: subprocess.Popen, sig: int) -> None:
-    """Send `sig` to the process group of `proc`, an unreaped child that leads its own session.
+def _usable_pgid(pgid: object) -> bool:
+    """Whether `pgid` is a process group id CRAB may signal or probe.
 
-    `proc` is CRAB's own child, started with start_new_session=True, so its pid is its group id,
-    and an unreaped child's pid cannot be reused. A pid of 1 or less, or CRAB's own group, would
-    signal every process of the user or CRAB itself (the 2026-10-08 incident), so it is refused
-    here as well, whatever a caller passed.
+    A pid of 1 or less, or CRAB's own group, would reach every process of the user or CRAB itself
+    (the 2026-10-08 incident), so those are refused whatever a caller passed.
     """
-    pid = proc.pid
-    if type(pid) is not int or pid <= 1 or pid == os.getpgrp():
+    return type(pgid) is int and pgid > 1 and pgid != os.getpgrp()
+
+
+def _group_members(pgid: int) -> bool:
+    """Whether process group `pgid` still has a live member (a zombie is not live).
+
+    On Linux this reads /proc: field 5 of `/proc/<pid>/stat` is the group, field 3 the state. The
+    command name (field 2) may hold spaces or parentheses, so the line is parsed after its last
+    `)`. Where /proc is missing (macOS) it probes with `os.killpg(pgid, 0)`, which also counts a
+    zombie as alive; that only makes a wait run to its grace. An unusable `pgid` has no members.
+    """
+    if not _usable_pgid(pgid):
+        return False
+    proc_root = Path("/proc")
+    if not (proc_root / "self" / "stat").is_file():
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+    for stat in proc_root.glob("[0-9]*/stat"):
+        try:
+            text = stat.read_text()
+        except OSError:
+            continue  # the process exited while we scanned
+        state, _ppid, group = text[text.rindex(")") + 2 :].split()[:3]
+        if int(group) == pgid and state not in ("Z", "X"):
+            return True
+    return False
+
+
+def _signal_group(pgid: int, sig: int) -> None:
+    """Send `sig` to process group `pgid`, a group CRAB started (its leader's pid).
+
+    The pid-reuse argument: on Linux a pid number stays allocated while any process uses it as its
+    group id, so a group that still has members cannot have its id handed to someone else. Callers
+    signal a group only right after `_group_members` saw a live member (SIGTERM: while the leader
+    is unreaped; SIGKILL: just before sending). On macOS the `killpg(pgid, 0)` probe means the same.
+    """
+    if not _usable_pgid(pgid):
         return
     try:
-        os.killpg(pid, sig)
+        os.killpg(pgid, sig)
     except (ProcessLookupError, PermissionError):
         pass  # already gone, or no longer ours to signal
 
@@ -62,30 +101,40 @@ def stop_processes(
     """Stop app processes: SIGTERM to each one's group, a shared wait, then SIGKILL for the rest.
 
     SIGTERM first lets a launcher (mpirun, srun) tear its ranks down; SIGKILL first would orphan
-    them. The `grace` seconds are shared by all processes, not given to each. A process that has
-    already exited is never signalled.
+    them. The `grace` seconds are shared by all processes, not given to each, and the wait lasts
+    until every group is empty, not only until the leader (the bash wrapper, which exits on SIGTERM
+    at once) has exited: a launcher or app child that outlives its wrapper still gets SIGKILL. A
+    process that had already exited before this call is never signalled.
 
     Args:
-        procs: the app processes (children started with start_new_session=True).
-        logger: receives one line per process that needed SIGKILL.
+        procs: the app processes (children started with start_new_session=True, so pid == pgid).
+        logger: receives one line per process whose group needed SIGKILL.
         grace: seconds to wait after SIGTERM before SIGKILL; STOP_GRACE_SECONDS when None.
         labels: optional pid -> name (such as "App 2") used in the log line instead of the pid.
     """
     if grace is None:
         grace = STOP_GRACE_SECONDS
     running = [proc for proc in procs if proc.poll() is None]
-    for proc in running:
-        _signal_group(proc, signal.SIGTERM)
+    pgids = [proc.pid for proc in running]
+    for pgid in pgids:
+        _signal_group(pgid, signal.SIGTERM)
 
     deadline = time.monotonic() + grace
-    while time.monotonic() < deadline and any(proc.poll() is None for proc in running):
+    while True:
+        for proc in running:
+            proc.poll()  # reap an exited leader, so it is no longer a member
+        if not any(_group_members(pgid) for pgid in pgids):
+            break
+        if time.monotonic() >= deadline:
+            break
         time.sleep(0.1)
 
-    for proc in running:
-        if proc.poll() is None:
-            name = (labels or {}).get(proc.pid, f"PID {proc.pid}")
+    for proc, pgid in zip(running, pgids, strict=True):
+        # Re-check right before sending: the group may have emptied since the loop ended.
+        if _group_members(pgid):
+            name = (labels or {}).get(pgid, f"PID {pgid}")
             logger.warning(f"{name}: still running after {grace:g}s, sending SIGKILL")
-            _signal_group(proc, signal.SIGKILL)
+            _signal_group(pgid, signal.SIGKILL)
         proc.wait()
         unregister_process(proc)
 

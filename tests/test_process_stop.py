@@ -8,6 +8,7 @@ replaces ``os.killpg``.
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -19,10 +20,20 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from crab.core.process import manager
 from crab.core.process.manager import STOP_GRACE_SECONDS, stop_processes
 from signal_guard import REAL_KILLPG
 
 IGNORE_TERM = "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)"
+# Ignores SIGTERM, then tells the test its pid; argv[1] is the pid file.
+IGNORE_SCRIPT = """\
+import os, signal, sys, time
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+with open(sys.argv[1], "w") as f:
+    f.write(str(os.getpid()))
+time.sleep(30)
+"""
+NEEDS_PROC = pytest.mark.skipif(not Path("/proc/self/stat").is_file(), reason="needs /proc (Linux)")
 
 
 def _live_members(pgid: int) -> list[int] | None:
@@ -64,6 +75,38 @@ def _wait_until(check: Callable[[], bool], what: str, timeout: float = 5.0) -> N
             return
         time.sleep(0.05)
     raise AssertionError(f"timed out waiting for {what}")
+
+
+def _state(pid: int) -> str | None:
+    """Process state letter from /proc, or None when the process is gone."""
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return None
+    return text[text.rindex(")") + 2 :].split()[0]
+
+
+def _alive(pid: int) -> bool:
+    """Whether `pid` exists and is not a zombie."""
+    return _state(pid) not in (None, "Z", "X")
+
+
+def _wrapper_with_ignoring_child(tmp_path: Path, name: str) -> tuple[list[str], Path]:
+    """A `bash -c` wrapper whose child ignores SIGTERM, and the file the child writes its pid to."""
+    script = tmp_path / "ignore.py"
+    script.write_text(IGNORE_SCRIPT)
+    pid_file = tmp_path / f"{name}.pid"
+    python, script_arg, pid_arg = (
+        shlex.quote(sys.executable),
+        shlex.quote(str(script)),
+        shlex.quote(str(pid_file)),
+    )
+    return ["bash", "-c", f"{python} {script_arg} {pid_arg} & wait"], pid_file
+
+
+def _child_pid(pid_file: Path) -> int:
+    _wait_until(lambda: pid_file.exists() and pid_file.read_text() != "", "the child's pid file")
+    return int(pid_file.read_text())
 
 
 def _logged(logger: MagicMock) -> str:
@@ -126,6 +169,78 @@ def test_two_processes_share_one_grace() -> None:
         assert second.returncode == -signal.SIGKILL
 
 
+@NEEDS_PROC
+def test_an_obedient_child_of_the_wrapper_is_stopped_before_the_grace() -> None:
+    with _children(["bash", "-c", "sleep 30 & wait"]) as (proc,):
+        _wait_until(lambda: len(_live_members(proc.pid) or []) >= 2, "the group to fill")
+
+        start = time.monotonic()
+        stop_processes([proc], MagicMock(), grace=5)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 2
+        assert _live_members(proc.pid) == []
+
+
+@NEEDS_PROC
+def test_a_child_of_the_wrapper_that_ignores_sigterm_is_killed_after_the_grace(
+    tmp_path: Path,
+) -> None:
+    logger = MagicMock()
+    command, pid_file = _wrapper_with_ignoring_child(tmp_path, "one")
+    with _children(command) as (proc,):
+        child = _child_pid(pid_file)
+
+        start = time.monotonic()
+        stop_processes([proc], logger, grace=1)
+        elapsed = time.monotonic() - start
+
+        assert 0.9 < elapsed < 2.5
+        # SIGKILL is delivered, not yet reaped, when stop_processes returns.
+        _wait_until(lambda: not _alive(child), "the child to die")
+        assert _live_members(proc.pid) == []
+    assert f"PID {proc.pid}: still running after 1s, sending SIGKILL" in _logged(logger)
+
+
+@NEEDS_PROC
+def test_two_wrappers_with_stubborn_children_share_one_grace(tmp_path: Path) -> None:
+    first_cmd, first_file = _wrapper_with_ignoring_child(tmp_path, "first")
+    second_cmd, second_file = _wrapper_with_ignoring_child(tmp_path, "second")
+    with _children(first_cmd, second_cmd) as (first, second):
+        children = [_child_pid(first_file), _child_pid(second_file)]
+
+        start = time.monotonic()
+        stop_processes([first, second], MagicMock(), grace=1)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 2.5
+        _wait_until(lambda: not any(_alive(pid) for pid in children), "the children to die")
+
+
+@NEEDS_PROC
+def test_group_members_tells_a_live_group_from_a_gone_one() -> None:
+    with _children(["sleep", "30"]) as (proc,):
+        assert manager._group_members(proc.pid) is True
+
+        REAL_KILLPG(proc.pid, signal.SIGKILL)
+        proc.wait()
+
+        assert manager._group_members(proc.pid) is False
+
+
+@NEEDS_PROC
+def test_group_members_does_not_count_a_zombie() -> None:
+    with _children(["true"]) as (proc,):
+        _wait_until(lambda: _state(proc.pid) == "Z", "the child to become a zombie")
+
+        assert manager._group_members(proc.pid) is False
+
+
+@pytest.mark.parametrize("pgid", [1, 0, -5, os.getpgrp()])
+def test_group_members_refuses_a_group_that_could_hit_more_than_the_app(pgid: int) -> None:
+    assert manager._group_members(pgid) is False
+
+
 @pytest.fixture
 def recorder(monkeypatch: pytest.MonkeyPatch) -> list[tuple[int, int]]:
     calls: list[tuple[int, int]] = []
@@ -144,8 +259,11 @@ def test_an_already_exited_process_is_never_signalled(recorder: list[tuple[int, 
 
 @pytest.mark.parametrize("pid", [1, 0, -5, os.getpgrp()])
 def test_a_pid_that_could_hit_more_than_the_app_is_never_signalled(
-    recorder: list[tuple[int, int]], pid: int
+    recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch, pid: int
 ) -> None:
+    # The group "has members", so stop_processes reaches the SIGKILL step and _signal_group's
+    # own guard is what refuses.
+    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
     fake = MagicMock()
     fake.pid = pid
     fake.poll.return_value = None
@@ -157,8 +275,9 @@ def test_a_pid_that_could_hit_more_than_the_app_is_never_signalled(
 
 
 def test_a_normal_pid_gets_sigterm_then_sigkill_when_it_stays(
-    recorder: list[tuple[int, int]],
+    recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
     fake = MagicMock()
     fake.pid = 424242
     fake.poll.return_value = None  # never exits
