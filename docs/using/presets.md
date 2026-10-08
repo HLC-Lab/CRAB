@@ -102,7 +102,7 @@ Its `launcher` decides how each application starts inside the job:
     ```
 
     `command` defaults to `mpirun` on the `PATH`, and `flags` to none. Inside a Slurm allocation
-    `mpirun` finds the nodes itself, so there is no host list to give.
+    CRAB gives `mpirun` the allocated host names itself, so there is no host list to write.
 
 The full list of fields, with defaults, is in the
 [presets.json format](../reference/presets.md#execution-fields). A benchmark can also ask for a
@@ -122,14 +122,17 @@ preset:
 "local": {
     "description": "Local (no Slurm, dev/testing only)",
     "scheduler": "local",
-    "launcher": "direct"
+    "launcher": "mpirun"
 }
 ```
 
 `"scheduler": "local"` starts the job as a detached process on this machine, and `"launcher":
-"direct"` runs each application's command as is, with no `srun` or `mpirun`. The `srun` launcher
-needs Slurm, so it is refused under `local`. Request it with `-p local`; CRAB never falls back to
-it on its own.
+"mpirun"` starts each application with `mpirun`. An MPI must be installed: `mpirun` has to be on
+the `PATH`, and CRAB reads `mpirun --version` to tell Open MPI 4 or 5 from MPICH. The job runs on
+the first `numnodes` entries of the preset's `hosts`, which default to `localhost`. For a single
+process (`ppn` 1, `numnodes` 1) you can set `"launcher": "direct"`, which runs each application's
+command as is, with no MPI needed. The `srun` launcher needs Slurm, so it is refused under
+`local`. Request the preset with `-p local`; CRAB never falls back to it on its own.
 
 ## Selecting your preset
 
