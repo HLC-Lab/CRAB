@@ -45,6 +45,8 @@ const OPTION_KEYS = [
   "extrainfo",
   "walltime",
   "datapath",
+  "launcher",
+  "launcher_flags",
 ];
 const GLOBAL_KEYS = new Set([
   "name",
@@ -354,6 +356,46 @@ const fixtures: { name: string; config: AnyObj }[] = [
       },
     },
   },
+  {
+    name: "launcher in global options",
+    config: {
+      global_options: { numnodes: "2", launcher: "mpirun" },
+      experiments: { ex1: { apps: { 0: { path: "a.py", args: "", start: "0", end: "" } } } },
+    },
+  },
+  {
+    name: "empty launcher_flags (no extra flags)",
+    config: {
+      global_options: { numnodes: "2", launcher_flags: [] },
+      experiments: { ex1: { apps: { 0: { path: "a.py", args: "", start: "0", end: "" } } } },
+    },
+  },
+  {
+    name: "launcher_flags with one flag",
+    config: {
+      global_options: { numnodes: "2", launcher_flags: ["--cpu-bind=socket"] },
+      experiments: { ex1: { apps: { 0: { path: "a.py", args: "", start: "0", end: "" } } } },
+    },
+  },
+  {
+    name: "launcher_flags with a flag that holds a space",
+    config: {
+      global_options: { numnodes: "2", launcher_flags: ["--bind-to core", "-v"] },
+      experiments: { ex1: { apps: { 0: { path: "a.py", args: "", start: "0", end: "" } } } },
+    },
+  },
+  {
+    name: "launcher and launcher_flags in an experiment's local_options",
+    config: {
+      global_options: { numnodes: "2", launcher: "srun" },
+      experiments: {
+        ex1: {
+          local_options: { launcher: "direct", launcher_flags: ["--exact", "-v"] },
+          apps: { 0: { path: "a.py", args: "", start: "0", end: "" } },
+        },
+      },
+    },
+  },
 ];
 
 describe("config round-trip (synthetic fixtures)", () => {
@@ -614,5 +656,62 @@ describe("normalizeSplitToPartitions with chained apps (ADR-032)", () => {
     const round = toConfig(fromConfig(splitWithChain([75, 25])));
     const parts = Object.values(round.experiments.ex1.apps).map((a: AnyObj) => a.partition);
     expect(parts).toEqual(["group_1", undefined, "group_2"]);
+  });
+});
+
+describe("launcher options (ADR-033)", () => {
+  const cfg = (global: AnyObj, local?: AnyObj): AnyObj => ({
+    global_options: { numnodes: "2", ...global },
+    experiments: {
+      ex1: { apps: { 0: { path: "a.py" } }, ...(local ? { local_options: local } : {}) },
+    },
+  });
+
+  it("reads both keys into draft fields, global and per experiment", () => {
+    const d = fromConfig(
+      cfg(
+        { launcher: "mpirun", launcher_flags: ["-v", "--x=1"] },
+        { launcher: "direct", launcher_flags: [] },
+      ),
+    );
+    expect(d.options.launcher).toBe("mpirun");
+    expect(d.options.replaceLauncherFlags).toBe(true);
+    expect(d.options.launcherFlags).toBe("-v --x=1");
+    expect(d.experiments[0].options.launcher).toBe("direct");
+    expect(d.experiments[0].options.replaceLauncherFlags).toBe(true);
+    expect(d.experiments[0].options.launcherFlags).toBe("");
+    // Neither key may leak into the wrapper-attribute passthrough.
+    expect(d.experiments[0].apps[0].rest).toEqual({});
+  });
+
+  it("an empty launcher choice emits no launcher key", () => {
+    const d = emptyDraft();
+    d.options.launcher = "";
+    expect("launcher" in toConfig(d).global_options).toBe(false);
+  });
+
+  it("an unchecked Replace emits no launcher_flags, whatever the text says", () => {
+    const d = emptyDraft();
+    d.options.replaceLauncherFlags = false;
+    d.options.launcherFlags = "--stale";
+    expect("launcher_flags" in toConfig(d).global_options).toBe(false);
+  });
+
+  it("checked with empty text emits [], with text emits the tokens", () => {
+    const d = emptyDraft();
+    d.options.replaceLauncherFlags = true;
+    expect(toConfig(d).global_options.launcher_flags).toEqual([]);
+    d.options.launcherFlags = "  --a   -b=2 ";
+    expect(toConfig(d).global_options.launcher_flags).toEqual(["--a", "-b=2"]);
+  });
+
+  it("an untouched experiment emits no launcher keys in local_options", () => {
+    const d = fromConfig(cfg({}));
+    expect("local_options" in toConfig(d).experiments.ex1).toBe(false);
+  });
+
+  it("a valid launcher and flag list pass validation", () => {
+    const d = fromConfig(cfg({ launcher: "srun", launcher_flags: ["--exact"] }));
+    expect(validateDraft(d).filter((m: string) => /launcher/.test(m))).toEqual([]);
   });
 });

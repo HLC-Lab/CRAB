@@ -11,6 +11,7 @@ import {
   toConfig,
   toSbatch,
   validateAllocation,
+  validateDraft,
   validateSbatch,
 } from "@/lib/config";
 
@@ -108,5 +109,46 @@ describe("sbatch list form keeps short flags as written (Slurm takes -J name, -o
       "--exclusive",
       "--time=00:10:00",
     ]);
+  });
+});
+
+describe("launcher options (core/config_checks.py _check_launcher_options)", () => {
+  const withOptions = (global: AnyObj, local?: AnyObj): AnyObj => ({
+    global_options: { numnodes: "4", ...global },
+    experiments: {
+      ex1: { apps: { 0: { path: "a.py" } }, ...(local ? { local_options: local } : {}) },
+    },
+  });
+  const launcherIssues = (config: AnyObj) =>
+    validateDraft(fromConfig(config)).filter((m) => /launcher/.test(m));
+
+  it("refuses a launcher outside srun, mpirun, direct", () => {
+    expect(launcherIssues(withOptions({ launcher: "pbs" }))).toEqual([
+      "launcher 'pbs' must be one of srun, mpirun, direct.",
+    ]);
+  });
+
+  it("names the experiment when the bad launcher is a local override", () => {
+    expect(launcherIssues(withOptions({}, { launcher: "pbs" }))).toEqual([
+      "Experiment \"ex1\": launcher 'pbs' must be one of srun, mpirun, direct.",
+    ]);
+  });
+
+  it("refuses launcher_flags that are not a list of strings", () => {
+    const msg = "launcher_flags must be a list of strings.";
+    expect(launcherIssues(withOptions({ launcher_flags: ["-v", 3] }))).toEqual([msg]);
+    expect(launcherIssues(withOptions({ launcher_flags: "-v" }))).toEqual([msg]);
+  });
+
+  it("keeps a non-string flag in the config until the user edits it", () => {
+    const round = toConfig(fromConfig(withOptions({ launcher_flags: ["-v", 3] })));
+    expect(round.global_options.launcher_flags).toEqual(["-v", 3]);
+  });
+
+  it("skips both checks on {name} placeholders, like the engine", () => {
+    expect(launcherIssues(withOptions({ launcher: "{l}", launcher_flags: "{f}" }))).toEqual([]);
+    const round = toConfig(fromConfig(withOptions({ launcher: "{l}", launcher_flags: "{f}" })));
+    expect(round.global_options.launcher).toBe("{l}");
+    expect(round.global_options.launcher_flags).toBe("{f}");
   });
 });

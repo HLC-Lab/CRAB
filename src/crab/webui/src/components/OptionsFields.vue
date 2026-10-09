@@ -3,7 +3,7 @@
 // the passed OptionsDraft in place. Reused for global_options and, later, for an
 // experiment's local_options overrides. Blank/("default") fields are not emitted.
 import { computed } from "vue";
-import type { OptionsDraft, TriBool } from "@/lib/config";
+import { LAUNCHER_KINDS, type OptionsDraft, type TriBool } from "@/lib/config";
 
 type Group = "convergence" | "output" | "advanced";
 const props = defineProps<{
@@ -50,6 +50,28 @@ const retainFilesDisplay = computed({
   get: () => (isGlobal.value && o.value.retainFiles === "true" ? "" : o.value.retainFiles),
   set: (v: TriBool) => {
     o.value.retainFiles = v;
+  },
+});
+
+// Launcher: a value the select has no option for (a typo or a {placeholder}) is shown as an
+// extra option so the draft value stays visible instead of looking unset.
+const launcherIsOther = computed(
+  () => o.value.launcher !== "" && !LAUNCHER_KINDS.includes(o.value.launcher),
+);
+// Flags the text field cannot hold are kept as loaded until the user touches either control.
+const flagsKept = computed(() => o.value.launcherFlagsRaw !== undefined);
+const replaceFlags = computed({
+  get: () => o.value.replaceLauncherFlags,
+  set: (v: boolean) => {
+    o.value.replaceLauncherFlags = v;
+    o.value.launcherFlagsRaw = undefined;
+  },
+});
+const flagsText = computed({
+  get: () => (flagsKept.value ? "" : o.value.launcherFlags),
+  set: (v: string) => {
+    o.value.launcherFlags = v;
+    o.value.launcherFlagsRaw = undefined;
   },
 });
 </script>
@@ -111,6 +133,27 @@ const retainFilesDisplay = computed({
         <label class="wide"
           >Data path <input v-model="o.datapath" placeholder="<CRAB_ROOT>/data"
         /></label>
+        <label
+          >Launcher
+          <select v-model="o.launcher">
+            <option value="">{{ isGlobal ? "(preset default)" : "(inherit)" }}</option>
+            <option v-for="k in LAUNCHER_KINDS" :key="k" :value="k">{{ k }}</option>
+            <option v-if="launcherIsOther" :value="o.launcher">{{ o.launcher }}</option>
+          </select>
+        </label>
+        <div class="wide flags">
+          <label class="check">
+            <input v-model="replaceFlags" type="checkbox" />
+            Replace the preset's flags
+          </label>
+          <input
+            v-model="flagsText"
+            :disabled="!replaceFlags"
+            :placeholder="flagsKept ? '(kept as loaded)' : 'none'"
+            aria-label="Launcher flags"
+          />
+          <small>Replaces the preset's flags for this launcher; leave empty for none.</small>
+        </div>
       </div>
     </section>
   </div>
@@ -142,8 +185,19 @@ label {
   color: var(--text2);
   font-size: var(--t-sm);
 }
-label.wide {
+label.wide,
+.wide {
   grid-column: 1 / -1;
+}
+.flags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
 }
 small {
   color: var(--text3);
@@ -159,6 +213,13 @@ select {
   padding: 0.35rem 0.5rem;
   font-family: var(--mono);
   font-size: var(--t-md);
+}
+input[type="checkbox"] {
+  padding: 0;
+  accent-color: var(--accent);
+}
+input:disabled {
+  opacity: 0.55;
 }
 input::placeholder {
   color: var(--text3);

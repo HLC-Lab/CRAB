@@ -252,7 +252,19 @@ export interface OptionsDraft {
   extrainfo: string;
   walltime: string;
   datapath: string;
+  // Execution launcher (ADR-033). Empty = no key (the preset's launcher applies).
+  launcher: string;
+  // launcher_flags REPLACES the preset's flags for the launcher kind. Unchecked = key absent,
+  // checked with empty text = [] ("no extra flags"), checked with text = the whitespace tokens.
+  replaceLauncherFlags: boolean;
+  launcherFlags: string;
+  // A launcher_flags value the text field cannot hold (not a list of strings, or a flag that
+  // contains whitespace). Kept as loaded and re-emitted until the user edits the field.
+  launcherFlagsRaw?: unknown;
 }
+
+/** Launcher kinds the engine accepts (LAUNCHER_KINDS in core/execution/settings.py). */
+export const LAUNCHER_KINDS = ["srun", "mpirun", "direct"];
 
 export function emptyOptions(): OptionsDraft {
   return {
@@ -268,6 +280,9 @@ export function emptyOptions(): OptionsDraft {
     extrainfo: "",
     walltime: "",
     datapath: "",
+    launcher: "",
+    replaceLauncherFlags: false,
+    launcherFlags: "",
   };
 }
 
@@ -289,6 +304,10 @@ export function applyOptions(target: Record<string, unknown>, o: OptionsDraft): 
   if (o.outformat) target.outformat = o.outformat;
   if (o.convergeall) target.convergeall = o.convergeall === "true";
   if (o.retainFiles) target.retain_files = o.retainFiles === "true";
+  s("launcher", o.launcher);
+  if (o.launcherFlagsRaw !== undefined) target.launcher_flags = o.launcherFlagsRaw;
+  else if (o.replaceLauncherFlags)
+    target.launcher_flags = o.launcherFlags.split(/\s+/).filter(Boolean);
 }
 
 /** Inverse: read the tunable option fields out of a global/local options object. */
@@ -309,6 +328,14 @@ export function readOptions(src: Record<string, unknown>): OptionsDraft {
   o.outformat = fmt === "csv" ? fmt : ""; // the engine accepts csv only
   o.convergeall = tri(src.convergeall);
   o.retainFiles = tri(src.retain_files);
+  o.launcher = str(src.launcher);
+  if ("launcher_flags" in src) {
+    const flags = src.launcher_flags;
+    o.replaceLauncherFlags = true;
+    if (Array.isArray(flags) && flags.every((f) => typeof f === "string" && /^\S+$/.test(f)))
+      o.launcherFlags = flags.join(" ");
+    else o.launcherFlagsRaw = flags;
+  }
   return o;
 }
 
@@ -614,6 +641,30 @@ export function validateOptions(o: OptionsDraft, where = ""): string[] {
     issues.push(`${at}timeout must be a number (seconds).`);
   if (o.alpha.trim() && !_numeric(o.alpha)) issues.push(`${at}alpha must be a number.`);
   if (o.beta.trim() && !_numeric(o.beta)) issues.push(`${at}beta must be a number.`);
+  issues.push(...validateLauncher(o, at));
+  return issues;
+}
+
+// Mirrors _has_token in core/config_checks.py: a "{" anywhere means SbatchMan substitutes later.
+function hasBrace(v: unknown): boolean {
+  if (typeof v === "string") return v.includes("{");
+  if (Array.isArray(v)) return v.some(hasBrace);
+  if (v !== null && typeof v === "object") return Object.values(v).some(hasBrace);
+  return false;
+}
+
+/** Mirrors _check_launcher_options in core/config_checks.py. */
+function validateLauncher(o: OptionsDraft, at: string): string[] {
+  const issues: string[] = [];
+  if (o.launcher.trim() && !hasBrace(o.launcher) && !LAUNCHER_KINDS.includes(o.launcher.trim()))
+    issues.push(
+      `${at}launcher '${o.launcher.trim()}' must be one of ${LAUNCHER_KINDS.join(", ")}.`,
+    );
+  const raw = o.launcherFlagsRaw;
+  if (raw !== undefined && !hasBrace(raw)) {
+    if (!Array.isArray(raw) || !raw.every((f) => typeof f === "string"))
+      issues.push(`${at}launcher_flags must be a list of strings.`);
+  }
   return issues;
 }
 
