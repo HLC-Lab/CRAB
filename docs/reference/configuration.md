@@ -60,7 +60,7 @@ is refused before anything runs, with a hint to run `crab update`.
     Values CRAB would otherwise misread are errors before the job starts: `convergeall`,
     `retain_files` and `collect` must be `true` or `false` (the strings `"true"` and `"false"` are
     accepted too), `outformat` must be `csv`, allocation `mode`s must be one of `linear`,
-    `interleaved` or `random`, and every app needs a `path`.
+    `interleaved`, `random` or `shared`, and every app needs a `path`.
 
     The launcher options and the preset are checked too. These are errors:
 
@@ -87,7 +87,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `numnodes` | int | **required** | Total nodes to allocate for the Slurm job. |
+| `numnodes` | int | **required** | Total nodes: allocated for the Slurm job, or the first `numnodes` hosts of a local preset. |
 | `ppn` | int | `1` | Processes per node. Drives the launcher's total task count. |
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
 | `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
@@ -103,7 +103,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `tags` | string | `none` | Free-form label recorded in the run registry (`metadata.csv`). |
 | `launcher` | string | the preset's `launcher` | How each application starts: `"srun"`, `"mpirun"` or `"direct"`. See [Presets](presets.md). |
 | `launcher_flags` | list of strings | the preset's flags for that launcher | Replaces the preset's flags for the chosen launcher; `[]` means no extra flags. |
-| `walltime` | string | `00:10:00` | Base Slurm `--time` value (overridable via `sbatch_directives`). |
+| `walltime` | string | `00:10:00` | The job's time limit, in the formats of Slurm's `--time`. Under Slurm it is the base `--time` value (overridable via `sbatch_directives`). Under a local preset CRAB enforces it itself and ends the job `TIMEOUT`; see [Running without Slurm](../using/running-without-slurm.md#walltime). |
 | `extrainfo` | string | `job` | Short token used to build the Slurm job name. |
 | `sbatch_directives` | list \| dict | `[]` | User Slurm directives. See [sbatch directives](#sbatch-directives). |
 
@@ -132,6 +132,7 @@ All allocation config lives under a single `allocation` key. The minimal form is
 | `"linear"` (default) | Each app (or partition) gets a contiguous block of nodes. |
 | `"interleaved"` | Nodes are dealt round-robin; supports an optional `stride` (default `1`). |
 | `"random"` | Node list is shuffled (optionally with `seed`), then split linearly. |
+| `"shared"` | Every app gets all the nodes, so the apps run together on the same hosts. See [Shared nodes](#shared-nodes). |
 
 **`split`** — percentage share per app (omit for an equal split). An app that runs on another
 app's nodes (a chained app, see [Scheduling](#scheduling-start-and-end)) takes no share: give one
@@ -164,6 +165,67 @@ value per remaining app, in app order.
 |-----------|-----------|---------|
 | `stride` | `"interleaved"` | Nodes assigned per turn (default `1`). |
 | `seed` | `"random"` | Integer seed for the shuffle; omit for non-deterministic. |
+
+### Shared nodes
+
+By default each app gets nodes of its own. With `mode: "shared"` every app gets **all** the nodes
+of its scope instead, so the apps run at the same time on the same hosts. That measures
+interference inside a node: the apps compete for memory bandwidth, caches and the network card.
+The `cores` key says how they share the cores:
+
+```json
+"allocation": { "mode": "shared", "cores": "disjoint" }
+```
+
+| `cores` | Behaviour |
+|---------|-----------|
+| `"disjoint"` (default) | Apps on the same nodes run on different cores. |
+| `"shared"` | Apps may run on the same cores, so the result measures how the operating system schedules them as much as the hardware. CRAB warns about it. |
+
+**Where it applies.** `mode: "shared"` goes at the top level of `allocation` when there are no
+`partitions`, or inside one partition, which then holds two or more apps (a partition with one
+app gives it all of its nodes whatever its `mode`). `cores` sits next to it, in the same scope. A
+chained app (`start: "sN"`) already runs on its head's nodes and its cores.
+
+These are errors, reported before anything is submitted:
+
+- `split`, `stride` or `seed` next to `mode: "shared"` (every app gets all the nodes);
+- `mode: "shared"` at the top level together with `partitions` (the top-level mode lays out the
+  partition blocks); put `mode: "shared"` inside a partition instead;
+- `cores` with any `mode` other than `"shared"`;
+- a `cores` value other than `"disjoint"` or `"shared"`.
+
+**Which cores each app gets.** CRAB decides this before the job starts, from the apps' [`cpus`
+lists](#core-lists-and-environment-per-app-cpus-and-env) and the allocation's `cores`:
+
+- An app with `cpus` is bound to exactly those cores, on every host it runs on.
+- With `cores: "disjoint"` on a **local** preset, apps that have no `cpus` are split
+  automatically. In app order they get consecutive blocks of `ppn` cores that no other app of the
+  group uses, counted from core 0 of the host and skipping the cores that some `cpus` list
+  names. A host's core count is the one in the preset's `hosts`, or this machine's CPU count for a
+  bare `localhost`; with several hosts the smallest count is used. CRAB warns that this split
+  ignores NUMA and NIC locality: set `cpus` per app to control it.
+- With `cores: "shared"`, nothing is split. An app with `cpus` is still bound to them, and the
+  lists may overlap. An app without `cpus` is left unbound (`mpirun` is told not to bind it), so
+  that two launches do not both pile onto the first cores of the node.
+- Under Slurm there is no automatic split, and CRAB adds no co-run flags to `srun`: apps that
+  share nodes get `srun`'s defaults. Pin them with `launchers.srun.flags` or `launcher_flags` if
+  you need to.
+
+Binding is done by the `mpirun` launcher (the exact flags are in the
+[presets reference](presets.md#the-mpirun-launcher)). The `srun` launcher does not translate
+`cpus` into `srun` options, and the `direct` launcher does not bind.
+
+These are errors, reported before anything is submitted:
+
+- two apps that run on the same nodes at the same time, with `cores: "disjoint"`, whose `cpus`
+  lists share a core (the message names the core); give each its own cores or set `cores` to
+  `"shared"`;
+- apps without `cpus` that need more cores than the host has left, with `cores: "disjoint"` on a
+  local preset (for example three apps with `ppn` 8 on a host of 16 cores): lower `ppn`, use
+  fewer apps, or set `cpus`;
+- `cpus` under Slurm when `--exclusive` is not among the `sbatch_directives` or the preset's
+  `sbatch` (without it the cores are not yours alone).
 
 ## `experiments`
 
@@ -202,12 +264,44 @@ application:
 | `start` | string | `"0"` | When to start the app. See [Scheduling](#scheduling-start-and-end). |
 | `end` | string | `""` | When to stop the app. See [Scheduling](#scheduling-start-and-end). |
 | `partition` | string | — | (partitioned allocation) The named partition this app belongs to, e.g. `"victim"` or `"aggressor"`. Must match a key in `allocation.partitions`. |
+| `cpus` | string | — | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
+| `env` | object | `{}` | Environment variables set for this app's ranks only. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 
 !!! tip "Extra keys become wrapper attributes"
-    Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end` or
-    `partition` (including `binary`) is injected as an attribute onto the
+    Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end`,
+    `partition`, `cpus` or `env` (including `binary`) is injected as an attribute onto the
     wrapper instance. This lets a wrapper accept custom configuration straight from the JSON
     without framework changes.
+
+### Core lists and environment per app (`cpus` and `env`)
+
+**`cpus`** is a string of comma-separated items, each a core number `N` or a range `A-B` with
+`A` not above `B`: `"0-15,32"`, `"4"`, `"0-3, 8-11"`. The cores are sorted, and a core listed
+twice is an error. It must list at least `ppn` cores (one per rank), and the same list is used on
+every host the app runs on. The `mpirun` launcher binds the ranks to it; see
+[Shared nodes](#shared-nodes) for how it combines with `allocation`, for the automatic split of
+apps without one, and for what the `srun` and `direct` launchers do with it. Other errors:
+
+- `cpus` on an app with `start: "sN"`: it runs on the cores of the app it waits for, so set
+  `cpus` there;
+- `cpus` under Slurm without `--exclusive` among the `sbatch_directives` or the preset's `sbatch`.
+
+**`env`** is an object of strings. Each key has to be a valid shell variable name (letters, digits
+and underscores, not starting with a digit), and may not be one of the removed `CRAB_*` launch
+keys listed in the [presets reference](presets.md#removed-keys). The app's launch script exports
+the variables just before the launch line, so they reach that app's ranks and no other app's, and
+they win over a variable of the same name in the preset's `env`. A value is exported as written,
+without shell expansion. With `mpirun` on Open MPI, CRAB also names these variables in `-x` so
+that remote ranks receive them; Hydra passes the whole environment.
+
+```json
+"0": {
+  "path": "blink/a2a_comm_only.py",
+  "collect": true,
+  "cpus": "0-3",
+  "env": { "OMP_NUM_THREADS": "1" }
+}
+```
 
 ## Scheduling (`start` and `end`)
 

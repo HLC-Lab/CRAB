@@ -115,8 +115,8 @@ launcher of its own through its [receipt](../extending/receipts.md).
 
 ## Running without Slurm
 
-For trying CRAB on a laptop or workstation, a preset can skip Slurm. This is the shipped `local`
-preset:
+For trying CRAB on a laptop or workstation, or on a few machines reached over `ssh`, a preset can
+skip Slurm. This is the shipped `local` preset:
 
 ```json
 "local": {
@@ -127,12 +127,33 @@ preset:
 ```
 
 `"scheduler": "local"` starts the job as a detached process on this machine, and `"launcher":
-"mpirun"` starts each application with `mpirun`. An MPI must be installed: `mpirun` has to be on
-the `PATH`, and CRAB reads `mpirun --version` to tell Open MPI 4 or 5 from MPICH. The job runs on
-the first `numnodes` entries of the preset's `hosts`, which default to `localhost`. For a single
-process (`ppn` 1, `numnodes` 1) you can set `"launcher": "direct"`, which runs each application's
-command as is, with no MPI needed. The `srun` launcher needs Slurm, so it is refused under
-`local`. Request the preset with `-p local`; CRAB never falls back to it on its own.
+"mpirun"` starts each application with `mpirun`. Request the preset with `-p local`; CRAB never
+falls back to it on its own. Hosts, job ids, walltime, exclusive hosts and the caveat about
+logging out are on the page [Running without Slurm](running-without-slurm.md).
+
+## Module flow
+
+Three places can load modules or set variables, and they run at different moments:
+
+1. **The preset's `header`.** Under Slurm its lines are written once, at the top of the batch
+   script `crab_job.sh`, after the `#SBATCH` directives. They run before `crab worker` starts, so
+   the worker and every application it starts inherit what they set.
+2. **The receipt's `pre_run` hooks.** CRAB writes a small script for each application launch,
+   `<run dir>/.wrappers/app_<id>.sh`. It sources `/etc/profile.d/modules.sh` when that file exists,
+   runs the receipt's `pre_run` hooks, then exports the application's own
+   [`env`](../reference/configuration.md#the-apps-block) variables.
+3. **The launcher.** The last line of that script is the launch line, which starts the application
+   with `srun`, `mpirun` or as is.
+
+With `mpirun` on several hosts, the remote ranks are started by `mpirun` over `ssh` and do not run
+that script. They get the environment variables `mpirun` forwards (see
+[the mpirun launcher](../reference/presets.md#the-mpirun-launcher)), so a module that sets other
+variables has to be named in `launchers.mpirun.export`.
+
+Under the local scheduler there is no batch script, so `header` does not apply (and neither do
+`sbatch` and `sbatch_directives`). The job's worker inherits the environment of the shell that ran
+`crab run`: load modules there, or in the receipt's `pre_run` hooks, which apply under every
+scheduler.
 
 ## Selecting your preset
 

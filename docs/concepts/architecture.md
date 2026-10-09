@@ -32,18 +32,26 @@ flowchart TD
     F -->|"results"| C
 ```
 
+The diagram shows the Slurm path; the local scheduler skips the queue, as step 4 below says.
+
 **Phase 1 — Orchestrator** (`Engine._run_orchestrator`, runs on the login node):
 
 1. Loads the selected **preset** and merges its environment, Slurm directives, and shell header.
 2. Loads all benchmark **receipts** (and injects each as a `CRAB_PATH_<ID>` environment variable).
-3. Creates a timestamped data directory and writes `config.json` + `environment.json` into it.
-4. Generates `crab_job.sh` with the computed `#SBATCH` headers.
-5. Submits it with `sbatch`. The job's payload is `crab worker --workdir <data_dir>`.
+3. Creates a timestamped data directory and writes `config.json`, `environment.json` and
+   `execution.json` (the preset's scheduler, launcher and hosts) into it.
+4. Under the `slurm` scheduler, generates `crab_job.sh` with the computed `#SBATCH` headers and
+   submits it with `sbatch`. Under the `local` scheduler there is no batch script: it starts a
+   detached supervisor process that runs the worker on this machine (see
+   [Running without Slurm](../using/running-without-slurm.md)).
+
+The job's payload is `crab worker --workdir <data_dir>` in both cases.
 
 **Phase 2 — Worker** (`Engine._run_worker`, runs on the allocated compute nodes):
 
 1. Reads `config.json` / `environment.json` back from the data directory.
-2. Injects the framework environment and expands `$SLURM_NODELIST` into a concrete node list.
+2. Injects the framework environment and takes the node list: under Slurm it expands
+   `$SLURM_NODELIST`, under the local scheduler it is the first `numnodes` hosts of the preset.
 3. Runs each experiment in turn through an `ExperimentRunner`.
 
 !!! info "The handoff is the filesystem"
@@ -135,6 +143,8 @@ field in `global_options` (or per-experiment `local_options`):
 - **`"interleaved"`** — nodes dealt round-robin; an optional `stride` controls how many
   consecutive nodes are assigned per turn.
 - **`"random"`** — node list shuffled (with optional `seed`) before splitting linearly.
+- **`"shared"`**: every application gets all the nodes and they run together on the same hosts;
+  see [Shared nodes](../reference/configuration.md#shared-nodes).
 - **Partitioned** — add a `partitions` dict to split nodes into named groups (e.g. `"victim"` /
   `"aggressor"`), each with a `share` percentage; each app declares which group it belongs to via
   its `partition` field. Independent mode and split can be applied within each partition.
@@ -143,9 +153,11 @@ field in `global_options` (or per-experiment `local_options`):
 
 Results are written under `data/<CRAB_SYSTEM>/<name>_<timestamp>/`:
 
-- Run-level provenance: `config.json`, `environment.json`, `crab_job.sh`, `slurm_output.log`,
-  `slurm_error.log`.
-- Per experiment: `<experiment>/data_app_<id>.csv` (or `.h5`), `error_app_<id>.log`, and per-run
+- Run-level provenance: `config.json`, `environment.json`, `execution.json`, `crab_run.json`,
+  `slurm_output.log` and `slurm_error.log` (both schedulers write these two names), and under
+  Slurm `crab_job.sh`.
+- Per experiment: `<experiment>/data_app_<id>.csv` (or `.h5`), `error_app_<id>.log`,
+  `bindings_app_<id>.log` for applications started with `mpirun`, and per-run
   `run_<n>/.wrappers/` launch scripts.
 - A system-level `metadata.csv` registry, appended atomically with file locking so concurrent
   CRAB jobs on a shared filesystem don't corrupt it.

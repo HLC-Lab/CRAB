@@ -52,6 +52,13 @@ under one node allocation and schedule, repeated across [runs](#run) until
 [convergence](#convergence). A single config can define multiple experiments (the `experiments`
 block), executed one after another by the [worker](#worker).
 
+### Host list
+
+The machines a [local](#scheduler) preset runs on, written in the preset's `hosts` field (or read
+from a `hostfile`) as `"name"` or `"name:cores"`. A job uses the first `numnodes` of them, in
+order. Under Slurm there is no host list: Slurm picks the nodes. See
+[Running without Slurm](using/running-without-slurm.md).
+
 ### Job
 
 The top-level container: a single `crab run` invocation — one config file, submitted as one
@@ -124,18 +131,18 @@ What runs the [job](#job) itself, chosen by the preset's `scheduler` field. `slu
 (no Slurm needed). It is separate from the [launcher](#launcher), which starts each application
 inside the job.
 
+### Shared mode
+
+An [allocation](reference/configuration.md#shared-nodes) with `mode: "shared"`, in which every
+[application](#application) of a scope gets all of its nodes, so the apps run at the same time on
+the same hosts. Its `cores` key, `"disjoint"` (the default) or `"shared"`, says whether they run
+on separate cores or may compete for the same ones.
+
 ### Victim
 
 An application that **is being measured**. Marked with `end: ""` — CRAB waits for it to finish
 naturally. The metrics of interest come from victims; [aggressors](#aggressor) exist only to
 perturb them.
-
-### Workload manager (WL manager)
-
-The older name for the launch settings, from when they were `CRAB_*` variables in the
-preset's `env`. A preset now states them as two fields: the [scheduler](#scheduler) and the
-[launcher](#launcher). CRAB no longer reads those variables; see the
-[removed keys](reference/presets.md#removed-keys).
 
 ### Wrapper
 
@@ -147,5 +154,5 @@ to **launch** a specific application and **parse** its output into metrics. The
 ### Worker
 
 The second execution phase (`Engine._run_worker`), running on the allocated compute nodes inside
-the Slurm job. It reads back the config the [orchestrator](#orchestrator) wrote and runs each
-experiment. Invoked as the hidden `crab worker` subcommand — never called by hand.
+the Slurm job (under the local scheduler, as a background process on this machine). It reads
+back the config the [orchestrator](#orchestrator) wrote and runs each experiment. Invoked as the hidden `crab worker` subcommand — never called by hand.
