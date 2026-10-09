@@ -10,7 +10,7 @@
         "outformat": "csv",
         "extrainfo": "concurrent_collectives_stress_local",
         "allocation": {
-            "mode": "linear"
+            "mode": "shared"
         }
     },
     "experiments": {

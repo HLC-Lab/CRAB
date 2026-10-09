@@ -86,11 +86,9 @@ def test_legacy_applications_form_is_checked_too() -> None:
         Engine(logger=MagicMock()).run(config=config, environment={}, is_worker=False)
 
 
-# Examples that fail at launch today ("0 allocated nodes"). Remove an entry when its cause is
-# fixed; strict xfail flags a stale one.
-_KNOWN_BROKEN: dict[str, str] = {
-    "examples/local/concurrent_collectives_stress.json": "4 concurrent apps on 1 node",
-}
+# Examples known to fail at launch; none today. Add an entry with its cause, and remove it when
+# the cause is fixed (a strict xfail flags a stale entry).
+_KNOWN_BROKEN: dict[str, str] = {}
 
 
 def _example_params():
@@ -107,6 +105,27 @@ def test_every_shipped_example_passes_the_checks(path: Path) -> None:
     from crab.core.config_checks import check_config
 
     check_config(json.loads(path.read_text()))
+
+
+def _local_preset_settings():
+    from crab.core.execution.settings import from_preset
+
+    presets = json.loads((REPO / "config" / "presets.json").read_text())
+    body = dict(presets["local"])
+    body["env"] = {**presets["_common"].get("env", {}), **body.get("env", {})}
+    return from_preset(body, "local")
+
+
+@pytest.mark.parametrize(
+    "path",
+    sorted((REPO / "examples" / "local").glob("*.json")),
+    ids=lambda p: p.name,
+)
+def test_local_examples_fit_the_local_preset(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from crab.core.config_checks import check_config
+
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    check_config(json.loads(path.read_text()), _local_preset_settings())
 
 
 # --- Allocations --------------------------------------------------------------------------
