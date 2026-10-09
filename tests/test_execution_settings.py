@@ -327,6 +327,29 @@ def test_launcher_flags_replace_the_chosen_kinds_flags() -> None:
     assert chosen.flags == ("--y",)
 
 
+def test_mpirun_export_is_the_preset_export_then_path_then_env_keys() -> None:
+    settings = from_preset(
+        {
+            "scheduler": "local",
+            "launchers": {"mpirun": {"export": ["UCX_TLS", "PATH"]}},
+            "env": {"CRAB_IB_DEVICES": "x", "UCX_TLS": "rc", "OMP_NUM_THREADS": "1"},
+        },
+        "e",
+    )
+    spec = resolve_launcher(settings, {"launcher": "mpirun"}, None)
+    assert spec.export == (
+        "UCX_TLS",
+        "PATH",
+        "LD_LIBRARY_PATH",
+        "CRAB_IB_DEVICES",
+        "OMP_NUM_THREADS",
+    )
+    # An mpirun the receipt switched to gets the same set; srun and direct carry none.
+    assert resolve_launcher(SLURM, {}, "mpirun").export == ("A", "PATH", "LD_LIBRARY_PATH")
+    assert resolve_launcher(SLURM, {}, None).export == ()
+    assert resolve_launcher(SLURM, {"launcher": "direct"}, None).export == ()
+
+
 def test_receipt_switch_keeps_the_preset_flags() -> None:
     switched = resolve_launcher(SLURM, {"launcher_flags": ["--x"]}, "mpirun")
     assert switched.kind == "mpirun"
@@ -335,7 +358,7 @@ def test_receipt_switch_keeps_the_preset_flags() -> None:
 
 def test_specs_carry_the_preset_values() -> None:
     assert resolve_launcher(SLURM, {"launcher": "mpirun"}, None) == LauncherSpec(
-        "mpirun", ("/o/mpirun",), "hydra", ("-x",), ("A",)
+        "mpirun", ("/o/mpirun",), "hydra", ("-x",), ("A", "PATH", "LD_LIBRARY_PATH")
     )
     assert resolve_launcher(SLURM, {}, None) == LauncherSpec(
         "srun", ("srun",), "", ("--cpu-bind=socket",), ()

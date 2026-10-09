@@ -1,12 +1,14 @@
 import os
+import shlex
 import signal
 import subprocess
 import threading
 import time
 from pathlib import Path
 
-from crab.core.execution.launcher import Placement, launch_line, launcher_for
+from crab.core.execution.launcher import MpirunLauncher, Placement, launch_line, launcher_for
 from crab.core.execution.settings import LauncherSpec
+from crab.core.provenance import record_launch
 from crab.log import CrabLogger
 
 # How long stop_processes waits after SIGTERM before it sends SIGKILL (ADR-034, "Cancel order").
@@ -173,6 +175,11 @@ def run_job(
 ):
     """
     Launch an application process under the launcher `spec` describes, through a wrapper script.
+
+    A job that has `exp_dir` (the experiment directory, set by the runner for every run) gets its
+    first launch recorded in the job directory's `crab_run.json`, and under mpirun its stderr
+    teed into `<exp_dir>/bindings_app_<id>.log` (the launch record is keyed by `config_key`, the app's
+    key in the experiment's `apps`, else its id) with a `# run <n>` header when `run_number` is set.
     """
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
@@ -185,11 +192,31 @@ def run_job(
         )
 
     # 1. Build the launch line for the job's hosts
+    launcher = launcher_for(spec)
     cmd_string = launch_line(
-        launcher_for(spec),
+        launcher,
         Placement(tuple(job.node_list), ppn),
         app_command,
     )
+
+    # The binding report is mpirun's stderr, kept in the experiment directory: a run directory
+    # that holds nothing else is deleted after its run, and with retain_files false all of it is.
+    exp_dir = getattr(job, "exp_dir", None)
+    bindings_path = None
+    if exp_dir and isinstance(launcher, MpirunLauncher):
+        bindings_path = os.path.join(exp_dir, f"bindings_app_{job.id_num}.log")
+    if exp_dir:
+        record_launch(
+            os.path.dirname(exp_dir),
+            os.path.basename(exp_dir),
+            str(getattr(job, "config_key", job.id_num)),
+            {
+                "line": cmd_string,
+                "kind": spec.kind,
+                "dialect": launcher.dialect if isinstance(launcher, MpirunLauncher) else None,
+                "binding_report": bindings_path,
+            },
+        )
 
     # 2. Write the Execution Wrapper
     # Route the scripts into the isolated run directory to preserve provenance
@@ -211,7 +238,15 @@ def run_job(
                 f.write(f"{cmd}\n")
 
         f.write("\n# Execute workload\n")
-        f.write(f"{cmd_string}\n")
+        if bindings_path:
+            quoted = shlex.quote(bindings_path)
+            run_number = getattr(job, "run_number", None)
+            if run_number is not None:
+                f.write(f'echo "# run {int(run_number)}" >> {quoted}\n')
+            # The app's stderr still reaches CRAB: tee copies it to the log and back to stderr.
+            f.write(f"{cmd_string} 2> >(tee -a {quoted} >&2)\n")
+        else:
+            f.write(f"{cmd_string}\n")
 
     # 3. Execute the physical script as a clean subprocess.
     # start_new_session=True puts bash in its own process group so that

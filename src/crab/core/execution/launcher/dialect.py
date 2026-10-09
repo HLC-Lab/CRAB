@@ -16,6 +16,7 @@ _HINT = "Set launchers.mpirun.command to an Open MPI or MPICH mpirun, or use sru
 _OPEN_MPI = re.compile(r"\((?:Open MPI|OpenRTE)\)\s+(\d+)\.(\d+)\.(\d+)")
 
 _cache: dict[str, Dialect] = {}
+_outputs: dict[str, str] = {}
 
 
 def parse_version_output(text: str, exit_code: int = 0) -> Dialect:
@@ -92,9 +93,16 @@ def probe(command: str, runner: Callable[[list[str]], tuple[str, int]] | None = 
         ) from None
     found = parse_version_output(text, code)
     _cache[command] = found
+    _outputs[command] = text
     return found
+
+
+def probe_output(command: str) -> str | None:
+    """The raw `--version` text `probe` saw for `command`, or None if it was never probed."""
+    return _outputs.get(command)
 
 
 def clear_cache() -> None:
     """Forget every probed command (for tests)."""
     _cache.clear()
+    _outputs.clear()

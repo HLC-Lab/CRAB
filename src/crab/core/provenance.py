@@ -14,6 +14,8 @@ import subprocess
 from typing import Any
 
 import crab
+from crab.core.execution.launcher import dialect
+from crab.core.execution.settings import ExecutionSettings
 from crab.core.wrapper_paths import resolve_wrapper_path
 from crab.wrappers.base import base
 
@@ -49,7 +51,36 @@ def _sha256(path: str) -> str | None:
         return None
 
 
-def build_provenance(config: dict[str, Any], nodes: list[str]) -> dict[str, Any]:
+def _execution_block(settings: ExecutionSettings, nodes: list[str]) -> dict[str, Any]:
+    """How the job runs: scheduler, hosts and the mpirun command with its dialect and version.
+
+    The mpirun command is probed (`mpirun --version`) only when the preset's default launcher is
+    mpirun and its dialect is `auto`; a failed probe is recorded and never fails the job.
+    """
+    spec = settings.mpirun
+    command = spec.command[0]
+    mpirun: dict[str, Any] = {"command": command, "dialect": spec.dialect, "version": None}
+    if settings.launcher == "mpirun" and spec.dialect == "auto":
+        try:
+            mpirun["dialect"] = dialect.probe(command)
+        except ValueError as error:
+            mpirun["dialect"] = None
+            mpirun["probe_error"] = str(error)
+        else:
+            text = dialect.probe_output(command)
+            lines = text.strip().splitlines() if text else []
+            mpirun["version"] = lines[0] if lines else None
+    return {
+        "scheduler": settings.scheduler,
+        "hosts_used": list(nodes),
+        "launcher": settings.launcher,
+        "mpirun": mpirun,
+    }
+
+
+def build_provenance(
+    config: dict[str, Any], nodes: list[str], settings: ExecutionSettings | None = None
+) -> dict[str, Any]:
     wrappers_dir = _wrappers_dir()
     commit = _git(wrappers_dir, "rev-parse", "HEAD")
     status = _git(wrappers_dir, "status", "--porcelain", "--", ".") if commit else None
@@ -60,7 +91,7 @@ def build_provenance(config: dict[str, Any], nodes: list[str]) -> dict[str, Any]
             path = os.path.abspath(resolve_wrapper_path(str(app.get("path", ""))))
             apps.setdefault(exp_name, {})[str(app_key)] = {"path": path, "sha256": _sha256(path)}
 
-    return {
+    provenance: dict[str, Any] = {
         "results_schema": RESULTS_SCHEMA,
         "crab_version": crab.__version__,
         "crab_commit": _git(_CRAB_ROOT, "rev-parse", "HEAD"),
@@ -74,9 +105,39 @@ def build_provenance(config: dict[str, Any], nodes: list[str]) -> dict[str, Any]
         },
         "apps": apps,
     }
+    if settings is not None:
+        provenance["execution"] = _execution_block(settings, nodes)
+    return provenance
 
 
-def write_provenance(job_dir: str, config: dict[str, Any], nodes: list[str]) -> None:
-    """Write `<job_dir>/crab_run.json` for this job."""
+def write_provenance(
+    job_dir: str,
+    config: dict[str, Any],
+    nodes: list[str],
+    settings: ExecutionSettings | None = None,
+) -> None:
+    """Write `<job_dir>/crab_run.json` for this job (with its `execution` block given settings)."""
     with open(os.path.join(job_dir, "crab_run.json"), "w") as f:
-        json.dump(build_provenance(config, nodes), f, indent=2)
+        json.dump(build_provenance(config, nodes, settings), f, indent=2)
+
+
+def record_launch(job_dir: str, experiment: str, app_id: str, record: dict[str, Any]) -> None:
+    """Add `record` under `launches[experiment][app_id]` of `<job_dir>/crab_run.json`.
+
+    Only the first launch of an app is kept. A missing or unreadable file is skipped: this is
+    provenance, and must never fail a run.
+    """
+    path = os.path.join(job_dir, "crab_run.json")
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        launches = data.setdefault("launches", {}).setdefault(experiment, {})
+        if app_id in launches:
+            return
+        launches[app_id] = record
+        tmp = f"{path}.tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, path)
+    except (OSError, ValueError, AttributeError, TypeError):
+        return

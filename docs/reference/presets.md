@@ -12,7 +12,7 @@ A single JSON object. Each top-level key is a preset name, plus the special `_co
 {
     "_common":  { "description": "...", "env": { ... }, "sbatch": [ ... ], "header": [ ... ] },
     "leonardo": { "description": "...", "scheduler": "slurm", "launcher": "srun", ... },
-    "local":    { "description": "...", "scheduler": "local", "launcher": "direct", ... }
+    "local":    { "description": "...", "scheduler": "local", "launcher": "mpirun", ... }
 }
 ```
 
@@ -49,13 +49,22 @@ A few details:
 
 - Under `slurm`, `hosts`, `hostfile` and `exclusive` are errors: Slurm picks the nodes.
 - Give `hosts` or `hostfile`, not both. Host names must be distinct.
-- CRAB reads and validates `hosts`, `hostfile` and `exclusive`, but the Local scheduler runs
-  every job on this machine (`localhost`) today, whatever hosts are listed.
-- `launchers.mpirun.dialect` and `launchers.mpirun.export` are validated and recorded with the
-  job, but the `mpirun` line is not built from them yet.
+- Under `local`, a job runs on the first `numnodes` hosts of `hosts` (or of `hostfile`). A config
+  that asks for more nodes than the preset has hosts is refused. Without either field the only
+  host is `localhost`.
+- With `mpirun`, `launchers.mpirun.dialect` picks the host syntax below; `"auto"` reads
+  `mpirun --version` and supports Open MPI 4 and 5 and MPICH (Hydra). Open MPI names the variables
+  it forwards with `-x`; Hydra passes the whole environment.
+- Remote ranks receive the names in `launchers.mpirun.export`, `PATH`, `LD_LIBRARY_PATH`, the keys
+  of the preset's `env` and every `CRAB_*` variable, as far as they are set when the application
+  starts. A multi-host local run starts the remote ranks over `ssh`, so the hosts need
+  passwordless `ssh` between them and the same software at the same paths.
 - The launch lines are:
     - `srun`: `srun --export=ALL --nodelist <hosts> <flags> -n <ranks> -N <hosts>`
-    - `mpirun`: `<command> <flags> -np <ranks>` (inside a Slurm job `mpirun` finds the nodes itself)
+    - `mpirun`: `<command> -n <ranks> <hosts> [-x NAME ...] <flags>`, with `<hosts>` being
+      `-H h,h,...` (Open MPI 4, a host repeated once per rank slot), `--host h:N,...` (Open MPI 5)
+      or `-hosts h:N,...` (Hydra), where `N` is the ranks per host; inside a Slurm job the list
+      stays within the allocation
     - `direct`: the application command, unchanged
 - A receipt's `launcher_override` can switch one benchmark to `srun` or `mpirun`; see
   [Receipts](../extending/receipts.md).
@@ -75,7 +84,7 @@ A Slurm preset and a local one, from the shipped file:
 "local": {
     "description": "Local (no Slurm, dev/testing only)",
     "scheduler": "local",
-    "launcher": "direct"
+    "launcher": "mpirun"
 }
 ```
 

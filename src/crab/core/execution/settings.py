@@ -283,6 +283,13 @@ def resolve_launcher(
     if kind == "direct":
         return LauncherSpec("direct", (), "", (), ())
     spec = settings.srun if kind == "srun" else settings.mpirun
+    if kind == "mpirun":
+        # The variables remote ranks need to see the same software; `launcher_for` keeps the
+        # ones set in the launching environment.
+        names = (*spec.export, "PATH", "LD_LIBRARY_PATH", *settings.env)
+        spec = LauncherSpec(
+            spec.kind, spec.command, spec.dialect, spec.flags, tuple(dict.fromkeys(names))
+        )
     if flags is not None and kind == chosen:
         return LauncherSpec(spec.kind, spec.command, spec.dialect, flags, spec.export)
     return spec

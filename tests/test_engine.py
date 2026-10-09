@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from crab.core.engine import Engine
 from crab.core.execution.scheduler.slurm import SlurmScheduler
-from crab.core.execution.settings import from_json, to_json
+from crab.core.execution.settings import from_json, from_preset, to_json
 from settings_fixtures import LOCAL_DIRECT, slurm_settings
 
 
@@ -470,6 +470,32 @@ class TestLocalScheduler(unittest.TestCase):
             self.assertIs(call.kwargs["settings"], LOCAL_DIRECT)
 
 
+class TestWorkerNodeList(unittest.TestCase):
+    def _runner_node_list(self, settings, numnodes):
+        engine = _make_engine()
+        config = {"global_options": {"numnodes": numnodes}, "experiments": {"a": {"apps": {}}}}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("crab.core.engine.write_provenance"),
+                patch("crab.core.engine.time.sleep"),
+                patch("crab.core.engine.ExperimentRunner") as mock_runner,
+            ):
+                engine._run_worker(config, {}, tmpdir, settings=settings)
+        return mock_runner.call_args.kwargs["node_list"]
+
+    def test_local_worker_uses_the_first_numnodes_hosts(self):
+        settings = from_preset(
+            {"scheduler": "local", "hosts": ["h1:4", "h2:4", "h3:4"]}, "three-hosts"
+        )
+        self.assertEqual(self._runner_node_list(settings, 2), ["h1", "h2"])
+        self.assertEqual(self._runner_node_list(settings, "3"), ["h1", "h2", "h3"])
+
+    def test_slurm_worker_keeps_the_whole_allocation(self):
+        with patch.object(SlurmScheduler, "node_list", return_value=["a", "b", "c"]):
+            node_list = self._runner_node_list(slurm_settings(), 1)
+        self.assertEqual(node_list, ["a", "b", "c"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -491,3 +517,17 @@ class TestFailedExperimentsFailTheJob(unittest.TestCase):
                     engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
         self.assertIn("2 of 2 experiments failed: a_first, b_second", str(ctx.exception))
         engine.log.info.assert_any_call("Starting experiment [2/2]: b_second")
+
+
+class TestWorkerWritesProvenanceWithSettings(unittest.TestCase):
+    def test_write_provenance_gets_the_node_list_and_the_settings(self):
+        engine = _make_engine()
+        config = {"global_options": {}, "experiments": {"a": {"apps": {}}}}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch("crab.core.engine.write_provenance") as write,
+                patch("crab.core.engine.time.sleep"),
+                patch("crab.core.engine.ExperimentRunner"),
+            ):
+                engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
+        write.assert_called_once_with(tmpdir, config, ["localhost"], LOCAL_DIRECT)

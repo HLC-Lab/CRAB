@@ -16,6 +16,10 @@ _PRESETS_PATH = Path(__file__).resolve().parents[1] / "config" / "presets.json"
 _NOT_EXECUTION_PRESETS = ("_common", "example_preset")
 _SLIMFLY_MPIRUN = "/scratch/2/t2hx/dep/openmpi/bin/mpirun"
 
+_PROBED = {"local": "openmpi5"}
+# The local preset runs on its own host; the others are given a node name.
+_NODE = {"local": "localhost"}
+
 _LAUNCH_LINES = {
     "alps": "srun --export=ALL --nodelist n1 --cpu-bind=map_cpu=1,73,145,217 -n 1 -N 1 ./app",
     "cluster_di": "srun --export=ALL --nodelist n1 -n 1 -N 1 ./app",
@@ -25,11 +29,13 @@ _LAUNCH_LINES = {
     "cresco8": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nanjing": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "slimfly": (
-        f"{_SLIMFLY_MPIRUN} -n 1 -H n1 -mca plm_rsh_no_tree_spawn 1 --map-by node "
+        # binding report always on since C4
+        f"{_SLIMFLY_MPIRUN} -n 1 -H n1 --report-bindings -mca plm_rsh_no_tree_spawn 1 --map-by node "
         "-mca btl openib,self,sm -mca btl_openib_if_include mlx4_0 "
         "-mca orte_base_help_aggregate 0 --map-by node ./app"
     ),
-    "local": "./app",
+    # binding report always on since C4
+    "local": "mpirun -n 1 --host localhost:1 --display bindings ./app",
 }
 
 
@@ -58,18 +64,22 @@ def test_the_table_covers_every_shipped_preset() -> None:
 
 @pytest.mark.parametrize("name", sorted(_LAUNCH_LINES))
 def test_shipped_preset_builds_its_launch_line(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    # slimfly's dialect is auto and its mpirun path does not exist on this machine: answer the
-    # probe with the Open MPI 4 it runs on there.
-    monkeypatch.setattr(dialect, "probe", lambda command: "openmpi4")
+    # The dialect of slimfly (its mpirun path does not exist on this machine) and of the local
+    # preset (the dialect depends on the MPI installed here) is auto: answer the probe with the
+    # Open MPI each runs on. An empty environment keeps the lines free of `-x` options.
+    monkeypatch.setattr(dialect, "probe", lambda command: _PROBED.get(name, "openmpi4"))
     settings = _settings(name)
-    launcher = launcher_for(resolve_launcher(settings, {}, None))
-    assert launch_line(launcher, Placement(("n1",), 1), "./app") == _LAUNCH_LINES[name]
+    launcher = launcher_for(resolve_launcher(settings, {}, None), {})
+    assert (
+        launch_line(launcher, Placement((_NODE.get(name, "n1"),), 1), "./app")
+        == _LAUNCH_LINES[name]
+    )
 
 
-def test_local_preset_uses_the_local_scheduler_and_no_launcher() -> None:
+def test_local_preset_uses_the_local_scheduler_and_mpirun() -> None:
     settings = _settings("local")
     assert settings.scheduler == "local"
-    assert settings.launcher == "direct"
+    assert settings.launcher == "mpirun"
 
 
 def test_slurm_presets_keep_their_non_launch_env() -> None:

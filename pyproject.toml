@@ -70,6 +70,9 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 # Test this checkout's code even when the editable install points at another worktree.
 pythonpath = ["src"]
+markers = [
+    "mpi: launches real mpirun processes (needs an installed Open MPI or MPICH)",
+]
 
 [tool.ruff]
 line-length = 100

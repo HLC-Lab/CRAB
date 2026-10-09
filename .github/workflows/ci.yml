@@ -27,6 +27,31 @@ jobs:
         working-directory: src/crab/webui
       - run: make verify
 
+  mpi:
+    name: Real MPI launches (Open MPI, MPICH)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Open MPI and MPICH
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin mpich
+      - name: Show the installed MPI versions
+        run: |
+          mpirun.openmpi --version
+          mpirun.mpich --version
+      - name: Install Python package
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -e ".[dev]"
+      - name: Run the real-MPI tests
+        run: .venv/bin/python -m pytest -q -m mpi -rs
+        env:
+          CRAB_TEST_MPIRUNS: /usr/bin/mpirun.openmpi:/usr/bin/mpirun.mpich
+
   docs:
     name: Build docs (strict)
     runs-on: ubuntu-latest
