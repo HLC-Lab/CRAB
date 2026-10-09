@@ -152,3 +152,79 @@ describe("launcher options (core/config_checks.py _check_launcher_options)", () 
     expect(round.global_options.launcher_flags).toBe("{f}");
   });
 });
+
+describe("shared allocation (core/config_checks.py _check_shared_scope)", () => {
+  const issues = (allocation: AnyObj, local = false): string[] =>
+    validateDraft(
+      fromConfig(
+        local
+          ? {
+              global_options: { numnodes: "4" },
+              experiments: {
+                ex1: { apps: { 0: { path: "a.py" } }, local_options: { allocation } },
+              },
+            }
+          : oneApp({}, { allocation }),
+      ),
+    ).filter((m) => /allocation/.test(m));
+
+  it("keeps mode shared instead of turning it into linear", () => {
+    expect(fromAllocation({ mode: "shared" }).mode).toBe("shared");
+    expect(fromAllocation({ mode: "shared", cores: "shared" }).cores).toBe("shared");
+  });
+
+  it("accepts shared with either cores value", () => {
+    expect(issues({ mode: "shared" })).toEqual([]);
+    expect(issues({ mode: "shared", cores: "disjoint" })).toEqual([]);
+    expect(issues({ mode: "shared", cores: "shared" })).toEqual([]);
+  });
+
+  it("refuses split, stride and seed next to shared", () => {
+    expect(issues({ mode: "shared", split: [50, 50] })).toEqual([
+      "allocation: split cannot be used with mode 'shared' (every app gets all the nodes)",
+    ]);
+    expect(issues({ mode: "shared", stride: 2 })).toEqual([
+      "allocation: stride cannot be used with mode 'shared' (every app gets all the nodes)",
+    ]);
+    expect(issues({ mode: "shared", seed: 7 })).toEqual([
+      "allocation: seed cannot be used with mode 'shared' (every app gets all the nodes)",
+    ]);
+  });
+
+  it("refuses cores without shared", () => {
+    expect(issues({ mode: "linear", cores: "shared" })).toEqual([
+      "allocation: cores is only valid with mode 'shared'",
+    ]);
+  });
+
+  it("refuses a cores value outside disjoint and shared", () => {
+    expect(issues({ mode: "shared", cores: "pinned" })).toEqual([
+      "allocation: cores 'pinned' is not one of: disjoint, shared",
+    ]);
+  });
+
+  it("refuses a top-level shared mode next to partitions", () => {
+    expect(issues({ mode: "shared", partitions: { v: {}, a: {} } })).toEqual([
+      "allocation.mode 'shared' cannot be used with partitions " +
+        "(the top-level mode lays out the partition blocks); " +
+        "set mode 'shared' inside a partition instead",
+    ]);
+  });
+
+  it("names the experiment when the shared allocation is a local override", () => {
+    expect(issues({ mode: "shared", cores: "pinned" }, true)).toEqual([
+      "Experiment \"ex1\": allocation: cores 'pinned' is not one of: disjoint, shared",
+    ]);
+  });
+
+  it("skips the cores checks on a {name} placeholder, like the engine", () => {
+    expect(issues({ mode: "shared", cores: "{c}" })).toEqual([]);
+    expect(issues({ mode: "linear", cores: "{c}" })).toEqual([]);
+  });
+
+  it("allows a partition to share its own nodes", () => {
+    expect(
+      issues({ mode: "linear", partitions: { v: {}, a: { mode: "shared", cores: "shared" } } }),
+    ).toEqual([]);
+  });
+});

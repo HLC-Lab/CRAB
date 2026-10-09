@@ -64,7 +64,10 @@ function parseEnd(s: string): Pick<AppDraft, "endKind" | "endTimed"> {
 // aggressor, each with a `share`). Numeric fields here are emitted as NUMBERS
 // (split[], share, stride, seed) — unlike numnodes/ppn which stay strings.
 
-export type AllocMode = "linear" | "interleaved" | "random";
+export type AllocMode = "linear" | "interleaved" | "random" | "shared";
+
+/** Values of `cores` the engine accepts (CORES_MODES in core/config_checks.py). */
+export const CORES_MODES = ["disjoint", "shared"];
 export type AllocBy = "app" | "groups";
 
 export interface PartitionDraft {
@@ -79,11 +82,12 @@ export interface AllocationDraft {
   split: string; // "60, 40" → [60, 40]; only meaningful when by === "app"
   stride: string; // interleaved only
   seed: string; // random only
+  cores: string; // shared only; "" = key absent (the engine's default is disjoint)
   partitions: PartitionDraft[]; // only meaningful when by === "groups"
 }
 
 export function emptyAllocation(): AllocationDraft {
-  return { mode: "linear", by: "app", split: "", stride: "", seed: "", partitions: [] };
+  return { mode: "linear", by: "app", split: "", stride: "", seed: "", cores: "", partitions: [] };
 }
 
 /** Deep copy, so mutating the clone never affects the source allocation. */
@@ -94,6 +98,7 @@ export function cloneAllocation(a: AllocationDraft): AllocationDraft {
     split: a.split,
     stride: a.stride,
     seed: a.seed,
+    cores: a.cores,
     partitions: a.partitions.map((p) => ({ name: p.name, share: p.share, rest: { ...p.rest } })),
   };
 }
@@ -120,6 +125,7 @@ export function cloneExperiment(e: ExperimentDraft): ExperimentDraft {
  */
 export function hasAllocation(a: AllocationDraft): boolean {
   if (a.mode !== "linear") return true;
+  if (a.cores.trim()) return true; // an invalid leftover, kept so validation can name it
   if (a.by === "groups") return a.partitions.some((p) => p.name.trim());
   return !!a.split.trim();
 }
@@ -160,6 +166,7 @@ export function toAllocation(
   const out: Record<string, unknown> = { mode: a.mode };
   if (a.mode === "interleaved" && a.stride.trim()) out.stride = numOrToken(a.stride);
   if (a.mode === "random" && a.seed.trim()) out.seed = numOrToken(a.seed);
+  if (a.cores.trim()) out.cores = a.cores.trim();
 
   if (a.by === "groups") {
     const partitions: Record<string, unknown> = {};
@@ -186,9 +193,10 @@ export function fromAllocation(alloc: unknown): AllocationDraft {
   if (!alloc || typeof alloc !== "object") return a;
   const o = alloc as Record<string, unknown>;
   const mode = String(o.mode ?? "linear");
-  a.mode = mode === "interleaved" || mode === "random" ? mode : "linear";
+  a.mode = mode === "interleaved" || mode === "random" || mode === "shared" ? mode : "linear";
   if (o.stride != null) a.stride = String(o.stride);
   if (o.seed != null) a.seed = String(o.seed);
+  if (o.cores != null) a.cores = String(o.cores);
 
   if (o.partitions && typeof o.partitions === "object") {
     a.by = "groups";
@@ -528,7 +536,7 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
 
   // Global allocation: convert + tag apps of experiments with no local override.
   const ga = g.allocation as Record<string, unknown> | undefined;
-  if (ga && Array.isArray(ga.split) && ga.partitions == null) {
+  if (ga && ga.mode !== "shared" && Array.isArray(ga.split) && ga.partitions == null) {
     const { partitions, keys } = toGroups(ga.split);
     delete ga.split;
     ga.partitions = partitions;
@@ -542,7 +550,7 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
   for (const e of Object.values(experiments)) {
     const lo = (e?.local_options ?? {}) as Record<string, unknown>;
     const la = lo.allocation as Record<string, unknown> | undefined;
-    if (la && Array.isArray(la.split) && la.partitions == null) {
+    if (la && la.mode !== "shared" && Array.isArray(la.split) && la.partitions == null) {
       const { partitions, keys } = toGroups(la.split);
       delete la.split;
       la.partitions = partitions;
@@ -668,6 +676,37 @@ function validateLauncher(o: OptionsDraft, at: string): string[] {
   return issues;
 }
 
+/** Mirrors _check_shared_scope and the shared-with-partitions check in core/config_checks.py. */
+function validateSharedScope(a: AllocationDraft, at: string): string[] {
+  const issues: string[] = [];
+  const cores = a.cores.trim();
+  if (a.mode === "shared") {
+    const set: [string, boolean][] = [
+      ["split", a.by === "app" && !!a.split.trim() && !hasBrace(a.split)],
+      ["stride", !!a.stride.trim() && !hasBrace(a.stride)],
+      ["seed", !!a.seed.trim() && !hasBrace(a.seed)],
+    ];
+    for (const [key, present] of set) {
+      if (present)
+        issues.push(
+          `${at}allocation: ${key} cannot be used with mode 'shared' (every app gets all the nodes)`,
+        );
+    }
+  } else if (cores && !hasBrace(cores)) {
+    issues.push(`${at}allocation: cores is only valid with mode 'shared'`);
+    return issues;
+  }
+  if (cores && !hasBrace(cores) && !CORES_MODES.includes(cores))
+    issues.push(`${at}allocation: cores '${cores}' is not one of: ${CORES_MODES.join(", ")}`);
+  if (a.mode === "shared" && a.by === "groups" && a.partitions.some((p) => p.name.trim()))
+    issues.push(
+      `${at}allocation.mode 'shared' cannot be used with partitions ` +
+        "(the top-level mode lays out the partition blocks); " +
+        "set mode 'shared' inside a partition instead",
+    );
+  return issues;
+}
+
 /** Validate an allocation and return its defined node-group names (for per-app checks). */
 export function validateAllocation(
   a: AllocationDraft,
@@ -677,6 +716,7 @@ export function validateAllocation(
   const groups = new Set<string>();
   const at = where ? `${where}: ` : "";
   if (!hasAllocation(a)) return { issues, groups };
+  issues.push(...validateSharedScope(a, at));
   if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride) && !_token(a.stride))
     issues.push(`${at}allocation stride must be a positive integer.`);
   if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()) && !_token(a.seed))
@@ -688,7 +728,8 @@ export function validateAllocation(
   }
   if (a.by === "groups") {
     const named = a.partitions.filter((p) => p.name.trim());
-    if (!named.length) issues.push(`${at}add at least one node group, or allocate by app instead.`);
+    if (!named.length && a.mode !== "shared")
+      issues.push(`${at}add at least one node group, or allocate by app instead.`);
     named.forEach((p) => {
       if (groups.has(p.name.trim())) issues.push(`${at}duplicate node group "${p.name.trim()}".`);
       else groups.add(p.name.trim());

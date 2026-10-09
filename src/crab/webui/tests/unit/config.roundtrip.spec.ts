@@ -159,7 +159,65 @@ const baseExp = {
   },
 };
 
+const sharedExp = {
+  ex1: {
+    apps: {
+      0: { path: "blink/a2a.py", args: "", collect: true, start: "0", end: "" },
+      1: { path: "others/g500.py", args: "", collect: false, start: "0", end: "f" },
+    },
+  },
+};
+
 const fixtures: { name: string; config: AnyObj }[] = [
+  {
+    name: "shared allocation (mode only)",
+    config: {
+      global_options: { numnodes: "4", allocation: { mode: "shared" } },
+      experiments: sharedExp,
+    },
+  },
+  {
+    name: "shared allocation with shared cores",
+    config: {
+      global_options: { numnodes: "4", allocation: { mode: "shared", cores: "shared" } },
+      experiments: sharedExp,
+    },
+  },
+  {
+    name: "shared allocation with cores disjoint kept as loaded",
+    config: {
+      global_options: { numnodes: "4", allocation: { mode: "shared", cores: "disjoint" } },
+      experiments: sharedExp,
+    },
+  },
+  {
+    name: "partition with its own shared mode and cores (kept in rest)",
+    config: {
+      global_options: {
+        numnodes: "8",
+        allocation: {
+          mode: "linear",
+          partitions: {
+            victim: { share: 50 },
+            aggressor: { share: 50, mode: "shared", cores: "shared" },
+          },
+        },
+      },
+      ...baseExp,
+    },
+  },
+  {
+    name: "shared allocation in an experiment's local_options",
+    config: {
+      global_options: { numnodes: "4" },
+      experiments: {
+        ex1: {
+          local_options: { allocation: { mode: "shared", cores: "shared" } },
+          apps: sharedExp.ex1.apps,
+        },
+      },
+    },
+  },
   {
     name: "empty partitions (equal split) re-emit {}",
     config: {
