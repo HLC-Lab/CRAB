@@ -260,6 +260,37 @@ Reading that CSV is up to you: a spreadsheet, a notebook, or `sbatchman visualiz
 script (its `--parser` option, `./parser.py` by default). CRAB's dashboard does not read or plot
 it. To parse a saved output again with a wrapper, use `crab parse <wrapper> <output file>`.
 
+## CPU pinning and launch settings
+
+A CRAB worker started by SbatchMan has no CRAB execution preset: the job directory holds no
+`execution.json` and the job sets no `CRAB_PRESET`, so the worker uses the Slurm scheduler and the
+`srun` launcher with no extra flags. Its log says so:
+`Execution settings from defaults (Slurm with srun; no execution.json, no CRAB_PRESET)`.
+
+To pin processes to CPUs, set Slurm's own input variable in the SbatchMan preset's environment
+(the job script's environment), next to the other `--env` entries of
+[step 5](#5-create-a-sbatchman-preset-for-crab):
+
+```bash
+sbatchman configure slurm \
+  --name crab_run_pinned \
+  ... \
+  --env 'SLURM_CPU_BIND=cores'
+```
+
+`SLURM_CPU_BIND` is the input variable Slurm documents for `srun`'s `--cpu-bind` option, so every
+`srun` the worker starts binds as if `--cpu-bind=cores` had been given. Other values work the same
+way, for example `SLURM_CPU_BIND=sockets`; see `man srun` for the full list. No CRAB code is
+involved: the worker runs `srun --export=ALL`, which passes the job's environment on to each
+launched process.
+
+The `CRAB_*` launch variables of older CRAB versions are no longer read: `CRAB_WL_MANAGER`,
+`CRAB_SCHEDULER`, `CRAB_MPIRUN`, `CRAB_MPIRUN_ADDITIONAL_FLAGS`, `CRAB_MPIRUN_MAP_BY_NODE_FLAG`,
+`CRAB_MPIRUN_HOSTNAMES_FLAG` and `CRAB_PINNING_FLAGS`. A worker that finds one in its environment
+stops with an error that names the replacement, for example
+`worker environment: CRAB_PINNING_FLAGS is no longer read; use launchers.srun.flags`. Remove them
+from your SbatchMan presets and, when you want pinning, use `SLURM_CPU_BIND` as above.
+
 ## Troubleshooting
 
 Start with the job's `stderr.log` and `stdout.log`, in its job directory.
@@ -277,6 +308,7 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `crab update` stops with `Local edits to tracked files would be overwritten` | A tracked file in the checkout was changed by hand | Move the change to `local/` (presets, receipts, wrappers), or commit or stash it, then retry |
 | `sbatchman launch` fails with a `TypeError` | The campaign's **SbatchMan configs.yaml** field points at the project's configuration registry | Clear that field in the dashboard, write the campaign again ([step 6](#6-author-a-campaign)) |
 | `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job: SbatchMan is the PyPI release, or the preset lacks the entry | Install SbatchMan from GitHub `main` ([step 2](#2-install-crab-and-sbatchman-on-the-cluster)) and keep the `SBATCHMAN_JOB_DIR={EXP_DIR}` entry |
+| `worker environment: CRAB_... is no longer read; use ...` in the job log | The preset still exports an old `CRAB_*` launch variable | Remove it from the preset and re-run `configure` with `--overwrite` ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
 | "SSH support isn't installed in this environment" in the dashboard | The laptop install lacks the `web` extra | `pip install -e ".[web]"` from your CRAB checkout, then restart `crab web` |
 | The dashboard or `sbatchman visualize` will not start: port in use | Both default to `8765` | Start one on another port (see [step 8](#8-monitor-and-visualize)) |
