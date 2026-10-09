@@ -224,6 +224,30 @@ def test_setup_places_a_shared_local_experiment_and_does_not_inject_cpus_or_env(
     assert not hasattr(second, "env")
 
 
+def test_setup_marks_the_competing_apps_of_a_shared_cores_experiment(tmp_path):
+    runner = _runner(
+        tmp_path,
+        [_WRAPPER, _WRAPPER],
+        LOCAL_DIRECT,
+        local_options={"allocation": {"mode": "shared", "cores": "shared"}},
+    )
+    runner.setup()
+    assert [app.shared_cores for app in runner.apps] == [True, True]
+
+
+def test_setup_leaves_apps_of_a_disjoint_experiment_unmarked(tmp_path, monkeypatch):
+    monkeypatch.setattr("os.cpu_count", lambda: 16)
+    runner = _runner(
+        tmp_path,
+        [_WRAPPER, _WRAPPER],
+        LOCAL_DIRECT,
+        local_options={"allocation": {"mode": "shared"}},
+    )
+    runner.ppn = 4
+    runner.setup()
+    assert [app.shared_cores for app in runner.apps] == [False, False]
+
+
 def test_setup_refuses_overlapping_cpus_of_apps_sharing_the_nodes(tmp_path):
     runner = _runner(
         tmp_path,

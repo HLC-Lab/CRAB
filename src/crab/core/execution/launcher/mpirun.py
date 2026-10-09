@@ -34,6 +34,36 @@ _HOST_FLAGS: dict[Dialect, Callable[[Placement], list[str]]] = {
     "openmpi5": _openmpi5_hosts,
     "hydra": _hydra_hosts,
 }
+
+
+def _cores(placement: Placement) -> str:
+    return ",".join(str(core) for core in placement.cpus or ())
+
+
+def _openmpi4_binding(placement: Placement) -> list[str]:
+    if placement.cpus:
+        return ["--cpu-set", _cores(placement), "--bind-to", "core"]
+    return ["--bind-to", "none"] if placement.bind_none else []
+
+
+def _openmpi5_binding(placement: Placement) -> list[str]:
+    # PRRTE: one `pe-list` entry per rank in `ordered` mode; `--cpu-set` does not bind there.
+    if placement.cpus:
+        return ["--map-by", f"pe-list={_cores(placement)}:ordered"]
+    return ["--bind-to", "none"] if placement.bind_none else []
+
+
+def _hydra_binding(placement: Placement) -> list[str]:
+    if placement.cpus:
+        return ["-bind-to", f"user:{_cores(placement)}"]
+    return ["-bind-to", "none"] if placement.bind_none else []
+
+
+_BINDING_FLAGS: dict[Dialect, Callable[[Placement], list[str]]] = {
+    "openmpi4": _openmpi4_binding,
+    "openmpi5": _openmpi5_binding,
+    "hydra": _hydra_binding,
+}
 _REPORT_BINDINGS: dict[Dialect, list[str]] = {
     "openmpi4": ["--report-bindings"],
     "openmpi5": ["--display", "bindings"],  # `--report-bindings` is deprecated in Open MPI 5.
@@ -45,12 +75,16 @@ _EXPORT_WITH_X: tuple[Dialect, ...] = ("openmpi4", "openmpi5")
 
 @dataclass(frozen=True)
 class MpirunLauncher:
-    """`<command> -n <ranks> <hosts> <-x NAME...> <report flag> <preset flags>`.
+    """`<command> -n <ranks> <hosts> <binding> <-x NAME...> <report flag> <preset flags>`.
 
     The ranks and hosts are always explicit: a host listed with `P` slots and `-n P*k` gets `P`
     ranks in every dialect's default slot mapping, so no `--map-by` or `-ppn` is added and a
     preset's own mapping flags do not clash. Inside a Slurm allocation the host list is a filter
     that has to stay inside the allocation, which lets an app run on a subset of it.
+
+    The binding flags put each rank on the placement's own cores, or turn binding off for an app
+    on shared cores: without either, every launch binds from the first cores of the node, so two
+    co-located apps would land on the same ones.
     """
 
     command: tuple[str, ...]
@@ -65,6 +99,7 @@ class MpirunLauncher:
             "-n",
             str(placement.total_ranks),
             *_HOST_FLAGS[self.dialect](placement),
+            *_BINDING_FLAGS[self.dialect](placement),
         ]
         if self.dialect in _EXPORT_WITH_X:
             for name in self.export:

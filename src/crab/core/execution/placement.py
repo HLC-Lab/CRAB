@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from crab.core.allocation.allocator import NodeAllocator
@@ -43,11 +43,16 @@ class Head:
 
 @dataclass(frozen=True)
 class Placement:
-    """The result for one experiment, one entry per app in app order."""
+    """The result for one experiment, one entry per app in app order.
+
+    `shared_cores[i]` is true when app i runs at the same time as another app on the same nodes
+    under `cores: "shared"` (it competes for cores and must not be bound by the launcher).
+    """
 
     cpu_lists: list[tuple[int, ...] | None]
     envs: list[dict[str, str]]
     warnings: list[str]
+    shared_cores: list[bool] = field(default_factory=list)
 
 
 def parse_cpus(text: object, where: str) -> tuple[int, ...]:
@@ -82,13 +87,17 @@ def parse_app_env(value: object, where: str) -> dict[str, str]:
     """An app's `env`: an object of strings, without the dropped `CRAB_*` launch keys.
 
     Raises:
-        ValueError: `value` is not an object of strings, or holds a dropped key.
+        ValueError: `value` is not an object of strings, holds a dropped key, or has a key that
+            is not a shell variable name (the app script exports it).
     """
     if not isinstance(value, dict) or not all(
         isinstance(k, str) and isinstance(v, str) for k, v in value.items()
     ):
         raise ValueError(f"{where}: must be an object of strings, got {value!r}")
     check_dropped_keys(value, where)
+    for key in value:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            raise ValueError(f"{where}: key {key!r} is not a valid shell variable name")
     return dict(value)
 
 
@@ -117,6 +126,15 @@ def _groups(heads: Sequence[Head]) -> list[list[Head]]:
             merged = group + merged
         groups.append(merged)
     return groups
+
+
+def shared_heads(heads: Sequence[Head]) -> set[str]:
+    """The keys of the heads that overlap another head's nodes in a group with `cores: "shared"`."""
+    keys: set[str] = set()
+    for group in _groups(heads):
+        if len(group) >= 2 and any(h.shared for h in group):
+            keys.update(h.key for h in group)
+    return keys
 
 
 def _cores_text(cores: Sequence[int]) -> str:
@@ -297,7 +315,9 @@ def _place(
         heads, ppn, settings.scheduler, host_cores_of(settings, node_list), directives
     )
     cpu_lists = [result[f"app {keys[reuse.get(i, i)]}"] for i in range(len(keys))]
-    return Placement(cpu_lists, envs, warnings)
+    shared = shared_heads(heads)
+    shared_cores = [f"app {keys[reuse.get(i, i)]}" in shared for i in range(len(keys))]
+    return Placement(cpu_lists, envs, warnings, shared_cores)
 
 
 class _Slot:

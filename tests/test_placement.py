@@ -177,6 +177,20 @@ def test_env_refuses_a_dropped_crab_key() -> None:
         parse_app_env({"CRAB_MPIRUN": "mpirun"}, "app 0: env")
 
 
+@pytest.mark.parametrize("key", ["A B", "1A", "A-B", "A=B", "", "A.B"])
+def test_env_refuses_a_key_that_is_not_a_shell_name(key: str) -> None:
+    with pytest.raises(ValueError, match=r"app 0: env: key .* is not a valid shell variable name"):
+        parse_app_env({key: "1"}, "app 0: env")
+
+
+def test_place_experiment_names_the_experiment_and_app_of_a_bad_env_key() -> None:
+    with pytest.raises(ValueError, match=r"experiment e1: app 0: env: key 'A B' is not a valid"):
+        place_experiment(
+            "e1", ["0"], [{"env": {"A B": "1"}}], [["localhost"]], {}, 4, LOCAL_DIRECT,
+            ["localhost"], {},
+        )  # fmt: skip
+
+
 # -- place_experiment ----------------------------------------------------------------------------
 
 _SHARED = {"mode": "shared"}

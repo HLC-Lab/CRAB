@@ -183,9 +183,12 @@ class ExperimentRunner:
             self.node_list,
             self.global_opts,
         )
-        for app, cpu_list, app_env in zip(self.apps, placed.cpu_lists, placed.envs, strict=True):
+        for app, cpu_list, app_env, shared in zip(
+            self.apps, placed.cpu_lists, placed.envs, placed.shared_cores, strict=True
+        ):
             app.cpu_list = cpu_list
             app.app_env = app_env
+            app.shared_cores = shared
 
         # 3. Initialize Data Containers
         for app in self.apps:

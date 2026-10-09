@@ -26,11 +26,17 @@ def _exported_names(spec: LauncherSpec, environ: Mapping[str, str]) -> tuple[str
     return tuple(name for name in names if name != "CRAB_SUPERVISOR_FD")
 
 
-def launcher_for(spec: LauncherSpec, environ: Mapping[str, str] = os.environ) -> Launcher:
+def launcher_for(
+    spec: LauncherSpec,
+    environ: Mapping[str, str] = os.environ,
+    extra_export: tuple[str, ...] = (),
+) -> Launcher:
     """The launcher a resolved spec describes.
 
     An mpirun launcher exports the spec's names that are set in `environ`, then every other
-    `CRAB_*` variable (the supervisor's descriptor never).
+    `CRAB_*` variable (the supervisor's descriptor never), then the names in `extra_export` that
+    are not there yet: those are set by the app's script, not in `environ`, so they are not
+    filtered.
 
     An mpirun launcher always asks for a binding report (`report_bindings=True`).
 
@@ -46,11 +52,12 @@ def launcher_for(spec: LauncherSpec, environ: Mapping[str, str] = os.environ) ->
     if spec.kind == "mpirun":
         # Called through the module so tests can replace `dialect.probe`.
         found = dialect.probe(spec.command[0]) if spec.dialect == "auto" else spec.dialect
+        names = _exported_names(spec, environ)
         return MpirunLauncher(
             spec.command,
             spec.flags,
             cast(dialect.Dialect, found),
-            _exported_names(spec, environ),
+            (*names, *(name for name in extra_export if name not in names)),
             report_bindings=True,
         )
     if spec.kind == "direct":
