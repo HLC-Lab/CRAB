@@ -19,9 +19,11 @@ import {
   emptyApp,
   emptyDraft,
   emptyExperiment,
+  emptyOptions,
   fromAllocation,
   fromConfig,
   normalizeSplitToPartitions,
+  optionsAreSet,
   toAllocation,
   toConfig,
   validateDraft,
@@ -851,5 +853,35 @@ describe("per-app env and cpus", () => {
       "ex1 · app #0: env: 'A' is listed twice",
       "ex1 · app #0: env: a value needs a variable name",
     ]);
+  });
+});
+
+describe("optionsAreSet", () => {
+  it("is false for untouched options", () => {
+    expect(optionsAreSet(emptyOptions())).toBe(false);
+  });
+
+  it("is true once a string option is set", () => {
+    const o = emptyOptions();
+    o.walltime = "00:10:00";
+    expect(optionsAreSet(o)).toBe(true);
+  });
+
+  it("is true with a launcher chosen", () => {
+    const o = emptyOptions();
+    o.launcher = "srun";
+    expect(optionsAreSet(o)).toBe(true);
+  });
+
+  it("is true when launcher flags are replaced, even with none (emits [])", () => {
+    const o = emptyOptions();
+    o.replaceLauncherFlags = true;
+    expect(optionsAreSet(o)).toBe(true);
+  });
+
+  it("is true when launcher flags are carried raw", () => {
+    const o = emptyOptions();
+    o.launcherFlagsRaw = ["--bind-to", "core"];
+    expect(optionsAreSet(o)).toBe(true);
   });
 });

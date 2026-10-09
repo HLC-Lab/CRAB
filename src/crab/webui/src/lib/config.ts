@@ -350,6 +350,13 @@ export function applyOptions(target: Record<string, unknown>, o: OptionsDraft): 
     target.launcher_flags = o.launcherFlags.split(/\s+/).filter(Boolean);
 }
 
+/** True when the options would emit at least one key (same rule as applyOptions). */
+export function optionsAreSet(o: OptionsDraft): boolean {
+  const out: Record<string, unknown> = {};
+  applyOptions(out, o);
+  return Object.keys(out).length > 0;
+}
+
 /** Inverse: read the tunable option fields out of a global/local options object. */
 export function readOptions(src: Record<string, unknown>): OptionsDraft {
   const o = emptyOptions();
