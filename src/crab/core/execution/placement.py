@@ -347,11 +347,14 @@ def check_experiment(
     allocation: dict[str, Any],
     global_opts: Mapping[str, Any],
     settings: ExecutionSettings,
+    launcher: str | None = None,
 ) -> list[str]:
     """Run the placement of one experiment on paper; return its warnings or raise.
 
     `apps` is the experiment's `apps` object, `allocation` its allocation as the experiment sees
-    it. Skipped (returns no warnings) when `numnodes` or `ppn` is missing or not a number, as the
+    it, `launcher` the experiment's own `launcher` option (the preset's when None; a receipt's
+    override is not known before submit). An explicit `cpus` under a launcher that does not bind
+    to it (srun, direct) is warned about once per app. Skipped (returns no warnings) when `numnodes` or `ppn` is missing or not a number, as the
     allocation checks skip it.
 
     Raises:
@@ -377,4 +380,11 @@ def check_experiment(
     placed = place_experiment(
         exp, keys, configs, app_nodes, allocation, ppn, settings, node_list, global_opts
     )
-    return placed.warnings
+    effective = launcher or settings.launcher
+    ignored = [
+        f"experiment {exp}: app {key}: cpus has no effect with the {effective} launcher; "
+        "only mpirun binds to an explicit core list"
+        for key, cfg in zip(keys, configs, strict=True)
+        if "cpus" in cfg and effective in ("srun", "direct")
+    ]
+    return placed.warnings + ignored

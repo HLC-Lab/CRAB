@@ -644,3 +644,15 @@ def test_placement_is_skipped_without_settings_and_for_tokens() -> None:
     assert _check(config, _sixteen_core_host()) == []
     token_cpus = _placed_config([{"cpus": "{c}"}, {"cpus": "2-5"}])
     assert _check(token_cpus, _sixteen_core_host()) == []
+
+
+def test_a_cpus_the_launcher_ignores_is_a_warning_in_check_config() -> None:
+    config = _placed_config([{"cpus": "0-3"}], ppn=1)
+    config["global_options"]["launcher"] = "direct"
+    warnings = _check(config, _sixteen_core_host())
+    assert warnings == [
+        "experiment e1: app 0: cpus has no effect with the direct launcher; "
+        "only mpirun binds to an explicit core list"
+    ]
+    del config["global_options"]["launcher"]
+    assert _check(config, _sixteen_core_host()) == []

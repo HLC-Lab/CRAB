@@ -12,11 +12,13 @@ from crab.core.execution.placement import (
     AUTO_SPLIT_WARNING,
     SHARED_CORES_WARNING,
     Head,
+    check_experiment,
     parse_app_env,
     parse_cpus,
     place_experiment,
     plan,
 )
+from crab.core.execution.settings import from_preset
 from settings_fixtures import LOCAL_DIRECT, slurm_settings
 
 NODES = frozenset({"n0"})
@@ -245,3 +247,50 @@ def test_local_bare_localhost_uses_the_machines_core_count(monkeypatch) -> None:
     monkeypatch.setattr("os.cpu_count", lambda: 6)
     with pytest.raises(ValueError, match="need 8 cores"):
         _place([{}, {}], [["localhost"], ["localhost"]], _SHARED)
+
+
+# -- check_experiment: a `cpus` the launcher ignores ------------------------------------------------
+
+_CPUS_NOTE = (
+    "experiment e1: app 0: cpus has no effect with the {} launcher; "
+    "only mpirun binds to an explicit core list"
+)
+
+
+def _check(apps: dict, settings, launcher: str | None = None, opts: dict | None = None):
+    options = {"numnodes": 1, "ppn": 1, **(opts or {})}
+    return check_experiment("e1", apps, {}, options, settings, launcher)
+
+
+def test_slurm_srun_with_cpus_warns_that_cpus_has_no_effect() -> None:
+    opts = {"sbatch_directives": ["--exclusive"]}
+    warnings = _check({"0": {"cpus": "0"}}, slurm_settings(), opts=opts)
+    assert warnings == [_CPUS_NOTE.format("srun")]
+
+
+def test_local_direct_with_cpus_warns_that_cpus_has_no_effect() -> None:
+    assert _check({"0": {"cpus": "0"}}, LOCAL_DIRECT) == [_CPUS_NOTE.format("direct")]
+
+
+def test_the_experiments_launcher_decides_over_the_presets() -> None:
+    settings = from_preset({"scheduler": "local", "launcher": "mpirun"}, "t")
+    assert _check({"0": {"cpus": "0"}}, settings) == []
+    assert _check({"0": {"cpus": "0"}}, settings, launcher="direct") == [
+        _CPUS_NOTE.format("direct")
+    ]
+
+
+def test_local_mpirun_with_cpus_does_not_warn() -> None:
+    settings = from_preset({"scheduler": "local", "launcher": "mpirun"}, "t")
+    assert _check({"0": {"cpus": "0"}}, settings) == []
+
+
+def test_no_cpus_no_cpus_warning() -> None:
+    assert _check({"0": {}}, LOCAL_DIRECT) == []
+    assert _check({"0": {}}, slurm_settings()) == []
+
+
+def test_the_cpus_warning_is_per_app() -> None:
+    apps = {"0": {"cpus": "0"}, "1": {}, "2": {"cpus": "1"}}
+    warnings = _check(apps, slurm_settings(), opts={"sbatch_directives": ["--exclusive"]})
+    assert [w.split(":")[1] for w in warnings] == [" app 0", " app 2"]

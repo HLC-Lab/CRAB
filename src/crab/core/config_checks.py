@@ -344,7 +344,12 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
             + [[a.get(k) for k in placement_keys] for a in apps.values()]
         ):
             warnings += check_experiment(
-                exp_name, apps, opts.get("allocation") or {}, global_opts, settings
+                exp_name,
+                apps,
+                opts.get("allocation") or {},
+                global_opts,
+                settings,
+                opts.get("launcher"),
             )
         for app_key, app in (exp.get("apps") or {}).items():
             where = f"experiment {exp_name}: app {app_key}"
