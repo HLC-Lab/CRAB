@@ -773,3 +773,83 @@ describe("launcher options (ADR-033)", () => {
     expect(validateDraft(d).filter((m: string) => /launcher/.test(m))).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Per-app env and cpus: reserved app keys, edited in the app card.
+// ---------------------------------------------------------------------------
+describe("per-app env and cpus", () => {
+  const withApp = (app: AnyObj): AnyObj => ({
+    global_options: { numnodes: "4" },
+    experiments: { ex1: { apps: { 0: { path: "a.py", args: "", collect: true, ...app } } } },
+  });
+  const appOut = (config: AnyObj): AnyObj => toConfig(fromConfig(config)).experiments.ex1.apps[0];
+
+  it("round-trips env, in key order", () => {
+    const env = { NCCL_IB_HCA: "mlx5_0", UCX_TLS: "rc" };
+    const out = appOut(withApp({ env }));
+    expect(out.env).toEqual(env);
+    expect(Object.keys(out.env)).toEqual(["NCCL_IB_HCA", "UCX_TLS"]);
+  });
+
+  it("round-trips cpus", () => {
+    expect(appOut(withApp({ cpus: "0-3,8" })).cpus).toBe("0-3,8");
+  });
+
+  it("round-trips both together", () => {
+    const out = appOut(withApp({ env: { A: "1" }, cpus: "0-15,32" }));
+    expect(out.env).toEqual({ A: "1" });
+    expect(out.cpus).toBe("0-15,32");
+  });
+
+  it("reads them into draft fields, not into rest", () => {
+    const app = fromConfig(withApp({ env: { A: "1" }, cpus: "0-3", extra: "x" })).experiments[0]
+      .apps[0];
+    expect(app.env).toEqual([{ key: "A", value: "1" }]);
+    expect(app.cpus).toBe("0-3");
+    expect(app.rest).toEqual({ extra: "x" });
+  });
+
+  it("emits neither key for an app that sets none", () => {
+    const out = appOut(withApp({}));
+    expect("env" in out).toBe(false);
+    expect("cpus" in out).toBe(false);
+  });
+
+  it("emits neither key when the editor rows are blank", () => {
+    const d = fromConfig(withApp({}));
+    d.experiments[0].apps[0].env = [{ key: "  ", value: "" }];
+    d.experiments[0].apps[0].cpus = "  ";
+    const out = toConfig(d).experiments.ex1.apps[0];
+    expect("env" in out).toBe(false);
+    expect("cpus" in out).toBe(false);
+  });
+
+  it("trims keys and cpus on emit, keeps values as typed", () => {
+    const d = fromConfig(withApp({}));
+    d.experiments[0].apps[0].env = [{ key: " A ", value: " v w " }];
+    d.experiments[0].apps[0].cpus = " 0-3 ";
+    const out = toConfig(d).experiments.ex1.apps[0];
+    expect(out.env).toEqual({ A: " v w " });
+    expect(out.cpus).toBe("0-3");
+  });
+
+  it("an app made with emptyApp has no env rows and no cpus", () => {
+    const app = emptyApp();
+    expect(app.env).toEqual([]);
+    expect(app.cpus).toBe("");
+  });
+
+  it("flags a repeated env name and a value without a name", () => {
+    const d = fromConfig(withApp({}));
+    d.experiments[0].apps[0].env = [
+      { key: "A", value: "1" },
+      { key: "A", value: "2" },
+      { key: "", value: "3" },
+    ];
+    const msgs = validateDraft(d).filter((m: string) => /env/.test(m));
+    expect(msgs).toEqual([
+      "ex1 · app #0: env: 'A' is listed twice",
+      "ex1 · app #0: env: a value needs a variable name",
+    ]);
+  });
+});

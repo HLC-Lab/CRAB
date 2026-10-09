@@ -15,6 +15,11 @@ export const CONFIG_SCHEMA_VERSION = 2;
 export type StartKind = "at_start" | "delay" | "after";
 export type EndKind = "complete" | "force" | "timed";
 
+export interface EnvRow {
+  key: string;
+  value: string;
+}
+
 export interface AppDraft {
   path: string;
   args: string;
@@ -25,12 +30,39 @@ export interface AppDraft {
   startAfter: string; // app index N, when startKind === "after" → "sN"
   endKind: EndKind;
   endTimed: string; // seconds, when endKind === "timed"
+  env: EnvRow[]; // per-app environment variables, emitted as the `env` object
+  cpus: string; // core list such as "0-3,8"; empty means no pinning
   // Non-reserved app keys are injected as wrapper attributes by the engine
   // (documented). Preserve them untouched so load→save doesn't drop them.
   rest: Record<string, unknown>;
 }
 
-const RESERVED_APP_KEYS = new Set(["path", "args", "collect", "start", "end", "partition"]);
+const RESERVED_APP_KEYS = new Set([
+  "path",
+  "args",
+  "collect",
+  "start",
+  "end",
+  "partition",
+  "cpus",
+  "env",
+]);
+
+/** The rows of an app's `env` object; anything else is not an env the editor can show. */
+function readEnv(value: unknown): EnvRow[] {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value as Record<string, unknown>).map(([key, v]) => ({
+    key,
+    value: typeof v === "string" ? v : String(v),
+  }));
+}
+
+/** The `env` object for the rows with a name, or null when there is none to emit. */
+function envObject(rows: EnvRow[]): Record<string, string> | null {
+  const out: Record<string, string> = {};
+  for (const r of rows) if (r.key.trim()) out[r.key.trim()] = r.value;
+  return Object.keys(out).length ? out : null;
+}
 
 function startStr(a: AppDraft): string {
   if (a.startKind === "delay") return a.startDelay.trim() || "0";
@@ -111,7 +143,7 @@ export function cloneExperiment(e: ExperimentDraft): ExperimentDraft {
     overrideAlloc: e.overrideAlloc,
     allocation: cloneAllocation(e.allocation),
     options: { ...e.options },
-    apps: e.apps.map((a) => ({ ...a, rest: { ...a.rest } })),
+    apps: e.apps.map((a) => ({ ...a, env: a.env.map((r) => ({ ...r })), rest: { ...a.rest } })),
   };
 }
 
@@ -420,6 +452,8 @@ export function emptyApp(): AppDraft {
     startAfter: "0",
     endKind: "complete",
     endTimed: "60",
+    env: [],
+    cpus: "",
     rest: {},
   };
 }
@@ -462,6 +496,9 @@ export function toConfig(draft: Draft): CrabConfig {
         end: endStr(a),
       };
       if (a.partition.trim()) entry.partition = a.partition.trim();
+      if (a.cpus.trim()) entry.cpus = a.cpus.trim();
+      const env = envObject(a.env);
+      if (env) entry.env = env;
       apps[String(i)] = entry;
     });
 
@@ -610,6 +647,8 @@ export function fromConfig(config: CrabConfig): Draft {
           args: str(app.args),
           collect: engineBool(app.collect), // doc default is false
           partition: str(app.partition),
+          env: readEnv(app.env),
+          cpus: str(app.cpus),
           rest,
           ...parseStart(str(app.start, "0")),
           ...parseEnd(str(app.end)),
@@ -748,9 +787,29 @@ export function validateAllocation(
   return { issues, groups };
 }
 
-// CRAB computes these from numnodes/ppn and ignores user attempts to set them.
-const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "n"]);
+// Slurm directive keys CRAB writes itself, with what to say instead
+// (core/config_checks.py MANAGED_DIRECTIVES). The engine refuses them.
+const TASKS_TAIL = "CRAB sets the task count from numnodes and ppn";
+const MANAGED_SBATCH: Record<string, string> = {
+  nodes: "use numnodes",
+  N: "use numnodes",
+  "ntasks-per-node": "use ppn",
+  ntasks: TASKS_TAIL,
+  n: TASKS_TAIL,
+};
 const LOG_SBATCH = new Set(["output", "error", "o", "e"]);
+
+// CRAB_* launch variables the engine no longer reads, with their replacement
+// (core/execution/settings.py DROPPED_KEYS).
+const DROPPED_ENV_KEYS: Record<string, string> = {
+  CRAB_WL_MANAGER: "launcher",
+  CRAB_SCHEDULER: "scheduler",
+  CRAB_MPIRUN: "launchers.mpirun.command",
+  CRAB_MPIRUN_ADDITIONAL_FLAGS: "launchers.mpirun.flags",
+  CRAB_MPIRUN_MAP_BY_NODE_FLAG: "launchers.mpirun.flags",
+  CRAB_MPIRUN_HOSTNAMES_FLAG: "nothing: delete it (mpirun finds the job's nodes itself)",
+  CRAB_PINNING_FLAGS: "launchers.srun.flags",
+};
 
 /** A directive's key as the engine's merge reads it: leading dashes off, up to "=" or a space. */
 function engineDirectiveKey(line: string): string {
@@ -764,9 +823,9 @@ export function validateSbatch(s: SbatchDraft): string[] {
     const key = engineDirectiveKey(line);
     if (!key) continue;
     const flag = `${key.length === 1 ? "-" : "--"}${key}`;
-    if (PROTECTED_SBATCH.has(key))
+    if (key in MANAGED_SBATCH)
       issues.push(
-        `Slurm directive "${flag}" is computed by CRAB from nodes/ppn and will be ignored.`,
+        `sbatch_directives: '${line}' sets '${key}', which CRAB manages itself: ${MANAGED_SBATCH[key]}`,
       );
     else if (LOG_SBATCH.has(key))
       issues.push(
@@ -774,6 +833,42 @@ export function validateSbatch(s: SbatchDraft): string[] {
       );
   }
   return issues;
+}
+
+/** Mirror of placement.parse_cpus: the problem with a core list, or "" when it parses. */
+function cpusProblem(text: string): string {
+  const cores: number[] = [];
+  for (const raw of text.split(",")) {
+    const item = raw.trim();
+    const span = /^([0-9]+)-([0-9]+)$/.exec(item);
+    if (/^[0-9]+$/.test(item)) cores.push(parseInt(item, 10));
+    else if (span && parseInt(span[1], 10) <= parseInt(span[2], 10))
+      for (let c = parseInt(span[1], 10); c <= parseInt(span[2], 10); c++) cores.push(c);
+    else
+      return `cpus '${text}' has the invalid item '${item}'; use N or A-B (A <= B), comma-separated`;
+  }
+  if (new Set(cores).size !== cores.length) return `cpus '${text}' lists a core more than once`;
+  return "";
+}
+
+/** Mirror of placement.parse_app_env, plus the editor's own row checks. */
+function envProblems(rows: EnvRow[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const key = r.key.trim();
+    if (!key) {
+      if (r.value.trim()) out.push("env: a value needs a variable name");
+    } else if (key in DROPPED_ENV_KEYS) {
+      out.push(`env: ${key} is no longer read; use ${DROPPED_ENV_KEYS[key]}`);
+    } else if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      out.push(`env: key '${key}' is not a valid shell variable name`);
+    } else if (seen.has(key)) {
+      out.push(`env: '${key}' is listed twice`);
+    }
+    if (key) seen.add(key);
+  }
+  return out;
 }
 
 export function validateDraft(d: Draft): string[] {
@@ -819,6 +914,15 @@ export function validateDraft(d: Draft): string[] {
         const ref = parseInt(a.startAfter, 10);
         if (!(ref >= 0 && ref < e.apps.length && ref !== ai))
           issues.push(`${label} · app #${ai}: "after" must reference another app.`);
+      }
+      // The engine skips its placement checks for an app that holds a {name} placeholder.
+      const hasToken = a.cpus.includes("{") || a.env.some((r) => (r.key + r.value).includes("{"));
+      if (!hasToken) {
+        if (a.cpus.trim()) {
+          const problem = cpusProblem(a.cpus.trim());
+          if (problem) issues.push(`${label} · app #${ai}: ${problem}`);
+        }
+        for (const problem of envProblems(a.env)) issues.push(`${label} · app #${ai}: ${problem}`);
       }
       // A partition reference is invalid whenever it names no defined node group —
       // including when none exist (e.g. after switching to "by app" or disabling allocation).

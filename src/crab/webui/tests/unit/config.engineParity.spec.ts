@@ -80,14 +80,30 @@ describe("placeholder tokens pass validation where they are saved (toAllocation 
   });
 });
 
-describe("sbatch warnings follow the engine's directive merge (core/engine.py protected_defaults)", () => {
+describe("sbatch directives follow the engine (core/config_checks.py MANAGED_DIRECTIVES)", () => {
   const warn = (lines: string[]) => validateSbatch(fromSbatch(lines));
+  const useNumnodes = (text: string, key: string) =>
+    `sbatch_directives: '${text}' sets '${key}', which CRAB manages itself: use numnodes`;
+  const tasks = "CRAB sets the task count from numnodes and ppn";
 
-  it("warns that -n is ignored, like --nodes and -N", () => {
-    expect(warn(["-n 4"])).toEqual([
-      'Slurm directive "-n" is computed by CRAB from nodes/ppn and will be ignored.',
+  // The engine refuses these (the editor used to only warn that they would be ignored).
+  it("refuses nodes, N, ntasks-per-node, ntasks and n with the engine's message", () => {
+    expect(warn(["--nodes=2"])).toEqual([useNumnodes("--nodes=2", "nodes")]);
+    expect(warn(["-N 2"])).toEqual([useNumnodes("-N 2", "N")]);
+    expect(warn(["--ntasks-per-node=4"])).toEqual([
+      "sbatch_directives: '--ntasks-per-node=4' sets 'ntasks-per-node', which CRAB manages itself: use ppn",
     ]);
-    expect(warn(["--nodes=2", "-N 2"])).toHaveLength(2);
+    expect(warn(["--ntasks=8"])).toEqual([
+      `sbatch_directives: '--ntasks=8' sets 'ntasks', which CRAB manages itself: ${tasks}`,
+    ]);
+    expect(warn(["-n 8"])).toEqual([
+      `sbatch_directives: '-n 8' sets 'n', which CRAB manages itself: ${tasks}`,
+    ]);
+  });
+
+  it("refuses a managed directive written in the dict form too", () => {
+    const d = fromSbatch({ nodes: "2", exclusive: true });
+    expect(validateSbatch(d)).toHaveLength(1);
   });
 
   it("warns on the short log flags -o and -e like --output and --error", () => {
@@ -95,10 +111,11 @@ describe("sbatch warnings follow the engine's directive merge (core/engine.py pr
       'Slurm directive "-o" overrides CRAB\'s log redirection (allowed, but be aware).',
       'Slurm directive "-e" overrides CRAB\'s log redirection (allowed, but be aware).',
     ]);
+    expect(warn(["--output=o.log", "--error=e.log"])).toHaveLength(2);
   });
 
-  it("leaves directives the engine passes through alone, --ntasks included", () => {
-    expect(warn(["--exclusive", "-J myjob", "--time=00:10:00", "--ntasks=8"])).toEqual([]);
+  it("leaves directives the engine passes through alone", () => {
+    expect(warn(["--exclusive", "-J myjob", "--time=00:10:00"])).toEqual([]);
   });
 });
 
@@ -226,5 +243,74 @@ describe("shared allocation (core/config_checks.py _check_shared_scope)", () => 
     expect(
       issues({ mode: "linear", partitions: { v: {}, a: { mode: "shared", cores: "shared" } } }),
     ).toEqual([]);
+  });
+});
+
+describe("per-app cpus (core/execution/placement.py parse_cpus)", () => {
+  const cpusIssues = (cpus: string): string[] =>
+    validateDraft(fromConfig(oneApp({ cpus }))).filter((m) => /cpus/.test(m));
+
+  it("accepts N, A-B and comma lists", () => {
+    expect(cpusIssues("0-3,8")).toEqual([]);
+    expect(cpusIssues("5")).toEqual([]);
+    expect(cpusIssues("0-15, 32")).toEqual([]);
+    expect(cpusIssues("2-2")).toEqual([]);
+  });
+
+  it("refuses a reversed span, text, a negative number and a repeated core", () => {
+    const at = "ex1 · app #0: cpus";
+    expect(cpusIssues("3-1")).toEqual([
+      `${at} '3-1' has the invalid item '3-1'; use N or A-B (A <= B), comma-separated`,
+    ]);
+    expect(cpusIssues("a")).toEqual([
+      `${at} 'a' has the invalid item 'a'; use N or A-B (A <= B), comma-separated`,
+    ]);
+    expect(cpusIssues("-1")).toEqual([
+      `${at} '-1' has the invalid item '-1'; use N or A-B (A <= B), comma-separated`,
+    ]);
+    expect(cpusIssues("1,1")).toEqual([`${at} '1,1' lists a core more than once`]);
+    expect(cpusIssues("0-3,2")).toEqual([`${at} '0-3,2' lists a core more than once`]);
+  });
+
+  it("refuses an empty item between commas", () => {
+    expect(cpusIssues("1,,2")).toHaveLength(1);
+  });
+
+  it("skips a {name} placeholder, like the engine", () => {
+    expect(cpusIssues("0-{n}")).toEqual([]);
+  });
+});
+
+describe("per-app env (core/execution/placement.py parse_app_env, settings.py DROPPED_KEYS)", () => {
+  const envIssues = (env: AnyObj): string[] =>
+    validateDraft(fromConfig(oneApp({ env }))).filter((m) => /env/.test(m));
+
+  it("accepts shell variable names", () => {
+    expect(envIssues({ NCCL_IB_HCA: "mlx5_0", _x1: "", UCX_TLS: "rc" })).toEqual([]);
+  });
+
+  it("refuses a key that is not a shell variable name", () => {
+    expect(envIssues({ "A B": "1" })).toEqual([
+      "ex1 · app #0: env: key 'A B' is not a valid shell variable name",
+    ]);
+    expect(envIssues({ "1A": "1" })).toHaveLength(1);
+  });
+
+  it("refuses a dropped CRAB_* key and names what replaces it", () => {
+    expect(envIssues({ CRAB_MPIRUN: "mpirun" })).toEqual([
+      "ex1 · app #0: env: CRAB_MPIRUN is no longer read; use launchers.mpirun.command",
+    ]);
+    expect(envIssues({ CRAB_WL_MANAGER: "srun" })).toEqual([
+      "ex1 · app #0: env: CRAB_WL_MANAGER is no longer read; use launcher",
+    ]);
+    expect(envIssues({ CRAB_PINNING_FLAGS: "x" })[0]).toMatch(/launchers\.srun\.flags/);
+  });
+
+  it("does not refuse other CRAB_ variables", () => {
+    expect(envIssues({ CRAB_MINE: "1" })).toEqual([]);
+  });
+
+  it("skips a {name} placeholder, like the engine", () => {
+    expect(envIssues({ "A B": "{v}" })).toEqual([]);
   });
 });
