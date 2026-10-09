@@ -18,6 +18,7 @@ import {
   emptyApp,
   flowForest,
   hasAllocation,
+  optionsAreSet,
 } from "@/lib/config";
 import { equalShares, sliceColor, sliceName } from "@/lib/slices";
 import AllocationEditor from "@/components/AllocationEditor.vue";
@@ -105,7 +106,7 @@ const miniSlices = computed(() => {
 const overridesActive = computed(() => {
   const e = sel.value;
   if (!e) return false;
-  return Object.values(e.options).some((v) => v !== "");
+  return optionsAreSet(e.options);
 });
 
 const flow = computed(() =>

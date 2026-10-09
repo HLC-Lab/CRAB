@@ -296,3 +296,111 @@ def test_the_process_environment_is_the_default(monkeypatch: pytest.MonkeyPatch)
     launcher = launcher_for(_spec("openmpi5", export=("UCX_TLS",)))
     assert isinstance(launcher, MpirunLauncher)
     assert "UCX_TLS" in launcher.export
+
+
+# --------------------------------------------------------------------------- #
+# Binding: an app's placed cores, or no binding at all for apps on shared cores
+# --------------------------------------------------------------------------- #
+def test_openmpi4_binds_to_the_placed_cores() -> None:
+    assert _prefix("openmpi4", Placement(("h",), 2, cpus=(2, 3))) == [
+        "mpirun",
+        "-n",
+        "2",
+        "-H",
+        "h,h",
+        "--cpu-set",
+        "2,3",
+        "--bind-to",
+        "core",
+    ]
+
+
+def test_openmpi5_binds_to_the_placed_cores() -> None:
+    assert _prefix("openmpi5", Placement(("h",), 2, cpus=(2, 3))) == [
+        "mpirun",
+        "-n",
+        "2",
+        "--host",
+        "h:2",
+        "--map-by",
+        "pe-list=2,3:ordered",
+    ]
+
+
+def test_hydra_binds_to_the_placed_cores() -> None:
+    assert _prefix("hydra", Placement(("h",), 2, cpus=(2, 3))) == [
+        "mpirun",
+        "-n",
+        "2",
+        "-hosts",
+        "h:2",
+        "-bind-to",
+        "user:2,3",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("dialect_name", "host_flags", "bind_flags"),
+    [
+        ("openmpi4", ["-H", "h,h"], ["--bind-to", "none"]),
+        ("openmpi5", ["--host", "h:2"], ["--bind-to", "none"]),
+        ("hydra", ["-hosts", "h:2"], ["-bind-to", "none"]),
+    ],
+)
+def test_shared_cores_turn_binding_off(
+    dialect_name: str, host_flags: list[str], bind_flags: list[str]
+) -> None:
+    assert _prefix(dialect_name, Placement(("h",), 2, bind_none=True)) == [
+        "mpirun",
+        "-n",
+        "2",
+        *host_flags,
+        *bind_flags,
+    ]
+
+
+def test_an_explicit_core_list_wins_over_bind_none() -> None:
+    assert _prefix("hydra", Placement(("h",), 2, cpus=(4, 5), bind_none=True)) == [
+        "mpirun",
+        "-n",
+        "2",
+        "-hosts",
+        "h:2",
+        "-bind-to",
+        "user:4,5",
+    ]
+
+
+def test_binding_flags_come_after_hosts_and_before_export_report_and_preset_flags() -> None:
+    launcher = MpirunLauncher(
+        ("mpirun",), PRESET_FLAGS, "openmpi4", export=("NCCL_IB_HCA",), report_bindings=True
+    )
+    assert launcher.prefix(Placement(("h",), 2, cpus=(2, 3))) == [
+        "mpirun",
+        "-n",
+        "2",
+        "-H",
+        "h,h",
+        "--cpu-set",
+        "2,3",
+        "--bind-to",
+        "core",
+        "-x",
+        "NCCL_IB_HCA",
+        "--report-bindings",
+        "--mca",
+        "btl",
+        "self,tcp",
+    ]
+
+
+def test_extra_export_names_are_kept_even_when_the_environment_lacks_them() -> None:
+    launcher = launcher_for(_spec("openmpi5", export=("PATH",)), {"PATH": "/p"}, ("NCCL_IB_HCA",))
+    assert isinstance(launcher, MpirunLauncher)
+    assert launcher.export == ("PATH", "NCCL_IB_HCA")
+
+
+def test_an_extra_export_name_already_exported_is_not_repeated() -> None:
+    launcher = launcher_for(_spec("openmpi5", export=("PATH",)), {"PATH": "/p"}, ("PATH",))
+    assert isinstance(launcher, MpirunLauncher)
+    assert launcher.export == ("PATH",)

@@ -5,6 +5,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api/client";
 import type { CrabConfig, LibraryEntry } from "@/api/types";
+import { presetNotes } from "@/lib/presetFit";
 import { useJobsStore } from "@/stores/jobs";
 import { useRemotesStore } from "@/stores/remotes";
 
@@ -25,6 +26,31 @@ const libraryError = ref<string | null>(null);
 
 const connectedRemotes = computed(() => remotes.items.filter((r) => r.connected));
 const knownPresets = computed(() => remotes.info[selectedRemote.value]?.presets ?? []);
+const chosenPreset = computed(() =>
+  knownPresets.value.find((p) => p.name === selectedPreset.value),
+);
+
+// "Runs with: local scheduler, mpirun, hosts ws1, ws2"; empty for an old cluster (no fields).
+const presetSummary = computed(() => {
+  const p = chosenPreset.value;
+  if (!p || p.error || !p.scheduler) return "";
+  const parts = [p.scheduler === "local" ? "local scheduler" : "Slurm"];
+  if (p.launcher) parts.push(p.launcher);
+  if (p.scheduler === "local" && p.hosts?.length) parts.push(`hosts ${p.hosts.join(", ")}`);
+  return `Runs with: ${parts.join(", ")}`;
+});
+
+const chosenConfig = computed(
+  () =>
+    props.initialConfig?.config ??
+    libraryEntries.value.find((e) => e.id === selectedConfigId.value)?.config ??
+    null,
+);
+const notes = computed(() =>
+  chosenConfig.value && chosenPreset.value
+    ? presetNotes(chosenConfig.value, chosenPreset.value)
+    : [],
+);
 
 // Default the preset to the remote's own stored default, or its first known preset.
 watch(selectedRemote, (name) => {
@@ -112,6 +138,15 @@ async function doSubmit() {
           <input v-else v-model="selectedPreset" placeholder="cluster preset" />
         </label>
 
+        <p v-if="chosenPreset?.error" class="hint err">{{ chosenPreset.error }}</p>
+        <p v-else-if="presetSummary" class="hint">{{ presetSummary }}</p>
+        <template v-if="notes.length">
+          <p v-for="n in notes" :key="n.text" class="hint note" :class="n.level">
+            {{ n.text }}
+          </p>
+          <p class="hint">The cluster checks these again at submit.</p>
+        </template>
+
         <p v-if="jobs.submitError" class="hint err">{{ jobs.submitError }}</p>
       </template>
 
@@ -181,6 +216,15 @@ input:focus {
 .hint.err {
   color: var(--danger);
   white-space: pre-wrap;
+}
+.hint.error {
+  color: var(--danger);
+}
+.hint.warn {
+  color: var(--warn);
+}
+.hint.note {
+  margin-bottom: 0.3rem;
 }
 .modal-actions {
   display: flex;

@@ -25,7 +25,7 @@ and so on) in `_common` stops CRAB with an error, because each machine states it
 | `description` | string | Human-readable label. |
 | `env` | object | Environment variables exported to the applications. They carry no launch settings. |
 | `sbatch` | array of strings | `#SBATCH` directives added to the generated job script. Slurm only. |
-| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only. |
+| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only; see [Module flow](../using/presets.md#module-flow). |
 
 The execution fields, which say how this machine schedules and launches work, are listed next. A
 key that appears in neither table stops CRAB with an error that lists the allowed keys.
@@ -40,7 +40,7 @@ key that appears in neither table stops CRAB with an error that lists the allowe
 | `launchers.mpirun.command` | The `mpirun` executable, or its full path. | `"mpirun"` | `mpirun` |
 | `launchers.mpirun.flags` | Extra `mpirun` flags (`--map-by`, MCA parameters, …). | `[]` | `mpirun` |
 | `launchers.mpirun.dialect` | `"auto"`, `"openmpi4"`, `"openmpi5"` or `"hydra"`. Intel MPI is not supported. | `"auto"` | `mpirun` |
-| `launchers.mpirun.export` | Names of environment variables to forward to the remote ranks. | `[]` | `mpirun` |
+| `launchers.mpirun.export` | Names of environment variables to forward to the remote ranks, in addition to the ones CRAB forwards itself; see [The mpirun launcher](#the-mpirun-launcher). | `[]` | `mpirun` |
 | `hosts` | List of `"name"` or `"name:cores"`. Only `localhost` may omit the core count. | `["localhost"]` | `local` only |
 | `hostfile` | Path to a file instead of `hosts`, absolute or starting with `~`. A line is `h`, `h:N` or `h slots=N`; `#` starts a comment. | none | `local` only |
 | `exclusive` | `true` or `false`. | `true` | `local` only |
@@ -52,19 +52,10 @@ A few details:
 - Under `local`, a job runs on the first `numnodes` hosts of `hosts` (or of `hostfile`). A config
   that asks for more nodes than the preset has hosts is refused. Without either field the only
   host is `localhost`.
-- With `mpirun`, `launchers.mpirun.dialect` picks the host syntax below; `"auto"` reads
-  `mpirun --version` and supports Open MPI 4 and 5 and MPICH (Hydra). Open MPI names the variables
-  it forwards with `-x`; Hydra passes the whole environment.
-- Remote ranks receive the names in `launchers.mpirun.export`, `PATH`, `LD_LIBRARY_PATH`, the keys
-  of the preset's `env` and every `CRAB_*` variable, as far as they are set when the application
-  starts. A multi-host local run starts the remote ranks over `ssh`, so the hosts need
-  passwordless `ssh` between them and the same software at the same paths.
 - The launch lines are:
     - `srun`: `srun --export=ALL --nodelist <hosts> <flags> -n <ranks> -N <hosts>`
-    - `mpirun`: `<command> -n <ranks> <hosts> [-x NAME ...] <flags>`, with `<hosts>` being
-      `-H h,h,...` (Open MPI 4, a host repeated once per rank slot), `--host h:N,...` (Open MPI 5)
-      or `-hosts h:N,...` (Hydra), where `N` is the ranks per host; inside a Slurm job the list
-      stays within the allocation
+    - `mpirun`: `<command> -n <ranks> <hosts> [<binding>] [-x NAME ...] <report> <flags>`; see
+      [The mpirun launcher](#the-mpirun-launcher) for each part
     - `direct`: the application command, unchanged
 - A receipt's `launcher_override` can switch one benchmark to `srun` or `mpirun`; see
   [Receipts](../extending/receipts.md).
@@ -87,6 +78,48 @@ A Slurm preset and a local one, from the shipped file:
     "launcher": "mpirun"
 }
 ```
+
+## The mpirun launcher
+
+`launchers.mpirun.dialect` says which MPI the `mpirun` command belongs to, because the three
+supported ones spell their options differently. `"auto"` (the default) runs
+`<command> --version` once and reads the answer: Open MPI 4 and 5 and MPICH's Hydra are
+supported. Intel MPI, an Open MPI older than 4, and an `mpirun` that is only a stub asking for
+`srun` are refused with a message that says what to set instead. A probe that fails or does not
+answer within 10 seconds is an error too. The other values (`"openmpi4"`, `"openmpi5"`,
+`"hydra"`) skip the probe.
+
+`<ranks>` is `ppn` times the number of hosts, and `N` below is `ppn`, the ranks per host:
+
+| | `openmpi4` | `openmpi5` | `hydra` |
+|---|---|---|---|
+| `<hosts>` | `-H h,h,...` (a host repeated once per rank slot) | `--host h:N,...` | `-hosts h:N,...` |
+| `<binding>` for an application with `cpus` | `--cpu-set <cores> --bind-to core` | `--map-by pe-list=<cores>:ordered` | `-bind-to user:<cores>` |
+| `<binding>` for an application on [shared cores](configuration.md#shared-nodes) without `cpus` | `--bind-to none` | `--bind-to none` | `-bind-to none` |
+| `-x NAME` for each forwarded variable | yes | yes | no: Hydra passes the whole environment |
+| `<report>` | `--report-bindings` | `--display bindings` | `-report-bindings` |
+
+An application with neither `cpus` nor shared cores gets no binding flag, and `mpirun` uses its
+own default. `<flags>` are the preset's `launchers.mpirun.flags`, or the config's
+`launcher_flags` when it sets them, and come last. Inside a Slurm job the host list stays within
+the allocation.
+
+**Forwarded variables.** Open MPI only sends the variables it is told to. For each launch CRAB
+names, as far as they are set in the environment the application starts in:
+
+- the names in `launchers.mpirun.export`, then `PATH` and `LD_LIBRARY_PATH`, then the keys of the
+  preset's `env`;
+- every `CRAB_*` variable (not the internal `CRAB_SUPERVISOR_FD`);
+- the names in the application's own [`env`](configuration.md#the-apps-block), which its launch
+  script exports just before `mpirun` runs.
+
+A multi-host local run starts the remote ranks over `ssh`, so the hosts need passwordless `ssh`
+between them and the same software at the same paths.
+
+**Binding report.** CRAB always asks `mpirun` for the `<report>` option above. The report goes to
+`mpirun`'s standard error, which is also copied to `<experiment dir>/bindings_app_<id>.log` (with
+whatever the ranks write to their own standard error); see
+[What a run records about its launches](../using/running-without-slurm.md#what-a-run-records-about-its-launches).
 
 ## Merge semantics
 

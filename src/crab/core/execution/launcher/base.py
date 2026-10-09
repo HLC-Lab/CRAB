@@ -8,10 +8,17 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class Placement:
-    """Where a job's ranks run: the hosts and how many ranks each one gets."""
+    """Where a job's ranks run: the hosts, how many ranks each one gets, and their cores.
+
+    `cpus` is the explicit core list every host's ranks are bound to (one core per rank);
+    `bind_none` asks the launcher not to bind at all (an app on shared cores with no list), and
+    `cpus` wins when both are given. Neither means the launcher's own default.
+    """
 
     hosts: tuple[str, ...]
     ranks_per_host: int
+    cpus: tuple[int, ...] | None = None
+    bind_none: bool = False
 
     @property
     def total_ranks(self) -> int:

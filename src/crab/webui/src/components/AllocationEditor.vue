@@ -163,19 +163,35 @@ const nodeCounts = computed(() => counts(totalN.value, shares.value));
 const strip = computed(() => owners(a.value.mode, nodeCounts.value, strideN.value, seedN.value));
 const isMatrix = computed(() => totalN.value > 32);
 
+// "shared" gives every app all the nodes and is valid only without slices (the engine refuses it
+// next to partitions), so there is nothing to split: the strip shows every node as shared.
+const isShared = computed(() => a.value.mode === "shared");
+const sharedStripe = computed(
+  () => `repeating-linear-gradient(135deg, ${sliceColor(0)} 0 6px, ${sliceColor(1)} 6px 12px)`,
+);
+const coresHint = computed(() =>
+  a.value.cores === "shared"
+    ? "apps compete for the same cores (measures OS scheduling too)"
+    : "each app gets its own cores",
+);
+
 const caption = computed(() => {
+  if (isShared.value)
+    return `Every app runs on all ${totalN.value} node${totalN.value === 1 ? "" : "s"}.`;
+  const who = solo.value ? "apps" : "groups";
   const desc =
     a.value.mode === "interleaved"
-      ? `groups alternate every ${strideN.value} node${strideN.value === 1 ? "" : "s"}`
+      ? `${who} alternate every ${strideN.value} node${strideN.value === 1 ? "" : "s"}`
       : a.value.mode === "random"
         ? `node assignment shuffled (seed ${seedN.value})`
-        : "each group gets a contiguous block";
+        : `each ${solo.value ? "app" : "group"} gets a contiguous block`;
   return `${desc}. Illustration of placement, exact assignment happens at runtime.`;
 });
 
 // -- Slice mutations --------------------------------------------------------
 function addSlice(): void {
   const ps = a.value.partitions;
+  if (isShared.value) setMode("linear"); // shared is not valid next to groups
   a.value.by = "groups";
   if (ps.length === 0) {
     ps.push(emptyPartition("victim"), emptyPartition("aggressor")); // even 50/50
@@ -246,10 +262,24 @@ function onPct(i: number, raw: string): void {
 
 function setMode(m: AllocationDraft["mode"]): void {
   a.value.mode = m;
+  if (m === "shared") {
+    // split, stride and seed are errors next to shared and have no field here
+    a.value.by = "app";
+    a.value.split = "";
+    a.value.stride = "";
+    a.value.seed = "";
+  } else {
+    a.value.cores = "";
+  }
   if (m === "interleaved" && !a.value.stride.trim()) a.value.stride = "1";
   if (m === "random" && !a.value.seed.trim()) {
     a.value.seed = String(Math.floor(Math.random() * 1_000_000));
   }
+}
+
+// "disjoint" is the engine default: a loaded explicit "disjoint" stays, a new pick leaves the key out.
+function setCores(v: string): void {
+  a.value.cores = v === "disjoint" && a.value.cores !== "disjoint" ? "" : v;
 }
 
 // Drag a divider: repartition the two adjacent slices by the pointer position.
@@ -379,7 +409,7 @@ function startDrag(e: PointerEvent, i: number): void {
     </div>
 
     <!-- Placement -->
-    <div v-if="!solo" class="layout">
+    <div v-if="!solo || !hideMode" class="layout">
       <span class="sect">Placement</span>
       <div class="lrow">
         <div v-if="!hideMode" class="seg">
@@ -388,6 +418,16 @@ function startDrag(e: PointerEvent, i: number): void {
             interleaved
           </button>
           <button :class="{ on: a.mode === 'random' }" @click="setMode('random')">random</button>
+          <button
+            :class="{ on: isShared }"
+            :disabled="!solo"
+            :title="
+              solo ? '' : 'Not available with node groups: remove the slices to share all nodes'
+            "
+            @click="setMode('shared')"
+          >
+            shared
+          </button>
         </div>
         <label v-if="!hideMode && a.mode === 'interleaved'" class="subc"
           >every <NumberField v-model="a.stride" :min="1" class="subfield" /> node(s)</label
@@ -395,17 +435,33 @@ function startDrag(e: PointerEvent, i: number): void {
         <label v-if="!hideMode && a.mode === 'random'" class="subc"
           >seed <NumberField v-model="a.seed" class="subfield seed"
         /></label>
+        <label v-if="!hideMode && isShared" class="subc"
+          >cores
+          <select
+            class="subselect"
+            :value="a.cores || 'disjoint'"
+            @change="setCores(($event.target as HTMLSelectElement).value)"
+          >
+            <option value="disjoint">disjoint</option>
+            <option value="shared">shared</option>
+          </select>
+          <span class="hint">{{ coresHint }}</span>
+        </label>
       </div>
-      <div class="strip" :class="{ matrix: isMatrix }">
+      <div v-if="solo && isShared" class="strip" :class="{ matrix: isMatrix }">
+        <span v-for="i in totalN" :key="i" class="c" :style="{ background: sharedStripe }" />
+      </div>
+      <p v-if="solo" class="cap">{{ caption }}</p>
+      <div v-if="!solo" class="strip" :class="{ matrix: isMatrix }">
         <span v-for="(o, i) in strip" :key="i" class="c" :style="{ background: colorOf(o) }" />
       </div>
-      <div class="legend">
+      <div v-if="!solo" class="legend">
         <span v-for="(p, i) in partitions" :key="i" class="k">
           <span class="sw" :style="{ background: colorOf(i) }" />
           <b>{{ nameOf(i) }}</b> · {{ nodeCounts[i] }} node{{ nodeCounts[i] === 1 ? "" : "s" }}
         </span>
       </div>
-      <p class="cap">{{ caption }}</p>
+      <p v-if="!solo" class="cap">{{ caption }}</p>
     </div>
   </div>
 </template>
@@ -649,6 +705,10 @@ function startDrag(e: PointerEvent, i: number): void {
   font-size: var(--t-sm);
   font-family: var(--sans);
 }
+.seg button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .seg button.on {
   background: var(--accent);
   color: #fff;
@@ -661,6 +721,18 @@ function startDrag(e: PointerEvent, i: number): void {
   color: var(--text2);
   font-size: var(--t-sm);
   font-family: var(--sans);
+}
+.subselect {
+  background: var(--bg2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 0.3rem 0.5rem;
+  font-size: var(--t-sm);
+  font-family: var(--sans);
+}
+.hint {
+  color: var(--text3);
 }
 .subfield {
   width: 3.8rem;

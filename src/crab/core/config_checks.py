@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from crab.core.allocation.allocator import NodeAllocator
 from crab.core.allocation.chains import resolve_chains
+from crab.core.execution.placement import allocate_on_paper, check_experiment
 from crab.core.execution.settings import LAUNCHER_KINDS, ExecutionSettings
 
-ALLOCATION_MODES = ("linear", "interleaved", "random")
+ALLOCATION_MODES = ("linear", "interleaved", "random", "shared")
+CORES_MODES = ("disjoint", "shared")
 OUTPUT_FORMATS = ("csv",)
 _BOOL_OPTIONS = ("convergeall", "retain_files")
 _TASKS_TAIL = "CRAB sets the task count from numnodes and ppn"
@@ -53,8 +54,30 @@ def _experiments(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _check_mode(mode: Any, where: str) -> None:
-    if mode not in ALLOCATION_MODES:
+    if not _has_token(mode) and mode not in ALLOCATION_MODES:
         raise ValueError(f"{where} {mode!r} is not one of: {', '.join(ALLOCATION_MODES)}")
+
+
+def _check_shared_scope(scope: dict[str, Any], where: str) -> None:
+    """`mode: "shared"` takes no split, stride or seed; `cores` goes only with it.
+
+    `scope` is the allocation or one partition; a `{var}` value is skipped.
+    """
+    mode = scope.get("mode")
+    if _has_token(mode):
+        return
+    if mode == "shared":
+        for key in ("split", "stride", "seed"):
+            if key in scope and not _has_token(scope[key]):
+                raise ValueError(
+                    f"{where}: {key} cannot be used with mode 'shared' "
+                    "(every app gets all the nodes)"
+                )
+    elif "cores" in scope and not _has_token(scope["cores"]):
+        raise ValueError(f"{where}: cores is only valid with mode 'shared'")
+    cores = scope.get("cores")
+    if "cores" in scope and not _has_token(cores) and cores not in CORES_MODES:
+        raise ValueError(f"{where}: cores {cores!r} is not one of: {', '.join(CORES_MODES)}")
 
 
 def _check_options(opts: dict[str, Any], exp: str) -> None:
@@ -70,9 +93,18 @@ def _check_options(opts: dict[str, Any], exp: str) -> None:
     allocation = opts.get("allocation") or {}
     if "mode" in allocation:
         _check_mode(allocation["mode"], f"experiment {exp}: allocation.mode")
+    _check_shared_scope(allocation, f"experiment {exp}: allocation")
+    if allocation.get("mode") == "shared" and allocation.get("partitions"):
+        raise ValueError(
+            f"experiment {exp}: allocation.mode 'shared' cannot be used with partitions "
+            "(the top-level mode lays out the partition blocks); "
+            "set mode 'shared' inside a partition instead"
+        )
     for name, part in (allocation.get("partitions") or {}).items():
         if isinstance(part, dict) and "mode" in part:
             _check_mode(part["mode"], f"experiment {exp}: partition {name!r} mode")
+        if isinstance(part, dict):
+            _check_shared_scope(part, f"experiment {exp}: partition {name!r}")
 
 
 def _has_token(value: Any) -> bool:
@@ -207,28 +239,6 @@ def _check_split(
         )
 
 
-class _Slot:
-    """Stands in for an app so the real allocator can be run on paper."""
-
-    def __init__(self, partition_id: Any, start: str) -> None:
-        self.partition_id = partition_id
-        self.start_string = start
-        self.nodes: list[str] = []
-
-    def set_nodes(self, nodes: list[str]) -> None:
-        self.nodes = list(nodes)
-
-
-def _allocate_on_paper(
-    allocation: dict[str, Any], partitions: list[Any], starts: list[str], numnodes: int
-) -> list[int]:
-    """Node count per app, from the same NodeAllocator call as ExperimentRunner.setup."""
-    slots = [_Slot(p, s) for p, s in zip(partitions, starts, strict=True)]
-    node_list = [f"n{i}" for i in range(numnodes)]
-    NodeAllocator.allocate_experiment(slots, node_list, allocation)
-    return [len(s.nodes) for s in slots]
-
-
 def _check_allocation(
     allocation: dict[str, Any],
     apps: dict[str, Any],
@@ -292,7 +302,10 @@ def _check_allocation(
     except (TypeError, ValueError):
         return  # missing or a {var} token: the engine reports a missing numnodes itself
     try:
-        counts = _allocate_on_paper(allocation, app_partitions, app_starts, total)
+        node_lists = allocate_on_paper(
+            allocation, app_partitions, app_starts, [f"n{i}" for i in range(total)]
+        )
+        counts = [len(nodes) for nodes in node_lists]
     except (TypeError, ValueError) as exc:
         raise ValueError(f"experiment {exp}: allocation: {exc}") from exc
     for key, count in zip(keys, counts, strict=True):
@@ -325,6 +338,19 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
         _check_allocation(
             opts.get("allocation") or {}, apps, global_opts.get("numnodes"), exp_name, warnings
         )
+        placement_keys = ("start", "partition", "cpus", "env")
+        if settings is not None and not _has_token(
+            [opts.get("allocation"), global_opts.get("numnodes"), global_opts.get("ppn")]
+            + [[a.get(k) for k in placement_keys] for a in apps.values()]
+        ):
+            warnings += check_experiment(
+                exp_name,
+                apps,
+                opts.get("allocation") or {},
+                global_opts,
+                settings,
+                opts.get("launcher"),
+            )
         for app_key, app in (exp.get("apps") or {}).items():
             where = f"experiment {exp_name}: app {app_key}"
             if not str(app.get("path") or "").strip():

@@ -132,3 +132,54 @@ def test_two_fake_hosts_launch_one_daemon_each(mpirun: str, tmp_path: Path) -> N
     assert _ranks(out) == ["0", "1"], f"{line}\nstdout: {out}\nstderr: {err}"
     log = (tmp_path / "fake_ssh.log").read_text().splitlines()
     assert sorted(entry.split(":", 1)[0] for entry in log) == ["nodea", "nodeb"], "\n".join(log)
+
+
+def _bound_to(stderr: str) -> list[str]:
+    """What the binding report says each rank is bound to (the text after "bound to")."""
+    return [
+        line.lower().split("bound to", 1)[1].strip()
+        for line in stderr.splitlines()
+        if "bound to" in line.lower()
+    ]
+
+
+@pytest.mark.parametrize("mpirun", MPIRUNS)
+def test_two_concurrent_launches_on_different_cores_are_bound_to_different_cores(
+    mpirun: str,
+) -> None:
+    cores = sorted(os.sched_getaffinity(0))
+    if len(cores) < 2:
+        pytest.skip("two cores are needed to place two apps on different ones")
+    spec = LauncherSpec("mpirun", (shlex.quote(mpirun),), "auto", (), ())
+    launcher = launcher_for(spec, environ={})
+    command = f"{shlex.quote(sys.executable)} -c {shlex.quote('import time; time.sleep(1)')}"
+    lines = [
+        launch_line(launcher, Placement(("localhost",), 1, cpus=(core,)), command)
+        for core in cores[:2]
+    ]
+    processes = [
+        subprocess.Popen(
+            ["bash", "-c", line],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        for line in lines
+    ]
+    reports: list[str] = []
+    for process, line in zip(processes, lines, strict=True):
+        try:
+            _, err = process.communicate(timeout=LAUNCH_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            for running in processes:
+                if running.poll() is None:
+                    os.killpg(running.pid, signal.SIGKILL)
+            pytest.fail(f"launch timed out: {line}")
+        assert process.returncode == 0, f"{line}\nstderr: {err}"
+        reports.append(err)
+
+    bound = [_bound_to(report) for report in reports]
+    shown = "\n".join(f"{line}\n{report}" for line, report in zip(lines, reports, strict=True))
+    assert all(len(found) == 1 for found in bound), f"no binding report line:\n{shown}"
+    assert bound[0] != bound[1], f"both ranks bound alike:\n{shown}"

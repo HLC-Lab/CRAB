@@ -1,4 +1,5 @@
 import os
+import re
 import shlex
 import signal
 import subprocess
@@ -10,6 +11,9 @@ from crab.core.execution.launcher import MpirunLauncher, Placement, launch_line,
 from crab.core.execution.settings import LauncherSpec
 from crab.core.provenance import record_launch
 from crab.log import CrabLogger
+
+# What an app's `env` key must look like to be exported from the app script.
+_SHELL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 # How long stop_processes waits after SIGTERM before it sends SIGKILL (ADR-034, "Cancel order").
 STOP_GRACE_SECONDS = 10.0
@@ -191,11 +195,26 @@ def run_job(
             "command; refusing to run it."
         )
 
-    # 1. Build the launch line for the job's hosts
-    launcher = launcher_for(spec)
+    app_env = dict(getattr(job, "app_env", None) or {})
+    for name in app_env:
+        if not _SHELL_NAME.fullmatch(name):
+            raise ValueError(
+                f"app {job.id_num}: env key {name!r} is not a valid shell variable name"
+            )
+
+    # 1. Build the launch line for the job's hosts, on the app's placed cores. An app on shared
+    # cores without a core list is left unbound so co-located launches do not pile onto the
+    # first cores.
+    cpus = getattr(job, "cpu_list", None)
+    launcher = launcher_for(spec, extra_export=tuple(app_env))
     cmd_string = launch_line(
         launcher,
-        Placement(tuple(job.node_list), ppn),
+        Placement(
+            tuple(job.node_list),
+            ppn,
+            cpus=tuple(cpus) if cpus else None,
+            bind_none=bool(getattr(job, "shared_cores", False)) and not cpus,
+        ),
         app_command,
     )
 
@@ -236,6 +255,11 @@ def run_job(
         if pre_commands:
             for cmd in pre_commands:
                 f.write(f"{cmd}\n")
+
+        # The app's own variables: set here, so srun (`--export=ALL`) and direct inherit them and
+        # mpirun passes them on with `-x`.
+        for name, value in app_env.items():
+            f.write(f"export {name}={shlex.quote(value)}\n")
 
         f.write("\n# Execute workload\n")
         if bindings_path:

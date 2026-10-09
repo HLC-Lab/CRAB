@@ -86,11 +86,9 @@ def test_legacy_applications_form_is_checked_too() -> None:
         Engine(logger=MagicMock()).run(config=config, environment={}, is_worker=False)
 
 
-# Examples that fail at launch today ("0 allocated nodes"). Remove an entry when its cause is
-# fixed; strict xfail flags a stale one.
-_KNOWN_BROKEN: dict[str, str] = {
-    "examples/local/concurrent_collectives_stress.json": "4 concurrent apps on 1 node",
-}
+# Examples known to fail at launch; none today. Add an entry with its cause, and remove it when
+# the cause is fixed (a strict xfail flags a stale entry).
+_KNOWN_BROKEN: dict[str, str] = {}
 
 
 def _example_params():
@@ -107,6 +105,27 @@ def test_every_shipped_example_passes_the_checks(path: Path) -> None:
     from crab.core.config_checks import check_config
 
     check_config(json.loads(path.read_text()))
+
+
+def _local_preset_settings():
+    from crab.core.execution.settings import from_preset
+
+    presets = json.loads((REPO / "config" / "presets.json").read_text())
+    body = dict(presets["local"])
+    body["env"] = {**presets["_common"].get("env", {}), **body.get("env", {})}
+    return from_preset(body, "local")
+
+
+@pytest.mark.parametrize(
+    "path",
+    sorted((REPO / "examples" / "local").glob("*.json")),
+    ids=lambda p: p.name,
+)
+def test_local_examples_fit_the_local_preset(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from crab.core.config_checks import check_config
+
+    monkeypatch.setattr("os.cpu_count", lambda: 8)
+    check_config(json.loads(path.read_text()), _local_preset_settings())
 
 
 # --- Allocations --------------------------------------------------------------------------
@@ -491,3 +510,149 @@ def test_token_or_missing_numnodes_and_ppn_are_skipped(value: object) -> None:
 
     global_options = {} if value is None else {"numnodes": value, "ppn": value}
     assert _check(_cfg(global_options), LOCAL_DIRECT) == []
+
+
+# -- allocation.mode "shared" and `cores` (ADR-033) ---------------------------------------------
+
+
+def _shared_check(allocation: dict, apps: object = 2) -> list[str]:
+    from crab.core.config_checks import check_config
+
+    return check_config(_alloc_config(allocation, apps, numnodes="4"))
+
+
+@pytest.mark.parametrize("key,value", [("split", [50, 50]), ("stride", 2), ("seed", 7)])
+def test_shared_refuses_split_stride_and_seed(key: str, value: object) -> None:
+    with pytest.raises(ValueError, match=rf"experiment e1: allocation: {key}.*mode 'shared'"):
+        _shared_check({"mode": "shared", key: value})
+
+
+@pytest.mark.parametrize("key,value", [("split", [50, 50]), ("stride", 2), ("seed", 7)])
+def test_shared_partition_refuses_split_stride_and_seed(key: str, value: object) -> None:
+    alloc = {"partitions": {"victim": {"mode": "shared", key: value}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    with pytest.raises(ValueError, match=rf"experiment e1: partition 'victim': {key}.*'shared'"):
+        _shared_check(alloc, apps)
+
+
+def test_cores_without_shared_is_refused() -> None:
+    with pytest.raises(ValueError, match=r"experiment e1: allocation: cores.*mode 'shared'"):
+        _shared_check({"mode": "linear", "cores": "shared"})
+    with pytest.raises(ValueError, match=r"experiment e1: allocation: cores.*mode 'shared'"):
+        _shared_check({"cores": "disjoint"})
+
+
+def test_cores_in_a_partition_without_shared_is_refused() -> None:
+    alloc = {"partitions": {"victim": {"cores": "shared"}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    with pytest.raises(ValueError, match=r"experiment e1: partition 'victim': cores.*'shared'"):
+        _shared_check(alloc, apps)
+
+
+@pytest.mark.parametrize("cores", ["exclusive", "", 1, True])
+def test_cores_must_be_disjoint_or_shared(cores: object) -> None:
+    with pytest.raises(ValueError, match=r"experiment e1: allocation: cores .*disjoint, shared"):
+        _shared_check({"mode": "shared", "cores": cores})
+
+
+def test_top_level_shared_with_partitions_is_refused() -> None:
+    alloc = {"mode": "shared", "partitions": {"victim": {}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    with pytest.raises(ValueError, match=r"experiment e1: allocation\.mode 'shared'.*partitions"):
+        _shared_check(alloc, apps)
+
+
+@pytest.mark.parametrize(
+    "allocation",
+    [
+        {"mode": "shared"},
+        {"mode": "shared", "cores": "shared"},
+        {"mode": "shared", "cores": "disjoint"},
+    ],
+)
+def test_valid_shared_allocations_pass(allocation: dict) -> None:
+    assert _shared_check(allocation) == []
+
+
+def test_valid_shared_partition_passes() -> None:
+    alloc = {
+        "partitions": {
+            "victim": {"share": 50, "mode": "shared", "cores": "disjoint"},
+            "aggressor": {"share": 50},
+        }
+    }
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    assert _shared_check(alloc, apps) == []
+
+
+@pytest.mark.parametrize(
+    "allocation",
+    [
+        {"mode": "shared", "cores": "{c}"},
+        {"mode": "shared", "split": "{s}"},
+        {"mode": "shared", "stride": "{k}"},
+        {"mode": "shared", "seed": "{seed}"},
+        {"mode": "{m}", "cores": "shared"},
+        {"mode": "linear", "cores": "{c}"},
+    ],
+)
+def test_tokens_in_shared_fields_are_skipped(allocation: dict) -> None:
+    assert _shared_check(allocation) == []
+
+
+# -- app `cpus` and `env`: placement of co-located apps (ADR-033) -----------------------------------
+# Before: both keys were injected into the wrapper as attributes and never checked, so two apps on
+# one node could pin the same cores and an invalid env surfaced as a launch failure.
+
+
+def _placed_config(apps: list[dict], allocation: dict | None = None, ppn: int = 4) -> dict:
+    exp = {
+        "apps": {str(i): {"path": "a.py", **app} for i, app in enumerate(apps)},
+        "local_options": {"allocation": allocation or {"mode": "shared"}},
+    }
+    return {"global_options": {"numnodes": 1, "ppn": ppn}, "experiments": {"e1": exp}}
+
+
+def _sixteen_core_host():
+    from crab.core.execution.settings import from_preset
+
+    return from_preset({"scheduler": "local", "hosts": ["box:16"], "launcher": "mpirun"}, "t")
+
+
+def test_overlapping_cpus_of_co_located_apps_are_refused() -> None:
+    config = _placed_config([{"cpus": "0-3"}, {"cpus": "2-5"}])
+    with pytest.raises(ValueError, match=r"experiment e1: app 0 and app 1.*core\(s\) 2,3"):
+        _check(config, _sixteen_core_host())
+
+
+def test_an_automatic_core_split_is_a_warning() -> None:
+    warnings = _check(_placed_config([{}, {}]), _sixteen_core_host())
+    assert len(warnings) == 1
+    assert "automatic disjoint core split" in warnings[0]
+
+
+def test_invalid_app_env_is_refused_with_the_experiment_and_app() -> None:
+    config = _placed_config([{}, {"env": {"CRAB_MPIRUN": "mpirun"}}])
+    with pytest.raises(ValueError, match="experiment e1: app 1: env: CRAB_MPIRUN"):
+        _check(config, _sixteen_core_host())
+
+
+def test_placement_is_skipped_without_settings_and_for_tokens() -> None:
+    config = _placed_config([{"cpus": "0-3"}, {"cpus": "2-5"}])
+    assert _check(config) == []
+    config["global_options"]["ppn"] = "{p}"
+    assert _check(config, _sixteen_core_host()) == []
+    token_cpus = _placed_config([{"cpus": "{c}"}, {"cpus": "2-5"}])
+    assert _check(token_cpus, _sixteen_core_host()) == []
+
+
+def test_a_cpus_the_launcher_ignores_is_a_warning_in_check_config() -> None:
+    config = _placed_config([{"cpus": "0-3"}], ppn=1)
+    config["global_options"]["launcher"] = "direct"
+    warnings = _check(config, _sixteen_core_host())
+    assert warnings == [
+        "experiment e1: app 0: cpus has no effect with the direct launcher; "
+        "only mpirun binds to an explicit core list"
+    ]
+    del config["global_options"]["launcher"]
+    assert _check(config, _sixteen_core_host()) == []

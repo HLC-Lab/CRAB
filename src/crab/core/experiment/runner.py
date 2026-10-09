@@ -7,6 +7,7 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
+from crab.core.execution.placement import place_experiment
 from crab.core.execution.settings import (
     SLURM_DEFAULT,
     ExecutionSettings,
@@ -77,6 +78,8 @@ class ExperimentRunner:
         # App Instantiation
         idx_counter = 0
         wrapper_paths: list[str] = []
+        placed_keys: list[str] = []
+        placed_configs: list[dict[str, Any]] = []
         for key in sorted_keys:
             details = app_configs[key]
             config_key = str(key)  # `key` is reused below
@@ -101,7 +104,7 @@ class ExperimentRunner:
             # --- DYNAMIC CONFIG INJECTION ---
             # Any key in the JSON 'apps' config that isn't a reserved CRAB keyword
             # gets injected as an attribute into the app instance.
-            reserved_keys = ["path", "args", "collect", "start", "end", "partition"]
+            reserved_keys = ["path", "args", "collect", "start", "end", "partition", "cpus", "env"]
             for key, value in details.items():
                 if key not in reserved_keys:
                     setattr(app_instance, key, value)
@@ -149,6 +152,8 @@ class ExperimentRunner:
 
             self.apps.append(app_instance)
             wrapper_paths.append(path)
+            placed_keys.append(config_key)
+            placed_configs.append(details)
             idx_counter += 1
 
         # Resolve each app's launcher now, so a bad override or option fails before any run
@@ -165,6 +170,25 @@ class ExperimentRunner:
         # 2. Allocate Nodes
         allocation = self.exp_opts.get("allocation", {})
         NodeAllocator.allocate_experiment(self.apps, self.node_list, allocation)
+
+        # Which cores and environment each app's ranks get (the warnings are logged by check_config)
+        placed = place_experiment(
+            self.name,
+            placed_keys,
+            placed_configs,
+            [app.node_list for app in self.apps],
+            allocation,
+            self.ppn,
+            self.settings,
+            self.node_list,
+            self.global_opts,
+        )
+        for app, cpu_list, app_env, shared in zip(
+            self.apps, placed.cpu_lists, placed.envs, placed.shared_cores, strict=True
+        ):
+            app.cpu_list = cpu_list
+            app.app_env = app_env
+            app.shared_cores = shared
 
         # 3. Initialize Data Containers
         for app in self.apps:

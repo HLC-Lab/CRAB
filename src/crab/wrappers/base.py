@@ -24,6 +24,19 @@ class base:
     keys: list = []
     # Executable name looked up on PATH when neither the config nor a receipt names a binary.
     executable = ""
+    # Set by the runner before launch: the app's placed cores (None means the launcher's default),
+    # whether it competes for shared cores with co-located apps, and the variables its ranks run
+    # with.
+    cpu_list: tuple[int, ...] | None = None
+    shared_cores = False
+
+    @property
+    def app_env(self) -> dict[str, str]:
+        return self.__dict__.get("_app_env", {})
+
+    @app_env.setter
+    def app_env(self, value: dict[str, str]) -> None:
+        self.__dict__["_app_env"] = value
 
     def __init__(self, id_num, collect_flag, args):
         self.id_num = id_num

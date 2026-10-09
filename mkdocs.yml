@@ -66,6 +66,7 @@ nav:
   - Using CRAB:
       - Installation & benchmark setup: using/installation.md
       - Configuring your cluster: using/presets.md
+      - Running without Slurm: using/running-without-slurm.md
       - Running an experiment: using/running.md
       - Writing experiment configs: using/writing-configs.md
       - Reading results: using/results.md

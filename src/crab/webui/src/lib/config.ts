@@ -15,6 +15,11 @@ export const CONFIG_SCHEMA_VERSION = 2;
 export type StartKind = "at_start" | "delay" | "after";
 export type EndKind = "complete" | "force" | "timed";
 
+export interface EnvRow {
+  key: string;
+  value: string;
+}
+
 export interface AppDraft {
   path: string;
   args: string;
@@ -25,12 +30,39 @@ export interface AppDraft {
   startAfter: string; // app index N, when startKind === "after" → "sN"
   endKind: EndKind;
   endTimed: string; // seconds, when endKind === "timed"
+  env: EnvRow[]; // per-app environment variables, emitted as the `env` object
+  cpus: string; // core list such as "0-3,8"; empty means no pinning
   // Non-reserved app keys are injected as wrapper attributes by the engine
   // (documented). Preserve them untouched so load→save doesn't drop them.
   rest: Record<string, unknown>;
 }
 
-const RESERVED_APP_KEYS = new Set(["path", "args", "collect", "start", "end", "partition"]);
+const RESERVED_APP_KEYS = new Set([
+  "path",
+  "args",
+  "collect",
+  "start",
+  "end",
+  "partition",
+  "cpus",
+  "env",
+]);
+
+/** The rows of an app's `env` object; anything else is not an env the editor can show. */
+function readEnv(value: unknown): EnvRow[] {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value as Record<string, unknown>).map(([key, v]) => ({
+    key,
+    value: typeof v === "string" ? v : String(v),
+  }));
+}
+
+/** The `env` object for the rows with a name, or null when there is none to emit. */
+function envObject(rows: EnvRow[]): Record<string, string> | null {
+  const out: Record<string, string> = {};
+  for (const r of rows) if (r.key.trim()) out[r.key.trim()] = r.value;
+  return Object.keys(out).length ? out : null;
+}
 
 function startStr(a: AppDraft): string {
   if (a.startKind === "delay") return a.startDelay.trim() || "0";
@@ -64,7 +96,10 @@ function parseEnd(s: string): Pick<AppDraft, "endKind" | "endTimed"> {
 // aggressor, each with a `share`). Numeric fields here are emitted as NUMBERS
 // (split[], share, stride, seed) — unlike numnodes/ppn which stay strings.
 
-export type AllocMode = "linear" | "interleaved" | "random";
+export type AllocMode = "linear" | "interleaved" | "random" | "shared";
+
+/** Values of `cores` the engine accepts (CORES_MODES in core/config_checks.py). */
+export const CORES_MODES = ["disjoint", "shared"];
 export type AllocBy = "app" | "groups";
 
 export interface PartitionDraft {
@@ -79,11 +114,12 @@ export interface AllocationDraft {
   split: string; // "60, 40" → [60, 40]; only meaningful when by === "app"
   stride: string; // interleaved only
   seed: string; // random only
+  cores: string; // shared only; "" = key absent (the engine's default is disjoint)
   partitions: PartitionDraft[]; // only meaningful when by === "groups"
 }
 
 export function emptyAllocation(): AllocationDraft {
-  return { mode: "linear", by: "app", split: "", stride: "", seed: "", partitions: [] };
+  return { mode: "linear", by: "app", split: "", stride: "", seed: "", cores: "", partitions: [] };
 }
 
 /** Deep copy, so mutating the clone never affects the source allocation. */
@@ -94,6 +130,7 @@ export function cloneAllocation(a: AllocationDraft): AllocationDraft {
     split: a.split,
     stride: a.stride,
     seed: a.seed,
+    cores: a.cores,
     partitions: a.partitions.map((p) => ({ name: p.name, share: p.share, rest: { ...p.rest } })),
   };
 }
@@ -106,7 +143,7 @@ export function cloneExperiment(e: ExperimentDraft): ExperimentDraft {
     overrideAlloc: e.overrideAlloc,
     allocation: cloneAllocation(e.allocation),
     options: { ...e.options },
-    apps: e.apps.map((a) => ({ ...a, rest: { ...a.rest } })),
+    apps: e.apps.map((a) => ({ ...a, env: a.env.map((r) => ({ ...r })), rest: { ...a.rest } })),
   };
 }
 
@@ -120,6 +157,7 @@ export function cloneExperiment(e: ExperimentDraft): ExperimentDraft {
  */
 export function hasAllocation(a: AllocationDraft): boolean {
   if (a.mode !== "linear") return true;
+  if (a.cores.trim()) return true; // an invalid leftover, kept so validation can name it
   if (a.by === "groups") return a.partitions.some((p) => p.name.trim());
   return !!a.split.trim();
 }
@@ -160,6 +198,7 @@ export function toAllocation(
   const out: Record<string, unknown> = { mode: a.mode };
   if (a.mode === "interleaved" && a.stride.trim()) out.stride = numOrToken(a.stride);
   if (a.mode === "random" && a.seed.trim()) out.seed = numOrToken(a.seed);
+  if (a.cores.trim()) out.cores = a.cores.trim();
 
   if (a.by === "groups") {
     const partitions: Record<string, unknown> = {};
@@ -186,9 +225,10 @@ export function fromAllocation(alloc: unknown): AllocationDraft {
   if (!alloc || typeof alloc !== "object") return a;
   const o = alloc as Record<string, unknown>;
   const mode = String(o.mode ?? "linear");
-  a.mode = mode === "interleaved" || mode === "random" ? mode : "linear";
+  a.mode = mode === "interleaved" || mode === "random" || mode === "shared" ? mode : "linear";
   if (o.stride != null) a.stride = String(o.stride);
   if (o.seed != null) a.seed = String(o.seed);
+  if (o.cores != null) a.cores = String(o.cores);
 
   if (o.partitions && typeof o.partitions === "object") {
     a.by = "groups";
@@ -252,7 +292,19 @@ export interface OptionsDraft {
   extrainfo: string;
   walltime: string;
   datapath: string;
+  // Execution launcher (ADR-033). Empty = no key (the preset's launcher applies).
+  launcher: string;
+  // launcher_flags REPLACES the preset's flags for the launcher kind. Unchecked = key absent,
+  // checked with empty text = [] ("no extra flags"), checked with text = the whitespace tokens.
+  replaceLauncherFlags: boolean;
+  launcherFlags: string;
+  // A launcher_flags value the text field cannot hold (not a list of strings, or a flag that
+  // contains whitespace). Kept as loaded and re-emitted until the user edits the field.
+  launcherFlagsRaw?: unknown;
 }
+
+/** Launcher kinds the engine accepts (LAUNCHER_KINDS in core/execution/settings.py). */
+export const LAUNCHER_KINDS = ["srun", "mpirun", "direct"];
 
 export function emptyOptions(): OptionsDraft {
   return {
@@ -268,6 +320,9 @@ export function emptyOptions(): OptionsDraft {
     extrainfo: "",
     walltime: "",
     datapath: "",
+    launcher: "",
+    replaceLauncherFlags: false,
+    launcherFlags: "",
   };
 }
 
@@ -289,6 +344,17 @@ export function applyOptions(target: Record<string, unknown>, o: OptionsDraft): 
   if (o.outformat) target.outformat = o.outformat;
   if (o.convergeall) target.convergeall = o.convergeall === "true";
   if (o.retainFiles) target.retain_files = o.retainFiles === "true";
+  s("launcher", o.launcher);
+  if (o.launcherFlagsRaw !== undefined) target.launcher_flags = o.launcherFlagsRaw;
+  else if (o.replaceLauncherFlags)
+    target.launcher_flags = o.launcherFlags.split(/\s+/).filter(Boolean);
+}
+
+/** True when the options would emit at least one key (same rule as applyOptions). */
+export function optionsAreSet(o: OptionsDraft): boolean {
+  const out: Record<string, unknown> = {};
+  applyOptions(out, o);
+  return Object.keys(out).length > 0;
 }
 
 /** Inverse: read the tunable option fields out of a global/local options object. */
@@ -309,6 +375,14 @@ export function readOptions(src: Record<string, unknown>): OptionsDraft {
   o.outformat = fmt === "csv" ? fmt : ""; // the engine accepts csv only
   o.convergeall = tri(src.convergeall);
   o.retainFiles = tri(src.retain_files);
+  o.launcher = str(src.launcher);
+  if ("launcher_flags" in src) {
+    const flags = src.launcher_flags;
+    o.replaceLauncherFlags = true;
+    if (Array.isArray(flags) && flags.every((f) => typeof f === "string" && /^\S+$/.test(f)))
+      o.launcherFlags = flags.join(" ");
+    else o.launcherFlagsRaw = flags;
+  }
   return o;
 }
 
@@ -385,6 +459,8 @@ export function emptyApp(): AppDraft {
     startAfter: "0",
     endKind: "complete",
     endTimed: "60",
+    env: [],
+    cpus: "",
     rest: {},
   };
 }
@@ -427,6 +503,9 @@ export function toConfig(draft: Draft): CrabConfig {
         end: endStr(a),
       };
       if (a.partition.trim()) entry.partition = a.partition.trim();
+      if (a.cpus.trim()) entry.cpus = a.cpus.trim();
+      const env = envObject(a.env);
+      if (env) entry.env = env;
       apps[String(i)] = entry;
     });
 
@@ -501,7 +580,7 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
 
   // Global allocation: convert + tag apps of experiments with no local override.
   const ga = g.allocation as Record<string, unknown> | undefined;
-  if (ga && Array.isArray(ga.split) && ga.partitions == null) {
+  if (ga && ga.mode !== "shared" && Array.isArray(ga.split) && ga.partitions == null) {
     const { partitions, keys } = toGroups(ga.split);
     delete ga.split;
     ga.partitions = partitions;
@@ -515,7 +594,7 @@ export function normalizeSplitToPartitions(config: CrabConfig): CrabConfig {
   for (const e of Object.values(experiments)) {
     const lo = (e?.local_options ?? {}) as Record<string, unknown>;
     const la = lo.allocation as Record<string, unknown> | undefined;
-    if (la && Array.isArray(la.split) && la.partitions == null) {
+    if (la && la.mode !== "shared" && Array.isArray(la.split) && la.partitions == null) {
       const { partitions, keys } = toGroups(la.split);
       delete la.split;
       la.partitions = partitions;
@@ -575,6 +654,8 @@ export function fromConfig(config: CrabConfig): Draft {
           args: str(app.args),
           collect: engineBool(app.collect), // doc default is false
           partition: str(app.partition),
+          env: readEnv(app.env),
+          cpus: str(app.cpus),
           rest,
           ...parseStart(str(app.start, "0")),
           ...parseEnd(str(app.end)),
@@ -614,6 +695,61 @@ export function validateOptions(o: OptionsDraft, where = ""): string[] {
     issues.push(`${at}timeout must be a number (seconds).`);
   if (o.alpha.trim() && !_numeric(o.alpha)) issues.push(`${at}alpha must be a number.`);
   if (o.beta.trim() && !_numeric(o.beta)) issues.push(`${at}beta must be a number.`);
+  issues.push(...validateLauncher(o, at));
+  return issues;
+}
+
+// Mirrors _has_token in core/config_checks.py: a "{" anywhere means SbatchMan substitutes later.
+function hasBrace(v: unknown): boolean {
+  if (typeof v === "string") return v.includes("{");
+  if (Array.isArray(v)) return v.some(hasBrace);
+  if (v !== null && typeof v === "object") return Object.values(v).some(hasBrace);
+  return false;
+}
+
+/** Mirrors _check_launcher_options in core/config_checks.py. */
+function validateLauncher(o: OptionsDraft, at: string): string[] {
+  const issues: string[] = [];
+  if (o.launcher.trim() && !hasBrace(o.launcher) && !LAUNCHER_KINDS.includes(o.launcher.trim()))
+    issues.push(
+      `${at}launcher '${o.launcher.trim()}' must be one of ${LAUNCHER_KINDS.join(", ")}.`,
+    );
+  const raw = o.launcherFlagsRaw;
+  if (raw !== undefined && !hasBrace(raw)) {
+    if (!Array.isArray(raw) || !raw.every((f) => typeof f === "string"))
+      issues.push(`${at}launcher_flags must be a list of strings.`);
+  }
+  return issues;
+}
+
+/** Mirrors _check_shared_scope and the shared-with-partitions check in core/config_checks.py. */
+function validateSharedScope(a: AllocationDraft, at: string): string[] {
+  const issues: string[] = [];
+  const cores = a.cores.trim();
+  if (a.mode === "shared") {
+    const set: [string, boolean][] = [
+      ["split", a.by === "app" && !!a.split.trim() && !hasBrace(a.split)],
+      ["stride", !!a.stride.trim() && !hasBrace(a.stride)],
+      ["seed", !!a.seed.trim() && !hasBrace(a.seed)],
+    ];
+    for (const [key, present] of set) {
+      if (present)
+        issues.push(
+          `${at}allocation: ${key} cannot be used with mode 'shared' (every app gets all the nodes)`,
+        );
+    }
+  } else if (cores && !hasBrace(cores)) {
+    issues.push(`${at}allocation: cores is only valid with mode 'shared'`);
+    return issues;
+  }
+  if (cores && !hasBrace(cores) && !CORES_MODES.includes(cores))
+    issues.push(`${at}allocation: cores '${cores}' is not one of: ${CORES_MODES.join(", ")}`);
+  if (a.mode === "shared" && a.by === "groups" && a.partitions.some((p) => p.name.trim()))
+    issues.push(
+      `${at}allocation.mode 'shared' cannot be used with partitions ` +
+        "(the top-level mode lays out the partition blocks); " +
+        "set mode 'shared' inside a partition instead",
+    );
   return issues;
 }
 
@@ -626,6 +762,7 @@ export function validateAllocation(
   const groups = new Set<string>();
   const at = where ? `${where}: ` : "";
   if (!hasAllocation(a)) return { issues, groups };
+  issues.push(...validateSharedScope(a, at));
   if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride) && !_token(a.stride))
     issues.push(`${at}allocation stride must be a positive integer.`);
   if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()) && !_token(a.seed))
@@ -637,7 +774,8 @@ export function validateAllocation(
   }
   if (a.by === "groups") {
     const named = a.partitions.filter((p) => p.name.trim());
-    if (!named.length) issues.push(`${at}add at least one node group, or allocate by app instead.`);
+    if (!named.length && a.mode !== "shared")
+      issues.push(`${at}add at least one node group, or allocate by app instead.`);
     named.forEach((p) => {
       if (groups.has(p.name.trim())) issues.push(`${at}duplicate node group "${p.name.trim()}".`);
       else groups.add(p.name.trim());
@@ -656,9 +794,29 @@ export function validateAllocation(
   return { issues, groups };
 }
 
-// CRAB computes these from numnodes/ppn and ignores user attempts to set them.
-const PROTECTED_SBATCH = new Set(["nodes", "ntasks-per-node", "N", "n"]);
+// Slurm directive keys CRAB writes itself, with what to say instead
+// (core/config_checks.py MANAGED_DIRECTIVES). The engine refuses them.
+const TASKS_TAIL = "CRAB sets the task count from numnodes and ppn";
+const MANAGED_SBATCH: Record<string, string> = {
+  nodes: "use numnodes",
+  N: "use numnodes",
+  "ntasks-per-node": "use ppn",
+  ntasks: TASKS_TAIL,
+  n: TASKS_TAIL,
+};
 const LOG_SBATCH = new Set(["output", "error", "o", "e"]);
+
+// CRAB_* launch variables the engine no longer reads, with their replacement
+// (core/execution/settings.py DROPPED_KEYS).
+const DROPPED_ENV_KEYS: Record<string, string> = {
+  CRAB_WL_MANAGER: "launcher",
+  CRAB_SCHEDULER: "scheduler",
+  CRAB_MPIRUN: "launchers.mpirun.command",
+  CRAB_MPIRUN_ADDITIONAL_FLAGS: "launchers.mpirun.flags",
+  CRAB_MPIRUN_MAP_BY_NODE_FLAG: "launchers.mpirun.flags",
+  CRAB_MPIRUN_HOSTNAMES_FLAG: "nothing: delete it (mpirun finds the job's nodes itself)",
+  CRAB_PINNING_FLAGS: "launchers.srun.flags",
+};
 
 /** A directive's key as the engine's merge reads it: leading dashes off, up to "=" or a space. */
 function engineDirectiveKey(line: string): string {
@@ -672,9 +830,9 @@ export function validateSbatch(s: SbatchDraft): string[] {
     const key = engineDirectiveKey(line);
     if (!key) continue;
     const flag = `${key.length === 1 ? "-" : "--"}${key}`;
-    if (PROTECTED_SBATCH.has(key))
+    if (key in MANAGED_SBATCH)
       issues.push(
-        `Slurm directive "${flag}" is computed by CRAB from nodes/ppn and will be ignored.`,
+        `sbatch_directives: '${line}' sets '${key}', which CRAB manages itself: ${MANAGED_SBATCH[key]}`,
       );
     else if (LOG_SBATCH.has(key))
       issues.push(
@@ -682,6 +840,42 @@ export function validateSbatch(s: SbatchDraft): string[] {
       );
   }
   return issues;
+}
+
+/** Mirror of placement.parse_cpus: the problem with a core list, or "" when it parses. */
+function cpusProblem(text: string): string {
+  const cores: number[] = [];
+  for (const raw of text.split(",")) {
+    const item = raw.trim();
+    const span = /^([0-9]+)-([0-9]+)$/.exec(item);
+    if (/^[0-9]+$/.test(item)) cores.push(parseInt(item, 10));
+    else if (span && parseInt(span[1], 10) <= parseInt(span[2], 10))
+      for (let c = parseInt(span[1], 10); c <= parseInt(span[2], 10); c++) cores.push(c);
+    else
+      return `cpus '${text}' has the invalid item '${item}'; use N or A-B (A <= B), comma-separated`;
+  }
+  if (new Set(cores).size !== cores.length) return `cpus '${text}' lists a core more than once`;
+  return "";
+}
+
+/** Mirror of placement.parse_app_env, plus the editor's own row checks. */
+function envProblems(rows: EnvRow[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    const key = r.key.trim();
+    if (!key) {
+      if (r.value.trim()) out.push("env: a value needs a variable name");
+    } else if (key in DROPPED_ENV_KEYS) {
+      out.push(`env: ${key} is no longer read; use ${DROPPED_ENV_KEYS[key]}`);
+    } else if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      out.push(`env: key '${key}' is not a valid shell variable name`);
+    } else if (seen.has(key)) {
+      out.push(`env: '${key}' is listed twice`);
+    }
+    if (key) seen.add(key);
+  }
+  return out;
 }
 
 export function validateDraft(d: Draft): string[] {
@@ -727,6 +921,15 @@ export function validateDraft(d: Draft): string[] {
         const ref = parseInt(a.startAfter, 10);
         if (!(ref >= 0 && ref < e.apps.length && ref !== ai))
           issues.push(`${label} · app #${ai}: "after" must reference another app.`);
+      }
+      // The engine skips its placement checks for an app that holds a {name} placeholder.
+      const hasToken = a.cpus.includes("{") || a.env.some((r) => (r.key + r.value).includes("{"));
+      if (!hasToken) {
+        if (a.cpus.trim()) {
+          const problem = cpusProblem(a.cpus.trim());
+          if (problem) issues.push(`${label} · app #${ai}: ${problem}`);
+        }
+        for (const problem of envProblems(a.env)) issues.push(`${label} · app #${ai}: ${problem}`);
       }
       // A partition reference is invalid whenever it names no defined node group —
       // including when none exist (e.g. after switching to "by app" or disabling allocation).

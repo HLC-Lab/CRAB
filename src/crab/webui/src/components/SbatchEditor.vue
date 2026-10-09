@@ -20,8 +20,9 @@ const text = computed({
   <div class="sbatch">
     <p class="hint">
       One <code>#SBATCH</code> directive per line, e.g. <code>--time=00:20:00</code> or
-      <code>--exclusive</code>. <code>--nodes</code> / <code>--ntasks-per-node</code> are set by
-      CRAB and ignored.
+      <code>--exclusive</code>. CRAB sets the node and task counts itself, so <code>--nodes</code>,
+      <code>--ntasks-per-node</code> and <code>--ntasks</code> are refused: use the nodes and procs
+      per node fields.
     </p>
     <textarea
       v-model="text"

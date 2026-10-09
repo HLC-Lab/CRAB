@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // One app row inside ExperimentPane's Apps list: wrapper chip, node-group
-// picker, collect-metrics toggle, remove, args, and start/end timing.
+// picker, collect-metrics toggle, remove, args, start/end timing, CPUs and
+// environment variables.
 // `app` is the reactive AppDraft owned by the store's experiment array;
 // mutating its fields here writes straight back (same pattern as
 // AllocationEditor's `props.alloc` mutation).
@@ -24,6 +25,12 @@ const emit = defineEmits<{
 // AllocationEditor's `props.alloc` wrapping) without tripping
 // vue/no-mutating-props.
 const app = computed(() => props.app);
+function addEnv() {
+  app.value.env.push({ key: "", value: "" });
+}
+function removeEnv(i: number) {
+  app.value.env.splice(i, 1);
+}
 // An app that starts after another one and names no group runs on that app's nodes (ADR-032).
 // Display only: the server-side config check owns the rule and its errors.
 const reuseLabel = computed(() =>
@@ -111,6 +118,27 @@ const reuseLabel = computed(() =>
         </select>
       </label>
       <label v-if="app.endKind === 'timed'">Seconds <input v-model="app.endTimed" /></label>
+      <label title="Cores this app runs on, such as 0-15,32"
+        >CPUs
+        <input v-model="app.cpus" class="cpus" placeholder="all cores" spellcheck="false" />
+      </label>
+    </div>
+    <div class="env">
+      <div class="env-head">
+        <span class="env-title">Environment</span>
+        <button type="button" class="env-add" @click="addEnv">+ Add variable</button>
+      </div>
+      <div v-for="(row, i) in app.env" :key="i" class="env-row">
+        <input v-model="row.key" class="env-key" placeholder="NAME" spellcheck="false" />
+        <span class="env-eq">=</span>
+        <input v-model="row.value" class="env-val" placeholder="value" spellcheck="false" />
+        <button type="button" class="icon-btn danger" title="Remove variable" @click="removeEnv(i)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12" />
+            <path d="M18 6L6 18" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -246,6 +274,48 @@ select:focus {
   gap: 0.2rem;
   color: var(--text2);
   font-size: var(--t-sm);
+}
+.cpus {
+  width: 9rem;
+}
+.env {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border);
+}
+.env-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text2);
+  font-size: var(--t-sm);
+}
+.env-add {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  padding: 0;
+}
+.env-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.env-key {
+  width: 12rem;
+}
+.env-val {
+  flex: 1;
+  min-width: 0;
+}
+.env-eq {
+  color: var(--text3);
+  font-family: var(--mono);
 }
 
 /* Per-app slice picker — a native select dressed as a small pill with a colour dot */
