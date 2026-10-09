@@ -12,7 +12,8 @@ from crab.core.allocation.allocator import NodeAllocator
 from crab.core.allocation.chains import resolve_chains
 from crab.core.execution.settings import LAUNCHER_KINDS, ExecutionSettings
 
-ALLOCATION_MODES = ("linear", "interleaved", "random")
+ALLOCATION_MODES = ("linear", "interleaved", "random", "shared")
+CORES_MODES = ("disjoint", "shared")
 OUTPUT_FORMATS = ("csv",)
 _BOOL_OPTIONS = ("convergeall", "retain_files")
 _TASKS_TAIL = "CRAB sets the task count from numnodes and ppn"
@@ -53,8 +54,30 @@ def _experiments(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _check_mode(mode: Any, where: str) -> None:
-    if mode not in ALLOCATION_MODES:
+    if not _has_token(mode) and mode not in ALLOCATION_MODES:
         raise ValueError(f"{where} {mode!r} is not one of: {', '.join(ALLOCATION_MODES)}")
+
+
+def _check_shared_scope(scope: dict[str, Any], where: str) -> None:
+    """`mode: "shared"` takes no split, stride or seed; `cores` goes only with it.
+
+    `scope` is the allocation or one partition; a `{var}` value is skipped.
+    """
+    mode = scope.get("mode")
+    if _has_token(mode):
+        return
+    if mode == "shared":
+        for key in ("split", "stride", "seed"):
+            if key in scope and not _has_token(scope[key]):
+                raise ValueError(
+                    f"{where}: {key} cannot be used with mode 'shared' "
+                    "(every app gets all the nodes)"
+                )
+    elif "cores" in scope and not _has_token(scope["cores"]):
+        raise ValueError(f"{where}: cores is only valid with mode 'shared'")
+    cores = scope.get("cores")
+    if "cores" in scope and not _has_token(cores) and cores not in CORES_MODES:
+        raise ValueError(f"{where}: cores {cores!r} is not one of: {', '.join(CORES_MODES)}")
 
 
 def _check_options(opts: dict[str, Any], exp: str) -> None:
@@ -70,9 +93,18 @@ def _check_options(opts: dict[str, Any], exp: str) -> None:
     allocation = opts.get("allocation") or {}
     if "mode" in allocation:
         _check_mode(allocation["mode"], f"experiment {exp}: allocation.mode")
+    _check_shared_scope(allocation, f"experiment {exp}: allocation")
+    if allocation.get("mode") == "shared" and allocation.get("partitions"):
+        raise ValueError(
+            f"experiment {exp}: allocation.mode 'shared' cannot be used with partitions "
+            "(the top-level mode lays out the partition blocks); "
+            "set mode 'shared' inside a partition instead"
+        )
     for name, part in (allocation.get("partitions") or {}).items():
         if isinstance(part, dict) and "mode" in part:
             _check_mode(part["mode"], f"experiment {exp}: partition {name!r} mode")
+        if isinstance(part, dict):
+            _check_shared_scope(part, f"experiment {exp}: partition {name!r}")
 
 
 def _has_token(value: Any) -> bool:

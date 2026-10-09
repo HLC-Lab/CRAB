@@ -80,6 +80,8 @@ class NodeAllocator:
         slots = list(heads.values())
         if "partitions" in allocation:
             NodeAllocator.allocate_partitioned(slots, node_list, allocation)
+        elif allocation.get("mode") == "shared":
+            NodeAllocator.allocate_shared(slots, node_list)
         else:
             mode = allocation.get("mode", "linear")
             split = NodeAllocator.get_abs_split(
@@ -103,6 +105,12 @@ class NodeAllocator:
         for app, count in zip(apps, split_counts, strict=False):
             app.set_nodes(node_list[idx : idx + count])
             idx += count
+
+    @staticmethod
+    def allocate_shared(apps: list[Any], node_list: list[str]):
+        """Gives every application all of the nodes, in node-list order."""
+        for app in apps:
+            app.set_nodes(node_list)
 
     @staticmethod
     def allocate_interleaved(
@@ -143,7 +151,7 @@ class NodeAllocator:
     def allocate_partitioned(apps: list[Any], node_list: list[str], allocation: dict[str, Any]):
         """
         Divides nodes into named partitions then allocates apps within each.
-        `allocation` must contain a 'partitions' dict: {name: {share?, mode?, split?, stride?, seed?}}.
+        `allocation` must contain a 'partitions' dict: {name: {share?, mode?, split?, stride?, seed?, cores?}}.
         Top-level 'mode' controls how partition node-blocks are laid out (linear/interleaved/random).
         Apps are matched to partitions via app.partition_id (string name).
         """
@@ -151,6 +159,11 @@ class NodeAllocator:
             raise ValueError("allocation dict must contain a 'partitions' key.")
         partitions_cfg = allocation["partitions"]
         layout_mode = allocation.get("mode", "linear")
+        if layout_mode == "shared":
+            raise ValueError(
+                "allocation mode 'shared' cannot be combined with partitions: the top-level "
+                "mode lays out the partition blocks; set mode 'shared' inside a partition"
+            )
         partition_names = list(partitions_cfg.keys())
 
         # 1. Determine partition sizes
@@ -210,6 +223,9 @@ class NodeAllocator:
                 p_apps[0].set_nodes(p_nodes)
                 continue
             p_mode = p_cfg.get("mode", "linear")
+            if p_mode == "shared":
+                NodeAllocator.allocate_shared(p_apps, p_nodes)
+                continue
             p_split = NodeAllocator.get_abs_split(
                 p_cfg.get("split", "even"), len(p_apps), len(p_nodes)
             )

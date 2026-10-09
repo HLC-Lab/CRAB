@@ -491,3 +491,91 @@ def test_token_or_missing_numnodes_and_ppn_are_skipped(value: object) -> None:
 
     global_options = {} if value is None else {"numnodes": value, "ppn": value}
     assert _check(_cfg(global_options), LOCAL_DIRECT) == []
+
+
+# -- allocation.mode "shared" and `cores` (ADR-033) ---------------------------------------------
+
+
+def _shared_check(allocation: dict, apps: object = 2) -> list[str]:
+    from crab.core.config_checks import check_config
+
+    return check_config(_alloc_config(allocation, apps, numnodes="4"))
+
+
+@pytest.mark.parametrize("key,value", [("split", [50, 50]), ("stride", 2), ("seed", 7)])
+def test_shared_refuses_split_stride_and_seed(key: str, value: object) -> None:
+    with pytest.raises(ValueError, match=rf"experiment e1: allocation: {key}.*mode 'shared'"):
+        _shared_check({"mode": "shared", key: value})
+
+
+@pytest.mark.parametrize("key,value", [("split", [50, 50]), ("stride", 2), ("seed", 7)])
+def test_shared_partition_refuses_split_stride_and_seed(key: str, value: object) -> None:
+    alloc = {"partitions": {"victim": {"mode": "shared", key: value}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    with pytest.raises(ValueError, match=rf"experiment e1: partition 'victim': {key}.*'shared'"):
+        _shared_check(alloc, apps)
+
+
+def test_cores_without_shared_is_refused() -> None:
+    with pytest.raises(ValueError, match=r"experiment e1: allocation: cores.*mode 'shared'"):
+        _shared_check({"mode": "linear", "cores": "shared"})
+    with pytest.raises(ValueError, match=r"experiment e1: allocation: cores.*mode 'shared'"):
+        _shared_check({"cores": "disjoint"})
+
+
+def test_cores_in_a_partition_without_shared_is_refused() -> None:
+    alloc = {"partitions": {"victim": {"cores": "shared"}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    with pytest.raises(ValueError, match=r"experiment e1: partition 'victim': cores.*'shared'"):
+        _shared_check(alloc, apps)
+
+
+@pytest.mark.parametrize("cores", ["exclusive", "", 1, True])
+def test_cores_must_be_disjoint_or_shared(cores: object) -> None:
+    with pytest.raises(ValueError, match=r"experiment e1: allocation: cores .*disjoint, shared"):
+        _shared_check({"mode": "shared", "cores": cores})
+
+
+def test_top_level_shared_with_partitions_is_refused() -> None:
+    alloc = {"mode": "shared", "partitions": {"victim": {}, "aggressor": {}}}
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    with pytest.raises(ValueError, match=r"experiment e1: allocation\.mode 'shared'.*partitions"):
+        _shared_check(alloc, apps)
+
+
+@pytest.mark.parametrize(
+    "allocation",
+    [
+        {"mode": "shared"},
+        {"mode": "shared", "cores": "shared"},
+        {"mode": "shared", "cores": "disjoint"},
+    ],
+)
+def test_valid_shared_allocations_pass(allocation: dict) -> None:
+    assert _shared_check(allocation) == []
+
+
+def test_valid_shared_partition_passes() -> None:
+    alloc = {
+        "partitions": {
+            "victim": {"share": 50, "mode": "shared", "cores": "disjoint"},
+            "aggressor": {"share": 50},
+        }
+    }
+    apps = [{"path": "a.py", "partition": "victim"}, {"path": "a.py", "partition": "aggressor"}]
+    assert _shared_check(alloc, apps) == []
+
+
+@pytest.mark.parametrize(
+    "allocation",
+    [
+        {"mode": "shared", "cores": "{c}"},
+        {"mode": "shared", "split": "{s}"},
+        {"mode": "shared", "stride": "{k}"},
+        {"mode": "shared", "seed": "{seed}"},
+        {"mode": "{m}", "cores": "shared"},
+        {"mode": "linear", "cores": "{c}"},
+    ],
+)
+def test_tokens_in_shared_fields_are_skipped(allocation: dict) -> None:
+    assert _shared_check(allocation) == []
