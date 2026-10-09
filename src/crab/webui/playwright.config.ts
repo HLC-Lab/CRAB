@@ -26,6 +26,8 @@ export default defineConfig({
     env: {
       CRAB_WEB_CONFIG_DIR: join(scratch, "config"),
       CRAB_WEB_DATA_DIR: join(scratch, "data"),
+      // Local-scheduler job records live under $XDG_STATE_HOME/crab, never ~/.local/state.
+      XDG_STATE_HOME: join(scratch, "state"),
     },
   },
 });
