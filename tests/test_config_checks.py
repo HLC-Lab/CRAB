@@ -579,3 +579,49 @@ def test_valid_shared_partition_passes() -> None:
 )
 def test_tokens_in_shared_fields_are_skipped(allocation: dict) -> None:
     assert _shared_check(allocation) == []
+
+
+# -- app `cpus` and `env`: placement of co-located apps (ADR-033) -----------------------------------
+# Before: both keys were injected into the wrapper as attributes and never checked, so two apps on
+# one node could pin the same cores and an invalid env surfaced as a launch failure.
+
+
+def _placed_config(apps: list[dict], allocation: dict | None = None, ppn: int = 4) -> dict:
+    exp = {
+        "apps": {str(i): {"path": "a.py", **app} for i, app in enumerate(apps)},
+        "local_options": {"allocation": allocation or {"mode": "shared"}},
+    }
+    return {"global_options": {"numnodes": 1, "ppn": ppn}, "experiments": {"e1": exp}}
+
+
+def _sixteen_core_host():
+    from crab.core.execution.settings import from_preset
+
+    return from_preset({"scheduler": "local", "hosts": ["box:16"], "launcher": "mpirun"}, "t")
+
+
+def test_overlapping_cpus_of_co_located_apps_are_refused() -> None:
+    config = _placed_config([{"cpus": "0-3"}, {"cpus": "2-5"}])
+    with pytest.raises(ValueError, match=r"experiment e1: app 0 and app 1.*core\(s\) 2,3"):
+        _check(config, _sixteen_core_host())
+
+
+def test_an_automatic_core_split_is_a_warning() -> None:
+    warnings = _check(_placed_config([{}, {}]), _sixteen_core_host())
+    assert len(warnings) == 1
+    assert "automatic disjoint core split" in warnings[0]
+
+
+def test_invalid_app_env_is_refused_with_the_experiment_and_app() -> None:
+    config = _placed_config([{}, {"env": {"CRAB_MPIRUN": "mpirun"}}])
+    with pytest.raises(ValueError, match="experiment e1: app 1: env: CRAB_MPIRUN"):
+        _check(config, _sixteen_core_host())
+
+
+def test_placement_is_skipped_without_settings_and_for_tokens() -> None:
+    config = _placed_config([{"cpus": "0-3"}, {"cpus": "2-5"}])
+    assert _check(config) == []
+    config["global_options"]["ppn"] = "{p}"
+    assert _check(config, _sixteen_core_host()) == []
+    token_cpus = _placed_config([{"cpus": "{c}"}, {"cpus": "2-5"}])
+    assert _check(token_cpus, _sixteen_core_host()) == []

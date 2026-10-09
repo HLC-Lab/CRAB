@@ -201,5 +201,42 @@ def test_setup_applies_the_launcher_flags_option_to_srun(tmp_path):
     assert runner.launchers[0].flags == ("--cpu-bind=cores",)
 
 
+def test_setup_places_a_shared_local_experiment_and_does_not_inject_cpus_or_env(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr("os.cpu_count", lambda: 16)
+    runner = _runner(
+        tmp_path,
+        [_WRAPPER, _WRAPPER],
+        LOCAL_DIRECT,
+        local_options={"allocation": {"mode": "shared"}},
+    )
+    runner.ppn = 4
+    runner.config["apps"]["1"].update({"cpus": "8-11", "env": {"UCX_NET_DEVICES": "mlx5_1:1"}})
+    runner.setup()
+    first, second = runner.apps
+    assert first.cpu_list == (0, 1, 2, 3)
+    assert second.cpu_list == (8, 9, 10, 11)
+    assert first.app_env == {}
+    assert second.app_env == {"UCX_NET_DEVICES": "mlx5_1:1"}
+    # `cpus` and `env` are reserved: they are no longer set on the wrapper as plain attributes.
+    assert not hasattr(second, "cpus")
+    assert not hasattr(second, "env")
+
+
+def test_setup_refuses_overlapping_cpus_of_apps_sharing_the_nodes(tmp_path):
+    runner = _runner(
+        tmp_path,
+        [_WRAPPER, _WRAPPER],
+        LOCAL_DIRECT,
+        local_options={"allocation": {"mode": "shared"}},
+    )
+    runner.ppn = 4
+    for app in runner.config["apps"].values():
+        app["cpus"] = "0-3"
+    with pytest.raises(ValueError, match="experiment exp: app 0 and app 1"):
+        runner.setup()
+
+
 if __name__ == "__main__":
     unittest.main()
