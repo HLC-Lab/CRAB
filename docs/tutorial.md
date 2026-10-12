@@ -90,7 +90,8 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
 
 - **`numnodes: 8`** plus the `allocation` block — allocate 8 nodes, split into two equal
   [partitions](glossary.md#partition) named `"victim"` and `"aggressor"`, each getting 4 dedicated
-  nodes. `mode: "linear"` gives each partition a contiguous block.
+  nodes. `mode: "linear"` gives each partition a contiguous block. On a smaller cluster, set
+  `numnodes` to the nodes you have: with 4 nodes the 50/50 split gives 2 and 2.
 - **App `0` — the [victim](glossary.md#victim).** `collect: true` (its metrics are recorded) and
   `end: ""` (CRAB waits for it to finish naturally). In `baseline` it's the only app, so its half
   runs undisturbed; the other half sits idle. That's deliberate — the victim runs on the *same*
@@ -104,8 +105,9 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
   metrics [converge](glossary.md#convergence).
 
 !!! note "`path` points to the wrapper, not the binary"
-    `blink/alltoall_comm_only.py` is the [wrapper](glossary.md#wrapper) **file**, given *relative* to
-    `CRAB_PATH_WRAPPERS` — it is **not** an absolute path and not the benchmark executable. That's
+    `blink/alltoall_comm_only.py` is the [wrapper](glossary.md#wrapper) **file**, given *relative*: CRAB
+    looks for it in `local/wrappers/` first, then in each folder of `CRAB_PATH_WRAPPERS`, or in
+    `wrappers/` when that is unset. It is **not** an absolute path and not the benchmark executable. That's
     what keeps the config [system-independent](concepts/system-dependent-vs-independent.md): the
     wrapper looks up the actual binary location from the [receipt](glossary.md#receipt) at run time,
     so the *same* config file runs on any cluster where you've done `crab setup`.

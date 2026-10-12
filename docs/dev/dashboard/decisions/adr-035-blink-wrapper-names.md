@@ -17,8 +17,10 @@ with which program.
 - The short names are removed, not kept as aliases.
 - A test in the crab-wrappers repository checks that every Blink wrapper matches a program name,
   so a wrapper cannot drift from the program it runs.
-- Three wrappers stay that have no upstream program, because they exist only in the fork
-  (blink-clean): `bursty_noise_a2a`, `bursty_noise_incast` and `workerpool`.
+- Two wrappers stay that have no upstream program, because they exist only in the fork
+  (blink-clean): `bursty_noise_a2a` and `bursty_noise_incast`.
+- `workerpool` was removed from that list: it was never a Blink program, and the scheduler it
+  needs is not ported (`wl_manager/workerpool.py` raises `NotImplementedError`).
 - The Blink recipe builds with CMake (`-DBLINK_TESTS=OFF`) and records `build/bin/` as the
   binary folder.
 

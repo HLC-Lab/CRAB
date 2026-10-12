@@ -16,7 +16,8 @@ Don't start from `example_preset` — it's an empty schema skeleton (and is deli
 `-p` tab-completion), so a run with it would fail. Copy a **complete, real** preset and adapt it:
 
 - **Slurm cluster (launcher `srun`)** → copy **`leonardo`**.
-- **Cluster where you launch with `mpirun`** → copy **`cluster_di`**.
+- **Cluster where you launch with `mpirun`** → copy **`leonardo`** and set `CRAB_MPIRUN` to `mpirun`
+  (see [the launcher](#the-launcher-which-variables-matter)).
 
 The `local` preset is different: it runs a single-node job on your own machine without Slurm, for
 trying CRAB out. Don't use it as a template for a cluster.
@@ -61,37 +62,69 @@ To adapt it to your cluster, change the values you already know for your system:
     pinning for your hardware — those are site-specific values your HPC support or local
     documentation provides.
 
-## Slurm vs MPI launcher: which variables matter
+## A minimal preset for a new cluster
 
-The preset's `CRAB_WL_MANAGER` selects the binding used to launch each application:
+For a cluster CRAB does not know, this is enough to start. Put it in `local/presets.json` (see
+[Keep your presets out of git](#keep-your-presets-out-of-git)), and replace the account, the
+partition and the module lines with your site's:
 
-=== "`slurm` (uses `srun`)"
+```json
+{
+  "mycluster": {
+    "description": "My cluster",
+    "env": {
+      "CRAB_WL_MANAGER": "slurm",
+      "CRAB_MPIRUN": "srun",
+      "CRAB_PINNING_FLAGS": ""
+    },
+    "sbatch": [
+      "--account=MY_PROJECT",
+      "--partition=compute",
+      "--exclusive"
+    ],
+    "header": [
+      "module purge",
+      "module load gcc openmpi"
+    ]
+  }
+}
+```
 
-    Sensible defaults are applied, so a minimal Slurm preset is short. Relevant variables
-    (all optional, with defaults):
+Run it with `crab run <config.json> -p mycluster`. When you copy `leonardo` instead, remove its
+Leonardo-specific settings (the paths under `/leonardo/`, the `UCX_*` and `NCCL_*` variables and
+`--gres=tmpfs:0`) unless your site needs them.
+
+## The launcher: which variables matter
+
+Jobs are always submitted with `sbatch`. Inside the job, `CRAB_WL_MANAGER` chooses how each
+application is launched. Use `slurm`, which is the default. `CRAB_MPIRUN` then names the launcher:
+
+=== "`srun` (the default)"
 
     | Variable | Default | Purpose |
     |----------|---------|---------|
-    | `CRAB_MPIRUN` | `srun` | Launcher binary |
-    | `CRAB_PINNING_FLAGS` | `""` | CPU binding flags |
-    | `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | `""` | Extra mapping flag |
-    | `CRAB_MPIRUN_ADDITIONAL_FLAGS` | `""` | Any additional launcher flags |
+    | `CRAB_MPIRUN` | `srun` | Launcher. Extra `srun` options go into this string, for example `"srun --mpi=pmix"`. |
+    | `CRAB_PINNING_FLAGS` | `""` | CPU binding flags, added to the `srun` command. |
 
-=== "`mpi` (uses `mpirun`)"
+    `CRAB_MPIRUN_MAP_BY_NODE_FLAG` and `CRAB_MPIRUN_ADDITIONAL_FLAGS` are ignored with `srun`.
 
-    The MPI binding reads these variables **directly** — all of them must be present in the preset
-    or the launch fails:
+=== "`mpirun` (Open MPI or MPICH inside a Slurm job)"
 
-    | Variable | Required | Purpose |
-    |----------|----------|---------|
-    | `CRAB_MPIRUN` | ✅ | `mpirun` (or full path to it) |
-    | `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | ✅ | e.g. `--map-by node` |
-    | `CRAB_MPIRUN_ADDITIONAL_FLAGS` | ✅ | extra flags (may be empty string) |
-    | `CRAB_PINNING_FLAGS` | ✅ | CPU binding (may be empty string) |
-    | `CRAB_MPIRUN_HOSTNAMES_FLAG` | ✅ | host list flag, e.g. `-H` |
+    Set `CRAB_MPIRUN` to `mpirun` (or the full path to it). CRAB adds `-np` with the total number
+    of tasks, and reads two optional variables:
 
-    Set them to an empty string if you don't need them, but the keys must exist. The `local`
-    preset is a complete minimal example.
+    | Variable | Default | Purpose |
+    |----------|---------|---------|
+    | `CRAB_MPIRUN` | `srun` | Set it to `mpirun`. |
+    | `CRAB_MPIRUN_ADDITIONAL_FLAGS` | `""` | Extra `mpirun` flags. |
+    | `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | `""` | Mapping flag, for example `--map-by node`. |
+
+    `CRAB_PINNING_FLAGS` is ignored with `mpirun`: put binding options in
+    `CRAB_MPIRUN_ADDITIONAL_FLAGS`.
+
+!!! note "The `mpi` workload manager does not work"
+    `CRAB_WL_MANAGER=mpi` is accepted by the name check but its code is not ported: a run raises
+    `NotImplementedError`. To use `mpirun`, keep `CRAB_WL_MANAGER` at `slurm` and set `CRAB_MPIRUN`.
 
 ## Selecting your preset
 

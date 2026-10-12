@@ -53,12 +53,11 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 |----------|---------|-------|
 | `CRAB_ROOT` | framework | Repository root. Set in `_common` via `__CWD__`. |
 | `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/`. Default: the checkout's `wrappers/`. |
-| `CRAB_WL_MANAGER` | runner | `slurm` (default) or `mpi` — selects the launch binding. |
-| `CRAB_MPIRUN` | wl_manager | Launcher binary. `slurm` defaults to `srun`; `mpi` requires it. |
-| `CRAB_PINNING_FLAGS` | wl_manager | CPU binding flags. Optional under `slurm`, required (may be empty) under `mpi`. |
-| `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | wl_manager | Mapping flag (e.g. `--map-by node`). Required under `mpi`. |
-| `CRAB_MPIRUN_ADDITIONAL_FLAGS` | wl_manager | Extra launcher flags. Required (may be empty) under `mpi`. |
-| `CRAB_MPIRUN_HOSTNAMES_FLAG` | wl_manager (`mpi`) | Host-list flag, e.g. `-H`. Required under `mpi`. |
+| `CRAB_WL_MANAGER` | runner | `slurm` (default) launches inside the Slurm job; `local` runs without a launcher (the `local` preset, for testing). `mpi` and `workerpool` pass the name check but are not ported and raise `NotImplementedError`. |
+| `CRAB_MPIRUN` | wl_manager (`slurm`) | Launcher. Default `srun`. Set it to `mpirun` for Open MPI or MPICH; extra `srun` options go into the string, e.g. `srun --mpi=pmix`. |
+| `CRAB_PINNING_FLAGS` | wl_manager (`slurm`) | CPU binding flags. Used with `srun` only. Optional. |
+| `CRAB_MPIRUN_MAP_BY_NODE_FLAG` | wl_manager (`slurm`) | Mapping flag (e.g. `--map-by node`). Used with `mpirun` only. Optional. |
+| `CRAB_MPIRUN_ADDITIONAL_FLAGS` | wl_manager (`slurm`) | Extra launcher flags. Used with `mpirun` only. Optional. |
 | `CRAB_SYSTEM` | engine | System label for the output path. Defaults to the preset name. |
 | `CRAB_PRESET` | CLI | If set, selects the preset (overridden by `-p`). |
 | `CRAB_PATH_<ID>` | wrappers | Injected automatically from each receipt's `binary_path` at run time — not set by hand. |

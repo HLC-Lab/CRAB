@@ -275,7 +275,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
           "partition": "victim"
         },
         "1": {
-          "path": "others/g500.py",
+          "path": "graph500/g500_wrapper.py",
           "args": "",
           "collect": false,
           "start": "0",

@@ -124,8 +124,9 @@ perturb them.
 ### Workload manager (WL manager)
 
 The framework module that translates "run this command on these nodes" into a concrete launcher
-invocation: `slurm` (`wl_manager/slurm.py`, uses `srun`) or `mpi` (`wl_manager/mpi.py`, uses
-`mpirun`). Chosen by the preset's `CRAB_WL_MANAGER`.
+invocation. `slurm` (`wl_manager/slurm.py`) is the one that runs jobs: it launches with `srun`, or
+with `mpirun` when the preset's `CRAB_MPIRUN` says so. `local` runs without a launcher. Chosen by
+the preset's `CRAB_WL_MANAGER`.
 
 ### Wrapper
 

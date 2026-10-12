@@ -53,9 +53,9 @@ flowchart TD
 
 !!! warning "Slurm is on the critical path"
     The orchestrator always submits via `sbatch`. The preset's `CRAB_WL_MANAGER` setting
-    (`slurm` vs `mpi`) only chooses how *individual applications* are launched **inside** the
-    worker — `srun` (`wl_manager/slurm.py`) or `mpirun` (`wl_manager/mpi.py`). It does not provide
-    an alternative to Slurm for submitting the job itself.
+    (`slurm`) and the launcher in `CRAB_MPIRUN` only choose how *individual applications* are
+    launched **inside** the worker — `srun` or `mpirun`, both built by `wl_manager/slurm.py`. They
+    do not provide an alternative to Slurm for submitting the job itself.
 
 ## The wrapper / recipe / receipt model
 

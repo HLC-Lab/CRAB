@@ -42,14 +42,15 @@ src/crab/
 │   ├── allocation/       # node-to-app mapping strategies
 │   ├── data/             # DataContainer, convergence (check_CI), CSV/HDF output
 │   ├── process/          # launching/terminating app processes
-│   └── wl_manager/       # srun (slurm.py) / mpirun (mpi.py) bindings + template
+│   └── wl_manager/       # slurm.py (srun or mpirun launcher), local.py, template; mpi.py and workerpool.py are unported
 ├── setup/        # `crab setup`: wizard, recipe registry, recipes/, receipt storage (memory.py)
 ├── tui/          # Textual UI (optional dependency)
 ├── log/          # CrabLogger
 └── wrappers/base.py   # the wrapper base class
 
-wrappers/         # application wrappers (blink/, others/) — referenced from configs
-config/           # presets.json (+ environments/ receipts, generated)
+wrappers/         # application wrappers: a separate git-ignored clone of HLC-Lab/crab-wrappers
+local/            # git-ignored, per machine: presets.json, receipts/, wrappers/
+config/           # presets.json (the shipped presets)
 examples/         # sample experiment configs per system
 crab_dashboard.html  # standalone results viewer
 ```
@@ -62,7 +63,7 @@ worker execution model** and the **wrapper / recipe / receipt** separation — b
 
 | To add… | Put it in… | Mechanism |
 |---------|-----------|-----------|
-| Support for a new application | `wrappers/` (+ optionally a recipe) | Loaded by file path; see [Extending CRAB](extending/overview.md). |
+| Support for a new application | the crab-wrappers repository, or `local/wrappers/` while in progress (+ optionally a recipe) | Loaded by file path; see [Extending CRAB](extending/overview.md). |
 | A buildable benchmark | `src/crab/setup/recipes/` | Auto-discovered subclass of `BenchmarkRecipe`. |
 | A new cluster environment | `config/presets.json` | See [Configuring your cluster](using/presets.md). |
-| A new launch mechanism | `src/crab/core/wl_manager/` | A module exposing a `wl_manager` class; selected by `CRAB_WL_MANAGER`. |
+| A new launch mechanism | `src/crab/core/wl_manager/` | A module exposing a `wl_manager` class; selected by `CRAB_WL_MANAGER` (its name must also be added to the allowed list in `core/experiment/runner.py`). |
