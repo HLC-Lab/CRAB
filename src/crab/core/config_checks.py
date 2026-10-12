@@ -14,6 +14,7 @@ from crab.core.allocation.chains import resolve_chains
 ALLOCATION_MODES = ("linear", "interleaved", "random")
 OUTPUT_FORMATS = ("csv",)
 _BOOL_OPTIONS = ("convergeall", "retain_files")
+_LEGACY_ALLOCATION_KEYS = ("allocationmode", "partitionsplit", "partitionlayout", "allocationsplit")
 
 
 def parse_bool(value: Any, name: str) -> bool:
@@ -46,7 +47,22 @@ def _check_mode(mode: Any, where: str) -> None:
         raise ValueError(f"{where} {mode!r} is not one of: {', '.join(ALLOCATION_MODES)}")
 
 
+def _check_legacy_allocation(opts: dict[str, Any], exp: str) -> None:
+    found = [key for key in _LEGACY_ALLOCATION_KEYS if key in opts]
+    if not found:
+        return
+    raise ValueError(
+        f"experiment {exp}: {', '.join(found)} no longer {'exists' if len(found) == 1 else 'exist'}"
+        " and would be ignored; use the `allocation` block instead. Partitions laid out "
+        'interleaved: {"mode": "interleaved", "partitions": {"victim": {"share": 50}, '
+        '"aggressor": {"share": 50}}}, with a "partition" name on each app ("mode": "linear" '
+        'for contiguous blocks, "split" inside a partition for the apps sharing it). '
+        "See Allocation fields in docs/reference/configuration.md"
+    )
+
+
 def _check_options(opts: dict[str, Any], exp: str) -> None:
+    _check_legacy_allocation(opts, exp)
     for key in _BOOL_OPTIONS:
         if key in opts:
             parse_bool(opts[key], f"experiment {exp}: {key}")

@@ -60,7 +60,10 @@ before anything runs, with a hint to run `crab update`.
     Values CRAB would otherwise misread are errors before the job starts: `convergeall`,
     `retain_files` and `collect` must be `true` or `false` (the strings `"true"` and `"false"` are
     accepted too), `outformat` must be `csv`, allocation `mode`s must be one of `linear`,
-    `interleaved` or `random`, and every app needs a `path`.
+    `interleaved` or `random`, and every app needs a `path`. The allocation keys used before the
+    nested `allocation` block (`allocationmode`, `partitionsplit`, `partitionlayout`,
+    `allocationsplit`) are refused with the equivalent form; see
+    [Allocation fields](#allocation-fields).
 
 !!! note "Legacy single-experiment form"
     A config may instead use a top-level `applications` block in place of `experiments`. CRAB

@@ -348,3 +348,32 @@ def test_zero_node_message_no_longer_blames_chains() -> None:
     with pytest.raises(ValueError, match=r"app 0 would get 0 of 4 nodes") as info:
         check_config(_alloc_config(alloc, apps, numnodes="4"))
     assert "does not reuse" not in str(info.value)
+
+
+_LEGACY_ALLOCATION = {
+    "allocationmode": "p",
+    "partitionsplit": "50:50",
+    "partitionlayout": "i",
+    "allocationsplit": "100-100",
+}
+
+
+def test_legacy_allocation_keys_are_refused_with_the_new_form() -> None:
+    with pytest.raises(ValueError) as exc:
+        _run(global_options=dict(_LEGACY_ALLOCATION))
+    message = str(exc.value)
+    for key in _LEGACY_ALLOCATION:
+        assert key in message
+    assert "allocation" in message
+    assert "interleaved" in message
+    assert "partitions" in message
+    assert "partition" in message
+
+
+def test_legacy_allocation_key_in_local_options_names_the_experiment() -> None:
+    with pytest.raises(ValueError, match=r"e1.*partitionsplit"):
+        _run(local={"partitionsplit": "50:50"})
+
+
+def test_modern_allocation_block_passes_without_legacy_keys() -> None:
+    _passes_checks(global_options={"allocation": {"mode": "interleaved"}})
