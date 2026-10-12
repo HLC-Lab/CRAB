@@ -1,3 +1,0 @@
-Running comm-nccl with 4 ranks
-# 0.000412 0.0213
-# 0.000398 0.0207
