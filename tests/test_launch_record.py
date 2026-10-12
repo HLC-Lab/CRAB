@@ -103,7 +103,14 @@ def test_an_mpirun_launch_is_recorded_with_its_line_kind_dialect_and_binding_rep
     line = "/opt/ompi/bin/mpirun -n 2 --host n1:2 --display bindings ./app -x 1"
     assert _launches(job_dir) == {
         "e1": {
-            "0": {"line": line, "kind": "mpirun", "dialect": "openmpi5", "binding_report": bindings}
+            "0": {
+                "line": line,
+                "kind": "mpirun",
+                "dialect": "openmpi5",
+                "binding_report": bindings,
+                "ppn": 2,
+                "env": {},
+            }
         }
     }
     lines = _script(job).splitlines()
@@ -145,6 +152,17 @@ def test_srun_and_direct_record_no_binding_report_and_no_tee(
     assert "tee" not in _script(job)
     assert not (exp_dir / "bindings_app_0.log").exists()
     assert record["line"] == _script(job).splitlines()[-1]
+
+
+def test_the_launch_record_holds_the_apps_ppn_and_env(layout: tuple[Path, Path]) -> None:
+    job_dir, exp_dir = layout
+    job = _Job(exp_dir, ppn=3)
+    job.app_env = {"OMP_NUM_THREADS": "4"}
+    _run(job, SRUN)
+
+    record = _launches(job_dir)["e1"]["0"]
+    assert record["ppn"] == 3
+    assert record["env"] == {"OMP_NUM_THREADS": "4"}
 
 
 def test_a_second_launch_of_the_same_app_does_not_rewrite_the_record(

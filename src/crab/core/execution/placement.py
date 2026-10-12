@@ -15,7 +15,7 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from crab.core.allocation.chains import resolve_chains
 from crab.core.execution.settings import ExecutionSettings, check_dropped_keys
@@ -24,6 +24,9 @@ AUTO_SPLIT_WARNING = (
     "automatic disjoint core split ignores NUMA and NIC locality; set cpus per app to control it"
 )
 SHARED_CORES_WARNING = "cores: shared measures OS scheduling as much as the hardware"
+
+
+CoRun = Literal["disjoint", "shared"]
 
 
 @dataclass(frozen=True)
@@ -47,12 +50,15 @@ class Placement:
 
     `shared_cores[i]` is true when app i runs at the same time as another app on the same nodes
     under `cores: "shared"` (it competes for cores and must not be bound by the launcher).
+    `co_run[i]` is None for an app alone on its nodes, else "shared" or "disjoint" by the cores
+    setting of the group of apps it runs with (an app after another takes its head's value).
     """
 
     cpu_lists: list[tuple[int, ...] | None]
     envs: list[dict[str, str]]
     warnings: list[str]
     shared_cores: list[bool] = field(default_factory=list)
+    co_run: list[CoRun | None] = field(default_factory=list)
 
 
 def parse_ppn(value: object) -> int:
@@ -151,13 +157,15 @@ def _groups(heads: Sequence[Head]) -> list[list[Head]]:
     return groups
 
 
-def shared_heads(heads: Sequence[Head]) -> set[str]:
-    """The keys of the heads that overlap another head's nodes in a group with `cores: "shared"`."""
-    keys: set[str] = set()
+def co_run_modes(heads: Sequence[Head]) -> dict[str, CoRun]:
+    """For each head that overlaps another head's nodes, "shared" when its group says
+    `cores: "shared"`, else "disjoint". Heads alone on their nodes are left out."""
+    modes: dict[str, CoRun] = {}
     for group in _groups(heads):
-        if len(group) >= 2 and any(h.shared for h in group):
-            keys.update(h.key for h in group)
-    return keys
+        if len(group) >= 2:
+            mode: CoRun = "shared" if any(h.shared for h in group) else "disjoint"
+            modes.update((h.key, mode) for h in group)
+    return modes
 
 
 def _cores_text(cores: Sequence[int]) -> str:
@@ -247,7 +255,8 @@ def plan(
                 warnings.append(SHARED_CORES_WARNING)
             continue
         _check_overlap(group)
-        # Under Slurm the apps stay unplaced here: srun --exact separates them.
+        # Under Slurm no core list is chosen here: the srun launcher binds each co-run app to its
+        # own cores (`--exact --cpu-bind=cores`), or to its `cpus`.
         if scheduler == "local" and _split_automatically(group, host_cores, result):
             if AUTO_SPLIT_WARNING not in warnings:
                 warnings.append(AUTO_SPLIT_WARNING)
@@ -360,6 +369,6 @@ def _place(
                 f"{len(cores)} core(s), the cores it runs on"
             )
     cpu_lists = [result[f"app {keys[reuse.get(i, i)]}"] for i in range(len(keys))]
-    shared = shared_heads(heads)
-    shared_cores = [f"app {keys[reuse.get(i, i)]}" in shared for i in range(len(keys))]
-    return Placement(cpu_lists, envs, warnings, shared_cores)
+    modes = co_run_modes(heads)
+    co_run = [modes.get(f"app {keys[reuse.get(i, i)]}") for i in range(len(keys))]
+    return Placement(cpu_lists, envs, warnings, [mode == "shared" for mode in co_run], co_run)

@@ -11,7 +11,7 @@ from typing import Any
 
 from crab.core.allocation.allocator import NodeAllocator
 from crab.core.execution.placement import app_ppn, place_experiment
-from crab.core.execution.settings import ExecutionSettings
+from crab.core.execution.settings import ExecutionSettings, resolve_launcher
 
 
 class _Slot:
@@ -49,8 +49,9 @@ def check_experiment(
     `apps` is the experiment's `apps` object, `allocation` its allocation as the experiment sees
     it, `launcher` the experiment's own `launcher` option (the preset's when None; a receipt's
     override is not known before submit), `local_options` its own options, which override
-    `global_opts` for `ppn`. An explicit `cpus` under a launcher that does not bind to it (srun,
-    direct) is warned about once per app. Skipped (returns no warnings) when `numnodes` or an
+    `global_opts` for `ppn`. An explicit `cpus` under the direct launcher, which does not bind to
+    it, is warned about once per app; under srun, a `--cpu-bind` flag that CRAB's binding replaces
+    (a co-run app or a `cpus`) is warned about once. Skipped (returns no warnings) when `numnodes` or an
     app's `ppn` is missing or not a number, as the allocation checks skip it.
 
     Raises:
@@ -83,6 +84,30 @@ def check_experiment(
         f"experiment {exp}: app {key}: cpus has no effect with the {effective} launcher; "
         "only mpirun binds to an explicit core list"
         for key, cfg in zip(keys, configs, strict=True)
-        if "cpus" in cfg and effective in ("srun", "direct")
+        if "cpus" in cfg and effective == "direct"
     ]
-    return placed.warnings + ignored
+    binds = any(placed.co_run) or any("cpus" in cfg for cfg in configs)
+    return (
+        placed.warnings
+        + ignored
+        + (_cpu_bind_note(exp, exp_opts, settings, launcher) if binds else [])
+    )
+
+
+def _cpu_bind_note(
+    exp: str, exp_opts: Mapping[str, Any], settings: ExecutionSettings, launcher: str | None
+) -> list[str]:
+    """The warning that CRAB's core binding replaces a `--cpu-bind` flag of the srun launcher."""
+    try:
+        spec = resolve_launcher(
+            settings, {**exp_opts, **({"launcher": launcher} if launcher else {})}, None
+        )
+    except ValueError:
+        return []  # an invalid launcher is refused by the launcher checks
+    for flag in spec.flags if spec.kind == "srun" else ():
+        if flag.split("=")[0] in ("--cpu-bind", "--cpu_bind"):
+            return [
+                f"experiment {exp}: launcher flag '{flag}' is replaced by CRAB's core binding "
+                "for apps that share nodes or set cpus"
+            ]
+    return []

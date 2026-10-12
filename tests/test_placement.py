@@ -267,10 +267,9 @@ def _check(apps: dict, settings, launcher: str | None = None, opts: dict | None 
     return check_experiment("e1", apps, {}, options, settings, launcher)
 
 
-def test_slurm_srun_with_cpus_warns_that_cpus_has_no_effect() -> None:
+def test_slurm_srun_with_cpus_does_not_warn_that_cpus_has_no_effect() -> None:
     opts = {"sbatch_directives": ["--exclusive"]}
-    warnings = _check({"0": {"cpus": "0"}}, slurm_settings(), opts=opts)
-    assert warnings == [_CPUS_NOTE.format("srun")]
+    assert _check({"0": {"cpus": "0"}}, slurm_settings(), opts=opts) == []
 
 
 def test_local_direct_with_cpus_warns_that_cpus_has_no_effect() -> None:
@@ -297,7 +296,7 @@ def test_no_cpus_no_cpus_warning() -> None:
 
 def test_the_cpus_warning_is_per_app() -> None:
     apps = {"0": {"cpus": "0"}, "1": {}, "2": {"cpus": "1"}}
-    warnings = _check(apps, slurm_settings(), opts={"sbatch_directives": ["--exclusive"]})
+    warnings = _check(apps, LOCAL_DIRECT)
     assert [w.split(":")[1] for w in warnings] == [" app 0", " app 2"]
 
 
@@ -374,3 +373,123 @@ def test_check_experiment_takes_the_experiments_ppn_from_its_local_options() -> 
 
 def test_check_experiment_skips_a_ppn_token_on_an_app() -> None:
     assert check_experiment("e1", {"0": {"ppn": "{p}"}}, {}, {"numnodes": 1}, LOCAL_DIRECT) == []
+
+
+# -- co_run: which apps share nodes with another app of the experiment ---------------------------
+
+
+def test_two_overlapping_heads_with_disjoint_cores_are_both_disjoint() -> None:
+    placed = _place([{}, {}], [["localhost"], ["localhost"]], _SHARED)
+    assert placed.co_run == ["disjoint", "disjoint"]
+
+
+def test_two_overlapping_heads_with_shared_cores_are_both_shared() -> None:
+    placed = _place([{}, {}], [["localhost"], ["localhost"]], _SHARED_CORES)
+    assert placed.co_run == ["shared", "shared"]
+
+
+def test_a_lone_head_has_no_co_run() -> None:
+    assert _place([{}], [["localhost"]], {}).co_run == [None]
+
+
+def test_a_chained_app_takes_the_co_run_of_its_head() -> None:
+    configs = [{"start": "0"}, {"start": "0"}, {"start": "s0"}, {"start": "s1"}]
+    nodes = [["localhost"]] * 4
+    assert _place(configs, nodes, _SHARED).co_run == ["disjoint"] * 4
+    assert _place(configs, nodes, _SHARED_CORES).co_run == ["shared"] * 4
+
+
+def test_a_chained_app_of_a_lone_head_has_no_co_run() -> None:
+    configs = [{"start": "0"}, {"start": "s0"}]
+    assert _place(configs, [["localhost"], ["localhost"]], {}).co_run == [None, None]
+
+
+def test_apps_on_disjoint_nodes_have_no_co_run() -> None:
+    allocation = {"partitions": {"a": _SHARED_CORES, "b": _SHARED}, "mode": "linear"}
+    configs = [{"partition": "a"}, {"partition": "b"}]
+    placed = place_experiment(
+        "e1",
+        ["0", "1"],
+        configs,
+        [["h0"], ["h1"]],
+        allocation,
+        {"ppn": 4},
+        slurm_settings(),
+        [],
+        {},
+    )
+    assert placed.co_run == [None, None]
+
+
+def test_co_run_follows_the_cores_setting_of_each_partition() -> None:
+    allocation = {"partitions": {"a": _SHARED_CORES, "b": _SHARED}, "mode": "linear"}
+    configs = [{"partition": "a"}, {"partition": "a"}, {"partition": "b"}, {"partition": "b"}]
+    nodes = [["h0"], ["h0"], ["h1"], ["h1"]]
+    placed = place_experiment(
+        "e1", list("0123"), configs, nodes, allocation, {"ppn": 4}, slurm_settings(), [], {}
+    )
+    assert placed.co_run == ["shared", "shared", "disjoint", "disjoint"]
+    assert placed.shared_cores == [True, True, False, False]
+
+
+# -- check_experiment under srun: the core binding replaces a --cpu-bind flag ----------------------
+
+
+def _srun_settings(*flags: str):
+    return slurm_settings(launchers={"srun": {"flags": list(flags)}})
+
+
+def _bind_note(flag: str) -> str:
+    return (
+        f"experiment e1: launcher flag '{flag}' is replaced by CRAB's core binding "
+        "for apps that share nodes or set cpus"
+    )
+
+
+def _shared_check(apps: dict, settings, opts: dict | None = None):
+    options = {"numnodes": 1, "ppn": 1, **(opts or {})}
+    return check_experiment("e1", apps, _SHARED, options, settings)
+
+
+def _bind_notes(warnings: list[str]) -> list[str]:
+    return [w for w in warnings if "core binding" in w]
+
+
+def test_srun_cpu_bind_flag_with_a_shared_config_warns_once() -> None:
+    warnings = _shared_check({"0": {}, "1": {}}, _srun_settings("--cpu-bind=socket"))
+    assert _bind_notes(warnings) == [_bind_note("--cpu-bind=socket")]
+
+
+@pytest.mark.parametrize(
+    "flags", [("--cpu_bind=cores",), ("--cpu-bind", "none"), ("--cpu_bind", "none")]
+)
+def test_the_underscore_and_two_token_cpu_bind_forms_warn_too(flags: tuple[str, ...]) -> None:
+    warnings = _shared_check({"0": {}, "1": {}}, _srun_settings(*flags))
+    assert _bind_notes(warnings) == [_bind_note(flags[0])]
+
+
+def test_srun_cpu_bind_flag_with_cpus_warns() -> None:
+    opts = {"sbatch_directives": ["--exclusive"]}
+    warnings = _check({"0": {"cpus": "0"}}, _srun_settings("--cpu-bind=socket"), opts=opts)
+    assert warnings == [_bind_note("--cpu-bind=socket")]
+
+
+def test_srun_cpu_bind_flag_without_co_run_or_cpus_does_not_warn() -> None:
+    assert _check({"0": {}}, _srun_settings("--cpu-bind=socket")) == []
+
+
+def test_srun_without_a_cpu_bind_flag_does_not_warn() -> None:
+    assert _bind_notes(_shared_check({"0": {}, "1": {}}, _srun_settings("--mpi=pmix"))) == []
+
+
+def test_the_experiments_launcher_flags_decide_the_bind_note() -> None:
+    settings = _srun_settings("--cpu-bind=socket")
+    kept = _shared_check({"0": {}, "1": {}}, settings, {"launcher_flags": ["--cpu-bind=map_cpu:0"]})
+    assert _bind_notes(kept) == [_bind_note("--cpu-bind=map_cpu:0")]
+    assert _bind_notes(_shared_check({"0": {}, "1": {}}, settings, {"launcher_flags": []})) == []
+
+
+def test_a_cpu_bind_flag_under_mpirun_does_not_warn() -> None:
+    preset = {"launcher": "mpirun", "launchers": {"srun": {"flags": ["--cpu-bind=socket"]}}}
+    settings = from_preset({"scheduler": "slurm", **preset}, "t")
+    assert _bind_notes(_shared_check({"0": {}, "1": {}}, settings)) == []

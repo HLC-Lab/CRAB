@@ -244,6 +244,9 @@ def run_job(
     # cores without a core list is left unbound so co-located launches do not pile onto the
     # first cores.
     cpus = getattr(job, "cpu_list", None)
+    # Slurm sets this from the batch script's --ntasks-per-node; the local scheduler scrubs SLURM_*.
+    job_tasks = os.environ.get("SLURM_NTASKS_PER_NODE", "")
+    job_ranks = int(job_tasks) if job_tasks.isascii() and job_tasks.isdigit() else None
     launcher = launcher_for(spec, extra_export=tuple(app_env))
     cmd_string = launch_line(
         launcher,
@@ -252,6 +255,8 @@ def run_job(
             job.ppn,
             cpus=tuple(cpus) if cpus else None,
             bind_none=bool(getattr(job, "shared_cores", False)) and not cpus,
+            co_run=getattr(job, "co_run", None),
+            job_ranks_per_host=job_ranks or None,
         ),
         app_command,
     )
@@ -272,6 +277,8 @@ def run_job(
                 "kind": spec.kind,
                 "dialect": launcher.dialect if isinstance(launcher, MpirunLauncher) else None,
                 "binding_report": bindings_path,
+                "ppn": job.ppn,
+                "env": app_env,
             },
         )
 

@@ -825,5 +825,10 @@ def test_placement_checks_use_the_apps_effective_ppn() -> None:
     config = _ppn_cfg(app={"cpus": "0-1"}, local={"ppn": 4}, sbatch_directives=directives)
     with pytest.raises(ValueError, match=r"experiment e1: app 0: cpus lists 2 core"):
         _check(config, settings)
+    # An app's own ppn beats the larger global one: the two cores are enough, nothing to warn about.
     config = _ppn_cfg(app={"cpus": "0-1", "ppn": 2}, ppn=4, sbatch_directives=directives)
-    assert len(_check(config, settings)) == 1  # only the "cpus has no effect with srun" note
+    assert _check(config, settings) == []
+    # ... and an app ppn beyond its cores is refused although the global ppn would fit.
+    config = _ppn_cfg(app={"cpus": "0-1", "ppn": 3}, ppn=1, sbatch_directives=directives)
+    with pytest.raises(ValueError, match=r"experiment e1: app 0: cpus lists 2 core.*ppn 3"):
+        _check(config, settings)
