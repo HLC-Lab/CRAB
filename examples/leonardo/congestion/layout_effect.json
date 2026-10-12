@@ -32,7 +32,7 @@
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -51,7 +51,7 @@
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -70,7 +70,7 @@
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -89,7 +89,7 @@
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         }

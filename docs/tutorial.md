@@ -75,7 +75,7 @@ the comparison is apples-to-apples.
       "apps": {
         "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                "collect": true, "start": "0", "end": "", "partition": "victim" },
-        "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+        "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
                "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
       }
     }
@@ -93,9 +93,9 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
   runs undisturbed; the other half sits idle. That's deliberate — the victim runs on the *same*
   4 nodes in both experiments.
 - **App `1` — the [aggressor](glossary.md#aggressor).** `collect: false` (not measured) and
-  `end: "f"` (force-killed as soon as the victim finishes). Its `args` (`0.001 0.01`) are the
-  arguments passed to the benchmark — here, noise-timing values controlling how bursty the
-  interference is (smaller quiet interval / longer burst = heavier interference).
+  `end: "f"` (force-killed as soon as the victim finishes). Its `args` make Blink's
+  `alltoall_man` run until it is stopped (`-endl`), in bursts of 10 ms (`-blength 0.01`) separated
+  by 1 ms pauses (`-bpause 0.001`). Longer bursts and shorter pauses mean heavier interference.
 - **`minruns`/`maxruns`** — repeat each experiment 5–10 times, stopping early once the victim's
   metrics [converge](glossary.md#convergence).
 
