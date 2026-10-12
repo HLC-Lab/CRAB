@@ -1,11 +1,11 @@
 {
     "global_options": {
         "name": "pingpong_interference",
-        "numnodes": "8",
+        "numnodes": "4",
         "ppn": "1",
         "minruns": "5",
         "maxruns": "10",
-        "timeout": "3600.0",
+        "timeout": "1500.0",
         "convergeall": true,
         "outformat": "csv",
         "extrainfo": "pingpong_interference_study",
@@ -24,24 +24,20 @@
     },
     "experiments": {
         "01_baseline_pingpong_small": {
-            "description": "PingPong baseline: small messages (1KB). All nodes.",
+            "description": "PingPong baseline: small messages (1KB). The 2 victim nodes.",
             "apps": {
                 "0": {
                     "path": "blink/pingpong_b.py",
                     "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
-                }
-            },
-            "local_options": {
-                "allocation": {
-                    "mode": "linear"
+                    "end": "",
+                    "partition": "victim"
                 }
             }
         },
         "02_baseline_pingpong_large": {
-            "description": "PingPong baseline: large messages (1MB). Bandwidth-bound reference.",
+            "description": "PingPong baseline: large messages (1MB). Bandwidth-bound reference, 2 victim nodes.",
             "apps": {
                 "0": {
                     "path": "blink/pingpong_b.py",
@@ -54,19 +50,19 @@
             }
         },
         "03_interference_incast": {
-            "description": "PingPong victim on half the nodes vs Incast aggressor on the other half. 50/50 split.",
+            "description": "PingPong victim on 2 nodes vs Incast aggressor on the other 2. 50/50 split.",
             "apps": {
                 "0": {
                     "path": "blink/pingpong_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 65536 -iter 1000",
+                    "args": "-endl -msgsize 65536",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",
@@ -75,7 +71,7 @@
             }
         },
         "04_topology_ring": {
-            "description": "Traffic pattern change: Ring benchmark on all nodes.",
+            "description": "Traffic pattern change: Ring benchmark on all 4 nodes.",
             "apps": {
                 "0": {
                     "path": "blink/ring_bsnbr.py",
@@ -99,12 +95,12 @@
                     "args": "-msgsize 2048 -iter 200",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 2048 -iter 1000",
+                    "args": "-endl -msgsize 2048",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",

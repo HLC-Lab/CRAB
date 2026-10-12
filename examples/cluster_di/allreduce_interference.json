@@ -5,7 +5,7 @@
         "ppn": "1",
         "minruns": "5",
         "maxruns": "10",
-        "timeout": "3600.0",
+        "timeout": "1500.0",
         "convergeall": true,
         "outformat": "csv",
         "extrainfo": "allreduce_interference_study",
@@ -23,7 +23,7 @@
     },
     "experiments": {
         "01_baseline_ardc_small": {
-            "description": "AllReduce Doubling baseline: small messages (1KB). Latency-bound reference.",
+            "description": "AllReduce baseline: small messages (1KB). Latency-bound reference.",
             "apps": {
                 "0": {
                     "path": "blink/allreduce_b.py",
@@ -36,7 +36,7 @@
             }
         },
         "02_baseline_ardc_large": {
-            "description": "AllReduce Doubling baseline: large messages (1MB). Bandwidth-bound reference.",
+            "description": "AllReduce baseline: large messages (1MB). Bandwidth-bound reference.",
             "apps": {
                 "0": {
                     "path": "blink/allreduce_b.py",
@@ -49,19 +49,19 @@
             }
         },
         "03_interference_split": {
-            "description": "50/50 split: AllReduce Doubling victim (2 nodes) vs Incast aggressor (2 nodes).",
+            "description": "50/50 split: AllReduce victim (2 nodes) vs Incast aggressor (2 nodes).",
             "apps": {
                 "0": {
                     "path": "blink/allreduce_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 65536 -iter 1000",
+                    "args": "-endl -msgsize 65536",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",
@@ -94,12 +94,12 @@
                     "args": "-msgsize 2048 -iter 200",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 2048 -iter 1000",
+                    "args": "-endl -msgsize 2048",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",

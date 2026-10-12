@@ -88,9 +88,7 @@ def test_legacy_applications_form_is_checked_too() -> None:
 
 # Examples that fail at launch today ("0 allocated nodes"). Remove an entry when its cause is
 # fixed; strict xfail flags a stale one.
-_KNOWN_BROKEN: dict[str, str] = {
-    "examples/local/concurrent_collectives_stress.json": "4 concurrent apps on 1 node",
-}
+_KNOWN_BROKEN: dict[str, str] = {}
 
 
 def _example_params():

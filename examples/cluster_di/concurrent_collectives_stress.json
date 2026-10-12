@@ -1,13 +1,13 @@
 {
     "global_options": {
         "name": "concurrent_collectives_stress",
-        "numnodes": "4",
+        "numnodes": "8",
         "ppn": "1",
         "minruns": "5",
         "maxruns": "10",
         "timeout": "1800.0",
         "outformat": "csv",
-        "extrainfo": "stress_4_nodes_concurrent_collectives",
+        "extrainfo": "stress_8_nodes_concurrent_collectives",
         "sbatch_directives": {
             "time": "01:00:00",
             "job-name": "crab_concurrent_stress"
@@ -18,7 +18,7 @@
     },
     "experiments": {
         "01_concurrent_collectives": {
-            "description": "Four collectives running concurrently: two A2A, one Barrier, one Ring. Stress test on 4 nodes.",
+            "description": "Four collectives running concurrently on 8 nodes (2 nodes, 2 ranks per app): two A2A, one Barrier, one Ring. Stress test.",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_b.py",
@@ -32,7 +32,7 @@
                     "args": "-msgsize 67108864 -iter 500 -grty 1",
                     "collect": true,
                     "start": "0",
-                    "end": "f"
+                    "end": ""
                 },
                 "2": {
                     "path": "blink/barrier_b.py",
@@ -46,7 +46,7 @@
                     "args": "-msgsize 33554432 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": "f"
+                    "end": ""
                 }
             }
         }

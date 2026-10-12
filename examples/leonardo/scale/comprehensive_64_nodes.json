@@ -5,7 +5,7 @@
         "ppn": "1",
         "minruns": "1",
         "maxruns": "1",
-        "timeout": "1800.0",
+        "timeout": "1500.0",
         "convergeall": true,
         "outformat": "csv",
         "extrainfo": "64nodes_limit_test",
@@ -88,7 +88,7 @@
             }
         },
         "06_bench_ardc_small": {
-            "description": "Collective benchmark: AllReduce Doubling 4KB.",
+            "description": "Collective benchmark: AllReduce 4KB.",
             "apps": {
                 "0": {
                     "path": "blink/allreduce_b.py",
@@ -101,7 +101,7 @@
             }
         },
         "07_bench_bdc_small": {
-            "description": "Collective benchmark: Binomial Doubling 4KB.",
+            "description": "Collective benchmark: Broadcast 4KB.",
             "apps": {
                 "0": {
                     "path": "blink/broadcast_b.py",
@@ -161,11 +161,11 @@
             }
         },
         "11_dep_delayed_parallel": {
-            "description": "Time-offset parallel: Incast at T=0, A2A at T=5s.",
+            "description": "Time-offset parallel: Incast at T=0, A2A at T=1s while the incast is still running.",
             "apps": {
                 "0": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 4096 -iter 1000",
+                    "args": "-msgsize 4096 -iter 200000",
                     "collect": true,
                     "partition": "victim",
                     "start": "0",
@@ -176,7 +176,7 @@
                     "args": "-msgsize 1024 -iter 50",
                     "collect": true,
                     "partition": "victim",
-                    "start": "5",
+                    "start": "1",
                     "end": ""
                 }
             }
@@ -189,12 +189,12 @@
                     "args": "-msgsize 262144 -iter 100",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 65536 -iter 1000000",
+                    "args": "-endl -msgsize 65536",
                     "collect": false,
                     "partition": "victim",
                     "start": "0",
@@ -210,12 +210,12 @@
                     "args": "-msgsize 262144 -iter 100",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 262144 -iter 1000",
+                    "args": "-endl -msgsize 262144",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",
@@ -224,19 +224,19 @@
             }
         },
         "14_int_split_ring_vs_bdc": {
-            "description": "Interference 32 vs 32: Ring victim vs Binomial Doubling aggressor.",
+            "description": "Interference 32 vs 32: Ring victim vs Broadcast aggressor.",
             "apps": {
                 "0": {
                     "path": "blink/ring_nb.py",
                     "args": "-msgsize 1048576 -iter 50",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/broadcast_b.py",
-                    "args": "-msgsize 1048576 -iter 200",
+                    "args": "-endl -msgsize 1048576",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",
@@ -245,19 +245,19 @@
             }
         },
         "15_int_split_ardc_vs_noise": {
-            "description": "Interference: AllReduce Doubling victim vs fast Incast noise aggressor.",
+            "description": "Interference: AllReduce victim vs fast Incast noise aggressor.",
             "apps": {
                 "0": {
                     "path": "blink/allreduce_b.py",
                     "args": "-msgsize 262144 -iter 100",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
                     "path": "blink/incast_b.py",
-                    "args": "-msgsize 4096 -iter 10000",
+                    "args": "-endl -msgsize 4096",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",
@@ -321,39 +321,6 @@
                 "0": {
                     "path": "blink/alltoall_b.py",
                     "args": "-msgsize 1024 -iter 500",
-                    "collect": true,
-                    "partition": "victim",
-                    "start": "0",
-                    "end": ""
-                }
-            }
-        },
-        "19_sbatch_override_name": {
-            "description": "sbatch override: custom job name for this specific experiment.",
-            "sbatch_directives": {
-                "job-name": "crab_test_19"
-            },
-            "apps": {
-                "0": {
-                    "path": "blink/alltoall_b.py",
-                    "args": "-msgsize 1048576 -iter 20",
-                    "collect": true,
-                    "partition": "victim",
-                    "start": "0",
-                    "end": ""
-                }
-            }
-        },
-        "20_sbatch_override_time": {
-            "description": "sbatch override: extended time and custom job name. A2A 2MB.",
-            "sbatch_directives": {
-                "time": "00:40:00",
-                "job-name": "crab_final_push"
-            },
-            "apps": {
-                "0": {
-                    "path": "blink/alltoall_b.py",
-                    "args": "-msgsize 2097152 -iter 50",
                     "collect": true,
                     "partition": "victim",
                     "start": "0",
