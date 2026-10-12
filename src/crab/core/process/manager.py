@@ -3,6 +3,7 @@ import shlex
 import signal
 import subprocess
 import threading
+import time
 
 from crab.log import CrabLogger
 
@@ -78,7 +79,7 @@ def run_job(
 
     # 3. Execute the physical script as a clean subprocess.
     # start_new_session=True puts bash in its own process group so that
-    # os.killpg() in end_job can reach srun/mpirun children as well.
+    # stop_process_groups() in end_job can reach srun/mpirun children as well.
     process = subprocess.Popen(
         ["bash", script_path],
         stdout=subprocess.PIPE,
@@ -106,19 +107,135 @@ def run_job(
     logger.info(f"Launched App {job.id_num}  PID={process.pid}  nodes={job.node_list}")
 
 
+def _warn(logger: CrabLogger | None, message: str) -> None:
+    if logger is not None:
+        logger.warning(message)
+
+
+def _member_states(pgid: int) -> list[str]:
+    """Kernel states of the processes in group `pgid`; empty when /proc cannot tell."""
+    states: list[str] = []
+    try:
+        entries = os.listdir("/proc")
+    except OSError:
+        return states
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat") as f:
+                # "pid (comm) state ppid pgrp ...": comm may contain spaces and parentheses.
+                fields = f.read().rpartition(")")[2].split()
+            if int(fields[2]) == pgid:
+                states.append(fields[0])
+        except (OSError, IndexError, ValueError):
+            continue
+    return states
+
+
+def _group_gone(process: subprocess.Popen, pgid: int, logger: CrabLogger | None) -> bool:
+    """True once no live process is left in the group.
+
+    The leader is reaped with poll() so it is not a zombie. A killed orphan member stays a
+    zombie until its parent (init) reaps it, and killpg(pgid, 0) keeps succeeding for it (init
+    never reaps inside a PID namespace such as the test sandbox), so a group whose members
+    are all zombies counts as gone.
+    """
+    process.poll()
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        _warn(logger, f"Process group {pgid} is not ours to probe; assuming it is gone")
+        return True
+    states = _member_states(pgid)
+    if states and all(state == "Z" for state in states):
+        process.poll()  # the leader may have died since the poll above; reap it now
+        return True
+    return False
+
+
+def _wait_gone(
+    pending: dict[int, subprocess.Popen], timeout: float, logger: CrabLogger | None
+) -> None:
+    """Drop from `pending` the groups that are gone; stop waiting after `timeout` seconds."""
+    deadline = time.monotonic() + timeout
+    while True:
+        for pgid in [g for g, p in pending.items() if _group_gone(p, g, logger)]:
+            del pending[pgid]
+        if not pending or time.monotonic() >= deadline:
+            return
+        time.sleep(0.05)
+
+
+def stop_process_groups(
+    processes: list[subprocess.Popen],
+    grace: float = 5.0,
+    logger: CrabLogger | None = None,
+) -> list[int]:
+    """Stop the process groups of `processes`: SIGTERM all, SIGKILL the survivors.
+
+    Each process must be the leader of its own group (`start_new_session=True`), so its pid is
+    the group id. All groups get SIGTERM at once and share one `grace` period; groups still
+    alive after it get SIGKILL. A group id <= 1 or the caller's own group is never signalled.
+
+    Returns:
+        The group ids that needed SIGKILL.
+    """
+    own_group = os.getpgrp()
+    pending: dict[int, subprocess.Popen] = {}
+    for process in processes:
+        pgid = process.pid
+        if pgid <= 1 or pgid == own_group:
+            _warn(logger, f"Refusing to signal process group {pgid} (not a group of its own)")
+            continue
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            process.poll()  # already gone; reap the leader
+            continue
+        except PermissionError:
+            _warn(logger, f"Process group {pgid} is not ours to signal; skipping")
+            continue
+        pending[pgid] = process
+
+    _wait_gone(pending, grace, logger)
+
+    killed: list[int] = []
+    for pgid, process in list(pending.items()):
+        _warn(logger, f"Process group {pgid} ignored SIGTERM for {grace}s; sending SIGKILL")
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except ProcessLookupError:
+            del pending[pgid]
+            process.poll()
+            continue
+        except PermissionError:
+            _warn(logger, f"Process group {pgid} is not ours to signal; skipping")
+            del pending[pgid]
+            continue
+        killed.append(pgid)
+
+    # SIGKILL cannot be handled, so this only waits for the kernel to finish the teardown.
+    _wait_gone(pending, 2.0, logger)
+    for pgid in pending:
+        _warn(logger, f"Process group {pgid} is still alive after SIGKILL")
+    return killed
+
+
 def end_job(job, logger: CrabLogger) -> None:
-    """Forcefully terminates a job and retrieves output."""
+    """Stops a job's process group (SIGTERM, then SIGKILL after a grace) and retrieves output."""
     if not (hasattr(job, "process") and job.process):
         return
 
-    # Kill the entire process group (bash wrapper + srun/mpirun children).
-    # process.kill() only delivers SIGKILL to bash; srun is a grandchild that
-    # inherits the stdout pipe and keeps it open, causing communicate() to block
-    # indefinitely. os.killpg() reaches every process in the group at once.
-    try:
-        os.killpg(os.getpgid(job.process.pid), signal.SIGKILL)
-    except OSError:
-        pass  # already dead
+    # Stop the entire process group (bash wrapper + srun/mpirun children). SIGTERM first:
+    # srun forwards it to its tasks and ends the Slurm step, mpirun forwards it to its ranks;
+    # a SIGKILL would take srun down before it could do either and leave the step running.
+    # SIGKILL stays as the fallback. A group-wide signal (not process.kill(), which only
+    # reaches bash) also closes the stdout pipe the grandchildren hold open, which would
+    # otherwise block communicate() indefinitely.
+    stop_process_groups([job.process], logger=logger)
 
     # Let the stdout reader thread drain the last bytes and exit cleanly.
     if hasattr(job, "_stream_thread") and job._stream_thread:

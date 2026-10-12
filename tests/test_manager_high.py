@@ -5,7 +5,7 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from crab.core.process import wait_timed
+from crab.core.process import end_job, wait_timed
 
 
 class _MockJob:
@@ -68,3 +68,24 @@ class TestWaitTimedNoCommunicate(unittest.TestCase):
         job = _MockJob()
         result = wait_timed(job, timeout_sec=5.0, logger=MagicMock())
         self.assertFalse(result)
+
+
+class TestEndJobStopsTheGroupGracefully(unittest.TestCase):
+    def test_end_job_uses_stop_process_groups_then_finishes_as_before(self):
+        job = _MockJob(stdout_buf=[b"out\n"], stderr_data=b"err")
+        job.id_num = 7
+        joined = []
+        t = threading.Thread(target=lambda: None, daemon=True)
+        t.start()
+        orig = t.join
+        t.join = lambda *a, **kw: (joined.append(True), orig(*a, **kw))
+        job._stream_thread = t
+        logger = MagicMock()
+        with patch("crab.core.process.manager.stop_process_groups") as stop:
+            end_job(job, logger)
+        stop.assert_called_once()
+        self.assertEqual(stop.call_args[0][0], [job.process])
+        self.assertIs(stop.call_args[1]["logger"], logger)
+        self.assertTrue(joined)
+        job.process.wait.assert_called_once()
+        self.assertEqual(job._set_output_calls, [(b"out\n", b"err")])
