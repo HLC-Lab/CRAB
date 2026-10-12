@@ -120,6 +120,64 @@ experiment.
 }
 ```
 
+## Pattern 6 — apps sharing nodes, with different ranks per node
+
+Set `allocation.mode` to `"shared"` and every app runs on all the nodes at the same time, so they
+compete inside each node. Each app can have its own `ppn`: here the victim runs one rank per node
+and the aggressor eight, on cores of their own.
+
+```json
+{
+  "global_options": {
+    "name": "intra_node",
+    "numnodes": "2", "ppn": "1",
+    "allocation": { "mode": "shared", "cores": "disjoint" },
+    "sbatch_directives": ["--exclusive"]
+  },
+  "experiments": {
+    "a2a_vs_a2a": {
+      "apps": {
+        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+               "collect": true, "end": "" },
+        "1": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+               "end": "f", "ppn": "8" }
+      }
+    }
+  }
+}
+```
+
+The batch job asks Slurm for 9 tasks per node (1 + 8), and under `srun` each app is started with
+flags that keep it on its own cores; see
+[Shared nodes under `srun`](../reference/configuration.md#shared-nodes-under-srun).
+
+## One network interface per app
+
+To make each app use a different network card, set the interface in the app's `env` and pin the
+app to cores close to that card. With Open MPI or any other UCX-based MPI, `UCX_NET_DEVICES`
+takes `<hca>:<port>`:
+
+```json
+"apps": {
+  "0": { "path": "blink/alltoall_comm_only.py", "collect": true, "end": "",
+         "cpus": "0-3",   "env": { "UCX_NET_DEVICES": "mlx5_0:1" } },
+  "1": { "path": "blink/alltoall_comm_only.py", "end": "f",
+         "cpus": "16-19", "env": { "UCX_NET_DEVICES": "mlx5_1:1" } }
+}
+```
+
+Choose `cpus` from the cores that sit on the same NUMA node as the card:
+
+- the list is in `/sys/class/infiniband/<hca>/device/local_cpulist` (for example
+  `cat /sys/class/infiniband/mlx5_0/device/local_cpulist`);
+- `lstopo` shows the same layout as a diagram, and on GPU nodes `nvidia-smi topo -m` shows which
+  cores are close to which GPU and card.
+
+Under Slurm, `cpus` needs `--exclusive` among the `sbatch_directives`. The `env` of each app is
+recorded in the job's `crab_run.json` next to its launch, so the results show which interface
+each app used. The interface is chosen per app: giving different ranks of one app different
+interfaces is not supported. A complete config is `examples/leonardo/congestion/corun_nics.json`.
+
 ## Choosing an allocation mode
 
 | Mode | `allocation.mode` | Use when |

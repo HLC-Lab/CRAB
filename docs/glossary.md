@@ -95,8 +95,9 @@ first. In `sbatch_directives` or preset Slurm flags, it means the second.
 
 ### ppn
 
-**Processes per node.** Combined with the node count to compute total task count for the launcher
-(`-n`/`-np`). Taken from `global_options.ppn`.
+**Ranks per node.** Combined with the node count to compute an app's total task count for the
+launcher (`-n`/`-np`). Each app's `ppn` is its own, else its experiment's `local_options.ppn`,
+else `global_options.ppn`; see [Ranks per node](reference/configuration.md#ranks-per-node-ppn).
 
 ### Preset
 
@@ -136,7 +137,8 @@ inside the job.
 An [allocation](reference/configuration.md#shared-nodes) with `mode: "shared"`, in which every
 [application](#application) of a scope gets all of its nodes, so the apps run at the same time on
 the same hosts. Its `cores` key, `"disjoint"` (the default) or `"shared"`, says whether they run
-on separate cores or may compete for the same ones.
+on separate cores or may compete for the same ones. Apps that run this way are said to
+**co-run**.
 
 ### Victim
 

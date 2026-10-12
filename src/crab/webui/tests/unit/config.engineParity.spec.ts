@@ -80,7 +80,7 @@ describe("placeholder tokens pass validation where they are saved (toAllocation 
   });
 });
 
-describe("sbatch directives follow the engine (core/config_checks.py MANAGED_DIRECTIVES)", () => {
+describe("sbatch directives follow the engine (core/execution/launch_checks.py MANAGED_DIRECTIVES)", () => {
   const warn = (lines: string[]) => validateSbatch(fromSbatch(lines));
   const useNumnodes = (text: string, key: string) =>
     `sbatch_directives: '${text}' sets '${key}', which CRAB manages itself: use numnodes`;
@@ -129,7 +129,7 @@ describe("sbatch list form keeps short flags as written (Slurm takes -J name, -o
   });
 });
 
-describe("launcher options (core/config_checks.py _check_launcher_options)", () => {
+describe("launcher options (core/execution/launch_checks.py check_launcher_options)", () => {
   const withOptions = (global: AnyObj, local?: AnyObj): AnyObj => ({
     global_options: { numnodes: "4", ...global },
     experiments: {

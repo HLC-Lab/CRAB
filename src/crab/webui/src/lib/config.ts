@@ -714,7 +714,7 @@ export function validateOptions(o: OptionsDraft, where = ""): string[] {
   return issues;
 }
 
-// Mirrors _has_token in core/config_checks.py: a "{" anywhere means SbatchMan substitutes later.
+// Mirrors has_token in core/execution/tokens.py: a "{" anywhere means SbatchMan substitutes later.
 function hasBrace(v: unknown): boolean {
   if (typeof v === "string") return v.includes("{");
   if (Array.isArray(v)) return v.some(hasBrace);
@@ -722,7 +722,7 @@ function hasBrace(v: unknown): boolean {
   return false;
 }
 
-/** Mirrors _check_launcher_options in core/config_checks.py. */
+/** Mirrors check_launcher_options in core/execution/launch_checks.py. */
 function validateLauncher(o: OptionsDraft, at: string): string[] {
   const issues: string[] = [];
   if (o.launcher.trim() && !hasBrace(o.launcher) && !LAUNCHER_KINDS.includes(o.launcher.trim()))
@@ -810,7 +810,7 @@ export function validateAllocation(
 }
 
 // Slurm directive keys CRAB writes itself, with what to say instead
-// (core/config_checks.py MANAGED_DIRECTIVES). The engine refuses them.
+// (core/execution/launch_checks.py MANAGED_DIRECTIVES). The engine refuses them.
 const TASKS_TAIL = "CRAB sets the task count from numnodes and ppn";
 const MANAGED_SBATCH: Record<string, string> = {
   nodes: "use numnodes",

@@ -54,6 +54,8 @@ To adapt it to your cluster, change the values you already know for your system:
   also want `--exclusive` to guarantee whole-node allocations for interference measurements).
 - **`launchers.srun.flags`** — your preferred binding (`--cpu-bind=socket`, `--cpu-bind=core`, a
   `map_cpu` list, etc.).
+  For apps that share nodes or set `cpus`, CRAB binds the ranks itself and drops a `--cpu-bind`
+  from these flags; see [The srun launcher](../reference/presets.md#the-srun-launcher).
 - **`header`** — the `module load` lines your benchmarks need at run time.
 - **`env`** — any environment variables your system or libraries require. They reach the
   applications; launch settings do not belong here.

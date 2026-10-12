@@ -1,5 +1,5 @@
-// What a chosen preset cannot run in a config. Mirrors `_check_preset_fit` in
-// src/crab/core/config_checks.py (the cluster's pre-submit check is authoritative); a `{token}`
+// What a chosen preset cannot run in a config. Mirrors `check_preset_fit` in
+// src/crab/core/execution/launch_checks.py (the cluster's pre-submit check is authoritative); a `{token}`
 // value never matches a check, as in the engine. Pure: no fetch, no DOM.
 import type { CrabConfig, CrabInfo } from "@/api/types";
 

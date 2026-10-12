@@ -36,7 +36,7 @@ key that appears in neither table stops CRAB with an error that lists the allowe
 |-------|---------|---------|------------|
 | `scheduler` | `"slurm"` (submit with `sbatch`) or `"local"` (run a detached process on this machine). | required | both |
 | `launcher` | How each application starts: `"srun"`, `"mpirun"` or `"direct"` (the command as is, one process). | `"srun"` under Slurm, `"direct"` under Local | both; `"srun"` needs `slurm` |
-| `launchers.srun.flags` | Extra `srun` flags, e.g. `["--cpu-bind=socket"]`. | `[]` | `srun` |
+| `launchers.srun.flags` | Extra `srun` flags, e.g. `["--cpu-bind=socket"]`. CRAB's own binding replaces a `--cpu-bind` here for the apps it binds; see [The srun launcher](#the-srun-launcher). | `[]` | `srun` |
 | `launchers.mpirun.command` | The `mpirun` executable, or its full path. | `"mpirun"` | `mpirun` |
 | `launchers.mpirun.flags` | Extra `mpirun` flags (`--map-by`, MCA parameters, …). | `[]` | `mpirun` |
 | `launchers.mpirun.dialect` | `"auto"`, `"openmpi4"`, `"openmpi5"` or `"hydra"`. Intel MPI is not supported. | `"auto"` | `mpirun` |
@@ -53,7 +53,8 @@ A few details:
   that asks for more nodes than the preset has hosts is refused. Without either field the only
   host is `localhost`.
 - The launch lines are:
-    - `srun`: `srun --export=ALL --nodelist <hosts> <flags> -n <ranks> -N <hosts>`
+    - `srun`: `srun --export=ALL --nodelist <hosts> <flags> [<binding>] [--ntasks-per-node=<ppn>] -n <ranks> -N <hosts>`;
+      see [The srun launcher](#the-srun-launcher) for `<binding>`
     - `mpirun`: `<command> -n <ranks> <hosts> [<binding>] [-x NAME ...] <report> <flags>`; see
       [The mpirun launcher](#the-mpirun-launcher) for each part
     - `direct`: the application command, unchanged
@@ -79,6 +80,32 @@ A Slurm preset and a local one, from the shipped file:
 }
 ```
 
+## The srun launcher
+
+`<ranks>` is the app's `ppn` times the number of hosts. `<flags>` are the preset's
+`launchers.srun.flags`, or the config's `launcher_flags` when it sets them. CRAB adds a
+`<binding>` and `--ntasks-per-node=<ppn>` for an app that shares its nodes with another app
+running at the same time (see [Shared nodes](configuration.md#shared-nodes)), and also for an app
+that sets `cpus`:
+
+| App | `<binding>` |
+|---|---|
+| shares nodes, `cores: "disjoint"`, no `cpus` | `--exact --mem=0 --cpu-bind=verbose,cores` |
+| shares nodes, `cpus` given | `--overlap --cpu-bind=verbose,map_cpu:<cpus>` |
+| shares nodes, `cores: "shared"`, no `cpus` | `--overlap --cpu-bind=verbose,none` |
+| alone on its nodes, `cpus` given | `--cpu-bind=verbose,map_cpu:<cpus>` |
+
+An app that does not share its nodes and has no `cpus` keeps the plain line. The exception is an
+app whose `ppn` differs from the job's `--ntasks-per-node`: it gets `--ntasks-per-node=<ppn>`, so
+its steps are not sized to the job.
+
+**CRAB's binding replaces yours.** When CRAB adds a `<binding>`, any `--cpu-bind` in `<flags>`
+(`--cpu-bind=socket`, or `--cpu-bind map_cpu:...`) is dropped for that app, because two apps
+pinned by their own flags can end up on the same cores. The pre-submit check warns about it. The
+other flags stay.
+
+`verbose` makes `srun` print each rank's CPU mask into the app's log.
+
 ## The mpirun launcher
 
 `launchers.mpirun.dialect` says which MPI the `mpirun` command belongs to, because the three
@@ -89,7 +116,8 @@ supported. Intel MPI, an Open MPI older than 4, and an `mpirun` that is only a s
 answer within 10 seconds is an error too. The other values (`"openmpi4"`, `"openmpi5"`,
 `"hydra"`) skip the probe.
 
-`<ranks>` is `ppn` times the number of hosts, and `N` below is `ppn`, the ranks per host:
+`<ranks>` is the app's `ppn` times the number of hosts, and `N` below is that `ppn`, the ranks per
+host:
 
 | | `openmpi4` | `openmpi5` | `hydra` |
 |---|---|---|---|
