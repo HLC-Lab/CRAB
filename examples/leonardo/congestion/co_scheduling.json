@@ -25,13 +25,19 @@
             }
         },
         "02_a2a_solo_4nodes": {
-            "description": "Single A2A on 4 nodes only. Reference for half-allocation throughput.",
+            "description": "Single A2A on 4 nodes only (alternating nodes 0,2,4,6, as in the co-runs). Reference for half-allocation throughput.",
             "local_options": {
-                "allocation": { "mode": "linear", "split": [50] }
+                "allocation": {
+                    "mode": "interleaved",
+                    "partitions": {
+                        "victim":    { "share": 50 },
+                        "aggressor": { "share": 50 }
+                    }
+                }
             },
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
-                       "collect": true, "start": "0", "end": "" }
+                       "collect": true, "start": "0", "end": "", "partition": "victim" }
             }
         },
         "03_a2a_vs_a2a_64B": {

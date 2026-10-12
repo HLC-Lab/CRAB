@@ -150,8 +150,8 @@ The `examples/` directory has working configs per system (`examples/leonardo/`, 
 `examples/cluster_di/`, `examples/lorenzo/`) covering baselines, interleaved tests, sequential
 sweeps, and aggressor mixes — a good starting point to copy and adapt. Representative examples:
 
-- `examples/leonardo/congestion/noise_heatmap.json` — victim-vs-aggressor sweep across collective
-  types and message sizes (partitioned allocation).
+- `examples/leonardo/congestion/noise_heatmap.json` — A2A victim-vs-aggressor sweep across message
+  sizes and noise intensities (partitioned allocation).
 - `examples/leonardo/congestion/layout_effect.json` — same workload with four different placement
   strategies (`local_options.allocation` replaced per experiment).
 - `examples/leonardo/congestion/co_scheduling.json` — flat interleaved co-runs without partitions.

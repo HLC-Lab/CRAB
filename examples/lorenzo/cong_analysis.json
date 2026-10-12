@@ -7,10 +7,10 @@
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "new_features_test",
+        "extrainfo": "cong_analysis",
         "sbatch_directives": {
             "time": "00:20:00",
-            "job-name": "crab_new_feat",
+            "job-name": "crab_cong_analysis",
             "exclusive": true
         },
         "allocation": {
@@ -27,13 +27,13 @@
     },
     "experiments": {
         "cong_inc_0.000001_0.001": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.001 s, pauses of 0.000001 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -94,8 +94,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.000001 0.001",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.001 -bpause 0.000001",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -104,13 +104,13 @@
             }
         },
         "cong_inc_0.000001_0.01": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.01 s, pauses of 0.000001 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -171,8 +171,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.000001 0.01",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.000001",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -181,13 +181,13 @@
             }
         },
         "cong_inc_0.000001_0.1": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.1 s, pauses of 0.000001 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -248,8 +248,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.000001 0.1",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.1 -bpause 0.000001",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -258,13 +258,13 @@
             }
         },
         "cong_inc_0.0001_0.001": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.001 s, pauses of 0.0001 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -325,8 +325,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.0001 0.001",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.001 -bpause 0.0001",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -335,13 +335,13 @@
             }
         },
         "cong_inc_0.0001_0.01": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.01 s, pauses of 0.0001 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -402,8 +402,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.0001 0.01",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.0001",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -412,13 +412,13 @@
             }
         },
         "cong_inc_0.0001_0.1": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.1 s, pauses of 0.0001 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -479,8 +479,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.0001 0.1",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.1 -bpause 0.0001",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -489,13 +489,13 @@
             }
         },
         "cong_inc_0.01_0.001": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.001 s, pauses of 0.01 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -556,8 +556,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.01 0.001",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.001 -bpause 0.01",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -566,13 +566,13 @@
             }
         },
         "cong_inc_0.01_0.01": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.01 s, pauses of 0.01 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -633,8 +633,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.01 0.01",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.01",
                     "collect": false,
                     "start": "0",
                     "end": "f",
@@ -643,13 +643,13 @@
             }
         },
         "cong_inc_0.01_0.1": {
-            "description": "Baseline: Esecuzione sequenziale di A2A su partizione Vittima (met\u00e0 nodi). Nessun aggressore.",
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.1 s, pauses of 0.01 s",
             "apps": {
                 "0": {
                     "path": "blink/alltoall_comm_only.py",
                     "args": "-msgsize 8 -iter 1000",
                     "collect": true,
-                    "start": "0",
+                    "start": "3",
                     "end": "",
                     "partition": "victim"
                 },
@@ -710,8 +710,8 @@
                     "partition": "victim"
                 },
                 "8": {
-                    "path": "blink/bursty_noise_incast.py",
-                    "args": "0.01 0.1",
+                    "path": "blink/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.1 -bpause 0.01",
                     "collect": false,
                     "start": "0",
                     "end": "f",

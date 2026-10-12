@@ -188,9 +188,11 @@ You built a benchmark, expressed a victim-vs-aggressor study, ran it through Slu
 interference. From here:
 
 - **Scale the study up** — `examples/leonardo/congestion/victim_sweep.json` runs this idea across
-  11 experiments (different victim collectives, light vs heavy noise, delayed and timed aggressors).
+  11 experiments (different victim collectives against A2A and incast noise at a single intensity,
+  plus delayed and timed aggressors). `examples/leonardo/congestion/noise_heatmap.json` sweeps
+  message sizes against light, medium and heavy noise.
   `examples/leonardo/congestion/layout_effect.json` isolates the effect of node placement.
-  Both are natural next reads.
+  All three are natural next reads.
 - **Vary placement** — try `mode: "interleaved"` in the `allocation` block to make victim and
   aggressor share the fabric more aggressively. See
   [Writing experiment configs](using/writing-configs.md#choosing-an-allocation-mode).
