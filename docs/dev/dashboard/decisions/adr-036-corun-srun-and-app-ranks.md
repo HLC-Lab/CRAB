@@ -41,7 +41,8 @@ each rank to exactly the listed cores.
    Each app's `ppn` and `env` are recorded in `crab_run.json`, so the results show what each
    app ran with.
 5. **The network interface is chosen per app, not per rank,** through the app's `env` (for
-   example `UCX_NET_DEVICES`).
+   example `UCX_NET_DEVICES`). Per-rank choice was added later with the app key `nics` (see the
+   configuration reference).
 
 ## Alternatives considered
 

@@ -342,12 +342,13 @@ application:
 | `ppn` | int | the experiment's, else the global one | Ranks per node for this app. See [Ranks per node](#ranks-per-node-ppn). |
 | `cpus` | string | — | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 | `env` | object | `{}` | Environment variables set for this app's ranks only. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
+| `nics` | list of strings | — | One NIC per rank: rank `i` on a node uses `nics[i % len(nics)]`. See [NICs per rank](#nics-per-rank-nics). |
 
 !!! tip "Extra keys become wrapper attributes"
     Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end`,
-    `partition`, `cpus`, `env` or `ppn` (including `binary`) is injected as an attribute onto the
-    wrapper instance. This lets a wrapper accept custom configuration straight from the JSON
-    without framework changes.
+    `partition`, `cpus`, `env`, `nics` or `ppn` (including `binary`) is injected as an attribute
+    onto the wrapper instance. This lets a wrapper accept custom configuration straight from the
+    JSON without framework changes.
 
 ### Core lists and environment per app (`cpus` and `env`)
 
@@ -383,6 +384,60 @@ in `crab_run.json` with its launch.
 
 To give each app its own network interface, see
 [One network interface per app](../using/writing-configs.md#one-network-interface-per-app).
+
+### NICs per rank (`nics`)
+
+**`nics`** is a non-empty list of NIC device names, such as `["mlx5_0:1", "mlx5_1:1"]`. Each name
+may contain only letters, digits and `_ . : -`. Under any launcher, the app's ranks on a node
+are numbered from 0 (their local rank), and rank `i` gets `UCX_NET_DEVICES` set to
+`nics[i % len(nics)]`: with more ranks than NICs the list wraps around. A name that is not a
+string of those characters, an empty list or a value that is not a list is refused before the
+job is submitted. So is an app that sets both `nics` and `env.UCX_NET_DEVICES` (`nics and env
+UCX_NET_DEVICES both set the NIC; keep one`). An app chained with `start: "sN"` may set its own
+`nics`.
+
+```json
+"0": {
+  "path": "blink/alltoall_comm_only.py",
+  "collect": true,
+  "ppn": 4,
+  "cpus": "0-3",
+  "nics": ["mlx5_0:1", "mlx5_1:1", "mlx5_2:1", "mlx5_3:1"]
+}
+```
+
+For each app with `nics`, CRAB writes a small script, `.wrappers/app_<id>_rank.sh` in the run
+directory, and launches the app through it. The script reads the rank's local rank from the
+launcher's environment:
+
+| Launcher | Variable read |
+|----------|---------------|
+| `srun` | `SLURM_LOCALID` |
+| `mpirun` | the first one set of `OMPI_COMM_WORLD_LOCAL_RANK`, `MPI_LOCALRANKID`, `PMI_LOCAL_RANK`, `PALS_LOCAL_RANKID` |
+| `direct` | none: the single process is rank 0 |
+
+If the variable is missing, empty or not a number, the rank prints an error and exits with status
+1 instead of guessing a NIC.
+
+Each rank also writes one line to its standard error before it starts the app:
+
+```text
+crab: <host> local rank <r> -> UCX_NET_DEVICES=<nic>
+```
+
+Under `srun` and `mpirun` that output is kept in `bindings_app_<id>.log` in the experiment
+directory, next to the launcher's own binding report, so the results show which card each rank
+used. The app's `nics` is also recorded in `crab_run.json` with its launch (`null` when the app
+sets none).
+
+With `cpus`, the cores are handed to the ranks in order (one core per rank, in rank order under
+`srun`'s `map_cpu`). List the cores in the same order as the NICs to keep each rank next to its
+card; CRAB sorts the cores, so write them in ascending order and order the NICs to match.
+
+The script lives in the run directory, under CRAB's data directory, and every node must read it:
+the data directory has to be on a shared filesystem, as it already has to be for the results.
+For a worked example, see
+[One network interface per rank](../using/writing-configs.md#one-network-interface-per-rank).
 
 ## Scheduling (`start` and `end`)
 

@@ -175,8 +175,38 @@ Choose `cpus` from the cores that sit on the same NUMA node as the card:
 
 Under Slurm, `cpus` needs `--exclusive` among the `sbatch_directives`. The `env` of each app is
 recorded in the job's `crab_run.json` next to its launch, so the results show which interface
-each app used. The interface is chosen per app: giving different ranks of one app different
-interfaces is not supported. A complete config is `examples/leonardo/congestion/corun_nics.json`.
+each app used. A complete config is `examples/leonardo/congestion/corun_nics.json`.
+
+## One network interface per rank
+
+To spread the ranks of one app over several cards, list the cards in the app's `nics` instead of
+setting `UCX_NET_DEVICES` in `env`. Rank `i` on a node uses `nics[i % len(nics)]`. For an app with
+4 ranks per node on a node with 4 cards, where cores 0-3 sit next to `mlx5_0`, 4-7 next to
+`mlx5_1`, and so on, bind one core per rank:
+
+```json
+"0": {
+  "path": "blink/alltoall_comm_only.py", "collect": true, "end": "",
+  "ppn": 4,
+  "cpus": "0,4,8,12",
+  "nics": ["mlx5_0:1", "mlx5_1:1", "mlx5_2:1", "mlx5_3:1"]
+}
+```
+
+Both lists are in rank order, so rank 0 runs on core 0 and uses `mlx5_0:1`, rank 1 on core 4 with
+`mlx5_1:1`, and so on. Pick each core from the cards' `local_cpulist`, as above. Under Slurm,
+`cpus` needs `--exclusive` among the `sbatch_directives`.
+
+To check the result, open `bindings_app_<id>.log` in the experiment directory. Next to the
+launcher's binding report, it has one line per rank:
+
+```text
+crab: node01 local rank 0 -> UCX_NET_DEVICES=mlx5_0:1
+crab: node01 local rank 1 -> UCX_NET_DEVICES=mlx5_1:1
+```
+
+`nics` and `env.UCX_NET_DEVICES` on the same app are refused. The data directory must be on a
+shared filesystem; see [NICs per rank](../reference/configuration.md#nics-per-rank-nics).
 
 ## Choosing an allocation mode
 
