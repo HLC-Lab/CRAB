@@ -16,10 +16,9 @@ from unittest.mock import MagicMock
 import pytest
 
 import crab.setup.memory as mem
+from conftest import FIXTURE_WRAPPERS
 from crab.core.experiment.runner import ExperimentRunner
 from crab.wrappers.base import MissingBinaryError
-
-REPO = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture
@@ -68,11 +67,11 @@ def test_an_empty_command_fails_the_experiment_naming_app_and_wrapper(
     assert row["status"] == "FAILED"
 
 
-def test_a_qe_wrapper_without_its_install_fails_at_setup(
+def test_a_wrapper_without_its_receipt_fails_at_setup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, no_receipts: None
 ) -> None:
-    wrapper = REPO / "wrappers" / "quantum-espresso" / "pw" / "v7.py"
+    wrapper = FIXTURE_WRAPPERS / "fixture" / "receipt_app.py"
     runner = _runner(tmp_path, monkeypatch, {"path": str(wrapper), "collect": True})
 
-    with pytest.raises(MissingBinaryError, match="receipt 'qe-v7'"):
+    with pytest.raises(MissingBinaryError, match="receipt 'fixture-receipt-app'"):
         runner.setup()
