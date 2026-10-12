@@ -31,7 +31,7 @@ def _load(name: str) -> ModuleType:
 make_configs = _load("make_configs")
 naming = _load("naming")
 
-NODE_NAMES = ["lrdn0101", "lrdn0102", "lrdn0103", "lrdn0104"]
+NODE_NAMES = ["node-a", "node-b", "node-c", "node-d"]
 MD_SIZES = [1, 8, 64, 512, 4096, 32768, 262144, 2097152, 16777216, 134217728, 536870912]
 COL_SIZES = [8, 64, 512, 4096, 32768, 262144, 2097152, 16777216]
 SMOKE_SIZES = [8, 32768, 2097152]
