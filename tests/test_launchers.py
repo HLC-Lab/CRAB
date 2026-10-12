@@ -156,11 +156,6 @@ def test_srun_shared_co_run_overlaps_without_binding() -> None:
     assert line == [*_HEAD, "--overlap", "--cpu-bind=verbose,none", "--ntasks-per-node=2", *_TAIL]
 
 
-def test_srun_bind_none_alone_only_turns_binding_off() -> None:
-    line = _srun(Placement(("n1", "n2"), 2, bind_none=True))
-    assert line == [*_HEAD, "--cpu-bind=verbose,none", *_TAIL]
-
-
 def test_srun_lone_app_with_cpus_maps_without_overlap() -> None:
     line = _srun(Placement(("n1", "n2"), 2, cpus=(4, 5)))
     assert line == [*_HEAD, "--cpu-bind=verbose,map_cpu:4,5", *_TAIL]
@@ -174,7 +169,7 @@ def test_srun_binding_replaces_the_preset_cpu_bind(flags: tuple[str, ...]) -> No
     for placement in (
         Placement(("n1", "n2"), 2, co_run="disjoint"),
         Placement(("n1", "n2"), 2, cpus=(0, 1)),
-        Placement(("n1", "n2"), 2, bind_none=True),
+        Placement(("n1", "n2"), 2, co_run="shared"),
     ):
         prefix = _srun(placement, *flags)
         assert "--mpi=pmix" in prefix

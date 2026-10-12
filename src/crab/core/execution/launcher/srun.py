@@ -45,7 +45,7 @@ def _binding(placement: Placement) -> list[str]:
         return [*overlap, f"--cpu-bind=verbose,map_cpu:{cores}"]
     if placement.co_run == "disjoint":
         return ["--exact", "--mem=0", "--cpu-bind=verbose,cores"]
-    if placement.co_run or placement.bind_none:
+    if placement.co_run:
         return [*overlap, "--cpu-bind=verbose,none"]
     return []
 
@@ -54,7 +54,7 @@ def _binding(placement: Placement) -> list[str]:
 class SrunLauncher:
     """`<command> --export=ALL --nodelist <hosts> <flags> <binding> -n <ranks> -N <hosts>`.
 
-    When CRAB binds the ranks (a co-run, a core list or `bind_none`) its binding replaces any
+    When CRAB binds the ranks (a co-run or a core list) its binding replaces any
     `--cpu-bind` in the flags; `--ntasks-per-node` is added for a co-run and when the job's
     tasks per node differ from this app's.
     """
