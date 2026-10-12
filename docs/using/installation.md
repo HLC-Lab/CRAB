@@ -28,8 +28,13 @@ cd CRAB
 make
 ```
 
+`make` also clones the wrappers into `wrappers/`. They live in their own repository,
+[HLC-Lab/crab-wrappers](https://github.com/HLC-Lab/crab-wrappers), and CRAB does not ship them in
+its own tree.
+
 `make` is idempotent — if CRAB is already installed it tells you so. Use `make clean` to remove
 the virtual environment and build artifacts, and `make setup` to re-run just the wizard.
+`make clean` leaves `wrappers/` alone.
 
 Once installed, **activate the environment** before using the `crab` command (this also enables
 shell tab-completion, registered during install):
@@ -43,11 +48,16 @@ source .venv/bin/activate
 If you prefer not to use the Makefile:
 
 ```bash
+git clone https://github.com/HLC-Lab/crab-wrappers wrappers   # the wrappers, next to CRAB's code
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .          # core framework
 pip install -e .[tui]     # optional: adds the Textual UI dependencies
 ```
+
+Run the `git clone` from the CRAB checkout, so that the folder is `wrappers/` there. A command that
+needs a wrapper stops with `wrappers/ is missing: run crab update` when the folder is not there;
+`crab update` clones it.
 
 For the web dashboard, which runs on your laptop and drives clusters over SSH, install the `web`
 extra (`pip install -e ".[web]"`) and start it with `crab web`.
@@ -112,6 +122,11 @@ Run `crab update` in the install. On a branch checkout it fast-forwards the bran
 that sits on a release tag it moves to the newest release of the same line. It reinstalls
 dependencies only when they changed, and it stops without changing anything if tracked files have
 local edits.
+
+It updates the wrappers too: it pulls `wrappers/` when that folder is its own git clone, and
+clones [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) when the folder is missing or
+holds only leftovers of the old copy that CRAB used to track (such as `__pycache__` folders). A
+`wrappers/` folder with anything else in it is left alone.
 
 Keep per-machine changes out of the tracked files so updates never conflict: the git-ignored
 `local/` folder holds `local/presets.json` (merged over the shipped presets, see

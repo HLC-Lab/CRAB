@@ -39,3 +39,4 @@ marked superseded, never deleted.
 | [030](adr-030-compatibility-and-release-policy.md) | Version what partners keep, tag each partner release, update with one command | accepted |
 | [031](adr-031-wrapper-contract-v1.md) | Wrapper contract v1: rows with declared keys, loud failures, one parse path | accepted |
 | [032](adr-032-chained-apps-reuse-nodes.md) | Chained apps run on their predecessor's nodes; the partition decides | accepted |
+| [035](adr-035-blink-wrapper-names.md) | Blink wrappers are named after Blink's programs | accepted |

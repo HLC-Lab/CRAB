@@ -70,7 +70,7 @@ on your own machine without Slurm, which is enough to try CRAB out.
 ```bash
 git clone https://github.com/HLC-Lab/CRAB
 cd CRAB
-make                        # creates .venv, installs CRAB (editable), runs the setup wizard
+make                        # creates .venv, installs CRAB (editable), fetches the wrappers, runs the setup wizard
 source .venv/bin/activate   # activate before using `crab`
 ```
 

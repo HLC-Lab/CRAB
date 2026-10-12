@@ -267,7 +267,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
       "description": "All-to-all victim against a Graph500 aggressor, interleaved nodes.",
       "apps": {
         "0": {
-          "path": "blink/a2a_comm_only.py",
+          "path": "blink/alltoall_comm_only.py",
           "args": "-msgsize 8192 -iter 1000",
           "collect": true,
           "start": "0",
