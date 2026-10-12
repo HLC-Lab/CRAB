@@ -8,8 +8,8 @@ from crab.log import CrabLogger
 
 # Tried in order inside the launcher script, on the compute node; the first that exists
 # initialises the `module` command (Lmod sites often lack /etc/profile.d/modules.sh).
-# `$LMOD_PKG/init/bash` is appended at run time. Same list as _MODULE_INIT_SCRIPTS in
-# crab/setup/wizard.py, which the setup wizard uses to capture module lines.
+# `$LMOD_PKG/init/bash` is appended at run time. The setup wizard reads this same list to
+# capture module lines (crab/setup/wizard.py).
 MODULE_INIT_SCRIPTS: tuple[str, ...] = (
     "/etc/profile.d/modules.sh",
     "/etc/profile.d/lmod.sh",

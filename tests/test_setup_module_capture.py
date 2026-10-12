@@ -14,6 +14,7 @@ import os
 
 import pytest
 
+import crab.core.process.manager as manager
 import crab.setup.wizard as wizard
 from crab.setup.recipes.base import BenchmarkRecipe, BuildManifest, BuildResult
 
@@ -35,7 +36,7 @@ def fake_init(tmp_path, monkeypatch):
     """Primary init script absent, the Lmod-style candidate defines the fake `module`."""
     lmod = tmp_path / "lmod-init.sh"
     lmod.write_text(_FAKE_INIT % {"bindir": str(tmp_path / "bin")})
-    monkeypatch.setattr(wizard, "_MODULE_INIT_SCRIPTS", (str(tmp_path / "missing.sh"), str(lmod)))
+    monkeypatch.setattr(manager, "MODULE_INIT_SCRIPTS", (str(tmp_path / "missing.sh"), str(lmod)))
     monkeypatch.delenv("LMOD_PKG", raising=False)
     return lmod
 
@@ -51,7 +52,7 @@ def test_lmod_pkg_init_is_the_last_candidate(monkeypatch, tmp_path):
     pkg = tmp_path / "lmod"
     (pkg / "init").mkdir(parents=True)
     (pkg / "init" / "bash").write_text(_FAKE_INIT % {"bindir": str(tmp_path / "bin")})
-    monkeypatch.setattr(wizard, "_MODULE_INIT_SCRIPTS", (str(tmp_path / "missing.sh"),))
+    monkeypatch.setattr(manager, "MODULE_INIT_SCRIPTS", (str(tmp_path / "missing.sh"),))
     monkeypatch.setenv("LMOD_PKG", str(pkg))
 
     env = wizard.capture_module_environment("module load good")
@@ -69,7 +70,7 @@ def test_failing_module_line_raises_with_command_and_shell_error(fake_init):
 
 
 def test_no_init_script_and_no_module_command_raises(monkeypatch, tmp_path):
-    monkeypatch.setattr(wizard, "_MODULE_INIT_SCRIPTS", (str(tmp_path / "missing.sh"),))
+    monkeypatch.setattr(manager, "MODULE_INIT_SCRIPTS", (str(tmp_path / "missing.sh"),))
     monkeypatch.delenv("LMOD_PKG", raising=False)
 
     with pytest.raises(wizard.ModuleCaptureError) as excinfo:

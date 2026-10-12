@@ -15,6 +15,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.text import Text
 
+import crab.core.process.manager as manager
 import crab.setup.memory as memory
 from crab.setup.registry import discover_recipes
 
@@ -34,22 +35,15 @@ def print_header(total_recipes: int | None = None, title: str = "Welcome to the 
         console.print(f"Found [bold]{total_recipes}[/bold] supported benchmarks.\n")
 
 
-# Tried in order; the first that exists initialises the `module` command. Lmod sites often
-# have no /etc/profile.d/modules.sh. `$LMOD_PKG/init/bash` is appended at call time.
-_MODULE_INIT_SCRIPTS: tuple[str, ...] = (
-    "/etc/profile.d/modules.sh",
-    "/etc/profile.d/lmod.sh",
-    "/usr/share/lmod/lmod/init/bash",
-)
-
-
 class ModuleCaptureError(Exception):
     """The pre-build module line could not be applied in a non-interactive bash."""
 
 
 def _module_init_script() -> str | None:
     """First existing module-system init script, or None (`module` may be an exported function)."""
-    candidates = list(_MODULE_INIT_SCRIPTS)
+    # Same candidates the job launcher script tries (one list in the manager, read at call
+    # time); `$LMOD_PKG/init/bash` is appended here.
+    candidates = list(manager.MODULE_INIT_SCRIPTS)
     lmod_pkg = os.environ.get("LMOD_PKG")
     if lmod_pkg:
         candidates.append(os.path.join(lmod_pkg, "init", "bash"))
