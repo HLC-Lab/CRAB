@@ -223,6 +223,15 @@ def test_setup_places_a_shared_local_experiment_and_does_not_inject_cpus_or_env(
     assert not hasattr(second, "env")
 
 
+def test_setup_sets_nics_on_the_app_and_does_not_inject_the_raw_list(tmp_path):
+    runner = _runner(tmp_path, [_WRAPPER, _WRAPPER], LOCAL_DIRECT)
+    runner.config["apps"]["0"]["nics"] = ["mlx5_0:1", "mlx5_1:1"]
+    runner.setup()
+    first, second = runner.apps
+    assert first.nics == ("mlx5_0:1", "mlx5_1:1")
+    assert second.nics is None
+
+
 def test_setup_marks_the_competing_apps_of_a_shared_cores_experiment(tmp_path):
     runner = _runner(
         tmp_path,

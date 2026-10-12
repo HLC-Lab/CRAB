@@ -294,7 +294,7 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
         _check_allocation(
             opts.get("allocation") or {}, apps, global_opts.get("numnodes"), exp_name, warnings
         )
-        placement_keys = ("start", "partition", "cpus", "env", "ppn")
+        placement_keys = ("start", "partition", "cpus", "env", "ppn", "nics")
         if settings is not None and not has_token(
             [opts.get("allocation"), global_opts.get("numnodes"), opts.get("ppn")]
             + [[a.get(k) for k in placement_keys] for a in apps.values()]

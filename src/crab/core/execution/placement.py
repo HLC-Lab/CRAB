@@ -52,6 +52,7 @@ class Placement:
     under `cores: "shared"` (it competes for cores and must not be bound by the launcher).
     `co_run[i]` is None for an app alone on its nodes, else "shared" or "disjoint" by the cores
     setting of the group of apps it runs with (an app after another takes its head's value).
+    `nics[i]` is app i's own `nics` list, or None when it sets none (a chained app keeps its own).
     """
 
     cpu_lists: list[tuple[int, ...] | None]
@@ -59,6 +60,7 @@ class Placement:
     warnings: list[str]
     shared_cores: list[bool] = field(default_factory=list)
     co_run: list[CoRun | None] = field(default_factory=list)
+    nics: list[tuple[str, ...] | None] = field(default_factory=list)
 
 
 def parse_ppn(value: object) -> int:
@@ -128,6 +130,26 @@ def parse_app_env(value: object, where: str) -> dict[str, str]:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
             raise ValueError(f"{where}: key {key!r} is not a valid shell variable name")
     return dict(value)
+
+
+def parse_app_nics(value: object, where: str) -> tuple[str, ...]:
+    """An app's `nics`: a non-empty list of NIC device names such as "mlx5_0:1", kept in order.
+
+    Raises:
+        ValueError: `value` is not a non-empty list, or an item is not a string of letters,
+            digits and `_ . : -` (the launch script puts it in `UCX_NET_DEVICES` unquoted).
+    """
+    if not isinstance(value, list) or not value:
+        raise ValueError(
+            f'{where}: must be a non-empty list of NIC device names such as "mlx5_0:1", '
+            f"got {value!r}"
+        )
+    for item in value:
+        if not isinstance(item, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]+", item):
+            raise ValueError(
+                f"{where}: {item!r} is not a NIC device name (letters, digits, _ . : - only)"
+            )
+    return tuple(value)
 
 
 def has_exclusive(sbatch_directives: Sequence[Any]) -> bool:
@@ -326,7 +348,8 @@ def place_experiment(
     `exp_opts` is the experiment's merged options, where each app's ranks per node come from.
 
     Raises:
-        ValueError: an invalid `cpus`, `env` or `ppn`, a `cpus` on a chained app, a chained app
+        ValueError: an invalid `cpus`, `env`, `nics` or `ppn`, `nics` together with
+            `env.UCX_NET_DEVICES`, a `cpus` on a chained app, a chained app
             with more ranks than its head's cores, or a failure of `plan`; every message starts
             with `experiment <exp>: `.
     """
@@ -359,6 +382,12 @@ def _place(
         parse_app_env(cfg.get("env", {}), f"app {key}: env")
         for key, cfg in zip(keys, configs, strict=True)
     ]
+    nics: list[tuple[str, ...] | None] = []
+    for key, cfg, env in zip(keys, configs, envs, strict=True):
+        app_nics = parse_app_nics(cfg["nics"], f"app {key}: nics") if "nics" in cfg else None
+        if app_nics is not None and "UCX_NET_DEVICES" in env:
+            raise ValueError(f"app {key}: nics and env UCX_NET_DEVICES both set the NIC; keep one")
+        nics.append(app_nics)
     heads: list[Head] = []
     for i, (key, cfg) in enumerate(zip(keys, configs, strict=True)):
         if i in reuse:
@@ -393,4 +422,5 @@ def _place(
     cpu_lists = [result[f"app {keys[reuse.get(i, i)]}"] for i in range(len(keys))]
     modes = co_run_modes(heads)
     co_run = [modes.get(f"app {keys[reuse.get(i, i)]}") for i in range(len(keys))]
-    return Placement(cpu_lists, envs, warnings, [mode == "shared" for mode in co_run], co_run)
+    shared_cores = [mode == "shared" for mode in co_run]
+    return Placement(cpu_lists, envs, warnings, shared_cores, co_run, nics)
