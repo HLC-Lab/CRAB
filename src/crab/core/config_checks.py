@@ -15,6 +15,9 @@ ALLOCATION_MODES = ("linear", "interleaved", "random")
 OUTPUT_FORMATS = ("csv",)
 _BOOL_OPTIONS = ("convergeall", "retain_files")
 _LEGACY_ALLOCATION_KEYS = ("allocationmode", "partitionsplit", "partitionlayout", "allocationsplit")
+# Slurm reads these once for the whole job, so an experiment's local_options cannot change them.
+_JOB_LEVEL_OPTIONS = ("numnodes", "ppn", "sbatch_directives", "walltime")
+_EXPERIMENT_KEYS = ("description", "local_options", "apps")
 
 
 def parse_bool(value: Any, name: str) -> bool:
@@ -127,6 +130,37 @@ def _check_split(
         )
 
 
+def _check_ignored_keys(exp: dict[str, Any], exp_name: str, warnings: list[str]) -> None:
+    """Warn about experiment-level keys the engine never reads."""
+    local = exp.get("local_options") or {}
+    for key in _JOB_LEVEL_OPTIONS:
+        if key in local:
+            warnings.append(
+                f"experiment {exp_name}: local_options.{key} is ignored; it applies to the "
+                "whole job and is set in global_options"
+            )
+    for key in exp:
+        if key not in _EXPERIMENT_KEYS:
+            warnings.append(
+                f"experiment {exp_name}: {key} is ignored here; an experiment takes only "
+                f"{', '.join(_EXPERIMENT_KEYS)}"
+            )
+
+
+def _check_collected_end(app: dict[str, Any], where: str, warnings: list[str]) -> None:
+    """Warn when a collected app is stopped by `end`: CRAB kills it, and a killed app's
+    output is skipped without a message (collect_run ignores a non-zero return code)."""
+    end = app.get("end")
+    if end is None or str(end).strip() == "" or _has_token(end):
+        return
+    if not parse_bool(app.get("collect", False), f"{where}: collect"):
+        return
+    warnings.append(
+        f"{where}: collect is on and end is {str(end).strip()!r}; if the app is still running "
+        "when it is stopped, its output is not collected for that run"
+    )
+
+
 class _Slot:
     """Stands in for an app so the real allocator can be run on paper."""
 
@@ -236,6 +270,7 @@ def check_config(config: dict[str, Any]) -> list[str]:
     for exp_name, exp in _experiments(config).items():
         opts = {**global_opts, **(exp.get("local_options") or {})}
         _check_options(opts, exp_name)
+        _check_ignored_keys(exp, exp_name, warnings)
         apps = exp.get("apps") or {}
         _check_allocation(
             opts.get("allocation") or {}, apps, global_opts.get("numnodes"), exp_name, warnings
@@ -246,4 +281,5 @@ def check_config(config: dict[str, Any]) -> list[str]:
                 raise ValueError(f"{where} has no wrapper path")
             if "collect" in app:
                 parse_bool(app["collect"], f"{where}: collect")
+            _check_collected_end(app, where, warnings)
     return warnings

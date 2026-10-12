@@ -377,3 +377,70 @@ def test_legacy_allocation_key_in_local_options_names_the_experiment() -> None:
 
 def test_modern_allocation_block_passes_without_legacy_keys() -> None:
     _passes_checks(global_options={"allocation": {"mode": "interleaved"}})
+
+
+# --- Silent data loss and ignored keys ----------------------------------------------------
+# Before: a collected app stopped by `end` ("f" or a time) had its output skipped without a
+# message (collect_run skips a non-zero returncode), and keys the engine reads only once for
+# the whole job (or not at all) were silently ignored at experiment level.
+
+
+def _warnings_for(apps: dict | None = None, local: dict | None = None, **exp_keys: object):
+    from crab.core.config_checks import check_config
+
+    exp: dict = {"apps": apps if apps is not None else {"0": {"path": "a.py"}}, **exp_keys}
+    if local is not None:
+        exp["local_options"] = local
+    return check_config({"global_options": {}, "experiments": {"e1": exp}})
+
+
+@pytest.mark.parametrize("end", ["f", "60", 60])
+def test_collected_app_stopped_by_end_is_warned_about(end: object) -> None:
+    warnings = _warnings_for(apps={"7": {"path": "a.py", "collect": True, "end": end}})
+    assert len(warnings) == 1
+    assert "experiment e1: app 7" in warnings[0]
+    assert "not collected" in warnings[0]
+    assert "still running" in warnings[0]
+
+
+def test_string_collect_true_is_warned_about_too() -> None:
+    warnings = _warnings_for(apps={"0": {"path": "a.py", "collect": "true", "end": "f"}})
+    assert len(warnings) == 1
+    assert "experiment e1: app 0" in warnings[0]
+
+
+@pytest.mark.parametrize(
+    "app",
+    [
+        {"path": "a.py", "collect": True, "end": ""},
+        {"path": "a.py", "collect": True},
+        {"path": "a.py", "collect": False, "end": "f"},
+        {"path": "a.py", "end": "f"},
+        {"path": "a.py", "collect": "false", "end": "60"},
+    ],
+)
+def test_other_collect_end_combinations_are_not_warned_about(app: dict) -> None:
+    assert _warnings_for(apps={"0": app}) == []
+
+
+@pytest.mark.parametrize("key", ["numnodes", "ppn", "walltime", "sbatch_directives"])
+def test_job_level_key_in_local_options_is_warned_about(key: str) -> None:
+    value = {"--qos": "x"} if key == "sbatch_directives" else "4"
+    warnings = _warnings_for(local={key: value})
+    assert len(warnings) == 1
+    assert "experiment e1" in warnings[0]
+    assert f"local_options.{key}" in warnings[0]
+    assert "whole job" in warnings[0]
+    assert "global_options" in warnings[0]
+
+
+def test_unknown_experiment_level_key_is_warned_about() -> None:
+    warnings = _warnings_for(sbatch_directives=["--qos=x"])
+    assert len(warnings) == 1
+    assert "experiment e1" in warnings[0]
+    assert "sbatch_directives" in warnings[0]
+    assert "ignored" in warnings[0]
+
+
+def test_description_local_options_and_apps_are_allowed_in_an_experiment() -> None:
+    assert _warnings_for(local={"retain_files": True}, description="a baseline") == []
