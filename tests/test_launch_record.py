@@ -40,8 +40,11 @@ class _FakePopen:
 class _Job:
     """An app as the runner leaves it: `run_dir`, `exp_dir` and `run_number` are set per run."""
 
-    def __init__(self, exp_dir: Path, run_number: int | None = 1, app_id: int = 0) -> None:
+    def __init__(
+        self, exp_dir: Path, run_number: int | None = 1, app_id: int = 0, ppn: int = 2
+    ) -> None:
         self.id_num = app_id
+        self.ppn = ppn
         self.node_list = ["n1"]
         self.exp_dir = str(exp_dir)
         self.run_dir = str(exp_dir / f"run_{run_number}" / f"app_{app_id}")
@@ -84,9 +87,9 @@ def _script(job: _Job) -> str:
     return (Path(job.run_dir) / ".wrappers" / f"app_{job.id_num}.sh").read_text()
 
 
-def _run(job: _Job, spec: LauncherSpec, ppn: int = 2) -> None:
+def _run(job: _Job, spec: LauncherSpec) -> None:
     with patch.dict(os.environ, {"PATH": "/p"}, clear=True):
-        process_manager.run_job(job, spec, ppn, MagicMock())
+        process_manager.run_job(job, spec, MagicMock())
 
 
 def test_an_mpirun_launch_is_recorded_with_its_line_kind_dialect_and_binding_report(
@@ -198,9 +201,9 @@ def test_the_tee_keeps_stderr_on_the_app_pipe_and_fills_the_bindings_log(
     spec = LauncherSpec("mpirun", (str(fake),), "openmpi5", (), ())
 
     for run_number in (1, 2):
-        job = _Job(exp_dir, run_number=run_number)
+        job = _Job(exp_dir, run_number=run_number, ppn=1)
         with patch.dict(os.environ, {"PATH": os.environ["PATH"]}, clear=True):
-            process_manager.run_job(job, spec, 1, MagicMock())
+            process_manager.run_job(job, spec, MagicMock())
         assert job.process.wait(timeout=20) == 0
         job._stream_thread.join(timeout=5)
         assert b"".join(job.raw_stdout_buffer) == b"out\n"

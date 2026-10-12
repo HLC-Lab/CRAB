@@ -7,7 +7,7 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
-from crab.core.execution.placement import place_experiment
+from crab.core.execution.placement import app_ppn, parse_ppn, place_experiment
 from crab.core.execution.settings import (
     SLURM_DEFAULT,
     ExecutionSettings,
@@ -67,8 +67,8 @@ class ExperimentRunner:
         self.apps = []
         self.launchers: list[LauncherSpec] = []
         self.data_containers = []
-        # Force PPN to strictly obey the physical global allocation
-        self.ppn = int(self.global_opts.get("ppn", 1))
+        # The experiment's ranks per node, which the registry records; an app may set its own.
+        self.ppn = parse_ppn(self.exp_opts.get("ppn", 1))
 
     def setup(self):
         """Loads apps, workload manager, and calculates node layout."""
@@ -111,10 +111,21 @@ class ExperimentRunner:
             # --- DYNAMIC CONFIG INJECTION ---
             # Any key in the JSON 'apps' config that isn't a reserved CRAB keyword
             # gets injected as an attribute into the app instance.
-            reserved_keys = ["path", "args", "collect", "start", "end", "partition", "cpus", "env"]
+            reserved_keys = [
+                "path",
+                "args",
+                "collect",
+                "start",
+                "end",
+                "partition",
+                "cpus",
+                "env",
+                "ppn",
+            ]
             for key, value in details.items():
                 if key not in reserved_keys:
                     setattr(app_instance, key, value)
+            app_instance.ppn = app_ppn(details, self.exp_opts)
             # --------------------------------
 
             # Find the binary now so a missing one fails the experiment before any run
@@ -185,7 +196,7 @@ class ExperimentRunner:
             placed_configs,
             [app.node_list for app in self.apps],
             allocation,
-            self.ppn,
+            self.exp_opts,
             self.settings,
             self.node_list,
             self.global_opts,
@@ -269,7 +280,6 @@ class ExperimentRunner:
                 outcome = run_events(
                     self.apps,
                     self.launchers,
-                    self.ppn,
                     schedule,
                     run_log,
                     data_path,

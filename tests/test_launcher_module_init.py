@@ -16,6 +16,7 @@ from crab.core.process import manager
 class _Job:
     id_num = 7
     node_list = ["node1"]
+    ppn = 1
 
     def __init__(self, run_dir: Path):
         self.run_dir = str(run_dir)
@@ -51,7 +52,6 @@ def _generate_script(
         manager.run_job(
             job,
             LauncherSpec("direct", (), "", (), ()),
-            ppn=1,
             logger=MagicMock(),
             pre_commands=pre_commands,
         )

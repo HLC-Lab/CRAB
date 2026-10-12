@@ -209,14 +209,14 @@ MODULE_INIT_SCRIPTS: tuple[str, ...] = (
 def run_job(
     job,
     spec: LauncherSpec,
-    ppn: int,
     logger: CrabLogger,
     pre_commands: list[str] = None,
     live_stream: bool = False,
     data_path: str = None,
 ):
     """
-    Launch an application process under the launcher `spec` describes, through a wrapper script.
+    Launch an application process under the launcher `spec` describes, through a wrapper script,
+    with `job.ppn` ranks on each of the job's hosts.
 
     A job that has `exp_dir` (the experiment directory, set by the runner for every run) gets its
     first launch recorded in the job directory's `crab_run.json`, and under mpirun its stderr
@@ -249,7 +249,7 @@ def run_job(
         launcher,
         Placement(
             tuple(job.node_list),
-            ppn,
+            job.ppn,
             cpus=tuple(cpus) if cpus else None,
             bind_none=bool(getattr(job, "shared_cores", False)) and not cpus,
         ),

@@ -55,7 +55,6 @@ def build_schedule(apps: list[Any]) -> Schedule:
 def run_events(
     apps: list[Any],
     launchers: list[LauncherSpec],
-    ppn: int,
     schedule: Schedule,
     run_log: Any,
     data_path: Any,
@@ -96,7 +95,6 @@ def run_events(
                     run_job(
                         apps[aid],
                         launchers[aid],
-                        ppn,
                         logger=app_log,
                         pre_commands=merged_pre_commands,
                         live_stream=concurrent,
@@ -176,7 +174,6 @@ def run_events(
                 run_job(
                     apps[waiter],
                     launchers[waiter],
-                    ppn,
                     logger=dep_log,
                     pre_commands=merged_pre_commands,
                     live_stream=True,

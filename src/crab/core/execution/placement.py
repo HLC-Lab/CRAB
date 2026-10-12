@@ -32,13 +32,14 @@ class Head:
     """A chain head: one app that gets its own share of the nodes.
 
     `key` names it in messages ("app 0"), `cpus` is its parsed core list or None, `shared` is true
-    when its allocation scope says `cores: "shared"`.
+    when its allocation scope says `cores: "shared"`, `ppn` is its ranks per node.
     """
 
     key: str
     nodes: frozenset[str]
     cpus: tuple[int, ...] | None
     shared: bool
+    ppn: int
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,29 @@ class Placement:
     envs: list[dict[str, str]]
     warnings: list[str]
     shared_cores: list[bool] = field(default_factory=list)
+
+
+def parse_ppn(value: object) -> int:
+    """A ranks-per-node value: an integer or an integer string, at least 1.
+
+    Raises:
+        ValueError: anything else (null, a float, a bool, an unresolved `{var}` token).
+    """
+    text = str(value).strip()
+    if not re.fullmatch(r"\+?[0-9]+", text) or int(text) < 1:
+        raise ValueError(f"ppn must be a positive integer, got {value!r}")
+    return int(text)
+
+
+def app_ppn(app_cfg: Mapping[str, Any], exp_opts: Mapping[str, Any]) -> int:
+    """An app's ranks per node: its own `ppn`, else the experiment's, else 1.
+
+    `exp_opts` is the experiment's options, `global_options` overlaid by its `local_options`.
+
+    Raises:
+        ValueError: the value that applies is not a positive integer (see `parse_ppn`).
+    """
+    return parse_ppn(app_cfg.get("ppn", exp_opts.get("ppn", 1)))
 
 
 def parse_cpus(text: object, where: str) -> tuple[int, ...]:
@@ -155,9 +179,9 @@ def _check_overlap(group: Sequence[Head]) -> None:
 
 
 def _split_automatically(
-    group: Sequence[Head], ppn: int, host_cores: int | None, result: dict[str, Any]
+    group: Sequence[Head], host_cores: int | None, result: dict[str, Any]
 ) -> bool:
-    """Give the group's heads without `cpus` contiguous blocks of `ppn` free cores.
+    """Give the group's heads without `cpus` contiguous blocks of free cores, `ppn` each.
 
     Returns True when a block was handed out.
     """
@@ -165,23 +189,24 @@ def _split_automatically(
     if not auto:
         return False
     taken = {c for h in group for c in (h.cpus or ())}
-    needed = ppn * len(auto)
+    needed = sum(h.ppn for h in auto)
     pool = range(host_cores if host_cores is not None else max(taken, default=-1) + 1 + needed)
     free = [c for c in pool if c not in taken]
     if len(free) < needed:
         raise ValueError(
-            f"{len(auto)} apps without cpus need {needed} cores ({len(auto)} x ppn {ppn}) on one "
+            f"{len(auto)} apps without cpus need {needed} cores (the sum of their ppn) on one "
             f"host, but only {len(free)} of its {host_cores} cores are free; lower ppn, "
             "use fewer apps or set cpus"
         )
-    for index, head in enumerate(auto):
-        result[head.key] = tuple(free[index * ppn : (index + 1) * ppn])
+    start = 0
+    for head in auto:
+        result[head.key] = tuple(free[start : start + head.ppn])
+        start += head.ppn
     return True
 
 
 def plan(
     heads: Sequence[Head],
-    ppn: int,
     scheduler: str,
     host_cores: int | None,
     sbatch_directives: Sequence[Any],
@@ -190,19 +215,18 @@ def plan(
 
     Args:
         heads: the experiment's chain heads.
-        ppn: ranks per node.
         scheduler: "slurm" or "local".
         host_cores: the fewest cores of the hosts used, or None when unknown (Slurm).
         sbatch_directives: the raw `sbatch_directives` and `system_sbatch` values.
 
     Raises:
-        ValueError: `cpus` shorter than `ppn`, `cpus` under Slurm without `--exclusive`,
+        ValueError: `cpus` shorter than the head's `ppn`, `cpus` under Slurm without `--exclusive`,
             overlapping `cpus` of apps running together, or more cores wanted than the host has.
     """
     for head in heads:
-        if head.cpus is not None and len(head.cpus) < ppn:
+        if head.cpus is not None and len(head.cpus) < head.ppn:
             raise ValueError(
-                f"{head.key}: cpus lists {len(head.cpus)} core(s), fewer than ppn {ppn} "
+                f"{head.key}: cpus lists {len(head.cpus)} core(s), fewer than ppn {head.ppn} "
                 "(one core per rank)"
             )
     if (
@@ -225,7 +249,7 @@ def plan(
             continue
         _check_overlap(group)
         # Under Slurm the apps stay unplaced here: srun --exact separates them.
-        if scheduler == "local" and _split_automatically(group, ppn, host_cores, result):
+        if scheduler == "local" and _split_automatically(group, host_cores, result):
             if AUTO_SPLIT_WARNING not in warnings:
                 warnings.append(AUTO_SPLIT_WARNING)
     return result, warnings
@@ -262,19 +286,22 @@ def place_experiment(
     configs: Sequence[Mapping[str, Any]],
     nodes: Sequence[Sequence[str]],
     allocation: Mapping[str, Any],
-    ppn: int,
+    exp_opts: Mapping[str, Any],
     settings: ExecutionSettings,
     node_list: Sequence[str],
     global_opts: Mapping[str, Any],
 ) -> Placement:
     """Place one experiment's apps, given each app's config key, config and allocated nodes.
 
+    `exp_opts` is the experiment's merged options, where each app's ranks per node come from.
+
     Raises:
-        ValueError: an invalid `cpus` or `env`, a `cpus` on a chained app, or a failure of `plan`;
-            every message starts with `experiment <exp>: `.
+        ValueError: an invalid `cpus`, `env` or `ppn`, a `cpus` on a chained app, a chained app
+            with more ranks than its head's cores, or a failure of `plan`; every message starts
+            with `experiment <exp>: `.
     """
     try:
-        return _place(keys, configs, nodes, allocation, ppn, settings, node_list, global_opts)
+        return _place(keys, configs, nodes, allocation, exp_opts, settings, node_list, global_opts)
     except ValueError as error:
         raise ValueError(f"experiment {exp}: {error}") from error
 
@@ -284,7 +311,7 @@ def _place(
     configs: Sequence[Mapping[str, Any]],
     nodes: Sequence[Sequence[str]],
     allocation: Mapping[str, Any],
-    ppn: int,
+    exp_opts: Mapping[str, Any],
     settings: ExecutionSettings,
     node_list: Sequence[str],
     global_opts: Mapping[str, Any],
@@ -292,6 +319,12 @@ def _place(
     starts = [str(cfg.get("start", "0")) for cfg in configs]
     partitions = [cfg.get("partition") or None for cfg in configs]
     reuse = resolve_chains(starts, partitions)
+    ppns = []
+    for key, cfg in zip(keys, configs, strict=True):
+        try:
+            ppns.append(app_ppn(cfg, exp_opts))
+        except ValueError as error:
+            raise ValueError(f"app {key}: {error}") from error
     envs = [
         parse_app_env(cfg.get("env", {}), f"app {key}: env")
         for key, cfg in zip(keys, configs, strict=True)
@@ -308,12 +341,25 @@ def _place(
             continue
         cpus = parse_cpus(cfg["cpus"], f"app {key}") if "cpus" in cfg else None
         heads.append(
-            Head(f"app {key}", frozenset(nodes[i]), cpus, _shared_cores(allocation, partitions[i]))
+            Head(
+                f"app {key}",
+                frozenset(nodes[i]),
+                cpus,
+                _shared_cores(allocation, partitions[i]),
+                ppns[i],
+            )
         )
     directives = [global_opts.get("sbatch_directives"), global_opts.get("system_sbatch")]
     result, warnings = plan(
-        heads, ppn, settings.scheduler, host_cores_of(settings, node_list), directives
+        heads, settings.scheduler, host_cores_of(settings, node_list), directives
     )
+    for i, head_index in reuse.items():
+        cores = result[f"app {keys[head_index]}"]
+        if cores is not None and ppns[i] > len(cores):
+            raise ValueError(
+                f"app {keys[i]}: ppn {ppns[i]} is more than app {keys[head_index]}'s "
+                f"{len(cores)} core(s), the cores it runs on"
+            )
     cpu_lists = [result[f"app {keys[reuse.get(i, i)]}"] for i in range(len(keys))]
     shared = shared_heads(heads)
     shared_cores = [f"app {keys[reuse.get(i, i)]}" in shared for i in range(len(keys))]
@@ -348,25 +394,29 @@ def check_experiment(
     global_opts: Mapping[str, Any],
     settings: ExecutionSettings,
     launcher: str | None = None,
+    local_options: Mapping[str, Any] | None = None,
 ) -> list[str]:
     """Run the placement of one experiment on paper; return its warnings or raise.
 
     `apps` is the experiment's `apps` object, `allocation` its allocation as the experiment sees
     it, `launcher` the experiment's own `launcher` option (the preset's when None; a receipt's
-    override is not known before submit). An explicit `cpus` under a launcher that does not bind
-    to it (srun, direct) is warned about once per app. Skipped (returns no warnings) when `numnodes` or `ppn` is missing or not a number, as the
-    allocation checks skip it.
+    override is not known before submit), `local_options` its own options, which override
+    `global_opts` for `ppn`. An explicit `cpus` under a launcher that does not bind to it (srun,
+    direct) is warned about once per app. Skipped (returns no warnings) when `numnodes` or an
+    app's `ppn` is missing or not a number, as the allocation checks skip it.
 
     Raises:
         ValueError: as `place_experiment`.
     """
-    try:
-        numnodes = int(global_opts["numnodes"])
-        ppn = int(global_opts.get("ppn", 1))
-    except (KeyError, TypeError, ValueError):
-        return []
+    exp_opts = {**global_opts, **(local_options or {})}
     keys = sorted(apps.keys(), key=lambda x: int(x) if x.isdigit() else x)  # runner.py order
     configs = [apps[k] for k in keys]
+    try:
+        numnodes = int(global_opts["numnodes"])
+        for cfg in configs:
+            app_ppn(cfg, exp_opts)
+    except (KeyError, TypeError, ValueError):
+        return []
     if settings.scheduler == "local":
         node_list = [host.name for host in settings.hosts][:numnodes]
     else:
@@ -378,7 +428,7 @@ def check_experiment(
         node_list,
     )
     placed = place_experiment(
-        exp, keys, configs, app_nodes, allocation, ppn, settings, node_list, global_opts
+        exp, keys, configs, app_nodes, allocation, exp_opts, settings, node_list, global_opts
     )
     effective = launcher or settings.launcher
     ignored = [

@@ -36,8 +36,9 @@ class _FakePopen:
 class _Job:
     id_num = 0
 
-    def __init__(self, run_dir: Path, node_list: list[str]) -> None:
+    def __init__(self, run_dir: Path, node_list: list[str], ppn: int) -> None:
         self.node_list = node_list
+        self.ppn = ppn
         self.run_dir = str(run_dir)
 
     def run_app(self) -> str:
@@ -63,7 +64,7 @@ def test_local_mpirun_script_lists_hosts_and_the_computed_exports(
     )
     spec = resolve_launcher(settings, {}, None)
     with patch.dict(os.environ, _ENVIRON, clear=True):
-        process_manager.run_job(_Job(tmp_path, ["ws1", "ws2"]), spec, 2, MagicMock())
+        process_manager.run_job(_Job(tmp_path, ["ws1", "ws2"], 2), spec, MagicMock())
     script = (tmp_path / ".wrappers" / "app_0.sh").read_text()
     # CRAB_IB_DEVICES is a preset env key but not set in the launching environment: not exported.
     # binding report always on since C4
@@ -86,7 +87,7 @@ def test_crab_supervisor_fd_is_never_exported(
     )
     spec = resolve_launcher(settings, {}, None)
     with patch.dict(os.environ, {"PATH": "/p", "CRAB_SUPERVISOR_FD": "9"}, clear=True):
-        process_manager.run_job(_Job(tmp_path, ["localhost"]), spec, 1, MagicMock())
+        process_manager.run_job(_Job(tmp_path, ["localhost"], 1), spec, MagicMock())
     script = (tmp_path / ".wrappers" / "app_0.sh").read_text()
     # binding report always on since C4
     assert (

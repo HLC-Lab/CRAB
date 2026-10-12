@@ -428,8 +428,9 @@ class _FakePopen:
 
 
 class _WiringJob:
-    def __init__(self, run_dir: Path, command: str, node_list: list[str]) -> None:
+    def __init__(self, run_dir: Path, command: str, node_list: list[str], ppn: int) -> None:
         self.id_num = 0
+        self.ppn = ppn
         self.node_list = node_list
         self.run_dir = str(run_dir)
         self._command = command
@@ -456,8 +457,8 @@ def _script_through_run_job(
     cmd: str,
     **kwargs: Any,
 ) -> str:
-    job = _WiringJob(tmp_path, cmd, nodes)
-    process_manager.run_job(job, spec, ppn, MagicMock(), **kwargs)
+    job = _WiringJob(tmp_path, cmd, nodes, ppn)
+    process_manager.run_job(job, spec, MagicMock(), **kwargs)
     return (tmp_path / ".wrappers" / "app_0.sh").read_text()
 
 

@@ -9,7 +9,12 @@ from __future__ import annotations
 from typing import Any
 
 from crab.core.allocation.chains import resolve_chains
-from crab.core.execution.placement import allocate_on_paper, check_experiment
+from crab.core.execution.placement import (
+    allocate_on_paper,
+    app_ppn,
+    check_experiment,
+    parse_ppn,
+)
 from crab.core.execution.settings import LAUNCHER_KINDS, ExecutionSettings
 
 ALLOCATION_MODES = ("linear", "interleaved", "random", "shared")
@@ -28,7 +33,7 @@ MANAGED_DIRECTIVES: dict[str, str] = {
 }
 _LEGACY_ALLOCATION_KEYS = ("allocationmode", "partitionsplit", "partitionlayout", "allocationsplit")
 # Slurm reads these once for the whole job, so an experiment's local_options cannot change them.
-_JOB_LEVEL_OPTIONS = ("numnodes", "ppn", "sbatch_directives", "walltime")
+_JOB_LEVEL_OPTIONS = ("numnodes", "sbatch_directives", "walltime")
 _EXPERIMENT_KEYS = ("description", "local_options", "apps")
 
 
@@ -179,6 +184,27 @@ def _check_managed_directives(global_opts: dict[str, Any]) -> None:
                 )
 
 
+def _check_ppn(options: dict[str, Any], where: str) -> None:
+    """The `ppn` (ranks per node) of the global options, `local_options` or an app: a positive
+    integer or a `{var}` token. A missing one is fine."""
+    if "ppn" in options and not _has_token(options["ppn"]):
+        try:
+            parse_ppn(options["ppn"])
+        except ValueError as error:
+            raise ValueError(f"{where}: {error}") from None
+
+
+def _app_ppns(apps: dict[str, Any], opts: dict[str, Any]) -> list[int]:
+    """The effective ppn of each app; an app whose ppn is a `{var}` token is left out."""
+    ppns = []
+    for app in apps.values():
+        try:
+            ppns.append(app_ppn(app, opts))
+        except ValueError:
+            continue
+    return ppns
+
+
 def _count(value: Any) -> int | None:
     """An integer option, or None when it is missing or a `{var}` token."""
     try:
@@ -190,6 +216,7 @@ def _count(value: Any) -> int | None:
 def _check_preset_fit(
     opts: dict[str, Any],
     global_opts: dict[str, Any],
+    apps: dict[str, Any],
     settings: ExecutionSettings,
     exp: str,
     warnings: list[str],
@@ -197,16 +224,16 @@ def _check_preset_fit(
     """Refuse a config the preset cannot run; warn about options a local preset ignores.
 
     The launcher is the experiment's option, else the preset's. A receipt's launcher override is
-    checked at setup, not here.
+    checked at setup, not here. `apps` is the experiment's apps: any app's ppn above 1 is too many
+    ranks for the direct launcher.
     """
     local = settings.scheduler == "local"
     launcher = opts.get("launcher", settings.launcher)
     numnodes = _count(global_opts.get("numnodes"))
-    ppn = _count(global_opts.get("ppn", 1))
     problems = []
     if launcher == "srun" and local:
         problems.append("the srun launcher needs a Slurm preset")
-    if launcher == "direct" and ((numnodes or 1) > 1 or (ppn or 1) > 1):
+    if launcher == "direct" and ((numnodes or 1) > 1 or any(p > 1 for p in _app_ppns(apps, opts))):
         problems.append(
             "the direct launcher runs a single process; use ppn 1 and numnodes 1, "
             "or the mpirun launcher"
@@ -378,20 +405,24 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
     global_opts = config.get("global_options") or {}
     warnings: list[str] = []
     _check_managed_directives(global_opts)
+    _check_ppn(global_opts, "global_options")
     for exp_name, exp in _experiments(config).items():
         opts = {**global_opts, **(exp.get("local_options") or {})}
         _check_options(opts, exp_name)
         _check_launcher_options(opts, exp_name)
-        if settings is not None:
-            _check_preset_fit(opts, global_opts, settings, exp_name, warnings)
-        _check_ignored_keys(exp, exp_name, warnings)
         apps = exp.get("apps") or {}
+        _check_ppn(exp.get("local_options") or {}, f"experiment {exp_name}: local_options")
+        for app_key, app in apps.items():
+            _check_ppn(app, f"experiment {exp_name}: app {app_key}")
+        if settings is not None:
+            _check_preset_fit(opts, global_opts, apps, settings, exp_name, warnings)
+        _check_ignored_keys(exp, exp_name, warnings)
         _check_allocation(
             opts.get("allocation") or {}, apps, global_opts.get("numnodes"), exp_name, warnings
         )
-        placement_keys = ("start", "partition", "cpus", "env")
+        placement_keys = ("start", "partition", "cpus", "env", "ppn")
         if settings is not None and not _has_token(
-            [opts.get("allocation"), global_opts.get("numnodes"), global_opts.get("ppn")]
+            [opts.get("allocation"), global_opts.get("numnodes"), opts.get("ppn")]
             + [[a.get(k) for k in placement_keys] for a in apps.values()]
         ):
             warnings += check_experiment(
@@ -401,6 +432,7 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
                 global_opts,
                 settings,
                 opts.get("launcher"),
+                exp.get("local_options"),
             )
         for app_key, app in (exp.get("apps") or {}).items():
             where = f"experiment {exp_name}: app {app_key}"

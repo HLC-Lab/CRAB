@@ -12,6 +12,7 @@ from crab.core.execution.placement import (
     AUTO_SPLIT_WARNING,
     SHARED_CORES_WARNING,
     Head,
+    app_ppn,
     check_experiment,
     parse_app_env,
     parse_cpus,
@@ -30,12 +31,12 @@ def _sixteen_cores(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("os.cpu_count", lambda: 16)
 
 
-def _head(n: int, cpus: str | None = None, shared: bool = False) -> Head:
-    return Head(f"app {n}", NODES, parse_cpus(cpus, "t") if cpus else None, shared)
+def _head(n: int, cpus: str | None = None, shared: bool = False, ppn: int = 4) -> Head:
+    return Head(f"app {n}", NODES, parse_cpus(cpus, "t") if cpus else None, shared, ppn)
 
 
-def _local(heads: list[Head], ppn: int = 4, cores: int | None = 16):
-    return plan(heads, ppn, "local", cores, [])
+def _local(heads: list[Head], cores: int | None = 16):
+    return plan(heads, "local", cores, [])
 
 
 # -- parse_cpus -----------------------------------------------------------------------------
@@ -87,11 +88,11 @@ def test_overlapping_explicit_cpus_name_both_apps() -> None:
 
 def test_more_cores_wanted_than_the_host_has_is_refused() -> None:
     with pytest.raises(ValueError, match="need 24 cores"):
-        _local([_head(0), _head(1), _head(2)], ppn=8, cores=16)
+        _local([_head(0, ppn=8), _head(1, ppn=8), _head(2, ppn=8)], cores=16)
 
 
 def test_unknown_host_cores_skip_the_capacity_check() -> None:
-    placed, _ = _local([_head(0), _head(1), _head(2)], ppn=8, cores=None)
+    placed, _ = _local([_head(0, ppn=8), _head(1, ppn=8), _head(2, ppn=8)], cores=None)
     assert placed["app 2"] == tuple(range(16, 24))
 
 
@@ -101,16 +102,16 @@ def test_a_single_head_gets_its_cpus_or_none() -> None:
 
 
 def test_heads_on_different_nodes_do_not_compete() -> None:
-    a = Head("app 0", frozenset({"n0"}), None, False)
-    b = Head("app 1", frozenset({"n1"}), None, False)
+    a = Head("app 0", frozenset({"n0"}), None, False, 4)
+    b = Head("app 1", frozenset({"n1"}), None, False, 4)
     assert _local([a, b]) == ({"app 0": None, "app 1": None}, [])
 
 
 def test_heads_are_co_located_through_a_third_head() -> None:
-    a = Head("app 0", frozenset({"n0"}), None, False)
-    b = Head("app 1", frozenset({"n0", "n1"}), None, False)
-    c = Head("app 2", frozenset({"n1"}), None, False)
-    placed, _ = _local([a, b, c], ppn=2)
+    a = Head("app 0", frozenset({"n0"}), None, False, 2)
+    b = Head("app 1", frozenset({"n0", "n1"}), None, False, 2)
+    c = Head("app 2", frozenset({"n1"}), None, False, 2)
+    placed, _ = _local([a, b, c])
     assert placed == {"app 0": (0, 1), "app 1": (2, 3), "app 2": (4, 5)}
 
 
@@ -118,7 +119,7 @@ def test_heads_are_co_located_through_a_third_head() -> None:
 
 
 def test_slurm_disjoint_leaves_apps_to_srun_exact_without_a_warning() -> None:
-    assert plan([_head(0), _head(1)], 4, "slurm", None, []) == (
+    assert plan([_head(0), _head(1)], "slurm", None, []) == (
         {"app 0": None, "app 1": None},
         [],
     )
@@ -129,7 +130,7 @@ def test_slurm_disjoint_leaves_apps_to_srun_exact_without_a_warning() -> None:
     [[["--exclusive"]], [["exclusive"]], [{"exclusive": True}], [None, ["--exclusive"]]],
 )
 def test_slurm_cpus_with_exclusive_pass(directives: list) -> None:
-    placed, _ = plan([_head(0, "0-3")], 4, "slurm", None, directives)
+    placed, _ = plan([_head(0, "0-3")], "slurm", None, directives)
     assert placed == {"app 0": (0, 1, 2, 3)}
 
 
@@ -138,7 +139,7 @@ def test_slurm_cpus_with_exclusive_pass(directives: list) -> None:
 )
 def test_slurm_cpus_without_exclusive_are_refused(directives: list) -> None:
     with pytest.raises(ValueError, match="--exclusive"):
-        plan([_head(0, "0-3")], 4, "slurm", None, directives)
+        plan([_head(0, "0-3")], "slurm", None, directives)
 
 
 def test_cpus_shorter_than_ppn_is_refused() -> None:
@@ -188,7 +189,7 @@ def test_env_refuses_a_key_that_is_not_a_shell_name(key: str) -> None:
 def test_place_experiment_names_the_experiment_and_app_of_a_bad_env_key() -> None:
     with pytest.raises(ValueError, match=r"experiment e1: app 0: env: key 'A B' is not a valid"):
         place_experiment(
-            "e1", ["0"], [{"env": {"A B": "1"}}], [["localhost"]], {}, 4, LOCAL_DIRECT,
+            "e1", ["0"], [{"env": {"A B": "1"}}], [["localhost"]], {}, {"ppn": 4}, LOCAL_DIRECT,
             ["localhost"], {},
         )  # fmt: skip
 
@@ -201,7 +202,9 @@ _SHARED_CORES = {"mode": "shared", "cores": "shared"}
 
 def _place(configs: list[dict], nodes: list[list[str]], allocation: dict, settings=LOCAL_DIRECT):
     keys = [str(i) for i in range(len(configs))]
-    return place_experiment("e1", keys, configs, nodes, allocation, 4, settings, ["localhost"], {})
+    return place_experiment(
+        "e1", keys, configs, nodes, allocation, {"ppn": 4}, settings, ["localhost"], {}
+    )
 
 
 def test_a_chained_successor_inherits_its_heads_list() -> None:
@@ -227,7 +230,9 @@ def test_place_experiment_reads_cores_shared_per_partition() -> None:
     configs = [{"partition": "a"}, {"partition": "a"}, {"partition": "b"}, {"partition": "b"}]
     nodes = [["h0"], ["h0"], ["h1"], ["h1"]]
     settings = slurm_settings()
-    placed = place_experiment("e1", list("0123"), configs, nodes, allocation, 4, settings, [], {})
+    placed = place_experiment(
+        "e1", list("0123"), configs, nodes, allocation, {"ppn": 4}, settings, [], {}
+    )
     assert placed.cpu_lists == [None] * 4
     assert placed.warnings == [SHARED_CORES_WARNING]
 
@@ -294,3 +299,78 @@ def test_the_cpus_warning_is_per_app() -> None:
     apps = {"0": {"cpus": "0"}, "1": {}, "2": {"cpus": "1"}}
     warnings = _check(apps, slurm_settings(), opts={"sbatch_directives": ["--exclusive"]})
     assert [w.split(":")[1] for w in warnings] == [" app 0", " app 2"]
+
+
+# -- ppn per app and per experiment -----------------------------------------------------------
+
+
+def test_app_ppn_is_the_apps_then_the_experiments_then_one() -> None:
+    assert app_ppn({"ppn": 4}, {"ppn": 2}) == 4
+    assert app_ppn({}, {"ppn": 2}) == 2
+    assert app_ppn({}, {}) == 1
+    assert app_ppn({"ppn": "3"}, {}) == 3
+
+
+@pytest.mark.parametrize("value", ["{p}", "x", None, 0, "0", 2.5, True])
+def test_app_ppn_refuses_what_is_not_a_positive_integer(value: object) -> None:
+    with pytest.raises(ValueError, match="ppn must be a positive integer"):
+        app_ppn({"ppn": value}, {})
+
+
+def test_place_experiment_names_the_app_of_a_bad_ppn() -> None:
+    with pytest.raises(ValueError, match=r"experiment e1: app 0: ppn must be a positive integer"):
+        place_experiment(
+            "e1", ["0"], [{"ppn": "x"}], [["localhost"]], {}, {}, LOCAL_DIRECT, ["localhost"], {}
+        )
+
+
+def test_cpus_shorter_than_the_apps_own_ppn_is_refused() -> None:
+    with pytest.raises(ValueError, match=r"app 1: cpus lists 2 core\(s\), fewer than ppn 3"):
+        _local([_head(0, "0-3"), _head(1, "4-5", ppn=3)])
+    assert _local([_head(0, "0-1", ppn=2)])[0] == {"app 0": (0, 1)}
+
+
+def test_automatic_split_gives_each_head_a_block_of_its_own_ppn() -> None:
+    placed, _ = _local([_head(0, ppn=2), _head(1, ppn=4), _head(2, ppn=1)])
+    assert placed == {"app 0": (0, 1), "app 1": (2, 3, 4, 5), "app 2": (6,)}
+
+
+def test_automatic_split_capacity_adds_up_each_heads_ppn() -> None:
+    with pytest.raises(ValueError, match="need 10 cores"):
+        _local([_head(0, ppn=2), _head(1, ppn=8)], cores=8)
+
+
+def test_place_experiment_gives_each_app_its_own_ppn_over_the_experiments() -> None:
+    placed = _place([{"ppn": 2}, {}], [["localhost"], ["localhost"]], _SHARED)
+    assert placed.cpu_lists == [(0, 1), (2, 3, 4, 5)]
+
+
+def test_a_chained_app_with_a_ppn_beyond_its_heads_cores_is_refused() -> None:
+    configs = [{"cpus": "0-1", "ppn": 2}, {"start": "s0", "ppn": 4}]
+    with pytest.raises(ValueError, match=r"experiment e1: app 1: ppn 4 .*app 0.* 2 core"):
+        _place(configs, [["localhost"], ["localhost"]], {})
+    # The heads' automatic blocks count too, not only an explicit cpus.
+    configs = [{"ppn": 2}, {"ppn": 2}, {"start": "s0", "ppn": 4}]
+    with pytest.raises(ValueError, match=r"experiment e1: app 2: ppn 4 .*app 0.* 2 core"):
+        _place(configs, [["localhost"]] * 3, _SHARED)
+
+
+def test_a_chained_app_within_its_heads_cores_is_placed_on_them() -> None:
+    configs = [{"cpus": "0-3", "ppn": 4}, {"start": "s0", "ppn": 2}]
+    placed = _place(configs, [["localhost"], ["localhost"]], {})
+    assert placed.cpu_lists == [(0, 1, 2, 3), (0, 1, 2, 3)]
+
+
+def test_check_experiment_takes_the_experiments_ppn_from_its_local_options() -> None:
+    apps = {"0": {"cpus": "0-1"}}
+    options = {"numnodes": 1, "ppn": 4}
+    with pytest.raises(ValueError, match="experiment e1: app 0: cpus lists 2 core"):
+        check_experiment("e1", apps, {}, options, LOCAL_DIRECT)
+    note = [_CPUS_NOTE.format("direct")]
+    assert check_experiment("e1", apps, {}, options, LOCAL_DIRECT, None, {"ppn": 2}) == note
+    apps = {"0": {"cpus": "0-1", "ppn": 2}}
+    assert check_experiment("e1", apps, {}, options, LOCAL_DIRECT) == note
+
+
+def test_check_experiment_skips_a_ppn_token_on_an_app() -> None:
+    assert check_experiment("e1", {"0": {"ppn": "{p}"}}, {}, {"numnodes": 1}, LOCAL_DIRECT) == []
