@@ -15,9 +15,8 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
-from crab.core.allocation.allocator import NodeAllocator
 from crab.core.allocation.chains import resolve_chains
 from crab.core.execution.settings import ExecutionSettings, check_dropped_keys
 
@@ -27,18 +26,22 @@ AUTO_SPLIT_WARNING = (
 SHARED_CORES_WARNING = "cores: shared measures OS scheduling as much as the hardware"
 
 
+CoRun = Literal["disjoint", "shared"]
+
+
 @dataclass(frozen=True)
 class Head:
     """A chain head: one app that gets its own share of the nodes.
 
     `key` names it in messages ("app 0"), `cpus` is its parsed core list or None, `shared` is true
-    when its allocation scope says `cores: "shared"`.
+    when its allocation scope says `cores: "shared"`, `ppn` is its ranks per node.
     """
 
     key: str
     nodes: frozenset[str]
     cpus: tuple[int, ...] | None
     shared: bool
+    ppn: int
 
 
 @dataclass(frozen=True)
@@ -47,12 +50,38 @@ class Placement:
 
     `shared_cores[i]` is true when app i runs at the same time as another app on the same nodes
     under `cores: "shared"` (it competes for cores and must not be bound by the launcher).
+    `co_run[i]` is None for an app alone on its nodes, else "shared" or "disjoint" by the cores
+    setting of the group of apps it runs with (an app after another takes its head's value).
     """
 
     cpu_lists: list[tuple[int, ...] | None]
     envs: list[dict[str, str]]
     warnings: list[str]
     shared_cores: list[bool] = field(default_factory=list)
+    co_run: list[CoRun | None] = field(default_factory=list)
+
+
+def parse_ppn(value: object) -> int:
+    """A ranks-per-node value: an integer or an integer string, at least 1.
+
+    Raises:
+        ValueError: anything else (null, a float, a bool, an unresolved `{var}` token).
+    """
+    text = str(value).strip()
+    if not re.fullmatch(r"\+?[0-9]+", text) or int(text) < 1:
+        raise ValueError(f"ppn must be a positive integer, got {value!r}")
+    return int(text)
+
+
+def app_ppn(app_cfg: Mapping[str, Any], exp_opts: Mapping[str, Any]) -> int:
+    """An app's ranks per node: its own `ppn`, else the experiment's, else 1.
+
+    `exp_opts` is the experiment's options, `global_options` overlaid by its `local_options`.
+
+    Raises:
+        ValueError: the value that applies is not a positive integer (see `parse_ppn`).
+    """
+    return parse_ppn(app_cfg.get("ppn", exp_opts.get("ppn", 1)))
 
 
 def parse_cpus(text: object, where: str) -> tuple[int, ...]:
@@ -128,13 +157,15 @@ def _groups(heads: Sequence[Head]) -> list[list[Head]]:
     return groups
 
 
-def shared_heads(heads: Sequence[Head]) -> set[str]:
-    """The keys of the heads that overlap another head's nodes in a group with `cores: "shared"`."""
-    keys: set[str] = set()
+def co_run_modes(heads: Sequence[Head]) -> dict[str, CoRun]:
+    """For each head that overlaps another head's nodes, "shared" when its group says
+    `cores: "shared"`, else "disjoint". Heads alone on their nodes are left out."""
+    modes: dict[str, CoRun] = {}
     for group in _groups(heads):
-        if len(group) >= 2 and any(h.shared for h in group):
-            keys.update(h.key for h in group)
-    return keys
+        if len(group) >= 2:
+            mode: CoRun = "shared" if any(h.shared for h in group) else "disjoint"
+            modes.update((h.key, mode) for h in group)
+    return modes
 
 
 def _cores_text(cores: Sequence[int]) -> str:
@@ -154,10 +185,29 @@ def _check_overlap(group: Sequence[Head]) -> None:
                 )
 
 
+def _check_cpus_on_all_or_none(group: Sequence[Head]) -> None:
+    """Under Slurm, the apps of a group that set `cpus` and the apps that do not cannot mix.
+
+    An `--overlap --cpu-bind=map_cpu` step does not reserve its cores, so a concurrent `--exact`
+    step may be given them, and mpirun inside Slurm binds an app without cpus by its default
+    (the first cores).
+    """
+    if all(h.cpus is None for h in group) or all(h.cpus is not None for h in group):
+        return
+    names = [h.key for h in group if h.cpus is None]
+    many = len(names) > 1
+    raise ValueError(
+        f"{' and '.join(names)} {'share' if many else 'shares'} nodes with apps that set cpus "
+        f"but set none {'themselves' if many else 'itself'}; under Slurm set cpus on every app "
+        "of the group, or on none (an app without cpus may be given the cores of one that has "
+        "them)"
+    )
+
+
 def _split_automatically(
-    group: Sequence[Head], ppn: int, host_cores: int | None, result: dict[str, Any]
+    group: Sequence[Head], host_cores: int | None, result: dict[str, Any]
 ) -> bool:
-    """Give the group's heads without `cpus` contiguous blocks of `ppn` free cores.
+    """Give the group's heads without `cpus` contiguous blocks of free cores, `ppn` each.
 
     Returns True when a block was handed out.
     """
@@ -165,23 +215,24 @@ def _split_automatically(
     if not auto:
         return False
     taken = {c for h in group for c in (h.cpus or ())}
-    needed = ppn * len(auto)
+    needed = sum(h.ppn for h in auto)
     pool = range(host_cores if host_cores is not None else max(taken, default=-1) + 1 + needed)
     free = [c for c in pool if c not in taken]
     if len(free) < needed:
         raise ValueError(
-            f"{len(auto)} apps without cpus need {needed} cores ({len(auto)} x ppn {ppn}) on one "
+            f"{len(auto)} apps without cpus need {needed} cores (the sum of their ppn) on one "
             f"host, but only {len(free)} of its {host_cores} cores are free; lower ppn, "
             "use fewer apps or set cpus"
         )
-    for index, head in enumerate(auto):
-        result[head.key] = tuple(free[index * ppn : (index + 1) * ppn])
+    start = 0
+    for head in auto:
+        result[head.key] = tuple(free[start : start + head.ppn])
+        start += head.ppn
     return True
 
 
 def plan(
     heads: Sequence[Head],
-    ppn: int,
     scheduler: str,
     host_cores: int | None,
     sbatch_directives: Sequence[Any],
@@ -190,19 +241,19 @@ def plan(
 
     Args:
         heads: the experiment's chain heads.
-        ppn: ranks per node.
         scheduler: "slurm" or "local".
         host_cores: the fewest cores of the hosts used, or None when unknown (Slurm).
         sbatch_directives: the raw `sbatch_directives` and `system_sbatch` values.
 
     Raises:
-        ValueError: `cpus` shorter than `ppn`, `cpus` under Slurm without `--exclusive`,
-            overlapping `cpus` of apps running together, or more cores wanted than the host has.
+        ValueError: `cpus` shorter than the head's `ppn`, `cpus` under Slurm without `--exclusive`,
+            overlapping `cpus` of apps running together, under Slurm `cpus` on some apps of a
+            group sharing nodes and not on others, or more cores wanted than the host has.
     """
     for head in heads:
-        if head.cpus is not None and len(head.cpus) < ppn:
+        if head.cpus is not None and len(head.cpus) < head.ppn:
             raise ValueError(
-                f"{head.key}: cpus lists {len(head.cpus)} core(s), fewer than ppn {ppn} "
+                f"{head.key}: cpus lists {len(head.cpus)} core(s), fewer than ppn {head.ppn} "
                 "(one core per rank)"
             )
     if (
@@ -224,8 +275,11 @@ def plan(
                 warnings.append(SHARED_CORES_WARNING)
             continue
         _check_overlap(group)
-        # Under Slurm the apps stay unplaced here: srun --exact separates them.
-        if scheduler == "local" and _split_automatically(group, ppn, host_cores, result):
+        if scheduler == "slurm":
+            _check_cpus_on_all_or_none(group)
+        # Under Slurm no core list is chosen here: the srun launcher binds each co-run app to its
+        # own cores (`--exact --cpu-bind=cores`), or to its `cpus`.
+        if scheduler == "local" and _split_automatically(group, host_cores, result):
             if AUTO_SPLIT_WARNING not in warnings:
                 warnings.append(AUTO_SPLIT_WARNING)
     return result, warnings
@@ -262,19 +316,22 @@ def place_experiment(
     configs: Sequence[Mapping[str, Any]],
     nodes: Sequence[Sequence[str]],
     allocation: Mapping[str, Any],
-    ppn: int,
+    exp_opts: Mapping[str, Any],
     settings: ExecutionSettings,
     node_list: Sequence[str],
     global_opts: Mapping[str, Any],
 ) -> Placement:
     """Place one experiment's apps, given each app's config key, config and allocated nodes.
 
+    `exp_opts` is the experiment's merged options, where each app's ranks per node come from.
+
     Raises:
-        ValueError: an invalid `cpus` or `env`, a `cpus` on a chained app, or a failure of `plan`;
-            every message starts with `experiment <exp>: `.
+        ValueError: an invalid `cpus`, `env` or `ppn`, a `cpus` on a chained app, a chained app
+            with more ranks than its head's cores, or a failure of `plan`; every message starts
+            with `experiment <exp>: `.
     """
     try:
-        return _place(keys, configs, nodes, allocation, ppn, settings, node_list, global_opts)
+        return _place(keys, configs, nodes, allocation, exp_opts, settings, node_list, global_opts)
     except ValueError as error:
         raise ValueError(f"experiment {exp}: {error}") from error
 
@@ -284,7 +341,7 @@ def _place(
     configs: Sequence[Mapping[str, Any]],
     nodes: Sequence[Sequence[str]],
     allocation: Mapping[str, Any],
-    ppn: int,
+    exp_opts: Mapping[str, Any],
     settings: ExecutionSettings,
     node_list: Sequence[str],
     global_opts: Mapping[str, Any],
@@ -292,6 +349,12 @@ def _place(
     starts = [str(cfg.get("start", "0")) for cfg in configs]
     partitions = [cfg.get("partition") or None for cfg in configs]
     reuse = resolve_chains(starts, partitions)
+    ppns = []
+    for key, cfg in zip(keys, configs, strict=True):
+        try:
+            ppns.append(app_ppn(cfg, exp_opts))
+        except ValueError as error:
+            raise ValueError(f"app {key}: {error}") from error
     envs = [
         parse_app_env(cfg.get("env", {}), f"app {key}: env")
         for key, cfg in zip(keys, configs, strict=True)
@@ -308,83 +371,26 @@ def _place(
             continue
         cpus = parse_cpus(cfg["cpus"], f"app {key}") if "cpus" in cfg else None
         heads.append(
-            Head(f"app {key}", frozenset(nodes[i]), cpus, _shared_cores(allocation, partitions[i]))
+            Head(
+                f"app {key}",
+                frozenset(nodes[i]),
+                cpus,
+                _shared_cores(allocation, partitions[i]),
+                ppns[i],
+            )
         )
     directives = [global_opts.get("sbatch_directives"), global_opts.get("system_sbatch")]
     result, warnings = plan(
-        heads, ppn, settings.scheduler, host_cores_of(settings, node_list), directives
+        heads, settings.scheduler, host_cores_of(settings, node_list), directives
     )
+    for i, head_index in reuse.items():
+        cores = result[f"app {keys[head_index]}"]
+        if cores is not None and ppns[i] > len(cores):
+            raise ValueError(
+                f"app {keys[i]}: ppn {ppns[i]} is more than app {keys[head_index]}'s "
+                f"{len(cores)} core(s), the cores it runs on"
+            )
     cpu_lists = [result[f"app {keys[reuse.get(i, i)]}"] for i in range(len(keys))]
-    shared = shared_heads(heads)
-    shared_cores = [f"app {keys[reuse.get(i, i)]}" in shared for i in range(len(keys))]
-    return Placement(cpu_lists, envs, warnings, shared_cores)
-
-
-class _Slot:
-    """Stands in for an app so the real allocator can be run on paper."""
-
-    def __init__(self, partition_id: Any, start: str) -> None:
-        self.partition_id = partition_id
-        self.start_string = start
-        self.nodes: list[str] = []
-
-    def set_nodes(self, nodes: list[str]) -> None:
-        self.nodes = list(nodes)
-
-
-def allocate_on_paper(
-    allocation: dict[str, Any], partitions: list[Any], starts: list[str], node_list: list[str]
-) -> list[list[str]]:
-    """The nodes of each app, from the same NodeAllocator call as ExperimentRunner.setup."""
-    slots = [_Slot(p, s) for p, s in zip(partitions, starts, strict=True)]
-    NodeAllocator.allocate_experiment(slots, node_list, allocation)
-    return [s.nodes for s in slots]
-
-
-def check_experiment(
-    exp: str,
-    apps: Mapping[str, Mapping[str, Any]],
-    allocation: dict[str, Any],
-    global_opts: Mapping[str, Any],
-    settings: ExecutionSettings,
-    launcher: str | None = None,
-) -> list[str]:
-    """Run the placement of one experiment on paper; return its warnings or raise.
-
-    `apps` is the experiment's `apps` object, `allocation` its allocation as the experiment sees
-    it, `launcher` the experiment's own `launcher` option (the preset's when None; a receipt's
-    override is not known before submit). An explicit `cpus` under a launcher that does not bind
-    to it (srun, direct) is warned about once per app. Skipped (returns no warnings) when `numnodes` or `ppn` is missing or not a number, as the
-    allocation checks skip it.
-
-    Raises:
-        ValueError: as `place_experiment`.
-    """
-    try:
-        numnodes = int(global_opts["numnodes"])
-        ppn = int(global_opts.get("ppn", 1))
-    except (KeyError, TypeError, ValueError):
-        return []
-    keys = sorted(apps.keys(), key=lambda x: int(x) if x.isdigit() else x)  # runner.py order
-    configs = [apps[k] for k in keys]
-    if settings.scheduler == "local":
-        node_list = [host.name for host in settings.hosts][:numnodes]
-    else:
-        node_list = [f"n{i}" for i in range(numnodes)]
-    app_nodes = allocate_on_paper(
-        allocation,
-        [cfg.get("partition") or None for cfg in configs],
-        [str(cfg.get("start", "0")) for cfg in configs],
-        node_list,
-    )
-    placed = place_experiment(
-        exp, keys, configs, app_nodes, allocation, ppn, settings, node_list, global_opts
-    )
-    effective = launcher or settings.launcher
-    ignored = [
-        f"experiment {exp}: app {key}: cpus has no effect with the {effective} launcher; "
-        "only mpirun binds to an explicit core list"
-        for key, cfg in zip(keys, configs, strict=True)
-        if "cpus" in cfg and effective in ("srun", "direct")
-    ]
-    return placed.warnings + ignored
+    modes = co_run_modes(heads)
+    co_run = [modes.get(f"app {keys[reuse.get(i, i)]}") for i in range(len(keys))]
+    return Placement(cpu_lists, envs, warnings, [mode == "shared" for mode in co_run], co_run)

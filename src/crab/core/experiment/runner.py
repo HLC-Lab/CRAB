@@ -7,20 +7,24 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
-from crab.core.execution.placement import place_experiment
+from crab.core.execution.placement import app_ppn, parse_ppn, place_experiment
 from crab.core.execution.settings import (
     SLURM_DEFAULT,
     ExecutionSettings,
     LauncherSpec,
     resolve_launcher,
 )
-from crab.core.wrapper_paths import load_module, resolve_wrapper_path
+from crab.core.wrapper_paths import (
+    load_module,
+    missing_wrappers_hint,
+    resolve_wrapper_path,
+)
 from crab.log import CrabLogger
 from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import check_CI
-from ..process import stop_processes
+from ..process import cancel_leftover_steps, stop_processes
 from .artifacts import copy_artifacts
 from .registry import write_registry_row
 from .schedule import build_schedule, kill_f_apps, run_events
@@ -63,8 +67,8 @@ class ExperimentRunner:
         self.apps = []
         self.launchers: list[LauncherSpec] = []
         self.data_containers = []
-        # Force PPN to strictly obey the physical global allocation
-        self.ppn = int(self.global_opts.get("ppn", 1))
+        # The experiment's ranks per node, which the registry records; an app may set its own.
+        self.ppn = parse_ppn(self.exp_opts.get("ppn", 1))
 
     def setup(self):
         """Loads apps, workload manager, and calculates node layout."""
@@ -91,7 +95,10 @@ class ExperimentRunner:
 
             if not os.path.exists(path):
                 self.log.error(f"Wrapper not found at: {path}")
-                raise FileNotFoundError(f"Wrapper not found: {path}")
+                hint = missing_wrappers_hint()
+                raise FileNotFoundError(
+                    f"Wrapper not found: {path}" + (f". {hint}" if hint else "")
+                )
 
             # Load App Class
             mod_app = load_module(path)
@@ -104,10 +111,21 @@ class ExperimentRunner:
             # --- DYNAMIC CONFIG INJECTION ---
             # Any key in the JSON 'apps' config that isn't a reserved CRAB keyword
             # gets injected as an attribute into the app instance.
-            reserved_keys = ["path", "args", "collect", "start", "end", "partition", "cpus", "env"]
+            reserved_keys = [
+                "path",
+                "args",
+                "collect",
+                "start",
+                "end",
+                "partition",
+                "cpus",
+                "env",
+                "ppn",
+            ]
             for key, value in details.items():
                 if key not in reserved_keys:
                     setattr(app_instance, key, value)
+            app_instance.ppn = app_ppn(details, self.exp_opts)
             # --------------------------------
 
             # Find the binary now so a missing one fails the experiment before any run
@@ -178,17 +196,23 @@ class ExperimentRunner:
             placed_configs,
             [app.node_list for app in self.apps],
             allocation,
-            self.ppn,
+            self.exp_opts,
             self.settings,
             self.node_list,
             self.global_opts,
         )
-        for app, cpu_list, app_env, shared in zip(
-            self.apps, placed.cpu_lists, placed.envs, placed.shared_cores, strict=True
+        for app, cpu_list, app_env, shared, co_run in zip(
+            self.apps,
+            placed.cpu_lists,
+            placed.envs,
+            placed.shared_cores,
+            placed.co_run,
+            strict=True,
         ):
             app.cpu_list = cpu_list
             app.app_env = app_env
             app.shared_cores = shared
+            app.co_run = co_run
 
         # 3. Initialize Data Containers
         for app in self.apps:
@@ -262,7 +286,6 @@ class ExperimentRunner:
                 outcome = run_events(
                     self.apps,
                     self.launchers,
-                    self.ppn,
                     schedule,
                     run_log,
                     data_path,
@@ -276,6 +299,10 @@ class ExperimentRunner:
                 experiment_status = outcome.experiment_status
 
                 kill_f_apps(self.apps, run_log)
+
+                # Every app is stopped by now (the HARD TIMEOUT break lands here too): a Slurm
+                # step that outlived its app would block the next run's sruns on its nodes.
+                cancel_leftover_steps(run_log)
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
@@ -348,6 +375,7 @@ class ExperimentRunner:
             self.log,
             labels={pid: name for pid, (_, name) in running.items()},
         )
+        cancel_leftover_steps(self.log)
 
     def save_results(self):
         """Persists data to disk."""

@@ -167,3 +167,96 @@ def test_to_release_without_any_tag_stays_on_the_branch(crab, tmp_path) -> None:
     result = run_update(install, tmp_path / "w", "", Pip(), to_release=True)
     assert result["crab"]["mode"] == "branch"
     assert git(install, "rev-parse", "--abbrev-ref", "HEAD") == "main"
+
+
+def test_leftovers_of_the_old_tracked_wrappers_folder_are_removed_and_cloned_over(
+    crab, tmp_path
+) -> None:
+    wbare, _ = _origin(tmp_path, "wrappers", {"README.md": "w\n"})
+    _, install = crab
+    inside = install / "wrappers"
+    (inside / "blink" / "__pycache__").mkdir(parents=True)
+    (inside / "blink" / "__pycache__" / "x.pyc").write_bytes(b"\0")
+    (inside / ".pytest_cache").mkdir()
+    (inside / ".pytest_cache" / "README.md").write_text("cache\n")
+    result = run_update(install, inside, str(wbare), Pip())
+    assert result["wrappers"]["action"] == "cloned"
+    assert (inside / "README.md").read_text() == "w\n"
+    assert (inside / ".git").exists()
+    assert not (inside / "blink").exists() and not (inside / ".pytest_cache").exists()
+
+
+def test_an_empty_wrappers_folder_is_cloned_over(crab, tmp_path) -> None:
+    wbare, _ = _origin(tmp_path, "wrappers", {"README.md": "w\n"})
+    _, install = crab
+    inside = install / "wrappers"
+    inside.mkdir()
+    result = run_update(install, inside, str(wbare), Pip())
+    assert result["wrappers"]["action"] == "cloned" and (inside / "README.md").exists()
+
+
+def test_a_wrappers_folder_with_real_files_is_never_touched(crab, tmp_path) -> None:
+    wbare, _ = _origin(tmp_path, "wrappers", {"README.md": "w\n"})
+    _, install = crab
+    inside = install / "wrappers"
+    (inside / "blink" / "__pycache__").mkdir(parents=True)
+    (inside / "blink" / "__pycache__" / "x.pyc").write_bytes(b"\0")
+    (inside / "blink" / "a.py").write_text("mine\n")
+    result = run_update(install, inside, str(wbare), Pip())
+    assert result["wrappers"]["action"] == "skipped"
+    assert (inside / "blink" / "a.py").read_text() == "mine\n"
+    assert (inside / "blink" / "__pycache__" / "x.pyc").exists()
+
+
+def test_the_wrappers_folder_itself_is_kept_when_its_leftovers_are_cleaned(crab, tmp_path) -> None:
+    wbare, _ = _origin(tmp_path, "wrappers", {"README.md": "w\n"})
+    _, install = crab
+    inside = install / "wrappers"
+    (inside / "blink" / "__pycache__").mkdir(parents=True)
+    (inside / "blink" / "__pycache__" / "x.pyc").write_bytes(b"\0")
+    inode = inside.stat().st_ino
+    result = run_update(install, inside, str(wbare), Pip())
+    assert result["wrappers"]["action"] == "cloned"
+    assert inside.stat().st_ino == inode
+    assert (inside / "README.md").exists() and (inside / ".git").exists()
+
+
+def test_a_symlinked_wrappers_folder_is_skipped_and_left_intact(crab, tmp_path) -> None:
+    wbare, _ = _origin(tmp_path, "wrappers", {"README.md": "w\n"})
+    _, install = crab
+    target = tmp_path / "elsewhere"
+    (target / "__pycache__").mkdir(parents=True)
+    (target / "__pycache__" / "x.pyc").write_bytes(b"\0")
+    link = install / "wrappers"
+    link.symlink_to(target, target_is_directory=True)
+    result = run_update(install, link, str(wbare), Pip())
+    assert result["wrappers"]["action"] == "skipped"
+    assert link.is_symlink() and (target / "__pycache__" / "x.pyc").exists()
+
+
+def test_an_unreadable_subfolder_is_a_clear_error_and_nothing_is_deleted(crab, tmp_path) -> None:
+    wbare, _ = _origin(tmp_path, "wrappers", {"README.md": "w\n"})
+    _, install = crab
+    inside = install / "wrappers"
+    (inside / "ok" / "__pycache__").mkdir(parents=True)
+    (inside / "ok" / "__pycache__" / "y.pyc").write_bytes(b"\0")
+    (inside / "locked").mkdir()
+    (inside / "locked").chmod(0o000)
+    try:
+        with pytest.raises(UpdateError, match="cannot clean the leftovers"):
+            run_update(install, inside, str(wbare), Pip())
+    finally:
+        (inside / "locked").chmod(0o755)
+    assert (inside / "ok" / "__pycache__" / "y.pyc").exists()
+    assert not (inside / ".git").exists()
+
+
+def test_a_pycache_folder_holding_anything_but_pyc_files_is_not_a_leftover(crab, tmp_path) -> None:
+    wbare, _ = _origin(tmp_path, "wrappers", {"README.md": "w\n"})
+    _, install = crab
+    inside = install / "wrappers"
+    (inside / "__pycache__").mkdir(parents=True)
+    (inside / "__pycache__" / "notes.txt").write_text("mine\n")
+    result = run_update(install, inside, str(wbare), Pip())
+    assert result["wrappers"]["action"] == "skipped"
+    assert (inside / "__pycache__" / "notes.txt").read_text() == "mine\n"

@@ -114,3 +114,135 @@ def test_prefix_is_a_list_without_the_command() -> None:
         "core",
     ]
     assert DirectLauncher().prefix(placement) == []
+
+
+def _srun(placement: Placement, *flags: str) -> list[str]:
+    return SrunLauncher(("srun",), flags).prefix(placement)
+
+
+_HEAD = ["srun", "--export=ALL", "--nodelist", "n1,n2"]
+_TAIL = ["-n", "4", "-N", "2"]
+
+
+def test_srun_without_new_fields_is_unchanged() -> None:
+    assert _srun(Placement(("n1", "n2"), 2), "--mpi=pmix") == [*_HEAD, "--mpi=pmix", *_TAIL]
+
+
+def test_srun_disjoint_co_run_binds_to_exclusive_cores() -> None:
+    line = _srun(Placement(("n1", "n2"), 2, co_run="disjoint"))
+    assert line == [
+        *_HEAD,
+        "--exact",
+        "--mem=0",
+        "--cpu-bind=verbose,cores",
+        "--ntasks-per-node=2",
+        *_TAIL,
+    ]
+
+
+def test_srun_co_run_with_cpus_overlaps_and_maps_the_cores_in_order() -> None:
+    placement = Placement(("n1", "n2"), 2, cpus=(3, 1, 2, 0), co_run="disjoint")
+    assert _srun(placement) == [
+        *_HEAD,
+        "--overlap",
+        "--cpu-bind=verbose,map_cpu:3,1,2,0",
+        "--ntasks-per-node=2",
+        *_TAIL,
+    ]
+
+
+def test_srun_shared_co_run_overlaps_without_binding() -> None:
+    line = _srun(Placement(("n1", "n2"), 2, co_run="shared"))
+    assert line == [*_HEAD, "--overlap", "--cpu-bind=verbose,none", "--ntasks-per-node=2", *_TAIL]
+
+
+def test_srun_lone_app_with_cpus_maps_without_overlap() -> None:
+    line = _srun(Placement(("n1", "n2"), 2, cpus=(4, 5)))
+    assert line == [*_HEAD, "--cpu-bind=verbose,map_cpu:4,5", *_TAIL]
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [("--mpi=pmix", "--cpu-bind=socket"), ("--cpu-bind", "cores", "--mpi=pmix")],
+)
+def test_srun_binding_replaces_the_preset_cpu_bind(flags: tuple[str, ...]) -> None:
+    for placement in (
+        Placement(("n1", "n2"), 2, co_run="disjoint"),
+        Placement(("n1", "n2"), 2, cpus=(0, 1)),
+        Placement(("n1", "n2"), 2, co_run="shared"),
+    ):
+        prefix = _srun(placement, *flags)
+        assert "--mpi=pmix" in prefix
+        assert not any(word.startswith("--cpu-bind=") and "verbose" not in word for word in prefix)
+        assert "socket" not in prefix and "cores" not in prefix
+        assert len([w for w in prefix if w.startswith("--cpu-bind")]) == 1
+
+
+@pytest.mark.parametrize(
+    ("flags", "kept"),
+    [
+        (("--mpi=pmix --cpu-bind=cores",), ["--mpi=pmix"]),
+        (("--cpu-bind cores",), []),
+        (("--cpu-bind cores --mpi=pmix",), ["--mpi=pmix"]),
+        (("-a", "--cpu_bind x", "-b"), ["-a", "-b"]),
+        (("--chdir=$HOME --cpu-bind=none",), ["--chdir=$HOME"]),
+    ],
+)
+def test_srun_binding_strips_a_cpu_bind_inside_a_multi_word_flag(
+    flags: tuple[str, ...], kept: list[str]
+) -> None:
+    line = _srun(Placement(("n1", "n2"), 2, co_run="disjoint"), *flags)
+    assert line == [
+        *_HEAD,
+        *kept,
+        "--exact",
+        "--mem=0",
+        "--cpu-bind=verbose,cores",
+        "--ntasks-per-node=2",
+        *_TAIL,
+    ]
+
+
+def test_srun_keeps_a_multi_word_flag_as_given_when_crab_does_not_bind() -> None:
+    line = _srun(Placement(("n1", "n2"), 2), "--mpi=pmix --cpu-bind=cores")
+    assert line == [*_HEAD, "--mpi=pmix --cpu-bind=cores", *_TAIL]
+
+
+def test_srun_keeps_the_preset_cpu_bind_when_crab_does_not_bind() -> None:
+    placement = Placement(("n1", "n2"), 2)
+    assert _srun(placement, "--mpi=pmix", "--cpu-bind=socket") == [
+        *_HEAD,
+        "--mpi=pmix",
+        "--cpu-bind=socket",
+        *_TAIL,
+    ]
+    assert _srun(placement, "--cpu-bind", "cores", "--mpi=pmix") == [
+        *_HEAD,
+        "--cpu-bind",
+        "cores",
+        "--mpi=pmix",
+        *_TAIL,
+    ]
+
+
+def test_srun_stripping_keeps_the_other_flags_in_order() -> None:
+    line = _srun(Placement(("n1",), 1, co_run="shared"), "-a", "--cpu_bind", "x", "-b")
+    assert line[4:7] == ["-a", "-b", "--overlap"]
+    assert "x" not in line
+
+
+def test_srun_ntasks_per_node_follows_the_job_geometry() -> None:
+    differs = Placement(("n1",), 1, job_ranks_per_host=4)
+    assert _srun(differs) == [
+        "srun",
+        "--export=ALL",
+        "--nodelist",
+        "n1",
+        "--ntasks-per-node=1",
+        "-n",
+        "1",
+        "-N",
+        "1",
+    ]
+    assert "--ntasks-per-node=1" not in _srun(Placement(("n1",), 1, job_ranks_per_host=1))
+    assert "--ntasks-per-node=1" not in _srun(Placement(("n1",), 1, job_ranks_per_host=None))

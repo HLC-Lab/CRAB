@@ -11,6 +11,10 @@ from pathlib import Path
 
 import pytest
 
+from conftest import requires_wrappers_checkout
+
+pytestmark = requires_wrappers_checkout
+
 _WRAPPERS = Path(__file__).resolve().parents[1] / "wrappers"
 # Shared helper modules are `_`-prefixed (e.g. _microbench_common.py): no `class app`.
 

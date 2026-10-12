@@ -209,9 +209,8 @@ def test_setup_places_a_shared_local_experiment_and_does_not_inject_cpus_or_env(
         tmp_path,
         [_WRAPPER, _WRAPPER],
         LOCAL_DIRECT,
-        local_options={"allocation": {"mode": "shared"}},
+        local_options={"allocation": {"mode": "shared"}, "ppn": 4},
     )
-    runner.ppn = 4
     runner.config["apps"]["1"].update({"cpus": "8-11", "env": {"UCX_NET_DEVICES": "mlx5_1:1"}})
     runner.setup()
     first, second = runner.apps
@@ -241,9 +240,8 @@ def test_setup_leaves_apps_of_a_disjoint_experiment_unmarked(tmp_path, monkeypat
         tmp_path,
         [_WRAPPER, _WRAPPER],
         LOCAL_DIRECT,
-        local_options={"allocation": {"mode": "shared"}},
+        local_options={"allocation": {"mode": "shared"}, "ppn": 4},
     )
-    runner.ppn = 4
     runner.setup()
     assert [app.shared_cores for app in runner.apps] == [False, False]
 
@@ -253,9 +251,8 @@ def test_setup_refuses_overlapping_cpus_of_apps_sharing_the_nodes(tmp_path):
         tmp_path,
         [_WRAPPER, _WRAPPER],
         LOCAL_DIRECT,
-        local_options={"allocation": {"mode": "shared"}},
+        local_options={"allocation": {"mode": "shared"}, "ppn": 4},
     )
-    runner.ppn = 4
     for app in runner.config["apps"].values():
         app["cpus"] = "0-3"
     with pytest.raises(ValueError, match="experiment exp: app 0 and app 1"):

@@ -60,20 +60,30 @@ is refused before anything runs, with a hint to run `crab update`.
     Values CRAB would otherwise misread are errors before the job starts: `convergeall`,
     `retain_files` and `collect` must be `true` or `false` (the strings `"true"` and `"false"` are
     accepted too), `outformat` must be `csv`, allocation `mode`s must be one of `linear`,
-    `interleaved`, `random` or `shared`, and every app needs a `path`.
+    `interleaved`, `random` or `shared`, and every app needs a `path`. The allocation keys used before
+    the nested `allocation` block (`allocationmode`, `partitionsplit`, `partitionlayout`,
+    `allocationsplit`) are refused with the equivalent form; see
+    [Allocation fields](#allocation-fields).
 
     The launcher options and the preset are checked too. These are errors:
 
     - `launcher` is not `srun`, `mpirun` or `direct`, or `launcher_flags` is not a list of strings;
     - `sbatch_directives`, or the preset's `sbatch`, set `nodes`, `N`, `ntasks-per-node`, `ntasks`
-      or `n`, which CRAB sets itself from `numnodes` and `ppn`;
+      or `n`, which CRAB sets itself from `numnodes` and the apps' `ppn`;
+    - a `ppn` (in `global_options`, `local_options` or an app) that is not a positive integer;
     - the `srun` launcher on a preset whose scheduler is `local` ("the srun launcher needs a Slurm
       preset");
-    - the `direct` launcher with `ppn` or `numnodes` above 1 ("the direct launcher runs a single
-      process");
+    - the `direct` launcher with `numnodes`, or the `ppn` of any app, above 1 ("the direct
+      launcher runs a single process");
     - `numnodes` above the number of hosts of a `local` preset.
 
     `sbatch_directives` on a `local` preset only log a warning: the local scheduler ignores them.
+
+    Some other patterns only get a warning in the log: an allocation split that sums to less than
+    100, an app with `collect: true` and an `end` of `"f"` or a number (see
+    [`end`](#the-apps-block)), `numnodes`, `walltime` or `sbatch_directives` inside an
+    experiment's `local_options`, and any experiment key other than `description`,
+    `local_options` and `apps`.
 
 !!! note "Legacy single-experiment form"
     A config may instead use a top-level `applications` block in place of `experiments`. CRAB
@@ -88,7 +98,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
 | `numnodes` | int | **required** | Total nodes: allocated for the Slurm job, or the first `numnodes` hosts of a local preset. |
-| `ppn` | int | `1` | Processes per node. Drives the launcher's total task count. |
+| `ppn` | int | `1` | Ranks per node, for every app that does not set its own. Drives the launcher's total task count. See [Ranks per node](#ranks-per-node-ppn). |
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
 | `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
 | `allocation` | object | `{"mode":"linear"}` | Node-to-app mapping strategy. See [Allocation](#allocation-fields). |
@@ -113,9 +123,43 @@ Settings applied to the whole run. An experiment can override most of these in i
     benchmark's launcher kind; in that case its flags come from the preset, not from
     `launcher_flags`.
 
-!!! info "`ppn` is global"
-    The processes-per-node value is read from `global_options` and applied uniformly; it reflects
-    the physical allocation and is not overridden per experiment.
+### Ranks per node (`ppn`)
+
+`ppn` is the number of ranks an app starts on each of its nodes. It is a positive integer and can
+be set in three places; the most specific one wins, and without any the app gets `1`:
+
+1. the app's own `ppn` (in its entry of `apps`);
+2. the experiment's `local_options.ppn`;
+3. `global_options.ppn`.
+
+So a victim with one rank per node can share its nodes with an aggressor that runs several:
+
+```json
+"global_options": { "numnodes": "4", "ppn": "1", "allocation": { "mode": "shared" } },
+"experiments": {
+  "pair": {
+    "apps": {
+      "0": { "path": "blink/alltoall_comm_only.py", "collect": true },
+      "1": { "path": "blink/alltoall_comm_only.py", "end": "f", "ppn": "8" }
+    }
+  }
+}
+```
+
+An app's total ranks are its `ppn` times the number of nodes it runs on.
+
+**The batch job's `--ntasks-per-node`** is the largest per-node load over the experiments, which
+CRAB computes: on each node, apps that share it add up, and apps that start after another one on
+its nodes (`start: "sN"`, see [Scheduling](#scheduling-start-and-end)) count once per chain, at
+the chain's largest `ppn`. Experiments run one after the other, so the job takes the largest of
+their loads. It cannot be set by hand: `--ntasks-per-node` in `sbatch_directives` is an error (see
+[sbatch directives](#sbatch-directives)). When the load cannot be worked out (for example
+`numnodes` is missing), CRAB uses `global_options.ppn`.
+
+**What is recorded.** The `ppn` column of `metadata.csv` holds the experiment's value
+(`local_options.ppn` if set, else `global_options.ppn`). Each app's own `ppn` and its `env` are in
+the job's `crab_run.json`, under `launches`, so the results show what each app ran with; see
+[What a run records about its launches](../using/running-without-slurm.md#what-a-run-records-about-its-launches).
 
 ### Allocation fields
 
@@ -208,13 +252,39 @@ lists](#core-lists-and-environment-per-app-cpus-and-env) and the allocation's `c
 - With `cores: "shared"`, nothing is split. An app with `cpus` is still bound to them, and the
   lists may overlap. An app without `cpus` is left unbound (`mpirun` is told not to bind it), so
   that two launches do not both pile onto the first cores of the node.
-- Under Slurm there is no automatic split, and CRAB adds no co-run flags to `srun`: apps that
-  share nodes get `srun`'s defaults. Pin them with `launchers.srun.flags` or `launcher_flags` if
-  you need to.
+- Under Slurm there is no automatic split: the `srun` launcher gives each app its own cores with
+  the flags in [Shared nodes under `srun`](#shared-nodes-under-srun).
 
-Binding is done by the `mpirun` launcher (the exact flags are in the
-[presets reference](presets.md#the-mpirun-launcher)). The `srun` launcher does not translate
-`cpus` into `srun` options, and the `direct` launcher does not bind.
+Binding to a `cpus` list is done by the `mpirun` and `srun` launchers (the exact flags are in the
+[presets reference](presets.md#the-mpirun-launcher)). The `direct` launcher does not bind.
+
+#### Shared nodes under `srun`
+
+An app that shares nodes with another app and runs at the same time is started with explicit step
+flags. Without them, each `srun` step would ask for the job's whole task budget and Slurm would
+run the steps one after the other, with no error. The flags depend on the cores setting:
+
+| Core setting | Flags added to the app's `srun` line |
+|---|---|
+| `cores: "disjoint"`, no `cpus` | `--exact --mem=0 --cpu-bind=verbose,cores` |
+| `cpus` given | `--overlap --cpu-bind=verbose,map_cpu:<cpus>` |
+| `cores: "shared"`, no `cpus` | `--overlap --cpu-bind=verbose,none` |
+
+All three also get `--ntasks-per-node=<the app's ppn>`. Notes:
+
+- `verbose` makes `srun` print each rank's CPU mask into the app's log, so you can check where
+  the ranks ran.
+- Apps that do not share nodes keep the plain `srun` line, with two exceptions: an app with
+  `cpus` is bound to them (`--cpu-bind=verbose,map_cpu:<cpus>`, without `--overlap`), and an app
+  whose `ppn` differs from the job's `--ntasks-per-node` gets `--ntasks-per-node=<its ppn>`.
+- `--exact --mem=0` gives each such app its cores and the node's memory, so it overrides a
+  `--mem` or `--mem-per-cpu` in the `srun` flags.
+- CRAB's binding replaces any `--cpu-bind` in `launchers.srun.flags` or `launcher_flags` for the
+  apps it binds. The pre-submit check warns about it, so it shows when you submit.
+- `cpus` under Slurm needs `--exclusive` among the `sbatch_directives` or the preset's `sbatch`;
+  see the errors above.
+- `mpirun` is unchanged: it binds as described in the
+  [presets reference](presets.md#the-mpirun-launcher).
 
 These are errors, reported before anything is submitted:
 
@@ -225,7 +295,10 @@ These are errors, reported before anything is submitted:
   local preset (for example three apps with `ppn` 8 on a host of 16 cores): lower `ppn`, use
   fewer apps, or set `cpus`;
 - `cpus` under Slurm when `--exclusive` is not among the `sbatch_directives` or the preset's
-  `sbatch` (without it the cores are not yours alone).
+  `sbatch` (without it the cores are not yours alone);
+- under Slurm, apps that share nodes with `cores: "disjoint"` where some set `cpus` and others do
+  not (the message names the apps without): an `--overlap` step does not reserve its cores, so a
+  step without `cpus` could be given them; set `cpus` on every app of the group, or on none.
 
 ## `experiments`
 
@@ -244,9 +317,11 @@ Any `global_options` key may be repeated in an experiment's `local_options`; the
 value wins for that experiment (the framework merges `{**global, **local}`). Use this to vary,
 say, `allocation` or `timeout` between experiments in the same run.
 
-!!! warning "`ppn` and `numnodes` are Slurm-job-level globals"
-    These two fields control the Slurm `--nodes` / `--ntasks-per-node` directives, which are
-    written once when the job is submitted. Putting them in `local_options` has no effect.
+!!! warning "`numnodes`, `walltime` and `sbatch_directives` are job-level"
+    They are written once into the batch script when the job is submitted, so putting them in
+    `local_options` has no effect (CRAB warns). `ppn` is the exception: an experiment may set its
+    own, and the job's `--ntasks-per-node` is sized to the largest load; see
+    [Ranks per node](#ranks-per-node-ppn).
 
 ### The `apps` block
 
@@ -264,12 +339,13 @@ application:
 | `start` | string | `"0"` | When to start the app. See [Scheduling](#scheduling-start-and-end). |
 | `end` | string | `""` | When to stop the app. See [Scheduling](#scheduling-start-and-end). |
 | `partition` | string | — | (partitioned allocation) The named partition this app belongs to, e.g. `"victim"` or `"aggressor"`. Must match a key in `allocation.partitions`. |
+| `ppn` | int | the experiment's, else the global one | Ranks per node for this app. See [Ranks per node](#ranks-per-node-ppn). |
 | `cpus` | string | — | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 | `env` | object | `{}` | Environment variables set for this app's ranks only. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 
 !!! tip "Extra keys become wrapper attributes"
     Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end`,
-    `partition`, `cpus` or `env` (including `binary`) is injected as an attribute onto the
+    `partition`, `cpus`, `env` or `ppn` (including `binary`) is injected as an attribute onto the
     wrapper instance. This lets a wrapper accept custom configuration straight from the JSON
     without framework changes.
 
@@ -277,13 +353,14 @@ application:
 
 **`cpus`** is a string of comma-separated items, each a core number `N` or a range `A-B` with
 `A` not above `B`: `"0-15,32"`, `"4"`, `"0-3, 8-11"`. The cores are sorted, and a core listed
-twice is an error. It must list at least `ppn` cores (one per rank), and the same list is used on
-every host the app runs on. The `mpirun` launcher binds the ranks to it; see
-[Shared nodes](#shared-nodes) for how it combines with `allocation`, for the automatic split of
-apps without one, and for what the `srun` and `direct` launchers do with it. Other errors:
+twice is an error. It must list at least the app's own `ppn` cores (one per rank), and the same
+list is used on every host the app runs on. The `mpirun` and `srun` launchers bind the ranks to
+it; see [Shared nodes](#shared-nodes) for how it combines with `allocation`, for the automatic
+split of apps without one, and for the flags `srun` gets. The `direct` launcher does not bind.
+Other errors:
 
 - `cpus` on an app with `start: "sN"`: it runs on the cores of the app it waits for, so set
-  `cpus` there;
+  `cpus` there (its `ppn` may not exceed the number of those cores);
 - `cpus` under Slurm without `--exclusive` among the `sbatch_directives` or the preset's `sbatch`.
 
 **`env`** is an object of strings. Each key has to be a valid shell variable name (letters, digits
@@ -292,16 +369,20 @@ keys listed in the [presets reference](presets.md#removed-keys). The app's launc
 the variables just before the launch line, so they reach that app's ranks and no other app's, and
 they win over a variable of the same name in the preset's `env`. A value is exported as written,
 without shell expansion. With `mpirun` on Open MPI, CRAB also names these variables in `-x` so
-that remote ranks receive them; Hydra passes the whole environment.
+that remote ranks receive them; Hydra passes the whole environment. Each app's `env` is recorded
+in `crab_run.json` with its launch.
 
 ```json
 "0": {
-  "path": "blink/a2a_comm_only.py",
+  "path": "blink/alltoall_comm_only.py",
   "collect": true,
   "cpus": "0-3",
   "env": { "OMP_NUM_THREADS": "1" }
 }
 ```
+
+To give each app its own network interface, see
+[One network interface per app](../using/writing-configs.md#one-network-interface-per-app).
 
 ## Scheduling (`start` and `end`)
 
@@ -321,6 +402,10 @@ The `start` and `end` strings encode the victim/aggressor model and timed/sequen
 | `""` (empty) | Wait for the app to finish on its own. | [Victim](../glossary.md#victim) |
 | `"f"` | Force-terminate once all non-`f` apps have finished. | [Aggressor](../glossary.md#aggressor) |
 | a number | Terminate after that many seconds. | Timed |
+
+An app is stopped by killing it, and the output of a killed app is not collected. An app with
+`collect: true` that is still running when `f` or a timed `end` stops it has no data for that
+run; CRAB warns about this combination before the run starts.
 
 **Which nodes a chained app uses.** An app with `start: "sN"` runs on the nodes of application N,
 which have just been released. This carries along a chain: in `0` → `s0` → `s1` all three apps
@@ -352,9 +437,11 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
 ```
 
 !!! warning "CRAB protects some directives"
-    `--nodes` (`-N`), `--ntasks-per-node` and `--ntasks` (`-n`) are computed by the framework from
-    `numnodes` and `ppn`. Setting one in `sbatch_directives`, or in the preset's `sbatch`, stops
-    the run before anything is submitted, with a message that names `numnodes` or `ppn` instead.
+    `--nodes` (`-N`), `--ntasks-per-node` and `--ntasks` (`-n`) are computed by the framework:
+    `--nodes` from `numnodes`, and `--ntasks-per-node` as the largest per-node load of the apps'
+    `ppn` (see [Ranks per node](#ranks-per-node-ppn)). Setting one in `sbatch_directives`, or in
+    the preset's `sbatch`, stops the run before anything is submitted, with a message that names
+    `numnodes` or `ppn` instead.
     Overriding `--output`/`--error` is allowed but warned about, since it redirects CRAB's
     standard logs. Directives containing newlines are rejected. System-level directives from the
     preset are merged in with lower priority than your config's directives.
@@ -385,7 +472,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
       "description": "All-to-all victim against a Graph500 aggressor, interleaved nodes.",
       "apps": {
         "0": {
-          "path": "blink/a2a_comm_only.py",
+          "path": "blink/alltoall_comm_only.py",
           "args": "-msgsize 8192 -iter 1000",
           "collect": true,
           "start": "0",
@@ -393,7 +480,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
           "partition": "victim"
         },
         "1": {
-          "path": "others/g500.py",
+          "path": "graph500/g500_wrapper.py",
           "args": "",
           "collect": false,
           "start": "0",

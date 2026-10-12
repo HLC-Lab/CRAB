@@ -531,3 +531,63 @@ class TestWorkerWritesProvenanceWithSettings(unittest.TestCase):
             ):
                 engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
         write.assert_called_once_with(tmpdir, config, ["localhost"], LOCAL_DIRECT)
+
+
+class TestSubmittedTasksPerNode(unittest.TestCase):
+    def test_a_shared_config_submits_the_summed_per_node_load(self):
+        """Two shared apps with ppn 1 and 4 run together on each node: the job asks for 5."""
+        engine = _make_engine()
+        apps = {"0": {"path": "a.py", "ppn": 1}, "1": {"path": "b.py", "ppn": 4}}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                "global_options": {"numnodes": "2", "ppn": 1, "datapath": tmpdir},
+                "experiments": {
+                    "ex1": {"apps": apps, "local_options": {"allocation": {"mode": "shared"}}}
+                },
+            }
+            with patch("subprocess.check_output", return_value="Submitted batch job 99999"):
+                engine._run_orchestrator(config, {})
+            scripts = [
+                os.path.join(root, f)
+                for root, _, files in os.walk(tmpdir)
+                for f in files
+                if f == "crab_job.sh"
+            ]
+            self.assertTrue(scripts, "No crab_job.sh generated")
+            with open(scripts[0]) as f:
+                content = f.read()
+        self.assertIn("#SBATCH --ntasks-per-node=5", content)
+        self.assertNotIn("--ntasks-per-node=1\n", content)
+
+
+class TestSubmittedTasksPerNodeFallback(unittest.TestCase):
+    def _submit(self, experiments, **global_options):
+        engine = _make_engine()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                "global_options": {"numnodes": "2", "ppn": 1, "datapath": tmpdir, **global_options},
+                "experiments": experiments,
+            }
+            with patch("subprocess.check_output", return_value="Submitted batch job 1"):
+                engine._run_orchestrator(config, {})
+        return engine.log.warning
+
+    def test_an_app_ppn_that_cannot_be_summed_warns_once_about_the_global_ppn(self):
+        apps = {"0": {"path": "a.py", "ppn": "{p}"}, "1": {"path": "b.py"}}
+        warning = self._submit({"ex1": {"apps": apps}})
+        warning.assert_called_once()
+        self.assertIn("global ppn", warning.call_args.args[0])
+
+    def test_a_shared_allocation_that_cannot_be_summed_warns(self):
+        apps = {"0": {"path": "a.py"}, "1": {"path": "b.py"}}
+        local = {"allocation": {"mode": "shared"}, "ppn": "{p}"}
+        warning = self._submit({"ex1": {"apps": apps, "local_options": local}})
+        warning.assert_called_once()
+
+    def test_a_computed_load_does_not_warn(self):
+        apps = {"0": {"path": "a.py", "ppn": 2}}
+        self._submit({"ex1": {"apps": apps}}).assert_not_called()
+
+    def test_the_global_ppn_alone_does_not_warn_even_when_it_is_a_token(self):
+        apps = {"0": {"path": "a.py"}}
+        self._submit({"ex1": {"apps": apps}}, ppn="{p}").assert_not_called()

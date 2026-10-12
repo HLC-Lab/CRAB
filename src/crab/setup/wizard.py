@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from collections import deque
@@ -14,6 +15,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.text import Text
 
+import crab.core.process.manager as manager
 import crab.setup.memory as memory
 from crab.setup.registry import discover_recipes
 
@@ -33,28 +35,53 @@ def print_header(total_recipes: int | None = None, title: str = "Welcome to the 
         console.print(f"Found [bold]{total_recipes}[/bold] supported benchmarks.\n")
 
 
+class ModuleCaptureError(Exception):
+    """The pre-build module line could not be applied in a non-interactive bash."""
+
+
+def _module_init_script() -> str | None:
+    """First existing module-system init script, or None (`module` may be an exported function)."""
+    # Same candidates the job launcher script tries (one list in the manager, read at call
+    # time); `$LMOD_PKG/init/bash` is appended here.
+    candidates = list(manager.MODULE_INIT_SCRIPTS)
+    lmod_pkg = os.environ.get("LMOD_PKG")
+    if lmod_pkg:
+        candidates.append(os.path.join(lmod_pkg, "init", "bash"))
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
 def capture_module_environment(module_cmd: str) -> dict[str, str]:
-    """Evaluates module loads in an isolated shell to return precise path mutations."""
-    base_env = os.environ.copy()
+    """Evaluate a module line in a non-interactive bash and return the resulting environment.
+
+    Args:
+        module_cmd: e.g. "module load gcc openmpi"; empty means "no modules".
+
+    Raises:
+        ModuleCaptureError: the line exited non-zero (or bash could not run); the message
+            holds the command and the shell's stderr.
+    """
     if not module_cmd:
-        return base_env
+        return os.environ.copy()
+    init_script = _module_init_script()
+    init_snippet = f". {shlex.quote(init_script)} && " if init_script else ""
+    # `env -0` (NUL separated) keeps values that contain newlines intact.
+    full_cmd = f"{init_snippet}{module_cmd} && env -0"
     try:
-        init_snippet = (
-            ". /etc/profile.d/modules.sh" if os.path.exists("/etc/profile.d/modules.sh") else "true"
-        )
-        full_cmd = f"{init_snippet} && {module_cmd} && env"
-        result = subprocess.run(
-            ["bash", "-c", full_cmd], capture_output=True, text=True, check=True
-        )
-        parsed_env = {}
-        for line in result.stdout.splitlines():
-            if "=" in line:
-                k, v = line.split("=", 1)
-                parsed_env[k] = v
-        return parsed_env
-    except Exception as e:
-        console.print(f"[yellow]Warning: Environment module pre-evaluation limited: {e}[/yellow]")
-        return base_env
+        result = subprocess.run(["bash", "-c", full_cmd], capture_output=True, text=True)
+    except OSError as e:
+        raise ModuleCaptureError(f"{module_cmd!r} failed: {e}") from e
+    if result.returncode != 0:
+        detail = result.stderr.strip() or f"exit code {result.returncode}"
+        raise ModuleCaptureError(f"{module_cmd!r} failed: {detail}")
+    parsed_env = {}
+    for entry in result.stdout.split("\0"):
+        if "=" in entry:
+            k, v = entry.split("=", 1)
+            parsed_env[k] = v
+    return parsed_env
 
 
 def run_deep_search(recipe) -> str | None:
@@ -95,6 +122,44 @@ def handle_cleanup(benchmark_id: str):
                 ):
                     shutil.rmtree(target_cleanup)
                     console.print(f"[green]Cleaned up: {target_cleanup}[/green]")
+
+
+def _clear_leftover_build(benchmark_id: str, name: str) -> bool:
+    """Offer to remove a leftover `benchmarks/<id>` folder; True when the build may go on.
+
+    A failed build leaves the folder behind without a receipt, and `git clone` into a
+    non-empty folder fails. A folder a `source` receipt points at is `handle_cleanup`'s, so
+    it is left alone here. Only a real folder inside BENCHMARKS_DIR is ever removed: a
+    symlink or a plain file is never touched.
+    """
+    target = os.path.join(BENCHMARKS_DIR, benchmark_id)
+    if not os.path.lexists(target):
+        return True
+
+    receipt = memory.get_receipt(benchmark_id)
+    if receipt and receipt.get("type") == "source":
+        if receipt.get("binary_path", "").startswith(BENCHMARKS_DIR):
+            return True
+
+    skip_message = (
+        f"[yellow]Skipping {name}: remove {target} or answer yes to build again.[/yellow]"
+    )
+    if os.path.islink(target) or not os.path.isdir(target):
+        console.print(skip_message)
+        return False
+    if os.path.dirname(os.path.realpath(target)) != os.path.realpath(BENCHMARKS_DIR):
+        console.print(skip_message)
+        return False
+
+    if not Confirm.ask(
+        f"[yellow]Found a leftover build at {target}. Remove it and start again?[/yellow]",
+        default=True,
+    ):
+        console.print(skip_message)
+        return False
+    shutil.rmtree(target)
+    console.print(f"[green]Cleaned up: {target}[/green]")
+    return True
 
 
 def _group_recipes_by_suite(recipes) -> dict[str, list]:
@@ -416,7 +481,16 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                     "Enter necessary pre-build cluster module loads",
                     default="module load gcc openmpi",
                 )
-                target_env = capture_module_environment(mod_cmd)
+                try:
+                    target_env = capture_module_environment(mod_cmd)
+                except ModuleCaptureError as e:
+                    console.print(f"\n[bold red]Could not load the modules:[/bold red] {e}")
+                    console.print(
+                        f"[dim]Check the line works in a non-interactive bash: "
+                        f"bash -c {shlex.quote(mod_cmd)}[/dim]"
+                    )
+                    console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                    continue
                 if mod_cmd:
                     pre_run_hooks.append(mod_cmd)
 
@@ -437,6 +511,9 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                 continue
 
             handle_cleanup(recipe.benchmark_id)
+            if not _clear_leftover_build(recipe.benchmark_id, recipe.name):
+                console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                continue
             target_dir = os.path.join(BENCHMARKS_DIR, recipe.benchmark_id)
 
             current_step = "Initializing workspace environments..."

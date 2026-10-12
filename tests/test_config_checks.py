@@ -656,3 +656,208 @@ def test_a_cpus_the_launcher_ignores_is_a_warning_in_check_config() -> None:
     ]
     del config["global_options"]["launcher"]
     assert _check(config, _sixteen_core_host()) == []
+
+
+_LEGACY_ALLOCATION = {
+    "allocationmode": "p",
+    "partitionsplit": "50:50",
+    "partitionlayout": "i",
+    "allocationsplit": "100-100",
+}
+
+
+def test_legacy_allocation_keys_are_refused_with_the_new_form() -> None:
+    with pytest.raises(ValueError) as exc:
+        _run(global_options=dict(_LEGACY_ALLOCATION))
+    message = str(exc.value)
+    for key in _LEGACY_ALLOCATION:
+        assert key in message
+    assert "allocation" in message
+    assert "interleaved" in message
+    assert "partitions" in message
+    assert "partition" in message
+
+
+def test_legacy_allocation_key_in_local_options_names_the_experiment() -> None:
+    with pytest.raises(ValueError, match=r"e1.*partitionsplit"):
+        _run(local={"partitionsplit": "50:50"})
+
+
+def test_modern_allocation_block_passes_without_legacy_keys() -> None:
+    _passes_checks(global_options={"allocation": {"mode": "interleaved"}})
+
+
+# --- Silent data loss and ignored keys ----------------------------------------------------
+# Before: a collected app stopped by `end` ("f" or a time) had its output skipped without a
+# message (collect_run skips a non-zero returncode), and keys the engine reads only once for
+# the whole job (or not at all) were silently ignored at experiment level.
+
+
+def _warnings_for(apps: dict | None = None, local: dict | None = None, **exp_keys: object):
+    from crab.core.config_checks import check_config
+
+    exp: dict = {"apps": apps if apps is not None else {"0": {"path": "a.py"}}, **exp_keys}
+    if local is not None:
+        exp["local_options"] = local
+    return check_config({"global_options": {}, "experiments": {"e1": exp}})
+
+
+@pytest.mark.parametrize("end", ["f", "60", 60])
+def test_collected_app_stopped_by_end_is_warned_about(end: object) -> None:
+    warnings = _warnings_for(apps={"7": {"path": "a.py", "collect": True, "end": end}})
+    assert len(warnings) == 1
+    assert "experiment e1: app 7" in warnings[0]
+    assert "not collected" in warnings[0]
+    assert "still running" in warnings[0]
+
+
+def test_string_collect_true_is_warned_about_too() -> None:
+    warnings = _warnings_for(apps={"0": {"path": "a.py", "collect": "true", "end": "f"}})
+    assert len(warnings) == 1
+    assert "experiment e1: app 0" in warnings[0]
+
+
+@pytest.mark.parametrize(
+    "app",
+    [
+        {"path": "a.py", "collect": True, "end": ""},
+        {"path": "a.py", "collect": True},
+        {"path": "a.py", "collect": False, "end": "f"},
+        {"path": "a.py", "end": "f"},
+        {"path": "a.py", "collect": "false", "end": "60"},
+    ],
+)
+def test_other_collect_end_combinations_are_not_warned_about(app: dict) -> None:
+    assert _warnings_for(apps={"0": app}) == []
+
+
+@pytest.mark.parametrize("key", ["numnodes", "walltime", "sbatch_directives"])
+def test_job_level_key_in_local_options_is_warned_about(key: str) -> None:
+    value = {"--qos": "x"} if key == "sbatch_directives" else "4"
+    warnings = _warnings_for(local={key: value})
+    assert len(warnings) == 1
+    assert "experiment e1" in warnings[0]
+    assert f"local_options.{key}" in warnings[0]
+    assert "whole job" in warnings[0]
+    assert "global_options" in warnings[0]
+
+
+def test_unknown_experiment_level_key_is_warned_about() -> None:
+    warnings = _warnings_for(sbatch_directives=["--qos=x"])
+    assert len(warnings) == 1
+    assert "experiment e1" in warnings[0]
+    assert "sbatch_directives" in warnings[0]
+    assert "ignored" in warnings[0]
+
+
+def test_description_local_options_and_apps_are_allowed_in_an_experiment() -> None:
+    assert _warnings_for(local={"retain_files": True}, description="a baseline") == []
+
+
+def test_launcher_options_are_allowed_in_local_options() -> None:
+    local = {"launcher": "mpirun", "launcher_flags": ["--bind-to", "core"]}
+    assert _warnings_for(local=local) == []
+
+
+# -- ppn per app and per experiment ---------------------------------------------------------------
+
+
+def _ppn_cfg(app: dict | None = None, local: dict | None = None, **global_options: object) -> dict:
+    exp: dict = {"apps": {"0": {"path": "a.py", **(app or {})}}}
+    if local is not None:
+        exp["local_options"] = local
+    return {"global_options": {"numnodes": 1, **global_options}, "experiments": {"e1": exp}}
+
+
+@pytest.mark.parametrize("value", [0, -2, "x", "0", 2.5, True, None])
+def test_an_app_ppn_must_be_a_positive_integer(value: object) -> None:
+    config = _ppn_cfg(app={"ppn": value})
+    with pytest.raises(ValueError, match=r"experiment e1: app 0: ppn must be a positive integer"):
+        _check(config)
+
+
+@pytest.mark.parametrize("value", [0, "x", True])
+def test_a_local_options_ppn_must_be_a_positive_integer(value: object) -> None:
+    config = _ppn_cfg(local={"ppn": value})
+    with pytest.raises(ValueError, match=r"experiment e1: local_options: ppn must be a positive"):
+        _check(config)
+
+
+@pytest.mark.parametrize("value", [1, 4, "4", "{p}"])
+def test_a_ppn_number_or_token_passes_on_an_app_and_in_local_options(value: object) -> None:
+    assert _check(_ppn_cfg(app={"ppn": value})) == []
+    assert _check(_ppn_cfg(local={"ppn": value})) == []
+
+
+@pytest.mark.parametrize("value", [0, "x", None])
+def test_a_global_ppn_must_be_a_positive_integer(value: object) -> None:
+    with pytest.raises(ValueError, match=r"global_options: ppn must be a positive integer"):
+        _check(_ppn_cfg(ppn=value))
+
+
+@pytest.mark.parametrize("value", [4, "4", "{p}"])
+def test_a_global_ppn_number_or_token_passes(value: object) -> None:
+    assert _check(_ppn_cfg(ppn=value)) == []
+
+
+def test_local_options_ppn_is_no_longer_called_ignored_but_numnodes_still_is() -> None:
+    assert _warnings_for(local={"ppn": 2}) == []
+    assert len(_warnings_for(local={"numnodes": 2})) == 1
+
+
+def test_direct_launcher_checks_the_effective_ppn_of_every_app() -> None:
+    from settings_fixtures import LOCAL_DIRECT
+
+    message = r"experiment e1: .*direct launcher runs a single process"
+    with pytest.raises(ValueError, match=message):
+        _check(_ppn_cfg(app={"ppn": 2}), LOCAL_DIRECT)
+    with pytest.raises(ValueError, match=message):
+        _check(_ppn_cfg(local={"ppn": 2}), LOCAL_DIRECT)
+    # An app's own ppn beats the larger global one.
+    assert _check(_ppn_cfg(app={"ppn": 1}, ppn=4), LOCAL_DIRECT) == []
+
+
+def test_placement_checks_use_the_apps_effective_ppn() -> None:
+    from settings_fixtures import slurm_settings
+
+    settings = slurm_settings()
+    directives = ["--exclusive"]
+    config = _ppn_cfg(app={"cpus": "0-1"}, local={"ppn": 4}, sbatch_directives=directives)
+    with pytest.raises(ValueError, match=r"experiment e1: app 0: cpus lists 2 core"):
+        _check(config, settings)
+    # An app's own ppn beats the larger global one: the two cores are enough, nothing to warn about.
+    config = _ppn_cfg(app={"cpus": "0-1", "ppn": 2}, ppn=4, sbatch_directives=directives)
+    assert _check(config, settings) == []
+    # ... and an app ppn beyond its cores is refused although the global ppn would fit.
+    config = _ppn_cfg(app={"cpus": "0-1", "ppn": 3}, ppn=1, sbatch_directives=directives)
+    with pytest.raises(ValueError, match=r"experiment e1: app 0: cpus lists 2 core.*ppn 3"):
+        _check(config, settings)
+
+
+@pytest.mark.parametrize(
+    ("flags", "reported"),
+    [
+        (["--mpi=pmix --cpu-bind=cores"], "--cpu-bind=cores"),
+        (["--cpu-bind cores"], "--cpu-bind"),
+        (["--mpi=pmix", "--cpu_bind=socket --exact"], "--cpu_bind=socket"),
+    ],
+)
+def test_check_config_warns_about_a_cpu_bind_inside_a_multi_word_launcher_flag(
+    flags: list[str], reported: str
+) -> None:
+    from settings_fixtures import slurm_settings
+
+    config = {
+        "global_options": {"numnodes": 1, "ppn": 1},
+        "experiments": {
+            "e1": {
+                "apps": {"0": {"path": "a.py"}, "1": {"path": "b.py"}},
+                "local_options": {"allocation": {"mode": "shared"}},
+            }
+        },
+    }
+    warnings = _check(config, slurm_settings(launchers={"srun": {"flags": flags}}))
+    assert [w for w in warnings if "core binding" in w] == [
+        f"experiment e1: launcher flag '{reported}' is replaced by CRAB's core binding "
+        "for apps that share nodes or set cpus"
+    ]

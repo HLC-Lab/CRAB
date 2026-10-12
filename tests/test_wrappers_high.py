@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from conftest import requires_wrappers_checkout
+
 # ── Runner: sbatch_directives list format ─────────────────────────────────────
 
 
@@ -22,6 +24,7 @@ class TestRunnerSbatchDirectivesList(unittest.TestCase):
 # ── pw_base / ph_base: None binary raises ─────────────────────────────────────
 
 
+@requires_wrappers_checkout
 class TestPwBaseNoneBinary(unittest.TestCase):
     def _make_pw_app(self):
         """Create a minimal pw_base subclass instance."""
@@ -63,6 +66,7 @@ class TestPwBaseNoneBinary(unittest.TestCase):
             os.unlink(input_path)
 
 
+@requires_wrappers_checkout
 class TestPwBaseOutdirRegex(unittest.TestCase):
     def _make_pw_app(self):
         wrappers_path = os.path.join(
@@ -120,6 +124,7 @@ def _make_nccl():
     return _load_wrapper("_nccl_common")
 
 
+@requires_wrappers_checkout
 class TestNcclCommon(unittest.TestCase):
     def setUp(self):
         self.mod = _make_nccl()
@@ -187,6 +192,7 @@ def _load_wrapper(name):
     return mod
 
 
+@requires_wrappers_checkout
 class TestEmberIncastPath(unittest.TestCase):
     def test_no_double_r_in_ember_path(self):
         """The binary path must contain 'ember', not 'emberr'."""
@@ -201,6 +207,7 @@ class TestEmberIncastPath(unittest.TestCase):
 # ── ib_send_lat: missing env var ──────────────────────────────────────────────
 
 
+@requires_wrappers_checkout
 class TestIbSendLat(unittest.TestCase):
     def test_read_data_raises_descriptively_when_env_unset(self):
         """read_data must raise a clear RuntimeError when CRAB_IB_DEVICES is unset."""

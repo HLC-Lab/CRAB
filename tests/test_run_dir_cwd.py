@@ -17,6 +17,7 @@ DIRECT = LauncherSpec("direct", (), "", (), ())
 class _Job:
     def __init__(self, run_dir: Path, command: str) -> None:
         self.id_num = 0
+        self.ppn = 1
         self.node_list = ["localhost"]
         self.run_dir = str(run_dir)
         self._command = command
@@ -33,7 +34,7 @@ def test_the_app_process_starts_in_its_run_dir(tmp_path: Path) -> None:
     run_dir.mkdir(parents=True)
     job = _Job(run_dir, "pwd > where.txt")
 
-    run_job(job, DIRECT, 1, MagicMock())
+    run_job(job, DIRECT, MagicMock())
     job.process.wait(timeout=10)
 
     assert (run_dir / "where.txt").read_text().strip() == str(run_dir)

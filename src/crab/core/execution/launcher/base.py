@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, Protocol
 
 
 @dataclass(frozen=True)
@@ -13,12 +13,17 @@ class Placement:
     `cpus` is the explicit core list every host's ranks are bound to (one core per rank);
     `bind_none` asks the launcher not to bind at all (an app on shared cores with no list), and
     `cpus` wins when both are given. Neither means the launcher's own default.
+    `co_run` is set when the app's nodes are shared with another app of the same experiment
+    running at the same time ("shared" when the allocation says `cores: "shared"`).
+    `job_ranks_per_host` is the job's tasks per node from the sbatch header.
     """
 
     hosts: tuple[str, ...]
     ranks_per_host: int
     cpus: tuple[int, ...] | None = None
     bind_none: bool = False
+    co_run: Literal["disjoint", "shared"] | None = None
+    job_ranks_per_host: int | None = None
 
     @property
     def total_ranks(self) -> int:

@@ -16,12 +16,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   allocationSummary,
+  cloneExperiment,
   emptyApp,
   emptyDraft,
   emptyExperiment,
   emptyOptions,
   fromAllocation,
   fromConfig,
+  hasLocalOverrides,
   normalizeSplitToPartitions,
   optionsAreSet,
   toAllocation,
@@ -58,8 +60,8 @@ const GLOBAL_KEYS = new Set([
   "sbatch_directives",
   ...OPTION_KEYS,
 ]);
-// numnodes/ppn/name are job-level only and never valid in local_options.
-const LOCAL_KEYS = new Set(["allocation", ...OPTION_KEYS]);
+// numnodes/name are job-level only and never valid in local_options; ppn may be overridden there.
+const LOCAL_KEYS = new Set(["allocation", "ppn", ...OPTION_KEYS]);
 
 // Fixtures are raw engine-JSON shapes; typing them defeats the point of
 // exercising untyped hand-written configs.
@@ -456,6 +458,21 @@ const fixtures: { name: string; config: AnyObj }[] = [
       },
     },
   },
+  {
+    name: "ppn per app and per experiment, next to the global one",
+    config: {
+      global_options: { numnodes: "2", ppn: "1" },
+      experiments: {
+        ex1: {
+          local_options: { ppn: "2" },
+          apps: {
+            0: { path: "a.py", args: "", collect: true, start: "0", end: "", ppn: "4" },
+            1: { path: "b.py", args: "", collect: false, start: "0", end: "f" },
+          },
+        },
+      },
+    },
+  },
 ];
 
 describe("config round-trip (synthetic fixtures)", () => {
@@ -773,6 +790,72 @@ describe("launcher options (ADR-033)", () => {
   it("a valid launcher and flag list pass validation", () => {
     const d = fromConfig(cfg({ launcher: "srun", launcher_flags: ["--exact"] }));
     expect(validateDraft(d).filter((m: string) => /launcher/.test(m))).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ranks per node per app and per experiment (ADR-036 decision 3).
+// ---------------------------------------------------------------------------
+describe("per-app and per-experiment ppn", () => {
+  const cfg = (app: AnyObj, local: AnyObj = {}): AnyObj => ({
+    global_options: { numnodes: "4", ppn: "1" },
+    experiments: {
+      ex1: {
+        local_options: local,
+        apps: { 0: { path: "a.py", args: "", collect: true, start: "0", end: "", ...app } },
+      },
+    },
+  });
+
+  it("reads an app's ppn into its draft field, not into rest", () => {
+    const app = fromConfig(cfg({ ppn: "4", extra: "x" })).experiments[0].apps[0];
+    expect(app.ppn).toBe("4");
+    expect(app.rest).toEqual({ extra: "x" });
+  });
+
+  it("reads an experiment's local ppn into its draft field", () => {
+    expect(fromConfig(cfg({}, { ppn: "2" })).experiments[0].ppn).toBe("2");
+  });
+
+  it("emits app ppn 4 and experiment ppn 2 the way the global one is emitted", () => {
+    const out = toConfig(fromConfig(cfg({ ppn: "4" }, { ppn: "2" })));
+    expect(out.experiments.ex1.apps[0].ppn).toBe("4");
+    expect(out.experiments.ex1.local_options).toEqual({ ppn: "2" });
+  });
+
+  it("emits no ppn key when the fields are empty or blank", () => {
+    const d = fromConfig(cfg({}));
+    d.experiments[0].apps[0].ppn = "  ";
+    d.experiments[0].ppn = " ";
+    const out = toConfig(d).experiments.ex1;
+    expect("ppn" in out.apps[0]).toBe(false);
+    expect(out.local_options).toBeUndefined();
+  });
+
+  it("trims on emit", () => {
+    const d = fromConfig(cfg({}));
+    d.experiments[0].apps[0].ppn = " 4 ";
+    d.experiments[0].ppn = " 2 ";
+    const out = toConfig(d).experiments.ex1;
+    expect(out.apps[0].ppn).toBe("4");
+    expect(out.local_options).toEqual({ ppn: "2" });
+  });
+
+  it("an app and an experiment made empty have no ppn", () => {
+    expect(emptyApp().ppn).toBe("");
+    expect(emptyExperiment("x").ppn).toBe("");
+  });
+
+  it("a cloned experiment keeps both ppn values", () => {
+    const d = fromConfig(cfg({ ppn: "4" }, { ppn: "2" }));
+    const copy = cloneExperiment(d.experiments[0]);
+    expect(copy.ppn).toBe("2");
+    expect(copy.apps[0].ppn).toBe("4");
+  });
+
+  it("an experiment with only a ppn override counts as overriding", () => {
+    expect(hasLocalOverrides(fromConfig(cfg({}, { ppn: "2" })).experiments[0])).toBe(true);
+    expect(hasLocalOverrides(fromConfig(cfg({}, {})).experiments[0])).toBe(false);
   });
 });
 

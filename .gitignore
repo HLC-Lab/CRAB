@@ -15,6 +15,9 @@ hosts
 # Per-machine files (presets overrides, receipts, private wrappers); never committed
 /local/
 
+# The wrappers are a separate repository (HLC-Lab/crab-wrappers), cloned here by make or crab update
+/wrappers/
+
 # Generated dashboard exports (contain embedded data, should not be committed)
 crab_export.html
 *_export.html

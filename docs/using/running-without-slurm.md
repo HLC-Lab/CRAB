@@ -247,5 +247,5 @@ files produced the results. Two of its sections describe the launches:
   with `"dialect": "auto"`. If the probe fails, `dialect` is `null` and `probe_error` says why;
   the failure does not stop the job at this point.
 - `launches`: for each experiment and application, the first launch line that was run (`line`),
-  the launcher `kind`, the `dialect` (`null` unless it was `mpirun`) and the path of its
-  `binding_report` (`null` unless it was `mpirun`).
+  the launcher `kind`, the `dialect` (`null` unless it was `mpirun`), the path of its
+  `binding_report` (`null` unless it was `mpirun`), the application's `ppn` and its `env`.

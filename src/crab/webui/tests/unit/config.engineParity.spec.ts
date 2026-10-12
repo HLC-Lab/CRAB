@@ -80,7 +80,7 @@ describe("placeholder tokens pass validation where they are saved (toAllocation 
   });
 });
 
-describe("sbatch directives follow the engine (core/config_checks.py MANAGED_DIRECTIVES)", () => {
+describe("sbatch directives follow the engine (core/execution/launch_checks.py MANAGED_DIRECTIVES)", () => {
   const warn = (lines: string[]) => validateSbatch(fromSbatch(lines));
   const useNumnodes = (text: string, key: string) =>
     `sbatch_directives: '${text}' sets '${key}', which CRAB manages itself: use numnodes`;
@@ -129,7 +129,7 @@ describe("sbatch list form keeps short flags as written (Slurm takes -J name, -o
   });
 });
 
-describe("launcher options (core/config_checks.py _check_launcher_options)", () => {
+describe("launcher options (core/execution/launch_checks.py check_launcher_options)", () => {
   const withOptions = (global: AnyObj, local?: AnyObj): AnyObj => ({
     global_options: { numnodes: "4", ...global },
     experiments: {
@@ -243,6 +243,32 @@ describe("shared allocation (core/config_checks.py _check_shared_scope)", () => 
     expect(
       issues({ mode: "linear", partitions: { v: {}, a: { mode: "shared", cores: "shared" } } }),
     ).toEqual([]);
+  });
+});
+
+describe("ppn per app and per experiment (ADR-036; same rule as the global ppn)", () => {
+  const ppnIssues = (app: AnyObj, local: AnyObj = {}): string[] => {
+    const config = oneApp(app);
+    config.experiments.ex1.local_options = local;
+    return validateDraft(fromConfig(config)).filter((m) => /processes per node/.test(m));
+  };
+
+  it("accepts a positive integer or nothing", () => {
+    expect(ppnIssues({ ppn: "4" }, { ppn: "2" })).toEqual([]);
+    expect(ppnIssues({}, {})).toEqual([]);
+    expect(ppnIssues({ ppn: "" }, { ppn: "" })).toEqual([]);
+  });
+
+  it("refuses a non-positive-integer app ppn, naming the app", () => {
+    const msg = "ex1 · app #0: processes per node must be a positive integer.";
+    expect(ppnIssues({ ppn: "0" })).toEqual([msg]);
+    expect(ppnIssues({ ppn: "x" })).toEqual([msg]);
+  });
+
+  it("refuses a non-positive-integer experiment ppn, naming the experiment", () => {
+    const msg = 'Experiment "ex1": processes per node must be a positive integer.';
+    expect(ppnIssues({}, { ppn: "-1" })).toEqual([msg]);
+    expect(ppnIssues({}, { ppn: "0" })).toEqual([msg]);
   });
 });
 

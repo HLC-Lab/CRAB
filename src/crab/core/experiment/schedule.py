@@ -55,7 +55,6 @@ def build_schedule(apps: list[Any]) -> Schedule:
 def run_events(
     apps: list[Any],
     launchers: list[LauncherSpec],
-    ppn: int,
     schedule: Schedule,
     run_log: Any,
     data_path: Any,
@@ -96,7 +95,6 @@ def run_events(
                     run_job(
                         apps[aid],
                         launchers[aid],
-                        ppn,
                         logger=app_log,
                         pre_commands=merged_pre_commands,
                         live_stream=concurrent,
@@ -176,7 +174,6 @@ def run_events(
                 run_job(
                     apps[waiter],
                     launchers[waiter],
-                    ppn,
                     logger=dep_log,
                     pre_commands=merged_pre_commands,
                     live_stream=True,
@@ -208,10 +205,15 @@ def run_events(
 
 
 def kill_f_apps(apps: list[Any], run_log: Any) -> None:
-    # ── Lorenzo's modifications ──────────────────────────────
-    # Kill "f" apps now that all other work is done
-    for app in apps:
-        if str(app.config_end) == "f":
-            if app.process is not None and app.process.poll() is None:
-                end_job(app, run_log)
-    # ─────────────────────────────────────────────────────────
+    # Stop the "f" apps still running now that all other work is done: one shared grace, then
+    # end_job collects each one's output.
+    leftover = [
+        app
+        for app in apps
+        if str(app.config_end) == "f" and app.process is not None and app.process.poll() is None
+    ]
+    if leftover:
+        labels = {app.process.pid: f"App {app.id_num}" for app in leftover}
+        stop_processes([app.process for app in leftover], run_log, labels=labels)
+        for app in leftover:
+            end_job(app, run_log)

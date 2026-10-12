@@ -40,8 +40,11 @@ class _FakePopen:
 class _Job:
     """An app as the runner leaves it: `run_dir`, `exp_dir` and `run_number` are set per run."""
 
-    def __init__(self, exp_dir: Path, run_number: int | None = 1, app_id: int = 0) -> None:
+    def __init__(
+        self, exp_dir: Path, run_number: int | None = 1, app_id: int = 0, ppn: int = 2
+    ) -> None:
         self.id_num = app_id
+        self.ppn = ppn
         self.node_list = ["n1"]
         self.exp_dir = str(exp_dir)
         self.run_dir = str(exp_dir / f"run_{run_number}" / f"app_{app_id}")
@@ -84,9 +87,9 @@ def _script(job: _Job) -> str:
     return (Path(job.run_dir) / ".wrappers" / f"app_{job.id_num}.sh").read_text()
 
 
-def _run(job: _Job, spec: LauncherSpec, ppn: int = 2) -> None:
+def _run(job: _Job, spec: LauncherSpec) -> None:
     with patch.dict(os.environ, {"PATH": "/p"}, clear=True):
-        process_manager.run_job(job, spec, ppn, MagicMock())
+        process_manager.run_job(job, spec, MagicMock())
 
 
 def test_an_mpirun_launch_is_recorded_with_its_line_kind_dialect_and_binding_report(
@@ -100,7 +103,14 @@ def test_an_mpirun_launch_is_recorded_with_its_line_kind_dialect_and_binding_rep
     line = "/opt/ompi/bin/mpirun -n 2 --host n1:2 --display bindings ./app -x 1"
     assert _launches(job_dir) == {
         "e1": {
-            "0": {"line": line, "kind": "mpirun", "dialect": "openmpi5", "binding_report": bindings}
+            "0": {
+                "line": line,
+                "kind": "mpirun",
+                "dialect": "openmpi5",
+                "binding_report": bindings,
+                "ppn": 2,
+                "env": {},
+            }
         }
     }
     lines = _script(job).splitlines()
@@ -142,6 +152,17 @@ def test_srun_and_direct_record_no_binding_report_and_no_tee(
     assert "tee" not in _script(job)
     assert not (exp_dir / "bindings_app_0.log").exists()
     assert record["line"] == _script(job).splitlines()[-1]
+
+
+def test_the_launch_record_holds_the_apps_ppn_and_env(layout: tuple[Path, Path]) -> None:
+    job_dir, exp_dir = layout
+    job = _Job(exp_dir, ppn=3)
+    job.app_env = {"OMP_NUM_THREADS": "4"}
+    _run(job, SRUN)
+
+    record = _launches(job_dir)["e1"]["0"]
+    assert record["ppn"] == 3
+    assert record["env"] == {"OMP_NUM_THREADS": "4"}
 
 
 def test_a_second_launch_of_the_same_app_does_not_rewrite_the_record(
@@ -198,9 +219,9 @@ def test_the_tee_keeps_stderr_on_the_app_pipe_and_fills_the_bindings_log(
     spec = LauncherSpec("mpirun", (str(fake),), "openmpi5", (), ())
 
     for run_number in (1, 2):
-        job = _Job(exp_dir, run_number=run_number)
+        job = _Job(exp_dir, run_number=run_number, ppn=1)
         with patch.dict(os.environ, {"PATH": os.environ["PATH"]}, clear=True):
-            process_manager.run_job(job, spec, 1, MagicMock())
+            process_manager.run_job(job, spec, MagicMock())
         assert job.process.wait(timeout=20) == 0
         job._stream_thread.join(timeout=5)
         assert b"".join(job.raw_stdout_buffer) == b"out\n"

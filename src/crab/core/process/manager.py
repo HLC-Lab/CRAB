@@ -18,6 +18,10 @@ _SHELL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 # How long stop_processes waits after SIGTERM before it sends SIGKILL (ADR-034, "Cancel order").
 STOP_GRACE_SECONDS = 10.0
 
+# How long stop_processes waits, in all, for the processes it SIGKILLed to be reaped before it
+# gives up on the rest.
+KILL_WAIT_SECONDS = 5.0
+
 # Live app processes by pid, with the label their log lines use. A worker that is terminated
 # stops whatever is left here (stop_all_registered) even when the stop that SIGTERM interrupted
 # was the only thing that knew about them.
@@ -82,8 +86,12 @@ def _group_members(pgid: int) -> bool:
     return False
 
 
-def _signal_group(pgid: int, sig: int) -> None:
+def _signal_group(pgid: int, sig: int, logger: CrabLogger, who: str) -> bool:
     """Send `sig` to process group `pgid`, a group CRAB started (its leader's pid).
+
+    Returns whether the signal may have reached the group. A refused group and a PermissionError
+    are logged as a warning naming `who`; a group that is already gone (ProcessLookupError) is the
+    normal race and stays silent.
 
     The pid-reuse argument: on Linux a pid number stays allocated while any process uses it as its
     group id, so a group that still has members cannot have its id handed to someone else. Callers
@@ -91,11 +99,16 @@ def _signal_group(pgid: int, sig: int) -> None:
     is unreaped; SIGKILL: just before sending). On macOS the `killpg(pgid, 0)` probe means the same.
     """
     if not _usable_pgid(pgid):
-        return
+        logger.warning(f"{who}: not signalled, unsafe process group")
+        return False
     try:
         os.killpg(pgid, sig)
-    except (ProcessLookupError, PermissionError):
-        pass  # already gone, or no longer ours to signal
+    except ProcessLookupError:
+        pass  # already gone
+    except PermissionError:
+        logger.warning(f"{who}: not signalled, permission denied")
+        return False
+    return True
 
 
 def stop_processes(
@@ -114,16 +127,25 @@ def stop_processes(
 
     Args:
         procs: the app processes (children started with start_new_session=True, so pid == pgid).
-        logger: receives one line per process whose group needed SIGKILL.
+        logger: receives one line per process whose group needed SIGKILL, and a warning for each
+            process that was not signalled or was still alive after SIGKILL.
         grace: seconds to wait after SIGTERM before SIGKILL; STOP_GRACE_SECONDS when None.
         labels: optional pid -> name (such as "App 2") used in the log line instead of the pid.
     """
     if grace is None:
         grace = STOP_GRACE_SECONDS
-    running = [proc for proc in procs if proc.poll() is None]
+    labels = labels or {}
+
+    def who(pid: int) -> str:
+        return f"{labels[pid]} (pid {pid})" if pid in labels else f"PID {pid}"
+
+    # A process whose group cannot be signalled is not waited for: nothing would end it.
+    running = [
+        proc
+        for proc in procs
+        if proc.poll() is None and _signal_group(proc.pid, signal.SIGTERM, logger, who(proc.pid))
+    ]
     pgids = [proc.pid for proc in running]
-    for pgid in pgids:
-        _signal_group(pgid, signal.SIGTERM)
 
     deadline = time.monotonic() + grace
     while True:
@@ -135,13 +157,18 @@ def stop_processes(
             break
         time.sleep(0.1)
 
+    kill_deadline = time.monotonic() + KILL_WAIT_SECONDS
     for proc, pgid in zip(running, pgids, strict=True):
         # Re-check right before sending: the group may have emptied since the loop ended.
         if _group_members(pgid):
-            name = (labels or {}).get(pgid, f"PID {pgid}")
+            name = labels.get(pgid, f"PID {pgid}")
             logger.warning(f"{name}: still running after {grace:g}s, sending SIGKILL")
-            _signal_group(pgid, signal.SIGKILL)
-        proc.wait()
+            _signal_group(pgid, signal.SIGKILL, logger, who(pgid))
+        try:
+            proc.wait(timeout=max(0.0, kill_deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            logger.warning(f"{who(pgid)} still alive after SIGKILL")
+            continue
         unregister_process(proc)
 
     # Processes that had exited before this call are reaped too (poll() reaps them).
@@ -168,17 +195,28 @@ def stop_all_registered(logger: CrabLogger, grace: float | None = None) -> None:
         _registry.clear()
 
 
+# Tried in order inside the launcher script, on the compute node; the first that exists
+# initialises the `module` command (Lmod sites often lack /etc/profile.d/modules.sh).
+# `$LMOD_PKG/init/bash` is appended at run time. The setup wizard reads this same list to
+# capture module lines (crab/setup/wizard.py).
+MODULE_INIT_SCRIPTS: tuple[str, ...] = (
+    "/etc/profile.d/modules.sh",
+    "/etc/profile.d/lmod.sh",
+    "/usr/share/lmod/lmod/init/bash",
+)
+
+
 def run_job(
     job,
     spec: LauncherSpec,
-    ppn: int,
     logger: CrabLogger,
     pre_commands: list[str] = None,
     live_stream: bool = False,
     data_path: str = None,
 ):
     """
-    Launch an application process under the launcher `spec` describes, through a wrapper script.
+    Launch an application process under the launcher `spec` describes, through a wrapper script,
+    with `job.ppn` ranks on each of the job's hosts.
 
     A job that has `exp_dir` (the experiment directory, set by the runner for every run) gets its
     first launch recorded in the job directory's `crab_run.json`, and under mpirun its stderr
@@ -206,14 +244,19 @@ def run_job(
     # cores without a core list is left unbound so co-located launches do not pile onto the
     # first cores.
     cpus = getattr(job, "cpu_list", None)
+    # Slurm sets this from the batch script's --ntasks-per-node; the local scheduler scrubs SLURM_*.
+    job_tasks = os.environ.get("SLURM_NTASKS_PER_NODE", "")
+    job_ranks = int(job_tasks) if job_tasks.isascii() and job_tasks.isdigit() else None
     launcher = launcher_for(spec, extra_export=tuple(app_env))
     cmd_string = launch_line(
         launcher,
         Placement(
             tuple(job.node_list),
-            ppn,
+            job.ppn,
             cpus=tuple(cpus) if cpus else None,
             bind_none=bool(getattr(job, "shared_cores", False)) and not cpus,
+            co_run=getattr(job, "co_run", None),
+            job_ranks_per_host=job_ranks or None,
         ),
         app_command,
     )
@@ -234,6 +277,8 @@ def run_job(
                 "kind": spec.kind,
                 "dialect": launcher.dialect if isinstance(launcher, MpirunLauncher) else None,
                 "binding_report": bindings_path,
+                "ppn": job.ppn,
+                "env": app_env,
             },
         )
 
@@ -247,9 +292,13 @@ def run_job(
     with open(script_path, "w") as f:
         f.write("#!/bin/bash\n")
         # Natively bring the cluster's module command to life
-        f.write("if [ -f /etc/profile.d/modules.sh ]; then\n")
-        f.write("    source /etc/profile.d/modules.sh\n")
-        f.write("fi\n\n")
+        candidates = " ".join(shlex.quote(path) for path in MODULE_INIT_SCRIPTS)
+        f.write(f'for _crab_init in {candidates} ${{LMOD_PKG:+"$LMOD_PKG/init/bash"}}; do\n')
+        f.write('    if [ -f "$_crab_init" ]; then\n')
+        f.write('        source "$_crab_init"\n')
+        f.write("        break\n")
+        f.write("    fi\n")
+        f.write("done\n\n")
 
         # Inject application-specific hooks cleanly
         if pre_commands:
@@ -274,7 +323,7 @@ def run_job(
 
     # 3. Execute the physical script as a clean subprocess.
     # start_new_session=True puts bash in its own process group so that
-    # os.killpg() in end_job can reach srun/mpirun children as well.
+    # stop_processes() in end_job can reach srun/mpirun children as well.
     process = subprocess.Popen(
         ["bash", script_path],
         stdout=subprocess.PIPE,
@@ -316,6 +365,12 @@ def end_job(job, logger: CrabLogger) -> None:
     # Let the stdout reader thread drain the last bytes and exit cleanly.
     if hasattr(job, "_stream_thread") and job._stream_thread:
         job._stream_thread.join(timeout=2.0)
+
+    if job.process.poll() is None:
+        # The stop could not end it: reading stderr or waiting would block on a live process.
+        logger.warning(f"App {job.id_num}: still running, output not collected")
+        job.set_output(b"".join(getattr(job, "raw_stdout_buffer", [])), b"")
+        return
 
     # Reconstruct stdout from the buffer; read any remaining stderr directly
     # (no concurrent reader on stderr, so this is safe and returns immediately

@@ -25,16 +25,18 @@ class NodeAllocator:
         exact_shares = [total_items * (p / 100.0) for p in percentages]
         base_alloc = [int(math.floor(share)) for share in exact_shares]
 
-        # Calculate the deficit (remainder) for each index
+        # Calculate the remainder of each index
         remainders = [(i, exact_shares[i] - base_alloc[i]) for i in range(len(exact_shares))]
-        missing = total_items - sum(base_alloc)
+
+        # Assign only the nodes the percentages cover (rounded half up): sums of 100 (up to
+        # the 100.1 tolerance) assign every node, a smaller sum leaves the rest idle.
+        target = min(total_items, math.floor(sum(exact_shares) + 0.5))
+        missing = max(0, target - sum(base_alloc))
 
         # Sort by largest remainder descending
         remainders.sort(key=lambda x: x[1], reverse=True)
 
-        # Distribute the missing nodes to those closest to a whole node.
-        # Clamp to len(remainders): if percentages don't sum to 100, missing can
-        # exceed the number of buckets — don't try to assign unaccounted nodes.
+        # Hand the missing nodes to the buckets closest to a whole node.
         for i in range(min(missing, len(remainders))):
             base_alloc[remainders[i][0]] += 1
 

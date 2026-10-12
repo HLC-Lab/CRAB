@@ -96,7 +96,9 @@ class LocalScheduler:
         self._worker_argv = worker_argv
         self.hosts = hosts
 
-    def submit(self, job_dir: str, global_opts: dict[str, Any]) -> str | None:
+    def submit(
+        self, job_dir: str, global_opts: dict[str, Any], tasks_per_node: int | None = None
+    ) -> str | None:
         """Start the job's supervisor, detached, and return its `local-<n>` job id.
 
         The job spec `local_job.json` tells the supervisor what to run and which hosts to lock.
@@ -104,6 +106,8 @@ class LocalScheduler:
         handed over, so a job that was just submitted never reads LOST. stdout and stderr go to
         the `slurm_output.log` / `slurm_error.log` names the Slurm job uses, so the log reader
         needs no special case; the supervisor and the worker share them.
+
+        `tasks_per_node` is accepted for the Scheduler protocol and ignored.
 
         The job is stopped when its `walltime` global option (Slurm's `--time` formats, default
         `00:10:00`) runs out, and ends `TIMEOUT`.

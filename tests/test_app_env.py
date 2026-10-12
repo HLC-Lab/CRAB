@@ -38,6 +38,7 @@ class _Job:
         shared_cores: bool = False,
     ) -> None:
         self.id_num = 0
+        self.ppn = 2
         self.node_list = ["n1"]
         self.run_dir = str(tmp_path / "run_1" / "app_0")
         os.makedirs(self.run_dir, exist_ok=True)
@@ -67,7 +68,7 @@ def _script(job: _Job) -> list[str]:
 
 def _run(job: _Job, spec: LauncherSpec, pre: list[str] | None = None) -> None:
     with patch.dict(os.environ, {"PATH": "/p"}, clear=True):
-        process_manager.run_job(job, spec, 2, MagicMock(), pre)
+        process_manager.run_job(job, spec, MagicMock(), pre)
 
 
 def test_the_script_exports_the_variable_before_the_launch_line(tmp_path: Path) -> None:
@@ -158,7 +159,7 @@ def test_placement_marks_the_apps_that_compete_for_shared_cores() -> None:
     configs = [{"partition": p} for p in ("a", "a", "b", "b", "c")]
     nodes = [["h0"], ["h0"], ["h1"], ["h1"], ["h2"]]
     placed = place_experiment(
-        "e1", list("01234"), configs, nodes, allocation, 4, slurm_settings(), [], {}
+        "e1", list("01234"), configs, nodes, allocation, {"ppn": 4}, slurm_settings(), [], {}
     )
     # c's app runs alone on its node: nothing to compete with, so it stays bound by default.
     assert placed.shared_cores == [True, True, False, False, False]
