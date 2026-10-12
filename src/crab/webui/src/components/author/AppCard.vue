@@ -122,6 +122,10 @@ const reuseLabel = computed(() =>
         >CPUs
         <input v-model="app.cpus" class="cpus" placeholder="all cores" spellcheck="false" />
       </label>
+      <label title="Empty: the experiment's value"
+        >Processes per node
+        <input v-model="app.ppn" class="ppn" placeholder="inherit" inputmode="numeric" />
+      </label>
     </div>
     <div class="env">
       <div class="env-head">
@@ -277,6 +281,9 @@ select:focus {
 }
 .cpus {
   width: 9rem;
+}
+.ppn {
+  width: 7rem;
 }
 .env {
   display: flex;

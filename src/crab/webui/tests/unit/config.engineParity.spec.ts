@@ -246,6 +246,32 @@ describe("shared allocation (core/config_checks.py _check_shared_scope)", () => 
   });
 });
 
+describe("ppn per app and per experiment (ADR-036; same rule as the global ppn)", () => {
+  const ppnIssues = (app: AnyObj, local: AnyObj = {}): string[] => {
+    const config = oneApp(app);
+    config.experiments.ex1.local_options = local;
+    return validateDraft(fromConfig(config)).filter((m) => /processes per node/.test(m));
+  };
+
+  it("accepts a positive integer or nothing", () => {
+    expect(ppnIssues({ ppn: "4" }, { ppn: "2" })).toEqual([]);
+    expect(ppnIssues({}, {})).toEqual([]);
+    expect(ppnIssues({ ppn: "" }, { ppn: "" })).toEqual([]);
+  });
+
+  it("refuses a non-positive-integer app ppn, naming the app", () => {
+    const msg = "ex1 · app #0: processes per node must be a positive integer.";
+    expect(ppnIssues({ ppn: "0" })).toEqual([msg]);
+    expect(ppnIssues({ ppn: "x" })).toEqual([msg]);
+  });
+
+  it("refuses a non-positive-integer experiment ppn, naming the experiment", () => {
+    const msg = 'Experiment "ex1": processes per node must be a positive integer.';
+    expect(ppnIssues({}, { ppn: "-1" })).toEqual([msg]);
+    expect(ppnIssues({}, { ppn: "0" })).toEqual([msg]);
+  });
+});
+
 describe("per-app cpus (core/execution/placement.py parse_cpus)", () => {
   const cpusIssues = (cpus: string): string[] =>
     validateDraft(fromConfig(oneApp({ cpus }))).filter((m) => /cpus/.test(m));

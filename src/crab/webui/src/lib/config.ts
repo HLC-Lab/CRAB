@@ -32,6 +32,7 @@ export interface AppDraft {
   endTimed: string; // seconds, when endKind === "timed"
   env: EnvRow[]; // per-app environment variables, emitted as the `env` object
   cpus: string; // core list such as "0-3,8"; empty means no pinning
+  ppn: string; // ranks per node for this app; empty means the experiment's or the global value
   // Non-reserved app keys are injected as wrapper attributes by the engine
   // (documented). Preserve them untouched so load→save doesn't drop them.
   rest: Record<string, unknown>;
@@ -45,6 +46,7 @@ const RESERVED_APP_KEYS = new Set([
   "end",
   "partition",
   "cpus",
+  "ppn",
   "env",
 ]);
 
@@ -143,6 +145,7 @@ export function cloneExperiment(e: ExperimentDraft): ExperimentDraft {
     overrideAlloc: e.overrideAlloc,
     allocation: cloneAllocation(e.allocation),
     options: { ...e.options },
+    ppn: e.ppn,
     apps: e.apps.map((a) => ({ ...a, env: a.env.map((r) => ({ ...r })), rest: { ...a.rest } })),
   };
 }
@@ -256,7 +259,13 @@ export interface ExperimentDraft {
   overrideAlloc: boolean;
   allocation: AllocationDraft;
   options: OptionsDraft;
+  ppn: string; // local_options.ppn; empty means the global value
   apps: AppDraft[];
+}
+
+/** True when the experiment overrides at least one run setting (not the allocation). */
+export function hasLocalOverrides(e: ExperimentDraft): boolean {
+  return optionsAreSet(e.options) || e.ppn.trim() !== "";
 }
 
 export function emptyExperiment(name = ""): ExperimentDraft {
@@ -266,6 +275,7 @@ export function emptyExperiment(name = ""): ExperimentDraft {
     overrideAlloc: false,
     allocation: emptyAllocation(),
     options: emptyOptions(),
+    ppn: "",
     apps: [],
   };
 }
@@ -461,6 +471,7 @@ export function emptyApp(): AppDraft {
     endTimed: "60",
     env: [],
     cpus: "",
+    ppn: "",
     rest: {},
   };
 }
@@ -504,6 +515,7 @@ export function toConfig(draft: Draft): CrabConfig {
       };
       if (a.partition.trim()) entry.partition = a.partition.trim();
       if (a.cpus.trim()) entry.cpus = a.cpus.trim();
+      if (a.ppn.trim()) entry.ppn = a.ppn.trim();
       const env = envObject(a.env);
       if (env) entry.env = env;
       apps[String(i)] = entry;
@@ -516,6 +528,7 @@ export function toConfig(draft: Draft): CrabConfig {
       if (a) local.allocation = a;
     }
     applyOptions(local, exp.options);
+    if (exp.ppn.trim()) local.ppn = exp.ppn.trim();
 
     const out: CrabConfig["experiments"][string] = { apps };
     if (exp.description.trim()) out.description = exp.description.trim();
@@ -643,6 +656,7 @@ export function fromConfig(config: CrabConfig): Draft {
       overrideAlloc: lo.allocation != null,
       allocation: fromAllocation(lo.allocation),
       options: readOptions(lo),
+      ppn: str(lo.ppn),
       apps: Object.values(e.apps ?? {}).map((a) => {
         const app = a as Record<string, unknown>;
         const rest: Record<string, unknown> = {};
@@ -656,6 +670,7 @@ export function fromConfig(config: CrabConfig): Draft {
           partition: str(app.partition),
           env: readEnv(app.env),
           cpus: str(app.cpus),
+          ppn: str(app.ppn),
           rest,
           ...parseStart(str(app.start, "0")),
           ...parseEnd(str(app.end)),
@@ -901,6 +916,8 @@ export function validateDraft(d: Draft): string[] {
     else names.add(nm);
 
     issues.push(...validateOptions(e.options, `Experiment "${label}"`));
+    if (e.ppn.trim() && !_posInt(e.ppn))
+      issues.push(`Experiment "${label}": processes per node must be a positive integer.`);
     // An override REPLACES the global allocation entirely (force-emitted, even bare linear ⇒ no
     // groups), so an app may only reference the local groups.
     let groups = global.groups;
@@ -922,6 +939,8 @@ export function validateDraft(d: Draft): string[] {
         if (!(ref >= 0 && ref < e.apps.length && ref !== ai))
           issues.push(`${label} · app #${ai}: "after" must reference another app.`);
       }
+      if (a.ppn.trim() && !_posInt(a.ppn))
+        issues.push(`${label} · app #${ai}: processes per node must be a positive integer.`);
       // The engine skips its placement checks for an app that holds a {name} placeholder.
       const hasToken = a.cpus.includes("{") || a.env.some((r) => (r.key + r.value).includes("{"));
       if (!hasToken) {

@@ -9,7 +9,13 @@ import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
 import type { Wrapper } from "@/api/types";
-import { cloneAllocation, emptyApp, flowForest, hasAllocation, optionsAreSet } from "@/lib/config";
+import {
+  cloneAllocation,
+  emptyApp,
+  flowForest,
+  hasAllocation,
+  hasLocalOverrides,
+} from "@/lib/config";
 import { equalShares, sliceColor, sliceName } from "@/lib/slices";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
@@ -92,7 +98,7 @@ const miniSlices = computed(() => {
 const overridesActive = computed(() => {
   const e = sel.value;
   if (!e) return false;
-  return optionsAreSet(e.options);
+  return hasLocalOverrides(e);
 });
 
 const flow = computed(() =>
@@ -227,6 +233,11 @@ function chooseWrapper(relpath: string) {
         Leave a field on <em>inherit</em> or blank to use the global run settings. Set one only to
         change it for this experiment.
       </p>
+      <label class="ov-ppn"
+        >Processes per node
+        <input v-model="sel.ppn" placeholder="inherit" inputmode="numeric" />
+        <small>Empty: the global value</small>
+      </label>
       <OptionsFields :options="sel.options" unset-label="inherit" />
     </div>
   </div>
@@ -528,6 +539,18 @@ select:focus {
 .ov-body .hint {
   color: var(--text3);
   font-size: var(--t-sm);
+}
+.ov-ppn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  max-width: 12rem;
+  color: var(--text2);
+  font-size: var(--t-sm);
+}
+.ov-ppn small {
+  color: var(--text3);
+  font-size: var(--t-xs);
 }
 .ov-body .hint em {
   color: var(--text2);
