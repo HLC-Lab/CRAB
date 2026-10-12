@@ -25,6 +25,8 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
         working-directory: src/crab/webui
+      - name: Clone the wrappers (tests marked requires_wrappers_checkout use them)
+        run: git clone --depth 1 https://github.com/HLC-Lab/crab-wrappers.git wrappers
       - run: make verify
 
   docs:

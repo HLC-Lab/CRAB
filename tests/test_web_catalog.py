@@ -20,7 +20,7 @@ from crab.web.store.profiles import Profile
 _INFO = '{"schema":1,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"L"}]}'
 _BENCH = (
     '{"schema":1,"benchmarks":[{"id":"blink"}],"wrappers":['
-    '{"file":"a2a_comm_only.py","relpath":"blink/a2a_comm_only.py","group":"blink",'
+    '{"file":"alltoall_comm_only.py","relpath":"blink/alltoall_comm_only.py","group":"blink",'
     '"loadable":true,"benchmark_id":"a2a","bench_name":"A2A","metadata":[{"name":"lat","unit":"us","conv":true}]},'
     '{"file":"broken.py","relpath":"x/broken.py","group":"x","loadable":false,'
     '"benchmark_id":null,"bench_name":null,"metadata":[],"error":"ImportError"}]}'
@@ -90,7 +90,7 @@ def test_benchmarks_and_nodes_require_connection_then_return_payloads(tmp_path: 
         assert bench.status_code == 200
         wrappers = bench.json()["wrappers"]
         # Unloadable wrappers are listed too (the Author UI marks, not filters, them).
-        assert {w["relpath"] for w in wrappers} == {"blink/a2a_comm_only.py", "x/broken.py"}
+        assert {w["relpath"] for w in wrappers} == {"blink/alltoall_comm_only.py", "x/broken.py"}
         assert any(w["loadable"] is False for w in wrappers)
 
         nodes = client.get("/api/remotes/leonardo/nodes")

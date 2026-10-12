@@ -125,7 +125,7 @@ export interface WrapperMetric {
 /** One discovered wrapper file (loadable or not — unloadable are still listed). */
 export interface Wrapper {
   file: string;
-  relpath: string; // what goes into an app's `path`, e.g. "blink/a2a_comm_only.py"
+  relpath: string; // what goes into an app's `path`, e.g. "blink/alltoall_comm_only.py"
   group: string;
   loadable: boolean;
   benchmark_id: string | null;

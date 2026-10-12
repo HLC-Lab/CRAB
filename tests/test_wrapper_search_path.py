@@ -29,14 +29,14 @@ def _touch(p: Path) -> Path:
 
 
 def test_the_checkout_wrappers_folder_is_the_default(root: Path) -> None:
-    shared = _touch(root / "wrappers/blink/a2a_b.py")
-    assert wp.resolve_wrapper_path("blink/a2a_b.py") == str(shared)
+    shared = _touch(root / "wrappers/blink/alltoall_b.py")
+    assert wp.resolve_wrapper_path("blink/alltoall_b.py") == str(shared)
 
 
 def test_a_local_wrapper_shadows_the_shared_one(root: Path) -> None:
-    _touch(root / "wrappers/blink/a2a_b.py")
-    mine = _touch(root / "local/wrappers/blink/a2a_b.py")
-    assert wp.resolve_wrapper_path("blink/a2a_b.py") == str(mine)
+    _touch(root / "wrappers/blink/alltoall_b.py")
+    mine = _touch(root / "local/wrappers/blink/alltoall_b.py")
+    assert wp.resolve_wrapper_path("blink/alltoall_b.py") == str(mine)
 
 
 def test_crab_path_wrappers_may_list_several_folders(root: Path, monkeypatch) -> None:
@@ -63,13 +63,13 @@ def test_absolute_paths_are_untouched(root: Path) -> None:
 
 
 def test_list_benchmarks_walks_the_search_path_first_match_wins(root: Path) -> None:
-    _touch(root / "wrappers/blink/a2a_b.py")
+    _touch(root / "wrappers/blink/alltoall_b.py")
     _touch(root / "wrappers/blink/ring_nb.py")
-    _touch(root / "local/wrappers/blink/a2a_b.py")
+    _touch(root / "local/wrappers/blink/alltoall_b.py")
     _touch(root / "local/wrappers/blink/_helper.py")
     wrappers = contract.gather_benchmarks(env_dir=root / "none")["wrappers"]
     by_rel = {w["relpath"]: w["path"] for w in wrappers}
     assert by_rel == {
-        "blink/a2a_b.py": str(root / "local/wrappers/blink/a2a_b.py"),
+        "blink/alltoall_b.py": str(root / "local/wrappers/blink/alltoall_b.py"),
         "blink/ring_nb.py": str(root / "wrappers/blink/ring_nb.py"),
     }
