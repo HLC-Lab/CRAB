@@ -13,12 +13,12 @@ from crab.core.execution.placement import (
     SHARED_CORES_WARNING,
     Head,
     app_ppn,
-    check_experiment,
     parse_app_env,
     parse_cpus,
     place_experiment,
     plan,
 )
+from crab.core.execution.placement_checks import check_experiment
 from crab.core.execution.settings import from_preset
 from settings_fixtures import LOCAL_DIRECT, slurm_settings
 
