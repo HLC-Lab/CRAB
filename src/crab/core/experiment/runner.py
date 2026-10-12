@@ -3,7 +3,6 @@ import fcntl
 import os
 import re
 import shutil
-import signal
 import time
 from typing import Any
 
@@ -20,7 +19,7 @@ from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import check_CI
-from ..process import end_job, run_job
+from ..process import end_job, run_job, stop_process_groups
 from .artifacts import copy_artifacts
 
 
@@ -406,23 +405,25 @@ class ExperimentRunner:
                     if (time.time() - global_start) >= timeout:
                         run_log.error(f"HARD TIMEOUT: Experiment exceeded {timeout}s mid-run.")
                         experiment_status = "TIMEOUT"
-                        for active_aid in list(running):
-                            try:
-                                os.killpg(
-                                    os.getpgid(self.apps[active_aid].process.pid), signal.SIGKILL
-                                )
-                            except OSError:
-                                pass
+                        self._stop_apps([self.apps[aid] for aid in running], run_log)
                         break  # Break the inner loop, forcing a teardown
 
                     time.sleep(0.05)
 
                 # ── Lorenzo's modifications ──────────────────────────────
                 # Kill "f" apps now that all other work is done
-                for app in self.apps:
-                    if str(app.config_end) == "f":
-                        if app.process is not None and app.process.poll() is None:
-                            end_job(app, run_log)
+                # One batched stop, so apps that ignore SIGTERM share a single grace period;
+                # end_job then only collects each app's output.
+                running_f_apps = [
+                    app
+                    for app in self.apps
+                    if str(app.config_end) == "f"
+                    and app.process is not None
+                    and app.process.poll() is None
+                ]
+                self._stop_apps(running_f_apps, run_log)
+                for app in running_f_apps:
+                    end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
@@ -484,15 +485,21 @@ class ExperimentRunner:
 
         self._write_to_registry(status=experiment_status, total_runs=runs, failed_runs=failed_runs)
 
+    def _stop_apps(self, apps: list[Any], log: CrabLogger) -> None:
+        """Stops the process groups of the still-running `apps` in one batch.
+
+        SIGTERM first so srun can end its Slurm step; all groups share one grace period before
+        the forced stop (see `stop_process_groups`).
+        """
+        processes = [
+            app.process for app in apps if app.process is not None and app.process.poll() is None
+        ]
+        if processes:
+            stop_process_groups(processes, logger=log)
+
     def teardown(self):
-        """Ensures all processes are killed before next experiment."""
-        for app in self.apps:
-            if hasattr(app, "process") and app.process:
-                if app.process.poll() is None:
-                    try:
-                        os.killpg(os.getpgid(app.process.pid), signal.SIGKILL)
-                    except OSError:
-                        pass
+        """Ensures all processes are stopped before next experiment."""
+        self._stop_apps(self.apps, self.log)
 
     def save_results(self):
         """Persists data to disk."""
