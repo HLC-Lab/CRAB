@@ -86,6 +86,7 @@ install:
 	    echo ""; \
 	    echo "To completely reinstall, run \`make clean\` first."; \
 	    echo "============================================================"; \
+	    $(MAKE) --no-print-directory _wrappers; \
 	else \
 	    $(MAKE) _install_core; \
 	fi
@@ -102,7 +103,7 @@ _install_core: venv
 _wrappers:
 	@if [ ! -d wrappers ]; then \
 	    echo "Cloning the wrappers into wrappers/..."; \
-	    git clone '$(WRAPPERS_URL)' wrappers; \
+	    git clone '$(WRAPPERS_URL)' wrappers || { echo "could not clone the wrappers from $(WRAPPERS_URL): run \`crab update\` once you are online" >&2; exit 1; }; \
 	else \
 	    echo "[=] wrappers/ already present"; \
 	fi

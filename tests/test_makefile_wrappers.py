@@ -64,3 +64,27 @@ def test_the_install_clones_wrappers_after_pip_and_before_setup(project) -> None
         return next(i for i, line in enumerate(lines) if needle in line)
 
     assert at("pip install -e .") < at("git clone") < at("bin/crab setup")
+
+
+def _installed(project: Path) -> None:
+    """Make the project look installed: an executable .venv/bin/crab stub."""
+    stub = project / ".venv" / "bin" / "crab"
+    stub.parent.mkdir(parents=True)
+    stub.write_text("#!/bin/sh\n")
+    stub.chmod(0o755)
+
+
+def test_rerunning_make_on_an_installed_checkout_clones_missing_wrappers(project, origin) -> None:
+    _installed(project)
+    result = _make(project, f"WRAPPERS_URL={origin}")
+    assert result.returncode == 0, result.stderr
+    assert "already installed" in result.stdout
+    assert (project / "wrappers" / "README.md").read_text() == "w\n"
+
+
+def test_a_failed_clone_on_an_installed_checkout_points_to_crab_update(project) -> None:
+    _installed(project)
+    result = _make(project, "WRAPPERS_URL=file:///nonexistent")
+    assert result.returncode != 0
+    assert "crab update" in result.stderr
+    assert not (project / "wrappers" / "README.md").exists()
