@@ -69,14 +69,24 @@ class SlurmScheduler:
         self.crab_root = crab_root
         self._run = runner or _default_runner
 
-    def generate_header(self, global_opts: dict[str, Any], data_directory: str) -> list[str]:
-        """Generates the list of #SBATCH lines handling defaults, overrides, and security."""
+    def generate_header(
+        self,
+        global_opts: dict[str, Any],
+        data_directory: str,
+        tasks_per_node: int | None = None,
+    ) -> list[str]:
+        """Generates the list of #SBATCH lines handling defaults, overrides, and security.
+
+        `tasks_per_node` is the job's `--ntasks-per-node` (the largest per-node load, see
+        `job_geometry`); None falls back to the global `ppn`.
+        """
         # 1. Protected parameters (the framework always wins).
         # Map: key -> value computed by the framework.
         _numnodes = global_opts.get("numnodes")
+        _tasks = global_opts.get("ppn", 1) if tasks_per_node is None else tasks_per_node
         protected_defaults = {
             "nodes": f"--nodes={_numnodes}" if _numnodes is not None else None,
-            "ntasks-per-node": f"--ntasks-per-node={global_opts.get('ppn', 1)}",
+            "ntasks-per-node": f"--ntasks-per-node={_tasks}",
             # Common aliases to block
             "N": None,
             "n": None,  # Block -n too, in case the user passes it
@@ -168,15 +178,19 @@ class SlurmScheduler:
         # 4. Rendering: the complete directive strings
         return [f"#SBATCH {v}" for v in directives_map.values()]
 
-    def submit(self, job_dir: str, global_opts: dict[str, Any]) -> str | None:
+    def submit(
+        self, job_dir: str, global_opts: dict[str, Any], tasks_per_node: int | None = None
+    ) -> str | None:
         """Write `crab_job.sh` into `job_dir`, submit it with `sbatch` and return the job id.
+
+        `tasks_per_node` sizes `--ntasks-per-node`; None keeps the global `ppn`.
 
         An interrupt after sbatch accepted the job cancels it with `scancel`.
 
         Raises:
             RuntimeError: if sbatch refuses the job; the message carries Slurm's reason.
         """
-        sbatch_headers = self.generate_header(global_opts, job_dir)
+        sbatch_headers = self.generate_header(global_opts, job_dir, tasks_per_node)
 
         script_path = os.path.join(job_dir, "crab_job.sh")
         cmd = worker_command(job_dir)

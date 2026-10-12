@@ -44,9 +44,12 @@ def worker_argv(job_dir: str) -> list[str]:
 class Scheduler(Protocol):
     """A workload scheduler CRAB can submit to, query and cancel on."""
 
-    def submit(self, job_dir: str, global_opts: dict[str, Any]) -> str | None:
+    def submit(
+        self, job_dir: str, global_opts: dict[str, Any], tasks_per_node: int | None = None
+    ) -> str | None:
         """Write the job script into `job_dir`, submit it and return the job id (None if the
-        scheduler's reply carried none)."""
+        scheduler's reply carried none). `tasks_per_node` is the largest per-node load of the
+        job; a scheduler with no per-node task count ignores it."""
         ...
 
     def status(self, ids: list[str]) -> list[JobStatus]:

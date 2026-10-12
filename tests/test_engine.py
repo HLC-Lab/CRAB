@@ -531,3 +531,30 @@ class TestWorkerWritesProvenanceWithSettings(unittest.TestCase):
             ):
                 engine._run_worker(config, {}, tmpdir, settings=LOCAL_DIRECT)
         write.assert_called_once_with(tmpdir, config, ["localhost"], LOCAL_DIRECT)
+
+
+class TestSubmittedTasksPerNode(unittest.TestCase):
+    def test_a_shared_config_submits_the_summed_per_node_load(self):
+        """Two shared apps with ppn 1 and 4 run together on each node: the job asks for 5."""
+        engine = _make_engine()
+        apps = {"0": {"path": "a.py", "ppn": 1}, "1": {"path": "b.py", "ppn": 4}}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = {
+                "global_options": {"numnodes": "2", "ppn": 1, "datapath": tmpdir},
+                "experiments": {
+                    "ex1": {"apps": apps, "local_options": {"allocation": {"mode": "shared"}}}
+                },
+            }
+            with patch("subprocess.check_output", return_value="Submitted batch job 99999"):
+                engine._run_orchestrator(config, {})
+            scripts = [
+                os.path.join(root, f)
+                for root, _, files in os.walk(tmpdir)
+                for f in files
+                if f == "crab_job.sh"
+            ]
+            self.assertTrue(scripts, "No crab_job.sh generated")
+            with open(scripts[0]) as f:
+                content = f.read()
+        self.assertIn("#SBATCH --ntasks-per-node=5", content)
+        self.assertNotIn("--ntasks-per-node=1\n", content)

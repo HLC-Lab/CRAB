@@ -295,3 +295,15 @@ def test_describe_nodes_keeps_partitions_when_the_node_query_fails():
     assert described["available"] is True
     assert described["partitions"] == [{"name": "gpu", "avail": "up", "nodes": 2}]
     assert described["nodes"] == []
+
+
+def test_header_sizes_ntasks_per_node_from_tasks_per_node(tmp_path: Path) -> None:
+    header = _scheduler(tmp_path).generate_header(
+        {"numnodes": 2, "ppn": 1}, str(tmp_path), tasks_per_node=5
+    )
+    assert "#SBATCH --ntasks-per-node=5" in header
+
+
+def test_header_keeps_the_global_ppn_without_tasks_per_node(tmp_path: Path) -> None:
+    header = _scheduler(tmp_path).generate_header({"numnodes": 2, "ppn": 3}, str(tmp_path))
+    assert "#SBATCH --ntasks-per-node=3" in header

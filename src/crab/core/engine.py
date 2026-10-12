@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 from crab.core.config_checks import check_config
+from crab.core.execution.job_geometry import job_tasks_per_node
 from crab.core.execution.scheduler.select import scheduler_for
 from crab.core.execution.settings import SLURM_DEFAULT, ExecutionSettings, to_json
 from crab.core.experiment import ExperimentRunner
@@ -129,7 +130,9 @@ class Engine:
         with open(os.path.join(data_directory, "execution.json"), "w") as f:
             json.dump(to_json(settings), f, indent=4)
 
-        job_id = scheduler_for(settings, self.log, CRAB_ROOT).submit(data_directory, g_opts)
+        job_id = scheduler_for(settings, self.log, CRAB_ROOT).submit(
+            data_directory, g_opts, tasks_per_node=job_tasks_per_node(config)
+        )
 
         # Structured result for programmatic callers (e.g. `crab run --json`).
         return {
