@@ -258,20 +258,22 @@ def test_an_already_exited_process_is_never_signalled(recorder: list[tuple[int, 
 
 
 @pytest.mark.parametrize("pid", [1, 0, -5, os.getpgrp()])
-def test_a_pid_that_could_hit_more_than_the_app_is_never_signalled(
+def test_a_pid_that_could_hit_more_than_the_app_is_never_signalled_and_is_warned_about(
     recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch, pid: int
 ) -> None:
-    # The group "has members", so stop_processes reaches the SIGKILL step and _signal_group's
-    # own guard is what refuses.
+    # The group "has members", so only the guard in front of the signals refuses it.
     monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
     fake = MagicMock()
     fake.pid = pid
     fake.poll.return_value = None
     fake.wait.return_value = 0
+    logger = MagicMock()
 
-    stop_processes([fake], MagicMock(), grace=0.2)
+    stop_processes([fake], logger, grace=0.2)
 
     assert recorder == []
+    assert logger.warning.call_count == 1
+    assert f"PID {pid}: not signalled" in _logged(logger)
 
 
 def test_a_normal_pid_gets_sigterm_then_sigkill_when_it_stays(
@@ -288,10 +290,7 @@ def test_a_normal_pid_gets_sigterm_then_sigkill_when_it_stays(
     assert recorder == [(424242, signal.SIGTERM), (424242, signal.SIGKILL)]
 
 
-@pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])
-def test_a_group_that_is_gone_or_not_ours_is_skipped_quietly(
-    monkeypatch: pytest.MonkeyPatch, error: type[OSError]
-) -> None:
+def _raising_killpg(monkeypatch: pytest.MonkeyPatch, error: type[OSError]) -> list[tuple[int, int]]:
     calls: list[tuple[int, int]] = []
 
     def killpg(pgid: int, sig: int) -> None:
@@ -300,14 +299,147 @@ def test_a_group_that_is_gone_or_not_ours_is_skipped_quietly(
 
     monkeypatch.setattr(os, "killpg", killpg)
     monkeypatch.setattr(manager, "_group_members", lambda pgid: False)
+    return calls
+
+
+def _fake_process(pid: int) -> MagicMock:
     fake = MagicMock()
-    fake.pid = 424242
+    fake.pid = pid
     fake.poll.return_value = None
     fake.wait.return_value = 0
+    return fake
 
-    stop_processes([fake], MagicMock(), grace=0.2)
+
+def test_a_group_that_is_already_gone_is_skipped_quietly(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _raising_killpg(monkeypatch, ProcessLookupError)
+    logger = MagicMock()
+
+    stop_processes([_fake_process(424242)], logger, grace=0.2)
 
     assert calls == [(424242, signal.SIGTERM)]
+    assert logger.warning.call_count == 0
+
+
+def test_a_group_that_is_not_ours_is_warned_about_and_not_signalled_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _raising_killpg(monkeypatch, PermissionError)
+    logger = MagicMock()
+
+    stop_processes([_fake_process(424242)], logger, grace=0.2, labels={424242: "App 2"})
+
+    assert calls == [(424242, signal.SIGTERM)]
+    assert logger.warning.call_count == 1
+    assert "App 2 (pid 424242): not signalled, permission denied" in _logged(logger)
+
+
+def test_a_process_that_survives_sigkill_is_warned_about_and_the_stop_returns(
+    recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
+    monkeypatch.setattr(manager, "KILL_WAIT_SECONDS", 0.3)
+    fake = _fake_process(424242)
+    fake.wait.side_effect = subprocess.TimeoutExpired("app", 0.3)
+    logger = MagicMock()
+
+    start = time.monotonic()
+    stop_processes([fake], logger, grace=0.2, labels={424242: "App 3"})
+
+    assert time.monotonic() - start < 2
+    assert recorder == [(424242, signal.SIGTERM), (424242, signal.SIGKILL)]
+    fake.wait.assert_called_once()
+    assert fake.wait.call_args.kwargs["timeout"] <= 0.3
+    assert "App 3 (pid 424242) still alive after SIGKILL" in _logged(logger)
+
+
+def test_survivors_of_sigkill_share_one_bounded_wait(
+    recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
+    monkeypatch.setattr(manager, "KILL_WAIT_SECONDS", 0.3)
+
+    def stubborn(pid: int) -> MagicMock:
+        fake = _fake_process(pid)
+
+        def wait(timeout: float) -> None:
+            time.sleep(timeout)  # a process that does not die: the wait runs its whole budget
+            raise subprocess.TimeoutExpired("app", timeout)
+
+        fake.wait.side_effect = wait
+        return fake
+
+    logger = MagicMock()
+
+    start = time.monotonic()
+    stop_processes([stubborn(424242), stubborn(424243)], logger, grace=0.2)
+
+    assert time.monotonic() - start < 0.6
+    assert _logged(logger).count("still alive after SIGKILL") == 2
+
+
+def test_a_refused_process_does_not_keep_a_normal_one_from_being_stopped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[int, int]] = []
+
+    def killpg(pgid: int, sig: int) -> None:
+        calls.append((pgid, sig))
+        if pgid == 424242:
+            raise PermissionError
+
+    monkeypatch.setattr(os, "killpg", killpg)
+    monkeypatch.setattr(manager, "_group_members", lambda pgid: False)
+    monkeypatch.setattr(manager, "_registry", {})
+    refused, normal = _fake_process(424242), _fake_process(424243)
+    for fake in (refused, normal):
+        fake.returncode = None
+        manager.register_process(fake, "App")
+    logger = MagicMock()
+
+    stop_processes([refused, normal], logger, grace=0.2)
+
+    assert calls == [(424242, signal.SIGTERM), (424243, signal.SIGTERM)]
+    normal.wait.assert_called_once()
+    refused.wait.assert_not_called()
+    assert 424243 not in manager._registry
+    assert 424242 in manager._registry
+    assert logger.warning.call_count == 1
+    assert "PID 424242: not signalled" in _logged(logger)
+
+
+def test_end_job_returns_at_once_when_the_stop_left_the_process_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def killpg(pgid: int, sig: int) -> None:
+        raise PermissionError
+
+    monkeypatch.setattr(os, "killpg", killpg)
+    outputs: list[tuple[bytes, bytes]] = []
+
+    class Job:
+        id_num = 4
+        raw_stdout_buffer = [b"partial\n"]
+
+        def set_output(self, out: bytes, err: bytes) -> None:
+            outputs.append((out, err))
+
+    job = Job()
+    logger = MagicMock()
+    proc = subprocess.Popen(["sleep", "30"], start_new_session=True, stderr=subprocess.PIPE)
+    job.process = proc
+    try:
+        start = time.monotonic()
+        manager.end_job(job, logger)
+        elapsed = time.monotonic() - start
+
+        assert elapsed < 1
+        assert proc.poll() is None
+    finally:
+        REAL_KILLPG(proc.pid, signal.SIGKILL)
+        proc.wait()
+        proc.stderr.close()
+    assert outputs == [(b"partial\n", b"")]
+    assert "App 4: still running, output not collected" in _logged(logger)
 
 
 def test_stop_processes_empties_the_registry() -> None:
