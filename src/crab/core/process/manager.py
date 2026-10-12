@@ -1,9 +1,20 @@
 import os
+import shlex
 import signal
 import subprocess
 import threading
 
 from crab.log import CrabLogger
+
+# Tried in order inside the launcher script, on the compute node; the first that exists
+# initialises the `module` command (Lmod sites often lack /etc/profile.d/modules.sh).
+# `$LMOD_PKG/init/bash` is appended at run time. Same list as _MODULE_INIT_SCRIPTS in
+# crab/setup/wizard.py, which the setup wizard uses to capture module lines.
+MODULE_INIT_SCRIPTS: tuple[str, ...] = (
+    "/etc/profile.d/modules.sh",
+    "/etc/profile.d/lmod.sh",
+    "/usr/share/lmod/lmod/init/bash",
+)
 
 
 def run_job(
@@ -49,9 +60,13 @@ def run_job(
     with open(script_path, "w") as f:
         f.write("#!/bin/bash\n")
         # Natively bring the cluster's module command to life
-        f.write("if [ -f /etc/profile.d/modules.sh ]; then\n")
-        f.write("    source /etc/profile.d/modules.sh\n")
-        f.write("fi\n\n")
+        candidates = " ".join(shlex.quote(path) for path in MODULE_INIT_SCRIPTS)
+        f.write(f'for _crab_init in {candidates} ${{LMOD_PKG:+"$LMOD_PKG/init/bash"}}; do\n')
+        f.write('    if [ -f "$_crab_init" ]; then\n')
+        f.write('        source "$_crab_init"\n')
+        f.write("        break\n")
+        f.write("    fi\n")
+        f.write("done\n\n")
 
         # Inject application-specific hooks cleanly
         if pre_commands:
