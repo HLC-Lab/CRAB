@@ -31,10 +31,13 @@ CRAB needs the Blink binaries on your cluster. Run the setup wizard:
 crab setup
 ```
 
-Select the **Blink Suite**, then choose **Build from source** (the wizard clones and compiles it,
-streaming the build log). When it finishes it writes a [receipt](glossary.md#receipt) to
-`local/receipts/blink.json` recording where the binaries live — the wrappers read this at run
-time. See [Installation & benchmark setup](using/installation.md#set-up-benchmarks-crab-setup) for
+Choose **Install or configure a supported benchmark**. The suite list pre-selects every suite that
+is not configured yet: press Space to untick the others, so that only the **Blink Suite** is ticked.
+At the strategy prompt, type `4` (build from source). The wizard asks for the cluster modules to
+load before building; accept the default `module load gcc openmpi` or type your own line (add CMake
+if it is a module on your cluster). It then clones and compiles Blink, streaming the build log.
+When it finishes it writes a [receipt](glossary.md#receipt) to `local/receipts/blink.json`
+recording where the binaries live — the wrappers read this at run time. See [Installation & benchmark setup](using/installation.md#set-up-benchmarks-crab-setup) for
 the other strategies (e.g. pointing at an existing build).
 
 ## Step 2 — Write the experiment config

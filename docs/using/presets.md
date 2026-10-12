@@ -115,19 +115,46 @@ defaults to the preset's name and is used in the output directory path.
 turns every `git pull` or `crab update` into a conflict. Put your presets in
 `local/presets.json` instead: same format, git-ignored, and merged over the shipped file.
 
+`local/` is a folder at the root of the CRAB checkout, next to `config/`. It may not exist yet.
+Create it from the checkout and start the file:
+
+```bash
+mkdir -p local
+$EDITOR local/presets.json
+```
+
 - A preset in `local/presets.json` **replaces** the shipped preset of the same name as a whole,
   so copy the entire block before changing it.
 - A preset that exists only in `local/presets.json` is simply added.
 - For `_common`, the `env` entries are merged key by key (yours win); any other `_common` key
   you set replaces the shipped one.
 
+For example, to run on `leonardo` with your project account, copy the whole `leonardo` block from
+`config/presets.json` into `local/presets.json` and change only the `--account` line:
+
 ```json
 {
   "leonardo": {
-    "description": "Leonardo with my project account",
-    "env": { "CRAB_MPIRUN": "srun", "CRAB_WL_MANAGER": "slurm" },
-    "sbatch": ["--account=MY_PROJECT", "--partition=boost_usr_prod"],
-    "header": ["module purge"]
+    "description": "Leonardo Cluster @ CINECA",
+    "env": {
+      "UCX_IB_SL": "1",
+      "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/leonardo/smcx_home/bench/software/lib/ucx/nvhpc-22.2_pgi_cuda/lib/",
+      "CRAB_MPIRUN": "srun",
+      "CRAB_MPIRUN_MAP_BY_NODE_FLAG": "",
+      "CRAB_PINNING_FLAGS": "--cpu-bind=socket",
+      "CRAB_MPIRUN_ADDITIONAL_FLAGS": "",
+      "CRAB_WL_MANAGER": "slurm",
+      "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
+      "NCCL_IB_SL": "${UCX_IB_SL}"
+    },
+    "sbatch": [
+      "--account=MY_PROJECT",
+      "--partition=boost_usr_prod",
+      "--gres=tmpfs:0"
+    ],
+    "header": [
+      "module purge"
+    ]
   }
 }
 ```

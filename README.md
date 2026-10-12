@@ -74,7 +74,12 @@ make                        # creates .venv, installs CRAB (editable), fetches t
 source .venv/bin/activate   # activate before using `crab`
 ```
 
-Build or locate the benchmarks you want to run:
+`make` already ran `crab setup` once. Before `crab run` on a Slurm cluster, create
+`local/presets.json` (run `mkdir -p local` first) with your cluster's account: see
+[Configuring your cluster](https://hlc-crab.readthedocs.io/en/latest/using/presets/#keep-your-presets-out-of-git).
+The shipped presets carry the placeholder `YOUR_PROJECT_ACCOUNT`.
+
+To add or reconfigure benchmarks later, run the setup wizard again:
 
 ```bash
 crab setup
