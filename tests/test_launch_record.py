@@ -21,6 +21,9 @@ from crab.core.execution.settings import LauncherSpec
 from crab.core.process import manager as process_manager
 from crab.core.provenance import record_launch
 
+# The `layout` fixture replaces subprocess.Popen for the whole module; shim runs need the real one.
+_REAL_POPEN = subprocess.Popen
+
 SRUN = LauncherSpec("srun", ("srun",), "", (), ())
 DIRECT = LauncherSpec("direct", (), "", (), ())
 
@@ -111,6 +114,7 @@ def test_an_mpirun_launch_is_recorded_with_its_line_kind_dialect_and_binding_rep
                 "binding_report": bindings,
                 "ppn": 2,
                 "env": {},
+                "nics": None,
             }
         }
     }
@@ -342,3 +346,194 @@ def test_launches_are_keyed_by_the_config_key_of_the_app(tmp_path: Path) -> None
     data = json.loads((out / "crab_run.json").read_text())
     assert set(data["launches"]["pair"]) == {"3", "7"}
     assert set(data["apps"]["pair"]) == {"3", "7"}
+
+
+# --- nics: one NIC per rank through a shim script ---------------------------------------------
+
+NICS = ("mlx5_0:1", "mlx5_1:1")
+
+
+def _shim_path(job: _Job) -> Path:
+    return Path(job.run_dir) / ".wrappers" / f"app_{job.id_num}_rank.sh"
+
+
+def _run_shim(shim: Path, env: dict[str, str], *args: str) -> subprocess.CompletedProcess[str]:
+    """Run the shim under real bash."""
+    argv = args or ("sh", "-c", 'printf %s "$UCX_NET_DEVICES"')
+    with _REAL_POPEN(
+        ["bash", str(shim), *argv],
+        env={"PATH": os.environ["PATH"], **env},
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    ) as proc:
+        out, err = proc.communicate(timeout=10)
+        return subprocess.CompletedProcess(proc.args, proc.returncode, out, err)
+
+
+def _nics_job(exp_dir: Path, nics: Any = NICS) -> _Job:
+    job = _Job(exp_dir)
+    job.nics = nics
+    return job
+
+
+def test_an_srun_app_with_nics_is_launched_through_a_rank_shim(
+    layout: tuple[Path, Path],
+) -> None:
+    job_dir, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, SRUN)
+
+    shim = _shim_path(job)
+    assert shim.is_file()
+    record = _launches(job_dir)["e1"]["0"]
+    assert record["nics"] == ["mlx5_0:1", "mlx5_1:1"]
+    assert record["line"].endswith(f" bash {shlex.quote(str(shim))} ./app -x 1")
+    assert record["line"].startswith("srun ")
+    assert record["line"] in _script(job)
+
+
+@pytest.mark.parametrize("attribute", ["missing", "none"])
+def test_an_app_without_nics_gets_no_shim_and_an_unchanged_line(
+    layout: tuple[Path, Path], attribute: str
+) -> None:
+    job_dir, exp_dir = layout
+    job = _Job(exp_dir)
+    if attribute == "none":
+        job.nics = None
+    _run(job, SRUN)
+
+    assert not _shim_path(job).exists()
+    record = _launches(job_dir)["e1"]["0"]
+    assert record["nics"] is None
+    assert "_rank.sh" not in record["line"]
+    assert "_rank.sh" not in _script(job)
+    assert record["line"].endswith(" ./app -x 1")
+
+
+def test_the_srun_shim_gives_each_local_rank_its_nic_round_robin(
+    layout: tuple[Path, Path],
+) -> None:
+    _, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, SRUN)
+
+    for rank, nic in enumerate(["mlx5_0:1", "mlx5_1:1", "mlx5_0:1", "mlx5_1:1"]):
+        result = _run_shim(_shim_path(job), {"SLURM_LOCALID": str(rank)})
+        assert result.returncode == 0
+        assert result.stdout == nic
+        assert len(result.stderr.splitlines()) == 1
+        assert f"local rank {rank}" in result.stderr
+        assert f"UCX_NET_DEVICES={nic}" in result.stderr
+
+
+def test_the_shim_passes_the_ranks_arguments_through_intact(
+    layout: tuple[Path, Path],
+) -> None:
+    _, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, SRUN)
+
+    result = _run_shim(
+        _shim_path(job),
+        {"SLURM_LOCALID": "0"},
+        "sh",
+        "-c",
+        'printf "%s|%s" "$0" "$1"',
+        "x",
+        "a b  c",
+    )
+    assert result.returncode == 0
+    assert result.stdout == "x|a b  c"
+
+
+def test_the_mpirun_shim_ignores_slurm_localid_and_uses_the_mpi_local_rank(
+    layout: tuple[Path, Path],
+) -> None:
+    _, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, _mpirun())
+
+    both = _run_shim(_shim_path(job), {"SLURM_LOCALID": "0", "OMPI_COMM_WORLD_LOCAL_RANK": "1"})
+    assert both.returncode == 0
+    assert both.stdout == "mlx5_1:1"
+
+    hydra = _run_shim(_shim_path(job), {"MPI_LOCALRANKID": "1"})
+    assert hydra.returncode == 0
+    assert hydra.stdout == "mlx5_1:1"
+
+    only_slurm = _run_shim(_shim_path(job), {"SLURM_LOCALID": "1"})
+    assert only_slurm.returncode != 0
+    assert "crab: no local rank variable" in only_slurm.stderr
+
+
+@pytest.mark.parametrize("spec", [SRUN, _mpirun()], ids=["srun", "mpirun"])
+def test_the_shim_fails_loudly_without_a_local_rank_variable(
+    layout: tuple[Path, Path], spec: LauncherSpec
+) -> None:
+    _, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, spec)
+
+    result = _run_shim(_shim_path(job), {})
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "crab: no local rank variable" in result.stderr
+    expected = "SLURM_LOCALID" if spec is SRUN else "OMPI_COMM_WORLD_LOCAL_RANK"
+    assert expected in result.stderr
+
+
+def test_the_direct_shim_always_uses_the_first_nic(layout: tuple[Path, Path]) -> None:
+    job_dir, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, DIRECT)
+
+    record = _launches(job_dir)["e1"]["0"]
+    assert record["line"] == f"bash {shlex.quote(str(_shim_path(job)))} ./app -x 1"
+    result = _run_shim(_shim_path(job), {"SLURM_LOCALID": "1"})
+    assert result.returncode == 0
+    assert result.stdout == "mlx5_0:1"
+
+
+def test_the_shim_is_valid_bash_and_selects_among_the_listed_nics(
+    layout: tuple[Path, Path],
+) -> None:
+    _, exp_dir = layout
+    job = _nics_job(exp_dir, ("mlx5_0:1", "a.b-C_9:2"))
+    _run(job, SRUN)
+
+    shim = _shim_path(job)
+    assert _REAL_POPEN(["bash", "-n", str(shim)]).wait(timeout=10) == 0
+    result = _run_shim(shim, {"SLURM_LOCALID": "1"})
+    assert result.stdout == "a.b-C_9:2"
+
+
+@pytest.mark.parametrize(
+    ("spec", "env", "stdout", "fails"),
+    [
+        (SRUN, {"SLURM_LOCALID": "08"}, "mlx5_0:1", False),
+        (SRUN, {"SLURM_LOCALID": "abc"}, "", True),
+        (SRUN, {"SLURM_LOCALID": ""}, "", True),
+        (_mpirun(), {"PMI_LOCAL_RANK": "1"}, "mlx5_1:1", False),
+        (_mpirun(), {"PALS_LOCAL_RANKID": "1"}, "mlx5_1:1", False),
+    ],
+    ids=["leading-zero", "non-numeric", "empty", "pmi", "pals"],
+)
+def test_the_shim_reads_the_local_rank_strictly(
+    layout: tuple[Path, Path],
+    spec: LauncherSpec,
+    env: dict[str, str],
+    stdout: str,
+    fails: bool,
+) -> None:
+    _, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, spec)
+
+    result = _run_shim(_shim_path(job), env)
+    assert result.stdout == stdout
+    if fails:
+        assert result.returncode == 1
+        assert "crab: no local rank variable" in result.stderr
+    else:
+        assert result.returncode == 0

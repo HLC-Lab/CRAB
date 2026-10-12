@@ -21,6 +21,16 @@ from crab.log import CrabLogger
 # What an app's `env` key must look like to be exported from the app script.
 _SHELL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
+# The variables a rank's local index is read from in the NIC shim, per launcher. Under mpirun
+# SLURM_LOCALID is never read: the batch step's value is inherited by every rank.
+_SRUN_LOCAL_RANK_VARS: tuple[str, ...] = ("SLURM_LOCALID",)
+_MPIRUN_LOCAL_RANK_VARS: tuple[str, ...] = (
+    "OMPI_COMM_WORLD_LOCAL_RANK",
+    "MPI_LOCALRANKID",
+    "PMI_LOCAL_RANK",
+    "PALS_LOCAL_RANKID",
+)
+
 # How long stop_processes waits after SIGTERM before it sends SIGKILL (ADR-034, "Cancel order").
 STOP_GRACE_SECONDS = 10.0
 
@@ -212,6 +222,47 @@ MODULE_INIT_SCRIPTS: tuple[str, ...] = (
 )
 
 
+def _rank_shim_text(job_id: int, nics: tuple[str, ...], launcher: object) -> str:
+    """The text of the shim that gives each rank of app `job_id` its own NIC.
+
+    A rank's NIC is `nics[local rank % len(nics)]`; the local rank comes from the launcher's
+    environment variables, and a rank that finds none fails instead of falling back to `nics[0]`.
+    Under the direct launcher there is one process, so the local rank is 0.
+    """
+    if isinstance(launcher, SrunLauncher):
+        names = _SRUN_LOCAL_RANK_VARS
+    elif isinstance(launcher, MpirunLauncher):
+        names = _MPIRUN_LOCAL_RANK_VARS
+    else:
+        names = ()
+    lines = [
+        "#!/bin/bash",
+        f"# CRAB: each rank of app {job_id} uses its own NIC from the app's nics list.",
+        f"nics=({' '.join(shlex.quote(nic) for nic in nics)})",
+    ]
+    if names:
+        # ${A:-${B:-${C:-}}}: the first of the variables that is set and not empty.
+        chain = "".join(f"${{{name}:-" for name in names) + "}" * len(names)
+        lines += [
+            f"r={chain}",
+            "case $r in",
+            "    ''|*[!0-9]*)",
+            f'        echo "crab: no local rank variable ({", ".join(names)}) set; '
+            'cannot pick a NIC" >&2',
+            "        exit 1",
+            "        ;;",
+            "esac",
+        ]
+    else:
+        lines.append("r=0")
+    lines += [
+        'export UCX_NET_DEVICES="${nics[$((10#$r % ${#nics[@]}))]}"',
+        'echo "crab: $HOSTNAME local rank $r -> UCX_NET_DEVICES=$UCX_NET_DEVICES" >&2',
+        'exec "$@"',
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def run_job(
     job,
     spec: LauncherSpec,
@@ -228,7 +279,9 @@ def run_job(
     first launch recorded in the job directory's `crab_run.json`, and under mpirun or srun its
     stderr teed into `<exp_dir>/bindings_app_<id>.log` (the launch record is keyed by `config_key`,
     the app's key in the experiment's `apps`, else its id) with a `# run <n>` header when
-    `run_number` is set.
+    `run_number` is set. An app with `nics` is launched through a per-app shim script that sets
+    each rank's `UCX_NET_DEVICES` to `nics[local rank % len(nics)]`; the launch record holds
+    the list.
     """
     if not job.node_list:
         raise Exception(f"Application {job.id_num} has 0 allocated nodes.")
@@ -255,6 +308,19 @@ def run_job(
     job_tasks = os.environ.get("SLURM_NTASKS_PER_NODE", "")
     job_ranks = int(job_tasks) if job_tasks.isascii() and job_tasks.isdigit() else None
     launcher = launcher_for(spec, extra_export=tuple(app_env))
+
+    # The app script and the NIC shim live in the isolated run directory, to preserve provenance.
+    run_dir = getattr(job, "run_dir", data_path)
+    script_dir = os.path.join(run_dir, ".wrappers")
+    os.makedirs(script_dir, exist_ok=True)
+    nics = getattr(job, "nics", None)
+    if nics:
+        # Absolute: srun runs the shim on every node.
+        shim_path = os.path.abspath(os.path.join(script_dir, f"app_{job.id_num}_rank.sh"))
+        with open(shim_path, "w") as f:
+            f.write(_rank_shim_text(job.id_num, tuple(nics), launcher))
+        app_command = f"bash {shlex.quote(shim_path)} {app_command}"
+
     cmd_string = launch_line(
         launcher,
         Placement(
@@ -287,14 +353,11 @@ def run_job(
                 "binding_report": bindings_path,
                 "ppn": job.ppn,
                 "env": app_env,
+                "nics": list(nics) if nics else None,
             },
         )
 
     # 2. Write the Execution Wrapper
-    # Route the scripts into the isolated run directory to preserve provenance
-    run_dir = getattr(job, "run_dir", data_path)
-    script_dir = os.path.join(run_dir, ".wrappers")
-    os.makedirs(script_dir, exist_ok=True)
     script_path = os.path.join(script_dir, f"app_{job.id_num}.sh")
 
     with open(script_path, "w") as f:
