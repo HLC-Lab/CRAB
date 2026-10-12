@@ -141,7 +141,7 @@ class TestRealGroups(_RealGroups):
 
 class TestMocked(unittest.TestCase):
     def test_gone_group_is_not_signalled_again(self):
-        proc = MagicMock(pid=424242)
+        proc = MagicMock(pid=424242, returncode=None)
         proc.poll.return_value = 0
         with patch("crab.core.process.manager.os.killpg") as killpg:
             killpg.side_effect = ProcessLookupError
@@ -153,8 +153,8 @@ class TestMocked(unittest.TestCase):
 
     def test_refuses_pid_one_and_own_group(self):
         logger = MagicMock()
-        one = MagicMock(pid=1)
-        own = MagicMock(pid=os.getpgrp())
+        one = MagicMock(pid=1, returncode=None)
+        own = MagicMock(pid=os.getpgrp(), returncode=None)
         with patch("crab.core.process.manager.os.killpg") as killpg:
             killed = stop_process_groups([one, own], grace=0.2, logger=logger)
         killpg.assert_not_called()
@@ -164,13 +164,17 @@ class TestMocked(unittest.TestCase):
     def test_refuses_pid_zero_and_negative(self):
         logger = MagicMock()
         with patch("crab.core.process.manager.os.killpg") as killpg:
-            stop_process_groups([MagicMock(pid=0), MagicMock(pid=-5)], grace=0.2, logger=logger)
+            stop_process_groups(
+                [MagicMock(pid=0, returncode=None), MagicMock(pid=-5, returncode=None)],
+                grace=0.2,
+                logger=logger,
+            )
         killpg.assert_not_called()
         self.assertEqual(logger.warning.call_count, 2)
 
     def test_permission_error_on_probe_is_logged(self):
         logger = MagicMock()
-        proc = MagicMock(pid=424242)
+        proc = MagicMock(pid=424242, returncode=None)
 
         def fake_killpg(g, sig):
             if sig == 0:
@@ -184,7 +188,7 @@ class TestMocked(unittest.TestCase):
 
     def test_permission_error_is_skipped(self):
         logger = MagicMock()
-        proc = MagicMock(pid=424242)
+        proc = MagicMock(pid=424242, returncode=None)
         with patch("crab.core.process.manager.os.killpg", side_effect=PermissionError) as killpg:
             killed = stop_process_groups([proc], grace=0.2, logger=logger)
         self.assertEqual(killed, [])
@@ -193,7 +197,7 @@ class TestMocked(unittest.TestCase):
 
     def test_term_first_kill_last_for_same_group(self):
         pgid = 424242
-        proc = MagicMock(pid=pgid)
+        proc = MagicMock(pid=pgid, returncode=None)
         proc.poll.return_value = None
         calls: list[tuple[int, int]] = []
         killed_flag = []
@@ -213,6 +217,14 @@ class TestMocked(unittest.TestCase):
         self.assertTrue(all(g == pgid for g, _ in calls))
         self.assertEqual(calls[0], (pgid, signal.SIGTERM))
         self.assertEqual(calls[-1][1], 0)  # final probe confirming it is gone
+
+    def test_reaped_leader_is_never_signalled(self):
+        """A leader with a return code is done, and so is its group: its pid may be reused."""
+        proc = MagicMock(pid=424242, returncode=0)
+        with patch("crab.core.process.manager.os.killpg") as killpg:
+            killed = stop_process_groups([proc], grace=0.2)
+        killpg.assert_not_called()
+        self.assertEqual(killed, [])
 
 
 if __name__ == "__main__":

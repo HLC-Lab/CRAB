@@ -186,6 +186,10 @@ def stop_process_groups(
     own_group = os.getpgrp()
     pending: dict[int, subprocess.Popen] = {}
     for process in processes:
+        if process.returncode is not None:
+            # Reaped leader: bash ends only after its foreground srun/mpirun does, so nothing of
+            # ours is left, and the group id may already belong to an unrelated process.
+            continue
         pgid = process.pid
         if pgid <= 1 or pgid == own_group:
             _warn(logger, f"Refusing to signal process group {pgid} (not a group of its own)")
