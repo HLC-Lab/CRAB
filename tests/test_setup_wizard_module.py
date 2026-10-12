@@ -59,13 +59,13 @@ def test_qe_module_install_defaults_to_pw_x(monkeypatch):
 
 def test_blink_module_install_reasks_on_empty_answer(monkeypatch):
     saved, prompts = _run_module_install(
-        monkeypatch, BlinkRecipe(), ["3", "module load blink", "", "ping-pong_b"]
+        monkeypatch, BlinkRecipe(), ["3", "module load blink", "", "pingpong_b"]
     )
 
     exe_prompts = [p for p in prompts if "executable" in p[0].lower()]
     assert len(exe_prompts) == 2, "an empty answer must be refused and asked again"
     assert all(default is ... for _, default in exe_prompts), "no default for blink"
-    assert saved["blink"]["binary_path"] == "ping-pong_b"
+    assert saved["blink"]["binary_path"] == "pingpong_b"
 
 
 @pytest.mark.parametrize(

@@ -288,6 +288,28 @@ def test_a_normal_pid_gets_sigterm_then_sigkill_when_it_stays(
     assert recorder == [(424242, signal.SIGTERM), (424242, signal.SIGKILL)]
 
 
+@pytest.mark.parametrize("error", [ProcessLookupError, PermissionError])
+def test_a_group_that_is_gone_or_not_ours_is_skipped_quietly(
+    monkeypatch: pytest.MonkeyPatch, error: type[OSError]
+) -> None:
+    calls: list[tuple[int, int]] = []
+
+    def killpg(pgid: int, sig: int) -> None:
+        calls.append((pgid, sig))
+        raise error
+
+    monkeypatch.setattr(os, "killpg", killpg)
+    monkeypatch.setattr(manager, "_group_members", lambda pgid: False)
+    fake = MagicMock()
+    fake.pid = 424242
+    fake.poll.return_value = None
+    fake.wait.return_value = 0
+
+    stop_processes([fake], MagicMock(), grace=0.2)
+
+    assert calls == [(424242, signal.SIGTERM)]
+
+
 def test_stop_processes_empties_the_registry() -> None:
     from crab.core.process import manager
 

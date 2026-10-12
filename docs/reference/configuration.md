@@ -60,7 +60,10 @@ is refused before anything runs, with a hint to run `crab update`.
     Values CRAB would otherwise misread are errors before the job starts: `convergeall`,
     `retain_files` and `collect` must be `true` or `false` (the strings `"true"` and `"false"` are
     accepted too), `outformat` must be `csv`, allocation `mode`s must be one of `linear`,
-    `interleaved`, `random` or `shared`, and every app needs a `path`.
+    `interleaved`, `random` or `shared`, and every app needs a `path`. The allocation keys used before
+    the nested `allocation` block (`allocationmode`, `partitionsplit`, `partitionlayout`,
+    `allocationsplit`) are refused with the equivalent form; see
+    [Allocation fields](#allocation-fields).
 
     The launcher options and the preset are checked too. These are errors:
 
@@ -74,6 +77,12 @@ is refused before anything runs, with a hint to run `crab update`.
     - `numnodes` above the number of hosts of a `local` preset.
 
     `sbatch_directives` on a `local` preset only log a warning: the local scheduler ignores them.
+
+    Some other patterns only get a warning in the log: an allocation split that sums to less than
+    100, an app with `collect: true` and an `end` of `"f"` or a number (see
+    [`end`](#the-apps-block)), `numnodes`, `ppn`, `walltime` or `sbatch_directives` inside an
+    experiment's `local_options`, and any experiment key other than `description`,
+    `local_options` and `apps`.
 
 !!! note "Legacy single-experiment form"
     A config may instead use a top-level `applications` block in place of `experiments`. CRAB
@@ -296,7 +305,7 @@ that remote ranks receive them; Hydra passes the whole environment.
 
 ```json
 "0": {
-  "path": "blink/a2a_comm_only.py",
+  "path": "blink/alltoall_comm_only.py",
   "collect": true,
   "cpus": "0-3",
   "env": { "OMP_NUM_THREADS": "1" }
@@ -321,6 +330,10 @@ The `start` and `end` strings encode the victim/aggressor model and timed/sequen
 | `""` (empty) | Wait for the app to finish on its own. | [Victim](../glossary.md#victim) |
 | `"f"` | Force-terminate once all non-`f` apps have finished. | [Aggressor](../glossary.md#aggressor) |
 | a number | Terminate after that many seconds. | Timed |
+
+An app is stopped by killing it, and the output of a killed app is not collected. An app with
+`collect: true` that is still running when `f` or a timed `end` stops it has no data for that
+run; CRAB warns about this combination before the run starts.
 
 **Which nodes a chained app uses.** An app with `start: "sN"` runs on the nodes of application N,
 which have just been released. This carries along a chain: in `0` → `s0` → `s1` all three apps
@@ -385,7 +398,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
       "description": "All-to-all victim against a Graph500 aggressor, interleaved nodes.",
       "apps": {
         "0": {
-          "path": "blink/a2a_comm_only.py",
+          "path": "blink/alltoall_comm_only.py",
           "args": "-msgsize 8192 -iter 1000",
           "collect": true,
           "start": "0",
@@ -393,7 +406,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
           "partition": "victim"
         },
         "1": {
-          "path": "others/g500.py",
+          "path": "graph500/g500_wrapper.py",
           "args": "",
           "collect": false,
           "start": "0",

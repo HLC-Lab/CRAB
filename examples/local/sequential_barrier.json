@@ -19,28 +19,28 @@
             "description": "Sequential chain of 4 Barrier runs: each starts only after the previous finishes.",
             "apps": {
                 "0": {
-                    "path": "blink/barrier.py",
+                    "path": "blink/barrier_b.py",
                     "args": "-iter 1000",
                     "collect": true,
                     "start": "0",
                     "end": ""
                 },
                 "1": {
-                    "path": "blink/barrier.py",
+                    "path": "blink/barrier_b.py",
                     "args": "-iter 1000",
                     "collect": true,
                     "start": "s0",
                     "end": ""
                 },
                 "2": {
-                    "path": "blink/barrier.py",
+                    "path": "blink/barrier_b.py",
                     "args": "-iter 1000",
                     "collect": true,
                     "start": "s1",
                     "end": ""
                 },
                 "3": {
-                    "path": "blink/barrier.py",
+                    "path": "blink/barrier_b.py",
                     "args": "-iter 1000",
                     "collect": true,
                     "start": "s2",

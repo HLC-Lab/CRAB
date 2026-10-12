@@ -26,6 +26,10 @@ MANAGED_DIRECTIVES: dict[str, str] = {
     "ntasks": _TASKS_TAIL,
     "n": _TASKS_TAIL,
 }
+_LEGACY_ALLOCATION_KEYS = ("allocationmode", "partitionsplit", "partitionlayout", "allocationsplit")
+# Slurm reads these once for the whole job, so an experiment's local_options cannot change them.
+_JOB_LEVEL_OPTIONS = ("numnodes", "ppn", "sbatch_directives", "walltime")
+_EXPERIMENT_KEYS = ("description", "local_options", "apps")
 
 
 def parse_bool(value: Any, name: str) -> bool:
@@ -80,7 +84,22 @@ def _check_shared_scope(scope: dict[str, Any], where: str) -> None:
         raise ValueError(f"{where}: cores {cores!r} is not one of: {', '.join(CORES_MODES)}")
 
 
+def _check_legacy_allocation(opts: dict[str, Any], exp: str) -> None:
+    found = [key for key in _LEGACY_ALLOCATION_KEYS if key in opts]
+    if not found:
+        return
+    raise ValueError(
+        f"experiment {exp}: {', '.join(found)} no longer {'exists' if len(found) == 1 else 'exist'}"
+        " and would be ignored; use the `allocation` block instead. Partitions laid out "
+        'interleaved: {"mode": "interleaved", "partitions": {"victim": {"share": 50}, '
+        '"aggressor": {"share": 50}}}, with a "partition" name on each app ("mode": "linear" '
+        'for contiguous blocks, "split" inside a partition for the apps sharing it). '
+        "See Allocation fields in docs/reference/configuration.md"
+    )
+
+
 def _check_options(opts: dict[str, Any], exp: str) -> None:
+    _check_legacy_allocation(opts, exp)
     for key in _BOOL_OPTIONS:
         if key in opts:
             parse_bool(opts[key], f"experiment {exp}: {key}")
@@ -239,6 +258,37 @@ def _check_split(
         )
 
 
+def _check_ignored_keys(exp: dict[str, Any], exp_name: str, warnings: list[str]) -> None:
+    """Warn about experiment-level keys the engine never reads."""
+    local = exp.get("local_options") or {}
+    for key in _JOB_LEVEL_OPTIONS:
+        if key in local:
+            warnings.append(
+                f"experiment {exp_name}: local_options.{key} is ignored; it applies to the "
+                "whole job and is set in global_options"
+            )
+    for key in exp:
+        if key not in _EXPERIMENT_KEYS:
+            warnings.append(
+                f"experiment {exp_name}: {key} is ignored here; an experiment takes only "
+                f"{', '.join(_EXPERIMENT_KEYS)}"
+            )
+
+
+def _check_collected_end(app: dict[str, Any], where: str, warnings: list[str]) -> None:
+    """Warn when a collected app is stopped by `end`: CRAB kills it, and a killed app's
+    output is skipped without a message (collect_run ignores a non-zero return code)."""
+    end = app.get("end")
+    if end is None or str(end).strip() == "" or _has_token(end):
+        return
+    if not parse_bool(app.get("collect", False), f"{where}: collect"):
+        return
+    warnings.append(
+        f"{where}: collect is on and end is {str(end).strip()!r}; if the app is still running "
+        "when it is stopped, its output is not collected for that run"
+    )
+
+
 def _check_allocation(
     allocation: dict[str, Any],
     apps: dict[str, Any],
@@ -334,6 +384,7 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
         _check_launcher_options(opts, exp_name)
         if settings is not None:
             _check_preset_fit(opts, global_opts, settings, exp_name, warnings)
+        _check_ignored_keys(exp, exp_name, warnings)
         apps = exp.get("apps") or {}
         _check_allocation(
             opts.get("allocation") or {}, apps, global_opts.get("numnodes"), exp_name, warnings
@@ -357,4 +408,5 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
                 raise ValueError(f"{where} has no wrapper path")
             if "collect" in app:
                 parse_bool(app["collect"], f"{where}: collect")
+            _check_collected_end(app, where, warnings)
     return warnings

@@ -31,10 +31,13 @@ CRAB needs the Blink binaries on your cluster. Run the setup wizard:
 crab setup
 ```
 
-Select the **Blink Suite**, then choose **Build from source** (the wizard clones and compiles it,
-streaming the build log). When it finishes it writes a [receipt](glossary.md#receipt) to
-`local/receipts/blink.json` recording where the binaries live — the wrappers read this at run
-time. See [Installation & benchmark setup](using/installation.md#set-up-benchmarks-crab-setup) for
+Choose **Install or configure a supported benchmark**. The suite list pre-selects every suite that
+is not configured yet: press Space to untick the others, so that only the **Blink Suite** is ticked.
+At the strategy prompt, type `4` (build from source). The wizard asks for the cluster modules to
+load before building; accept the default `module load gcc openmpi` or type your own line (add CMake
+if it is a module on your cluster). It then clones and compiles Blink, streaming the build log.
+When it finishes it writes a [receipt](glossary.md#receipt) to `local/receipts/blink.json`
+recording where the binaries live — the wrappers read this at run time. See [Installation & benchmark setup](using/installation.md#set-up-benchmarks-crab-setup) for
 the other strategies (e.g. pointing at an existing build).
 
 ## Step 2 — Write the experiment config
@@ -66,16 +69,16 @@ the comparison is apples-to-apples.
     "baseline": {
       "description": "All-to-all victim alone on half the nodes — the reference.",
       "apps": {
-        "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                "collect": true, "start": "0", "end": "", "partition": "victim" }
       }
     },
     "with_noise": {
       "description": "Same victim, now with a bursty all-to-all aggressor on the other half.",
       "apps": {
-        "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 64 -iter 2000",
+        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                "collect": true, "start": "0", "end": "", "partition": "victim" },
-        "1": { "path": "blink/bursty_noise_a2a.py", "args": "0.001 0.01",
+        "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
       }
     }
@@ -87,21 +90,24 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
 
 - **`numnodes: 8`** plus the `allocation` block — allocate 8 nodes, split into two equal
   [partitions](glossary.md#partition) named `"victim"` and `"aggressor"`, each getting 4 dedicated
-  nodes. `mode: "linear"` gives each partition a contiguous block.
+  nodes. `mode: "linear"` gives each partition a contiguous block. On a smaller cluster, set
+  `numnodes` to the nodes you have: with 4 nodes the 50/50 split gives 2 and 2.
 - **App `0` — the [victim](glossary.md#victim).** `collect: true` (its metrics are recorded) and
   `end: ""` (CRAB waits for it to finish naturally). In `baseline` it's the only app, so its half
   runs undisturbed; the other half sits idle. That's deliberate — the victim runs on the *same*
   4 nodes in both experiments.
 - **App `1` — the [aggressor](glossary.md#aggressor).** `collect: false` (not measured) and
-  `end: "f"` (force-killed as soon as the victim finishes). Its `args` (`0.001 0.01`) are the
-  arguments passed to the benchmark — here, noise-timing values controlling how bursty the
-  interference is (smaller quiet interval / longer burst = heavier interference).
+  `end: "f"` (force-killed as soon as the victim finishes). Its `args` make Blink's
+  `alltoall_man` run until it is stopped (`-endl`), in bursts of 10 ms (`-blength 0.01`) separated
+  by 1 ms pauses (`-bpause 0.001`). Each burst sends 2 MiB to every other rank (`-msgsize 2097152`).
+  Longer bursts and shorter pauses mean heavier interference.
 - **`minruns`/`maxruns`** — repeat each experiment 5–10 times, stopping early once the victim's
   metrics [converge](glossary.md#convergence).
 
 !!! note "`path` points to the wrapper, not the binary"
-    `blink/a2a_comm_only.py` is the [wrapper](glossary.md#wrapper) **file**, given *relative* to
-    `CRAB_PATH_WRAPPERS` — it is **not** an absolute path and not the benchmark executable. That's
+    `blink/alltoall_comm_only.py` is the [wrapper](glossary.md#wrapper) **file**, given *relative*: CRAB
+    looks for it in `local/wrappers/` first, then in each folder of `CRAB_PATH_WRAPPERS`, or in
+    `wrappers/` when that is unset. It is **not** an absolute path and not the benchmark executable. That's
     what keeps the config [system-independent](concepts/system-dependent-vs-independent.md): the
     wrapper looks up the actual binary location from the [receipt](glossary.md#receipt) at run time,
     so the *same* config file runs on any cluster where you've done `crab setup`.
@@ -182,9 +188,11 @@ You built a benchmark, expressed a victim-vs-aggressor study, ran it through Slu
 interference. From here:
 
 - **Scale the study up** — `examples/leonardo/congestion/victim_sweep.json` runs this idea across
-  11 experiments (different victim collectives, light vs heavy noise, delayed and timed aggressors).
+  11 experiments (different victim collectives against A2A and incast noise at a single intensity,
+  plus delayed and timed aggressors). `examples/leonardo/congestion/noise_heatmap.json` sweeps
+  message sizes against light, medium and heavy noise.
   `examples/leonardo/congestion/layout_effect.json` isolates the effect of node placement.
-  Both are natural next reads.
+  All three are natural next reads.
 - **Vary placement** — try `mode: "interleaved"` in the `allocation` block to make victim and
   aggressor share the fabric more aggressively. See
   [Writing experiment configs](using/writing-configs.md#choosing-an-allocation-mode).

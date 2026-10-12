@@ -48,8 +48,9 @@ src/crab/
 ├── log/          # CrabLogger
 └── wrappers/base.py   # the wrapper base class
 
-wrappers/         # application wrappers (blink/, others/) — referenced from configs
-config/           # presets.json (+ environments/ receipts, generated)
+wrappers/         # application wrappers: a separate git-ignored clone of HLC-Lab/crab-wrappers
+local/            # git-ignored, per machine: presets.json, receipts/, wrappers/
+config/           # presets.json (the shipped presets)
 examples/         # sample experiment configs per system
 crab_dashboard.html  # standalone results viewer
 ```
@@ -62,7 +63,7 @@ worker execution model** and the **wrapper / recipe / receipt** separation — b
 
 | To add… | Put it in… | Mechanism |
 |---------|-----------|-----------|
-| Support for a new application | `wrappers/` (+ optionally a recipe) | Loaded by file path; see [Extending CRAB](extending/overview.md). |
+| Support for a new application | the crab-wrappers repository, or `local/wrappers/` while in progress (+ optionally a recipe) | Loaded by file path; see [Extending CRAB](extending/overview.md). |
 | A buildable benchmark | `src/crab/setup/recipes/` | Auto-discovered subclass of `BenchmarkRecipe`. |
 | A new cluster environment | `config/presets.json` | See [Configuring your cluster](using/presets.md). |
 | A new launch mechanism | `src/crab/core/execution/launcher/` | A class with a `prefix(placement)` method (the `Launcher` protocol in `base.py`), plus a kind in `LAUNCHER_KINDS` (`settings.py`) and a branch in `select.py`. |

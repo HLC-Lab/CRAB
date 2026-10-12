@@ -14,13 +14,17 @@ from crab.core.execution.settings import (
     LauncherSpec,
     resolve_launcher,
 )
-from crab.core.wrapper_paths import load_module, resolve_wrapper_path
+from crab.core.wrapper_paths import (
+    load_module,
+    missing_wrappers_hint,
+    resolve_wrapper_path,
+)
 from crab.log import CrabLogger
 from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import check_CI
-from ..process import stop_processes
+from ..process import cancel_leftover_steps, stop_processes
 from .artifacts import copy_artifacts
 from .registry import write_registry_row
 from .schedule import build_schedule, kill_f_apps, run_events
@@ -91,7 +95,10 @@ class ExperimentRunner:
 
             if not os.path.exists(path):
                 self.log.error(f"Wrapper not found at: {path}")
-                raise FileNotFoundError(f"Wrapper not found: {path}")
+                hint = missing_wrappers_hint()
+                raise FileNotFoundError(
+                    f"Wrapper not found: {path}" + (f". {hint}" if hint else "")
+                )
 
             # Load App Class
             mod_app = load_module(path)
@@ -277,6 +284,10 @@ class ExperimentRunner:
 
                 kill_f_apps(self.apps, run_log)
 
+                # Every app is stopped by now (the HARD TIMEOUT break lands here too): a Slurm
+                # step that outlived its app would block the next run's sruns on its nodes.
+                cancel_leftover_steps(run_log)
+
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
                 # Collect Data: a parse failure fails the run like a non-zero exit.
@@ -348,6 +359,7 @@ class ExperimentRunner:
             self.log,
             labels={pid: name for pid, (_, name) in running.items()},
         )
+        cancel_leftover_steps(self.log)
 
     def save_results(self):
         """Persists data to disk."""

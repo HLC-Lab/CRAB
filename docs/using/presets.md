@@ -63,6 +63,35 @@ To adapt it to your cluster, change the values you already know for your system:
     pinning for your hardware — those are site-specific values your HPC support or local
     documentation provides.
 
+## A minimal preset for a new cluster
+
+For a cluster CRAB does not know, this is enough to start. Put it in `local/presets.json` (see
+[Keep your presets out of git](#keep-your-presets-out-of-git)), and replace the account, the
+partition and the module lines with your site's:
+
+```json
+{
+  "mycluster": {
+    "description": "My cluster",
+    "scheduler": "slurm",
+    "launcher": "srun",
+    "sbatch": [
+      "--account=MY_PROJECT",
+      "--partition=compute",
+      "--exclusive"
+    ],
+    "header": [
+      "module purge",
+      "module load gcc openmpi"
+    ]
+  }
+}
+```
+
+Run it with `crab run <config.json> -p mycluster`. When you copy `leonardo` instead, remove its
+Leonardo-specific settings (the paths under `/leonardo/`, the `UCX_*` and `NCCL_*` variables and
+`--gres=tmpfs:0`) unless your site needs them.
+
 ## Choosing the launcher
 
 The preset's `scheduler` decides how the job itself is run: `"slurm"` submits it with `sbatch`.
@@ -179,21 +208,44 @@ defaults to the preset's name and is used in the output directory path.
 turns every `git pull` or `crab update` into a conflict. Put your presets in
 `local/presets.json` instead: same format, git-ignored, and merged over the shipped file.
 
+`local/` is a folder at the root of the CRAB checkout, next to `config/`. It may not exist yet.
+Create it from the checkout and start the file:
+
+```bash
+mkdir -p local
+$EDITOR local/presets.json
+```
+
 - A preset in `local/presets.json` **replaces** the shipped preset of the same name as a whole,
   so copy the entire block before changing it.
 - A preset that exists only in `local/presets.json` is simply added.
 - For `_common`, the `env` entries are merged key by key (yours win); any other `_common` key
   you set replaces the shipped one.
 
+For example, to run on `leonardo` with your project account, copy the whole `leonardo` block from
+`config/presets.json` into `local/presets.json` and change only the `--account` line:
+
 ```json
 {
   "leonardo": {
-    "description": "Leonardo with my project account",
+    "description": "Leonardo Cluster @ CINECA",
     "scheduler": "slurm",
     "launcher": "srun",
     "launchers": { "srun": { "flags": ["--cpu-bind=socket"] } },
-    "sbatch": ["--account=MY_PROJECT", "--partition=boost_usr_prod"],
-    "header": ["module purge"]
+    "env": {
+      "UCX_IB_SL": "1",
+      "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/leonardo/smcx_home/bench/software/lib/ucx/nvhpc-22.2_pgi_cuda/lib/",
+      "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
+      "NCCL_IB_SL": "${UCX_IB_SL}"
+    },
+    "sbatch": [
+      "--account=MY_PROJECT",
+      "--partition=boost_usr_prod",
+      "--gres=tmpfs:0"
+    ],
+    "header": [
+      "module purge"
+    ]
   }
 }
 ```

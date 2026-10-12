@@ -235,3 +235,60 @@ def test_chained_app_in_another_partition_gets_a_share_there():
     allocation = {"partitions": {"victim": {}, "aggressor": {}}}
     NodeAllocator.allocate_experiment(apps, ["n0", "n1", "n2", "n3"], allocation)
     assert [a.nodes for a in apps] == [["n0", "n1"], ["n2"], ["n3"], ["n0", "n1"]]
+
+
+# ---------------------------------------------------------------------------
+# Shares or splits summing under 100 leave the remaining nodes idle
+# ---------------------------------------------------------------------------
+
+
+def test_partitioned_linear_shares_under_100_leave_nodes_idle():
+    victim = MockApp("victim")
+    aggressor = MockApp("aggressor")
+    nodes = [f"n{i}" for i in range(16)]
+    allocation = {
+        "mode": "linear",
+        "partitions": {"victim": {"share": 25}, "aggressor": {"share": 25}},
+    }
+    NodeAllocator.allocate_partitioned([victim, aggressor], nodes, allocation)
+    assert victim.nodes == ["n0", "n1", "n2", "n3"]
+    assert aggressor.nodes == ["n4", "n5", "n6", "n7"]
+
+
+def test_partitioned_interleaved_shares_under_100_leave_nodes_idle():
+    victim = MockApp("victim")
+    aggressor = MockApp("aggressor")
+    nodes = [f"n{i}" for i in range(16)]
+    allocation = {
+        "mode": "interleaved",
+        "partitions": {"victim": {"share": 25}, "aggressor": {"share": 25}},
+    }
+    NodeAllocator.allocate_partitioned([victim, aggressor], nodes, allocation)
+    assert len(victim.nodes) == 4
+    assert len(aggressor.nodes) == 4
+
+
+def test_get_abs_split_under_100_leaves_nodes_idle():
+    assert NodeAllocator.get_abs_split([50], 1, 8) == [4]
+
+
+def test_largest_remainder_under_100_exact_shares():
+    assert NodeAllocator._apply_largest_remainder(16, [12.5, 12.5]) == [2, 2]
+
+
+def test_largest_remainder_under_100_with_remainders_assigns_rounded_total():
+    result = NodeAllocator._apply_largest_remainder(10, [33, 33])
+    assert sum(result) == round(10 * 0.66)
+    assert sorted(result) == [3, 4]
+
+
+def test_largest_remainder_sum_100_assigns_every_node():
+    assert sum(NodeAllocator._apply_largest_remainder(16, [33.3, 33.3, 33.4])) == 16
+    assert NodeAllocator._apply_largest_remainder(10, [50, 50]) == [5, 5]
+    assert sorted(NodeAllocator._apply_largest_remainder(7, [50, 50])) == [3, 4]
+
+
+def test_largest_remainder_sum_within_tolerance_assigns_every_node():
+    # 100.05 is inside the 100.1 tolerance: still all nodes, never more
+    result = NodeAllocator._apply_largest_remainder(16, [50, 50.05])
+    assert sum(result) == 16

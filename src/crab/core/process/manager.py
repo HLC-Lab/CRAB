@@ -168,6 +168,17 @@ def stop_all_registered(logger: CrabLogger, grace: float | None = None) -> None:
         _registry.clear()
 
 
+# Tried in order inside the launcher script, on the compute node; the first that exists
+# initialises the `module` command (Lmod sites often lack /etc/profile.d/modules.sh).
+# `$LMOD_PKG/init/bash` is appended at run time. The setup wizard reads this same list to
+# capture module lines (crab/setup/wizard.py).
+MODULE_INIT_SCRIPTS: tuple[str, ...] = (
+    "/etc/profile.d/modules.sh",
+    "/etc/profile.d/lmod.sh",
+    "/usr/share/lmod/lmod/init/bash",
+)
+
+
 def run_job(
     job,
     spec: LauncherSpec,
@@ -247,9 +258,13 @@ def run_job(
     with open(script_path, "w") as f:
         f.write("#!/bin/bash\n")
         # Natively bring the cluster's module command to life
-        f.write("if [ -f /etc/profile.d/modules.sh ]; then\n")
-        f.write("    source /etc/profile.d/modules.sh\n")
-        f.write("fi\n\n")
+        candidates = " ".join(shlex.quote(path) for path in MODULE_INIT_SCRIPTS)
+        f.write(f'for _crab_init in {candidates} ${{LMOD_PKG:+"$LMOD_PKG/init/bash"}}; do\n')
+        f.write('    if [ -f "$_crab_init" ]; then\n')
+        f.write('        source "$_crab_init"\n')
+        f.write("        break\n")
+        f.write("    fi\n")
+        f.write("done\n\n")
 
         # Inject application-specific hooks cleanly
         if pre_commands:
@@ -274,7 +289,7 @@ def run_job(
 
     # 3. Execute the physical script as a clean subprocess.
     # start_new_session=True puts bash in its own process group so that
-    # os.killpg() in end_job can reach srun/mpirun children as well.
+    # stop_processes() in end_job can reach srun/mpirun children as well.
     process = subprocess.Popen(
         ["bash", script_path],
         stdout=subprocess.PIPE,

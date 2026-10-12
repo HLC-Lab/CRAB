@@ -43,3 +43,4 @@ deleted.
 | [032](adr-032-chained-apps-reuse-nodes.md) | Chained apps run on their predecessor's nodes; the partition decides | accepted |
 | [033](adr-033-execution-settings.md) | Execution settings live in structured preset fields, with a few config overrides | accepted |
 | [034](adr-034-local-scheduler.md) | The local scheduler: prefixed job ids, per-user state, a liveness lock and a SIGTERM-first cancel | accepted |
+| [035](adr-035-blink-wrapper-names.md) | Blink wrappers are named after Blink's programs | accepted |

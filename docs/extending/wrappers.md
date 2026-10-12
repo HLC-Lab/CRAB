@@ -18,9 +18,17 @@ The wrapper is created in the shared wrappers folder (the first folder of `CRAB_
 git-ignored and meant for private or in-progress wrappers, or `--dir <folder>` for any other
 folder.
 
+## Where the shared wrappers live
+
+The shared wrappers are in their own repository,
+[HLC-Lab/crab-wrappers](https://github.com/HLC-Lab/crab-wrappers). `make` and `crab update` clone
+it into `wrappers/` in the checkout. A wrapper that other people can use belongs there: send it as
+a pull request to that repository, with a sample of the application's real output. Private or
+in-progress wrappers go in `local/wrappers/`.
+
 ## Where CRAB looks for wrappers
 
-A config names a wrapper by `path`, for example `blink/a2a_b.py`. A relative path is looked up in
+A config names a wrapper by `path`, for example `blink/alltoall_b.py`. A relative path is looked up in
 these folders, and the first match wins:
 
 1. `local/wrappers/` in the CRAB checkout;

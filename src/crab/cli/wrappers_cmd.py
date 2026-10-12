@@ -46,11 +46,12 @@ def _read(path: str) -> bytes:
 def handle_parse(args: argparse.Namespace) -> None:
     from crab.cli.wrappers_catalog import parse_saved_output
     from crab.core.data.parse import ParseError
-    from crab.core.wrapper_paths import resolve_wrapper_path
+    from crab.core.wrapper_paths import missing_wrappers_hint, resolve_wrapper_path
 
     path = resolve_wrapper_path(args.wrapper)
     if not os.path.isfile(path):
-        _fail(f"wrapper not found: {path}")
+        hint = missing_wrappers_hint()
+        _fail(f"wrapper not found: {path}" + (f". {hint}" if hint else ""))
 
     settings = dict(_setting(raw) for raw in args.set or [])
     stderr = _read(args.stderr) if args.stderr else b""

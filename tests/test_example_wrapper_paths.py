@@ -9,6 +9,10 @@ from pathlib import Path
 
 import pytest
 
+from conftest import requires_wrappers_checkout
+
+pytestmark = requires_wrappers_checkout
+
 REPO = Path(__file__).resolve().parents[1]
 
 

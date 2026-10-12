@@ -14,15 +14,15 @@
         "sbatch_directives": { "time": "02:00:00", "job-name": "crab_baselines" }
     },
     "experiments": {
-        "a2a_8B":       { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 8 -iter 5000",       "collect": true, "start": "0", "end": "" } } },
-        "a2a_64B":      { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 64 -iter 5000",      "collect": true, "start": "0", "end": "" } } },
-        "a2a_4KB":      { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 4096 -iter 1000",    "collect": true, "start": "0", "end": "" } } },
-        "a2a_64KB":     { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 65536 -iter 200",    "collect": true, "start": "0", "end": "" } } },
-        "a2a_1MB":      { "apps": { "0": { "path": "blink/a2a_comm_only.py",  "args": "-msgsize 1048576 -iter 50",   "collect": true, "start": "0", "end": "" } } },
-        "incast_8B":    { "apps": { "0": { "path": "blink/inc_b.py",          "args": "-msgsize 8 -iter 5000",       "collect": true, "start": "0", "end": "" } } },
-        "incast_64B":   { "apps": { "0": { "path": "blink/inc_b.py",          "args": "-msgsize 64 -iter 2000",      "collect": true, "start": "0", "end": "" } } },
-        "incast_1MB":   { "apps": { "0": { "path": "blink/inc_b.py",          "args": "-msgsize 1048576 -iter 50",   "collect": true, "start": "0", "end": "" } } },
-        "agtr_64B":     { "apps": { "0": { "path": "blink/agtr_comm_only.py", "args": "-msgsize 64 -iter 2000",      "collect": true, "start": "0", "end": "" } } },
-        "agtr_1MB":     { "apps": { "0": { "path": "blink/agtr_comm_only.py", "args": "-msgsize 1048576 -iter 50",   "collect": true, "start": "0", "end": "" } } }
+        "a2a_8B":       { "apps": { "0": { "path": "blink/alltoall_comm_only.py",  "args": "-msgsize 8 -iter 5000",       "collect": true, "start": "0", "end": "" } } },
+        "a2a_64B":      { "apps": { "0": { "path": "blink/alltoall_comm_only.py",  "args": "-msgsize 64 -iter 5000",      "collect": true, "start": "0", "end": "" } } },
+        "a2a_4KB":      { "apps": { "0": { "path": "blink/alltoall_comm_only.py",  "args": "-msgsize 4096 -iter 1000",    "collect": true, "start": "0", "end": "" } } },
+        "a2a_64KB":     { "apps": { "0": { "path": "blink/alltoall_comm_only.py",  "args": "-msgsize 65536 -iter 200",    "collect": true, "start": "0", "end": "" } } },
+        "a2a_1MB":      { "apps": { "0": { "path": "blink/alltoall_comm_only.py",  "args": "-msgsize 1048576 -iter 50",   "collect": true, "start": "0", "end": "" } } },
+        "incast_8B":    { "apps": { "0": { "path": "blink/incast_b.py",          "args": "-msgsize 8 -iter 5000",       "collect": true, "start": "0", "end": "" } } },
+        "incast_64B":   { "apps": { "0": { "path": "blink/incast_b.py",          "args": "-msgsize 64 -iter 2000",      "collect": true, "start": "0", "end": "" } } },
+        "incast_1MB":   { "apps": { "0": { "path": "blink/incast_b.py",          "args": "-msgsize 1048576 -iter 50",   "collect": true, "start": "0", "end": "" } } },
+        "agtr_64B":     { "apps": { "0": { "path": "blink/allgather_comm_only.py", "args": "-msgsize 64 -iter 2000",      "collect": true, "start": "0", "end": "" } } },
+        "agtr_1MB":     { "apps": { "0": { "path": "blink/allgather_comm_only.py", "args": "-msgsize 1048576 -iter 50",   "collect": true, "start": "0", "end": "" } } }
     }
 }

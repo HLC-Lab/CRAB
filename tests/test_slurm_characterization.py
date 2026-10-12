@@ -472,9 +472,13 @@ def test_run_job_writes_the_srun_script_through_the_launcher(fake_popen, tmp_pat
     )
     assert script == (
         "#!/bin/bash\n"
-        "if [ -f /etc/profile.d/modules.sh ]; then\n"
-        "    source /etc/profile.d/modules.sh\n"
-        "fi\n"
+        "for _crab_init in /etc/profile.d/modules.sh /etc/profile.d/lmod.sh "
+        '/usr/share/lmod/lmod/init/bash ${LMOD_PKG:+"$LMOD_PKG/init/bash"}; do\n'
+        '    if [ -f "$_crab_init" ]; then\n'
+        '        source "$_crab_init"\n'
+        "        break\n"
+        "    fi\n"
+        "done\n"
         "\n"
         "module load x\n"
         "\n"

@@ -50,7 +50,7 @@ When you bring CRAB to a new cluster, three things — and only these three — 
    See [Configuring your cluster](../using/presets.md).
 2. **Receipts** (`local/receipts/*.json`) — produced by running `crab setup`, which builds
    each benchmark on *this* machine and records where the resulting binary lives, plus any
-   pre-run hooks or launcher override it needs.
+   pre-run hooks or launcher overrides it needs.
 3. **The scheduler and launcher** — both chosen by the preset. The `scheduler` decides how the
    job is run: `slurm` submits it with `sbatch`, and `local` runs it as a detached process on
    this machine. The `launcher` (`srun`, `mpirun` or `direct`) decides how each application

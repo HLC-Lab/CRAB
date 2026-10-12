@@ -5,7 +5,7 @@ import threading
 import unittest
 from unittest.mock import MagicMock, patch
 
-from crab.core.process import wait_timed
+from crab.core.process import end_job, wait_timed
 
 
 class _MockJob:
@@ -71,16 +71,24 @@ class TestWaitTimedNoCommunicate(unittest.TestCase):
 
 
 class TestEndJobStopsSigtermFirst(unittest.TestCase):
-    def test_end_job_goes_through_stop_processes(self):
+    def test_end_job_goes_through_stop_processes_then_finishes_as_before(self):
         """end_job stops the app with SIGTERM first (stop_processes), never an immediate SIGKILL."""
-        from crab.core.process import end_job
-
-        job = _MockJob()
-        job.id_num = 3
+        job = _MockJob(stdout_buf=[b"out\n"], stderr_data=b"err")
+        job.id_num = 7
         job.process.pid = 4242
+        joined = []
+        t = threading.Thread(target=lambda: None, daemon=True)
+        t.start()
+        orig = t.join
+        t.join = lambda *a, **kw: (joined.append(True), orig(*a, **kw))
+        job._stream_thread = t
+        logger = MagicMock()
         with patch("crab.core.process.manager.stop_processes") as stop:
-            end_job(job, MagicMock())
+            end_job(job, logger)
         stop.assert_called_once()
         self.assertEqual(stop.call_args.args[0], [job.process])
+        self.assertIs(stop.call_args.args[1], logger)
+        self.assertEqual(stop.call_args.kwargs["labels"], {4242: "App 7"})
+        self.assertTrue(joined)
         job.process.wait.assert_called_once()
-        self.assertEqual(len(job._set_output_calls), 1)
+        self.assertEqual(job._set_output_calls, [(b"out\n", b"err")])

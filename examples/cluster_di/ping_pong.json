@@ -23,8 +23,8 @@
             "description": "Single-node Ping-Pong benchmark with 2 processes.",
             "apps": {
                 "0": {
-                    "path": "blink/ping-pong_b.py",
-                    "args": "",
+                    "path": "blink/pingpong_b.py",
+                    "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "start": "0",
                     "end": ""

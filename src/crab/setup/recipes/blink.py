@@ -6,6 +6,10 @@ from collections.abc import Callable
 
 from .base import BenchmarkRecipe, BuildResult
 
+# Upstream builds with CMake and puts every executable in <build>/bin, named after its source file.
+_BUILD_SUBDIR = "build"
+_PROBE_BINARY = "pingpong_b"
+
 
 class BlinkRecipe(BenchmarkRecipe):
     @property
@@ -17,8 +21,8 @@ class BlinkRecipe(BenchmarkRecipe):
         return "blink"
 
     def check_dependencies(self, env: dict[str, str]) -> tuple[bool, str]:
-        if not shutil.which("make", path=env.get("PATH")):
-            return False, "Make is missing from current path context."
+        if not shutil.which("cmake", path=env.get("PATH")):
+            return False, "CMake (3.16 or newer) is missing from the current path context."
         if not shutil.which("mpicc", path=env.get("PATH")):
             return False, "MPI compiler (mpicc) missing inside target environment module."
         return True, "Dependencies found."
@@ -36,32 +40,47 @@ class BlinkRecipe(BenchmarkRecipe):
         ):
             return False, None, "Git clone failed."
 
-        bin_dir = os.path.join(target_dir, "bin")
-        os.makedirs(bin_dir, exist_ok=True)
+        build_dir = os.path.join(target_dir, _BUILD_SUBDIR)
+        # BLINK_TESTS defaults ON and fetches googletest from GitHub; the MPI wrapper option is
+        # Open MPI-only (--showme), so it stays off.
+        configure_cmd = [
+            "cmake",
+            "-S",
+            target_dir,
+            "-B",
+            build_dir,
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DBLINK_TESTS=OFF",
+        ]
+        build_env = {**env, "CC": "mpicc", "CXX": "mpicxx"}
+        if not self.run_command_streamed(
+            configure_cmd, target_dir, "Configuring with CMake...", build_env, log_callback
+        ):
+            return False, None, "CMake configure failed."
 
         if not self.run_command_streamed(
-            ["make", "CC=mpicc", "CXX=mpicxx", "-j"],
+            ["cmake", "--build", build_dir, "-j"],
             target_dir,
             "Compiling Binaries...",
-            env,
+            build_env,
             log_callback,
         ):
-            return False, None, "Make compilation failed."
+            return False, None, "CMake build failed."
 
-        expected_binary = os.path.join(bin_dir, "ping-pong_b")
-        if os.path.exists(expected_binary):
+        bin_dir = os.path.join(build_dir, "bin")
+        if os.path.exists(os.path.join(bin_dir, _PROBE_BINARY)):
             return True, BuildResult(binary_path=bin_dir), "Blink suite built successfully."
 
-        return False, None, "Compilation finished, but executables were missing from bin/."
+        return False, None, "Compilation finished, but executables were missing from build/bin/."
 
     def verify_existing(self, path: str) -> bool:
         if not os.path.isdir(path):
             return False
-        test_binary = os.path.join(path, "ping-pong_b")
+        test_binary = os.path.join(path, _PROBE_BINARY)
         return os.path.isfile(test_binary) and os.access(test_binary, os.X_OK)
 
     def fast_search(self, crab_benchmarks_dir: str) -> str | None:
-        local_target = os.path.join(crab_benchmarks_dir, "blink", "bin")
+        local_target = os.path.join(crab_benchmarks_dir, "blink", _BUILD_SUBDIR, "bin")
         if self.verify_existing(local_target):
             return local_target
         return None

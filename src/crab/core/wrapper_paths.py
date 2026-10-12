@@ -9,6 +9,13 @@ from types import ModuleType
 
 _CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
+# What an untracked `wrappers/` checkout leaves behind: git keeps ignored files and folders when a
+# pull removes the tracked ones, so a folder holding only these is not a checkout.
+_LEFTOVER_DIRS = ("__pycache__", ".pytest_cache", ".ruff_cache")
+_LEFTOVER_SUFFIXES = (".pyc",)
+
+_WRAPPERS_REPO = "https://github.com/HLC-Lab/crab-wrappers"
+
 
 def wrapper_search_path() -> list[str]:
     """Folders searched for a relative wrapper path, in order.
@@ -41,6 +48,27 @@ def resolve_wrapper_path(path: str) -> str:
     if configured:
         return os.path.join(configured.split(os.pathsep)[0], path)
     return path
+
+
+def _is_usable_checkout(folder: str) -> bool:
+    """True when `folder` holds anything besides the leftovers of a removed checkout."""
+    for _dirpath, dirnames, filenames in os.walk(folder):
+        dirnames[:] = [d for d in dirnames if d not in _LEFTOVER_DIRS]
+        if any(not name.endswith(_LEFTOVER_SUFFIXES) for name in filenames):
+            return True
+    return False
+
+
+def missing_wrappers_hint() -> str:
+    """How to get the wrappers when the default checkout has none, else "".
+
+    Empty when CRAB_PATH_WRAPPERS is set: the user chose their own folders.
+    """
+    if os.environ.get("CRAB_PATH_WRAPPERS"):
+        return ""
+    if _is_usable_checkout(os.path.join(_CRAB_ROOT, "wrappers")):
+        return ""
+    return f"wrappers/ is missing: run `crab update` to clone the wrappers ({_WRAPPERS_REPO})"
 
 
 def load_module(path: str) -> ModuleType:

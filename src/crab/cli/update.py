@@ -6,13 +6,14 @@
   product line, `vX.Y.Z+sbatchman` on the sbatchman line (ADR-030).
 - Local edits to tracked files stop the update before anything changes.
 - Dependencies are reinstalled only when pyproject.toml changed.
-- The wrappers checkout is pulled when it is its own git clone, cloned when it is missing,
-  and left alone when it is still part of the CRAB checkout.
+- The wrappers checkout is pulled when it is its own git clone, cloned when it is missing or
+  holds only leftovers of the old tracked folder, and left alone when it holds anything else.
 """
 
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -20,6 +21,9 @@ from typing import Any
 
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(\+sbatchman)?$")
 _GIT_TIMEOUT_S = 120
+# What a wrappers/ folder keeps after CRAB stopped tracking it: ignored caches only. Tool caches
+# go wholesale; a `__pycache__` counts only when it holds nothing but `*.pyc` files.
+_WRAPPERS_CACHE_DIRS = (".pytest_cache", ".ruff_cache")
 
 
 class UpdateError(Exception):
@@ -44,6 +48,44 @@ def _git(repo: Path, *args: str) -> str:
 
 def _is_repo_root(path: Path) -> bool:
     return (path / ".git").exists()
+
+
+def _all_pyc(path: Path) -> bool:
+    """True for a `*.pyc` file, or a folder holding nothing else (recursively, no symlinks)."""
+    if path.is_symlink():
+        return False
+    if path.is_dir():
+        return all(_all_pyc(child) for child in path.iterdir())
+    return path.suffix == ".pyc"
+
+
+def _is_leftover(path: Path) -> bool:
+    if path.is_symlink():
+        return False
+    if path.is_dir():
+        if path.name in _WRAPPERS_CACHE_DIRS:
+            return True
+        if path.name == "__pycache__":
+            return _all_pyc(path)
+        return all(_is_leftover(child) for child in path.iterdir())
+    return path.suffix == ".pyc"
+
+
+def _clear_leftovers(directory: Path) -> bool:
+    """Empty `directory` when it holds only leftovers of the old tracked wrappers folder.
+
+    Removes the children and keeps the folder itself. Returns whether the folder is now empty.
+    Nothing is removed unless every entry is a leftover.
+    """
+    children = list(directory.iterdir())
+    if not all(_is_leftover(child) for child in children):
+        return False
+    for child in children:
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    return True
 
 
 def _version(tag: str) -> tuple[int, int, int] | None:
@@ -104,7 +146,17 @@ def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> d
 
 def _update_wrappers(root: Path, wrappers_dir: Path, url: str) -> dict[str, Any]:
     entry: dict[str, Any] = {"dir": str(wrappers_dir), "action": "", "old": None, "new": None}
-    if not wrappers_dir.exists():
+    empty = False
+    if url and wrappers_dir.is_dir() and not wrappers_dir.is_symlink():
+        if not _is_repo_root(wrappers_dir):
+            try:
+                empty = _clear_leftovers(wrappers_dir)
+            except OSError as exc:
+                raise UpdateError(
+                    f"cannot clean the leftovers in {wrappers_dir}: {exc}; "
+                    "remove it by hand and run crab update again"
+                ) from exc
+    if empty or not wrappers_dir.exists():
         if not url:
             return {**entry, "action": "skipped", "detail": "no wrappers repository configured"}
         _git(wrappers_dir.parent, "clone", "-q", url, str(wrappers_dir))

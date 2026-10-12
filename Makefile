@@ -1,4 +1,4 @@
-.PHONY: install setup clean venv _install_core _check_python \
+.PHONY: install setup clean venv _install_core _wrappers _check_python \
         verify verify-full fmt _verify_py _verify_fe _static_sync
 
 .DEFAULT_GOAL := install
@@ -8,6 +8,7 @@ PIP = $(VENV_DIR)/bin/pip
 CRAB_BIN = $(VENV_DIR)/bin/crab
 PY = $(VENV_DIR)/bin/python
 WEBUI = src/crab/webui
+WRAPPERS_URL ?= https://github.com/HLC-Lab/crab-wrappers.git
 
 # --- Developer verification gates ------------------------------------------
 # `make verify` after every change; `make verify-full` before finishing a task
@@ -85,6 +86,7 @@ install:
 	    echo ""; \
 	    echo "To completely reinstall, run \`make clean\` first."; \
 	    echo "============================================================"; \
+	    $(MAKE) --no-print-directory _wrappers; \
 	else \
 	    $(MAKE) _install_core; \
 	fi
@@ -92,9 +94,19 @@ install:
 # 3. The Actual Installation
 _install_core: venv
 	$(PIP) install -e .
+	@$(MAKE) --no-print-directory _wrappers
 	@echo "[✔] CRAB core installed in virtual environment."
 	@echo "Launching setup wizard to configure benchmarks..."
 	$(CRAB_BIN) setup
+
+# 4. The wrappers checkout (a separate repository, ignored by this one)
+_wrappers:
+	@if [ ! -d wrappers ]; then \
+	    echo "Cloning the wrappers into wrappers/..."; \
+	    git clone '$(WRAPPERS_URL)' wrappers || { echo "could not clone the wrappers from $(WRAPPERS_URL): run \`crab update\` once you are online" >&2; exit 1; }; \
+	else \
+	    echo "[=] wrappers/ already present"; \
+	fi
 
 setup:
 	$(CRAB_BIN) setup
