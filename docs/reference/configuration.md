@@ -277,6 +277,8 @@ All three also get `--ntasks-per-node=<the app's ppn>`. Notes:
 - Apps that do not share nodes keep the plain `srun` line, with two exceptions: an app with
   `cpus` is bound to them (`--cpu-bind=verbose,map_cpu:<cpus>`, without `--overlap`), and an app
   whose `ppn` differs from the job's `--ntasks-per-node` gets `--ntasks-per-node=<its ppn>`.
+- `--exact --mem=0` gives each such app its cores and the node's memory, so it overrides a
+  `--mem` or `--mem-per-cpu` in the `srun` flags.
 - CRAB's binding replaces any `--cpu-bind` in `launchers.srun.flags` or `launcher_flags` for the
   apps it binds. The pre-submit check warns about it, so it shows when you submit.
 - `cpus` under Slurm needs `--exclusive` among the `sbatch_directives` or the preset's `sbatch`;

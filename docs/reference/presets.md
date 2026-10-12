@@ -104,6 +104,9 @@ its steps are not sized to the job.
 pinned by their own flags can end up on the same cores. The pre-submit check warns about it. The
 other flags stay.
 
+`--exact --mem=0` gives each such app its cores and the node's memory, so it overrides a
+`--mem` or `--mem-per-cpu` in `<flags>`.
+
 `verbose` makes `srun` print each rank's CPU mask into the app's log.
 
 ## The mpirun launcher
