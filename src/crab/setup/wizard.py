@@ -97,6 +97,44 @@ def handle_cleanup(benchmark_id: str):
                     console.print(f"[green]Cleaned up: {target_cleanup}[/green]")
 
 
+def _clear_leftover_build(benchmark_id: str, name: str) -> bool:
+    """Offer to remove a leftover `benchmarks/<id>` folder; True when the build may go on.
+
+    A failed build leaves the folder behind without a receipt, and `git clone` into a
+    non-empty folder fails. A folder a `source` receipt points at is `handle_cleanup`'s, so
+    it is left alone here. Only a real folder inside BENCHMARKS_DIR is ever removed: a
+    symlink or a plain file is never touched.
+    """
+    target = os.path.join(BENCHMARKS_DIR, benchmark_id)
+    if not os.path.lexists(target):
+        return True
+
+    receipt = memory.get_receipt(benchmark_id)
+    if receipt and receipt.get("type") == "source":
+        if receipt.get("binary_path", "").startswith(BENCHMARKS_DIR):
+            return True
+
+    skip_message = (
+        f"[yellow]Skipping {name}: remove {target} or answer yes to build again.[/yellow]"
+    )
+    if os.path.islink(target) or not os.path.isdir(target):
+        console.print(skip_message)
+        return False
+    if os.path.dirname(os.path.realpath(target)) != os.path.realpath(BENCHMARKS_DIR):
+        console.print(skip_message)
+        return False
+
+    if not Confirm.ask(
+        f"[yellow]Found a leftover build at {target}. Remove it and start again?[/yellow]",
+        default=True,
+    ):
+        console.print(skip_message)
+        return False
+    shutil.rmtree(target)
+    console.print(f"[green]Cleaned up: {target}[/green]")
+    return True
+
+
 def _group_recipes_by_suite(recipes) -> dict[str, list]:
     groups: dict[str, list] = {}
     for recipe in recipes:
@@ -436,6 +474,9 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                 continue
 
             handle_cleanup(recipe.benchmark_id)
+            if not _clear_leftover_build(recipe.benchmark_id, recipe.name):
+                console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                continue
             target_dir = os.path.join(BENCHMARKS_DIR, recipe.benchmark_id)
 
             current_step = "Initializing workspace environments..."
