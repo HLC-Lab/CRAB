@@ -171,3 +171,33 @@ def test_hard_timeout_stops_every_running_app_in_one_call(tmp_path: Path) -> Non
     # The stop comes from the timeout branch itself, before teardown runs; the step cleanup
     # follows once per run.
     assert events == [("stop", 2), ("cancel",), ("teardown",)]
+
+
+def test_f_apps_still_running_are_stopped_in_one_call_then_collected(tmp_path: Path) -> None:
+    _wrapper(tmp_path / "main.py", "sleep 0.5")
+    _wrapper(tmp_path / "quick.py", "echo done")
+    _wrapper(tmp_path / "bg.py", "sleep 30")
+    apps = {
+        "0": {"path": str(tmp_path / "main.py")},
+        "1": {"path": str(tmp_path / "bg.py"), "end": "f"},
+        "2": {"path": str(tmp_path / "quick.py"), "end": "f"},
+        "3": {"path": str(tmp_path / "bg.py"), "end": "f"},
+    }
+    ended: list[int] = []
+    real_end_job = schedule_module.end_job
+
+    def spy_end_job(app, logger):
+        ended.append(app.id_num)
+        real_end_job(app, logger)
+
+    with patch.object(schedule_module, "end_job", side_effect=spy_end_job):
+        events = _execute(
+            tmp_path,
+            apps=apps,
+            local_options={"minruns": "1", "maxruns": "1", "timeout": "30"},
+        )
+
+    # One batch holds the two long-running f-apps; the one that exited on its own is not in it.
+    assert events == [("stop", 2), ("cancel",), ("teardown",)]
+    # Each running f-app still goes through end_job to collect its output.
+    assert sorted(ended) == [1, 3]
