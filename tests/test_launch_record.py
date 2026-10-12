@@ -1,5 +1,6 @@
 """`run_job` records how each app was launched in the job's `crab_run.json` (first launch only)
-and, under mpirun, tees the launcher's stderr into a bindings log in the experiment directory."""
+and, under mpirun or srun, tees the launcher's stderr into a bindings log in the experiment
+directory."""
 
 from __future__ import annotations
 
@@ -137,16 +138,41 @@ def test_without_a_run_number_the_header_is_skipped(layout: tuple[Path, Path]) -
     assert "tee -a" in script
 
 
-@pytest.mark.parametrize("spec", [SRUN, DIRECT], ids=["srun", "direct"])
-def test_srun_and_direct_record_no_binding_report_and_no_tee(
-    layout: tuple[Path, Path], spec: LauncherSpec
+def test_an_srun_launch_records_its_stderr_log_as_binding_report(
+    layout: tuple[Path, Path],
 ) -> None:
     job_dir, exp_dir = layout
     job = _Job(exp_dir)
-    _run(job, spec)
+    _run(job, SRUN)
+
+    bindings = str(exp_dir / "bindings_app_0.log")
+    record = _launches(job_dir)["e1"]["0"]
+    assert record["kind"] == "srun"
+    assert record["dialect"] is None
+    assert record["binding_report"] == bindings
+    line = record["line"]
+    assert line.startswith("srun ")
+    lines = _script(job).splitlines()
+    assert lines[-2] == f'echo "# run 1" >> {shlex.quote(bindings)}'
+    assert lines[-1] == f"{line} 2> >(tee -a {shlex.quote(bindings)} >&2)"
+
+
+def test_srun_without_a_run_number_skips_the_header(layout: tuple[Path, Path]) -> None:
+    _, exp_dir = layout
+    job = _Job(exp_dir, run_number=None)
+    _run(job, SRUN)
+    script = _script(job)
+    assert "# run" not in script
+    assert "tee -a" in script
+
+
+def test_direct_records_no_binding_report_and_no_tee(layout: tuple[Path, Path]) -> None:
+    job_dir, exp_dir = layout
+    job = _Job(exp_dir)
+    _run(job, DIRECT)
 
     record = _launches(job_dir)["e1"]["0"]
-    assert record["kind"] == spec.kind
+    assert record["kind"] == "direct"
     assert record["dialect"] is None
     assert record["binding_report"] is None
     assert "tee" not in _script(job)
@@ -235,6 +261,34 @@ def test_the_tee_keeps_stderr_on_the_app_pipe_and_fills_the_bindings_log(
             break
         subprocess.run(["sleep", "0.05"], check=True)
     assert log.read_text() == "# run 1\nbind\n# run 2\nbind\n"
+
+
+def test_srun_stderr_reaches_the_app_pipe_and_the_bindings_log(tmp_path: Path) -> None:
+    """A real bash run: a fake srun that writes a CPU mask to stderr and a line to stdout."""
+    job_dir = tmp_path / "job"
+    exp_dir = job_dir / "e1"
+    exp_dir.mkdir(parents=True)
+    (job_dir / "crab_run.json").write_text("{}")
+    fake = tmp_path / "fake_srun"
+    fake.write_text("#!/bin/sh\necho mask >&2\necho out\n")
+    fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+    spec = LauncherSpec("srun", (str(fake),), "", (), ())
+
+    job = _Job(exp_dir, run_number=1, ppn=1)
+    with patch.dict(os.environ, {"PATH": os.environ["PATH"]}, clear=True):
+        process_manager.run_job(job, spec, MagicMock())
+    assert job.process.wait(timeout=20) == 0
+    job._stream_thread.join(timeout=5)
+    assert b"".join(job.raw_stdout_buffer) == b"out\n"
+    assert job.process.stderr.read() == b"mask\n"
+    job.process.stderr.close()
+
+    log = exp_dir / "bindings_app_0.log"
+    for _ in range(100):
+        if log.exists() and log.read_text().count("mask") == 1:
+            break
+        subprocess.run(["sleep", "0.05"], check=True)
+    assert log.read_text() == "# run 1\nmask\n"
 
 
 def test_the_dialect_is_recorded_as_resolved_when_the_spec_says_auto(

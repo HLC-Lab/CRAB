@@ -27,7 +27,8 @@ each rank to exactly the listed cores.
    | `cores: "shared"` | `--overlap --cpu-bind=verbose,none` |
 
    All three also get `--ntasks-per-node=<the app's ppn>`. Apps that do not share nodes keep
-   the plain `srun` line. `verbose` makes `srun` print each rank's CPU mask into the app's log.
+   the plain `srun` line. `verbose` makes `srun` print each rank's CPU mask to the app's
+   standard error, which CRAB keeps in `<experiment dir>/bindings_app_<id>.log`.
 2. **CRAB's binding replaces the user's.** When CRAB binds an app, any `--cpu-bind` in the
    preset's or the config's `srun` flags is dropped for that app. The pre-submit check warns
    about it, so the user sees it when submitting, not only in the Slurm logs.

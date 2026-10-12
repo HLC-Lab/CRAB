@@ -157,7 +157,7 @@ Results are written under `data/<CRAB_SYSTEM>/<name>_<timestamp>/`:
   `slurm_output.log` and `slurm_error.log` (both schedulers write these two names), and under
   Slurm `crab_job.sh`.
 - Per experiment: `<experiment>/data_app_<id>.csv` (or `.h5`), `error_app_<id>.log`,
-  `bindings_app_<id>.log` for applications started with `mpirun`, and per-run
+  `bindings_app_<id>.log` for applications started with `mpirun` or `srun`, and per-run
   `run_<n>/.wrappers/` launch scripts.
 - A system-level `metadata.csv` registry, appended atomically with file locking so concurrent
   CRAB jobs on a shared filesystem don't corrupt it.
