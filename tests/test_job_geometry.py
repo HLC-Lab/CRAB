@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
-from crab.core.execution.job_geometry import job_tasks_per_node
+import pytest
+
+from crab.core.execution.job_geometry import job_tasks_per_node, needs_job_geometry
+from crab.core.experiment.runner import ExperimentRunner
+from settings_fixtures import slurm_settings
 
 
 def _config(
@@ -127,3 +133,82 @@ def test_an_invalid_allocation_gives_none() -> None:
 
 
 SHARED = {"mode": "shared"}
+
+
+def test_null_local_options_or_apps_count_as_empty() -> None:
+    config = _config(
+        {
+            "a": {"apps": _apps({"ppn": 3}), "local_options": None},
+            "b": {"apps": None},
+            "c": {"local_options": None},
+        }
+    )
+    assert job_tasks_per_node(config) == 3
+
+
+@pytest.mark.parametrize(
+    "experiment",
+    [
+        {"apps": _apps({"ppn": 2})},
+        {"apps": _apps({}), "local_options": {"ppn": 2}},
+        {"apps": _apps({}, {}), "local_options": {"allocation": SHARED}},
+        {"apps": _apps({}, {}), "local_options": {"allocation": {"partitions": {"a": SHARED}}}},
+    ],
+    ids=["app ppn", "experiment ppn", "shared allocation", "shared partition"],
+)
+def test_the_global_ppn_does_not_size_the_job_when(experiment: dict[str, Any]) -> None:
+    assert needs_job_geometry(_config({"e": experiment}))
+
+
+@pytest.mark.parametrize(
+    "experiment",
+    [{"apps": _apps({}, {})}, {"apps": None, "local_options": None}, {"apps": {}}],
+    ids=["plain apps", "null apps and options", "no apps"],
+)
+def test_the_global_ppn_sizes_the_job_otherwise(experiment: dict[str, Any]) -> None:
+    assert not needs_job_geometry(_config({"e": experiment}, ppn=4))
+
+
+def test_a_shared_global_allocation_needs_the_geometry_too() -> None:
+    config = _config({"e": {"apps": _apps({}, {})}}, allocation=SHARED)
+    assert needs_job_geometry(config)
+
+
+_WRAPPER = (
+    "from crab.wrappers.base import base\n\n"
+    "class app(base):\n"
+    "    metadata = [{'name': 'v', 'unit': 'x', 'conv': True}]\n\n"
+    "    def run_app(self):\n"
+    "        return 'echo 1'\n"
+)
+
+
+def test_the_job_load_matches_what_the_runner_places_on_each_node(tmp_path: Path) -> None:
+    """Shared apps with ppn 1, 4 (after app 0) and 2: app 0 and 1 count once, at ppn 4."""
+    wrapper = tmp_path / "w.py"
+    wrapper.write_text(_WRAPPER)
+    apps = {
+        str(i): {"path": str(wrapper), "collect": False, **options}
+        for i, options in enumerate([{"ppn": 1}, {"ppn": 4, "start": "s0"}, {"ppn": 2}])
+    }
+    experiment = {"apps": apps, "local_options": {"allocation": SHARED}}
+    config = _config({"e": experiment}, numnodes="2", ppn=1)
+    runner = ExperimentRunner(
+        exp_name="e",
+        config=experiment,
+        global_options=config["global_options"],
+        node_list=["n0", "n1"],
+        output_dir=str(tmp_path / "system" / "job_2026-01-01_00-00-00"),
+        logger=MagicMock(),
+        settings=slurm_settings(),
+    )
+    runner.setup()
+    chains = [[0, 1], [2]]  # app 1 runs after app 0, on its nodes
+    assert runner.apps[1].node_list == runner.apps[0].node_list
+    load: dict[str, int] = {}
+    for chain in chains:
+        ppn = max(runner.apps[i].ppn for i in chain)
+        for node in runner.apps[chain[0]].node_list:
+            load[node] = load.get(node, 0) + ppn
+    assert load == {"n0": 6, "n1": 6}
+    assert job_tasks_per_node(config) == max(load.values())

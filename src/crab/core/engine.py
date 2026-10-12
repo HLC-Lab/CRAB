@@ -8,7 +8,7 @@ import time
 from typing import Any
 
 from crab.core.config_checks import check_config
-from crab.core.execution.job_geometry import job_tasks_per_node
+from crab.core.execution.job_geometry import job_tasks_per_node, needs_job_geometry
 from crab.core.execution.scheduler.select import scheduler_for
 from crab.core.execution.settings import SLURM_DEFAULT, ExecutionSettings, to_json
 from crab.core.experiment import ExperimentRunner
@@ -130,8 +130,15 @@ class Engine:
         with open(os.path.join(data_directory, "execution.json"), "w") as f:
             json.dump(to_json(settings), f, indent=4)
 
+        tasks_per_node = job_tasks_per_node(config)
+        if tasks_per_node is None and needs_job_geometry(config):
+            self.log.warning(
+                "The batch job's tasks per node fall back to the global ppn: the per-node load "
+                "of the apps could not be computed (a {var} token or an invalid value); "
+                "check that the global ppn covers the busiest node"
+            )
         job_id = scheduler_for(settings, self.log, CRAB_ROOT).submit(
-            data_directory, g_opts, tasks_per_node=job_tasks_per_node(config)
+            data_directory, g_opts, tasks_per_node=tasks_per_node
         )
 
         # Structured result for programmatic callers (e.g. `crab run --json`).

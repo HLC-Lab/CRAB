@@ -26,8 +26,8 @@ def _experiment_load(experiment: Mapping[str, Any], global_opts: Mapping[str, An
         KeyError: `numnodes` is missing.
         TypeError: `numnodes` is not a number.
     """
-    exp_opts = {**global_opts, **experiment.get("local_options", {})}
-    apps = experiment.get("apps", {})
+    exp_opts = {**global_opts, **(experiment.get("local_options") or {})}
+    apps = experiment.get("apps") or {}
     keys = sorted(apps, key=lambda x: int(x) if x.isdigit() else x)  # runner.py order
     configs = [apps[k] for k in keys]
     if not configs:
@@ -46,6 +46,27 @@ def _experiment_load(experiment: Mapping[str, Any], global_opts: Mapping[str, An
         for node in app_nodes[head]:
             load[node] = load.get(node, 0) + ppn
     return max(load.values(), default=0)
+
+
+def _shares_nodes(allocation: Mapping[str, Any] | None) -> bool:
+    """Whether an allocation, or one of its partitions, says `mode: "shared"`."""
+    allocation = allocation or {}
+    members = allocation.get("partitions") or {}
+    scopes = [allocation, *(m for m in members.values() if isinstance(m, Mapping))]
+    return any(scope.get("mode") == "shared" for scope in scopes)
+
+
+def needs_job_geometry(config: Mapping[str, Any]) -> bool:
+    """Whether one global `ppn` cannot size the job: an app or an experiment sets its own `ppn`,
+    or some allocation shares its nodes."""
+    global_opts = config.get("global_options") or {}
+    for experiment in (config.get("experiments") or {}).values():
+        local = experiment.get("local_options") or {}
+        apps = (experiment.get("apps") or {}).values()
+        allocation = {**global_opts, **local}.get("allocation")
+        if "ppn" in local or any("ppn" in app for app in apps) or _shares_nodes(allocation):
+            return True
+    return False
 
 
 def job_tasks_per_node(config: Mapping[str, Any]) -> int | None:
