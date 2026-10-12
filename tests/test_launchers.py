@@ -183,6 +183,36 @@ def test_srun_binding_replaces_the_preset_cpu_bind(flags: tuple[str, ...]) -> No
         assert len([w for w in prefix if w.startswith("--cpu-bind")]) == 1
 
 
+@pytest.mark.parametrize(
+    ("flags", "kept"),
+    [
+        (("--mpi=pmix --cpu-bind=cores",), ["--mpi=pmix"]),
+        (("--cpu-bind cores",), []),
+        (("--cpu-bind cores --mpi=pmix",), ["--mpi=pmix"]),
+        (("-a", "--cpu_bind x", "-b"), ["-a", "-b"]),
+        (("--chdir=$HOME --cpu-bind=none",), ["--chdir=$HOME"]),
+    ],
+)
+def test_srun_binding_strips_a_cpu_bind_inside_a_multi_word_flag(
+    flags: tuple[str, ...], kept: list[str]
+) -> None:
+    line = _srun(Placement(("n1", "n2"), 2, co_run="disjoint"), *flags)
+    assert line == [
+        *_HEAD,
+        *kept,
+        "--exact",
+        "--mem=0",
+        "--cpu-bind=verbose,cores",
+        "--ntasks-per-node=2",
+        *_TAIL,
+    ]
+
+
+def test_srun_keeps_a_multi_word_flag_as_given_when_crab_does_not_bind() -> None:
+    line = _srun(Placement(("n1", "n2"), 2), "--mpi=pmix --cpu-bind=cores")
+    assert line == [*_HEAD, "--mpi=pmix --cpu-bind=cores", *_TAIL]
+
+
 def test_srun_keeps_the_preset_cpu_bind_when_crab_does_not_bind() -> None:
     placement = Placement(("n1", "n2"), 2)
     assert _srun(placement, "--mpi=pmix", "--cpu-bind=socket") == [

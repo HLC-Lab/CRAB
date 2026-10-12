@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 from crab.core.execution.launcher.base import Placement
@@ -9,15 +10,30 @@ from crab.core.execution.launcher.base import Placement
 _CPU_BIND_FLAGS = ("--cpu-bind", "--cpu_bind")
 
 
+def flag_words(flags: Iterable[str]) -> Iterator[str]:
+    """The words of the flags: an element may hold several (`"--mpi=pmix --cpu-bind=cores"`).
+
+    Split on whitespace only: the launch line is a shell line (`$VAR` and quotes stay as written,
+    and its whitespace is collapsed anyway).
+    """
+    for flag in flags:
+        yield from flag.split()
+
+
+def is_cpu_bind(word: str) -> bool:
+    """Whether a flag word is `--cpu-bind` or `--cpu_bind`, with or without `=value`."""
+    return word.split("=")[0] in _CPU_BIND_FLAGS
+
+
 def _without_cpu_bind(flags: tuple[str, ...]) -> list[str]:
-    """The flags minus every `--cpu-bind` one, in both its `=value` and two-token forms."""
+    """The flag words minus every `--cpu-bind` one, in both its `=value` and two-token forms."""
     kept: list[str] = []
-    words = iter(flags)
+    words = flag_words(flags)
     for word in words:
-        if word in _CPU_BIND_FLAGS:
-            next(words, None)
-        elif not word.startswith(tuple(f"{flag}=" for flag in _CPU_BIND_FLAGS)):
+        if not is_cpu_bind(word):
             kept.append(word)
+        elif "=" not in word:
+            next(words, None)
     return kept
 
 

@@ -832,3 +832,32 @@ def test_placement_checks_use_the_apps_effective_ppn() -> None:
     config = _ppn_cfg(app={"cpus": "0-1", "ppn": 3}, ppn=1, sbatch_directives=directives)
     with pytest.raises(ValueError, match=r"experiment e1: app 0: cpus lists 2 core.*ppn 3"):
         _check(config, settings)
+
+
+@pytest.mark.parametrize(
+    ("flags", "reported"),
+    [
+        (["--mpi=pmix --cpu-bind=cores"], "--cpu-bind=cores"),
+        (["--cpu-bind cores"], "--cpu-bind"),
+        (["--mpi=pmix", "--cpu_bind=socket --exact"], "--cpu_bind=socket"),
+    ],
+)
+def test_check_config_warns_about_a_cpu_bind_inside_a_multi_word_launcher_flag(
+    flags: list[str], reported: str
+) -> None:
+    from settings_fixtures import slurm_settings
+
+    config = {
+        "global_options": {"numnodes": 1, "ppn": 1},
+        "experiments": {
+            "e1": {
+                "apps": {"0": {"path": "a.py"}, "1": {"path": "b.py"}},
+                "local_options": {"allocation": {"mode": "shared"}},
+            }
+        },
+    }
+    warnings = _check(config, slurm_settings(launchers={"srun": {"flags": flags}}))
+    assert [w for w in warnings if "core binding" in w] == [
+        f"experiment e1: launcher flag '{reported}' is replaced by CRAB's core binding "
+        "for apps that share nodes or set cpus"
+    ]

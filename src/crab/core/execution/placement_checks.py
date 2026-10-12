@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from crab.core.allocation.allocator import NodeAllocator
+from crab.core.execution.launcher.srun import flag_words, is_cpu_bind
 from crab.core.execution.placement import app_ppn, place_experiment
 from crab.core.execution.settings import ExecutionSettings, resolve_launcher
 
@@ -104,10 +105,10 @@ def _cpu_bind_note(
         )
     except ValueError:
         return []  # an invalid launcher is refused by the launcher checks
-    for flag in spec.flags if spec.kind == "srun" else ():
-        if flag.split("=")[0] in ("--cpu-bind", "--cpu_bind"):
+    for word in flag_words(spec.flags) if spec.kind == "srun" else ():
+        if is_cpu_bind(word):
             return [
-                f"experiment {exp}: launcher flag '{flag}' is replaced by CRAB's core binding "
+                f"experiment {exp}: launcher flag '{word}' is replaced by CRAB's core binding "
                 "for apps that share nodes or set cpus"
             ]
     return []
