@@ -10,7 +10,11 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
-from crab.core.wrapper_paths import load_module, resolve_wrapper_path
+from crab.core.wrapper_paths import (
+    load_module,
+    missing_wrappers_hint,
+    resolve_wrapper_path,
+)
 from crab.log import CrabLogger
 from crab.wrappers.base import base
 
@@ -95,7 +99,10 @@ class ExperimentRunner:
 
             if not os.path.exists(path):
                 self.log.error(f"Wrapper not found at: {path}")
-                raise FileNotFoundError(f"Wrapper not found: {path}")
+                hint = missing_wrappers_hint()
+                raise FileNotFoundError(
+                    f"Wrapper not found: {path}" + (f". {hint}" if hint else "")
+                )
 
             # Load App Class
             mod_app = load_module(path)
