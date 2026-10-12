@@ -19,7 +19,7 @@ from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import check_CI
-from ..process import end_job, run_job, stop_process_groups
+from ..process import cancel_leftover_steps, end_job, run_job, stop_process_groups
 from .artifacts import copy_artifacts
 
 
@@ -426,6 +426,10 @@ class ExperimentRunner:
                     end_job(app, run_log)
                 # ─────────────────────────────────────────────────────────
 
+                # Every app is stopped by now (the HARD TIMEOUT break lands here too): a Slurm
+                # step that outlived its app would block the next run's sruns on its nodes.
+                cancel_leftover_steps(run_log)
+
                 #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
                 # Collect Data: a parse failure fails the run like a non-zero exit.
@@ -500,6 +504,7 @@ class ExperimentRunner:
     def teardown(self):
         """Ensures all processes are stopped before next experiment."""
         self._stop_apps(self.apps, self.log)
+        cancel_leftover_steps(self.log)
 
     def save_results(self):
         """Persists data to disk."""

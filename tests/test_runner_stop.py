@@ -70,6 +70,27 @@ def test_stop_apps_skips_apps_without_a_running_process() -> None:
     assert stop.call_args.kwargs["logger"] is runner.log
 
 
+def test_teardown_cancels_leftover_slurm_steps_after_stopping_apps() -> None:
+    runner = _bare_runner([_fake_app(True, 11)])
+    order: list[str] = []
+
+    def fake_stop(*args, **kwargs):
+        order.append("stop")
+
+    def fake_cancel(*args, **kwargs):
+        order.append("cancel")
+        return []
+
+    with (
+        patch.object(runner_module, "stop_process_groups", side_effect=fake_stop),
+        patch.object(runner_module, "cancel_leftover_steps", side_effect=fake_cancel) as cancel,
+    ):
+        runner.teardown()
+
+    assert order == ["stop", "cancel"]
+    assert cancel.call_args.args[0] is runner.log
+
+
 def test_runner_source_has_no_direct_kill() -> None:
     source = inspect.getsource(runner_module)
     assert "signal.SIGKILL" not in source
@@ -94,7 +115,8 @@ def _wrapper(path: Path, command: str) -> None:
 def _execute(tmp_path: Path, monkeypatch, apps: dict, local_options: dict) -> list:
     """Run the experiment; return its stop events in order.
 
-    An event is ("stop", n_processes) for a `stop_process_groups` call or ("teardown",).
+    An event is ("stop", n_processes) for a `stop_process_groups` call, ("cancel",) for a
+    `cancel_leftover_steps` call or ("teardown",).
     Teardown is replaced by a recorder, so a stop that the run loop skips is not hidden by
     teardown stopping the same apps; the processes are cleaned up here afterwards. The stop
     spy delegates to the real function: the processes are the runner's own.
@@ -117,12 +139,17 @@ def _execute(tmp_path: Path, monkeypatch, apps: dict, local_options: dict) -> li
         events.append(("stop", len(processes)))
         return real_stop_process_groups(processes, *args, **kwargs)
 
+    def record_cancel(*args, **kwargs):
+        events.append(("cancel",))
+        return []
+
     def record_teardown(self):
         events.append(("teardown",))
 
     try:
         with (
             patch.object(runner_module, "stop_process_groups", side_effect=spy),
+            patch.object(runner_module, "cancel_leftover_steps", side_effect=record_cancel),
             patch.object(ExperimentRunner, "teardown", record_teardown),
         ):
             runner.execute(str(output_dir))
@@ -145,8 +172,9 @@ def test_hard_timeout_stops_every_running_app_in_one_call(tmp_path: Path, monkey
         local_options={"minruns": "1", "maxruns": "1", "timeout": "2"},
     )
 
-    # The stop comes from the timeout branch itself, before teardown runs.
-    assert events == [("stop", 2), ("teardown",)]
+    # The stop comes from the timeout branch itself, before teardown runs; the step cleanup
+    # follows once per run.
+    assert events == [("stop", 2), ("cancel",), ("teardown",)]
 
 
 def test_f_apps_still_running_are_stopped_in_one_call_then_collected(
@@ -177,6 +205,6 @@ def test_f_apps_still_running_are_stopped_in_one_call_then_collected(
         )
 
     # One batch holds the two long-running f-apps; the one that exited on its own is not in it.
-    assert events == [("stop", 2), ("teardown",)]
+    assert events == [("stop", 2), ("cancel",), ("teardown",)]
     # Each running f-app still goes through end_job to collect its output.
     assert sorted(ended) == [1, 3]
