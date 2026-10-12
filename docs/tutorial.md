@@ -75,7 +75,7 @@ the comparison is apples-to-apples.
       "apps": {
         "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                "collect": true, "start": "0", "end": "", "partition": "victim" },
-        "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
+        "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
       }
     }
@@ -95,7 +95,8 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
 - **App `1` — the [aggressor](glossary.md#aggressor).** `collect: false` (not measured) and
   `end: "f"` (force-killed as soon as the victim finishes). Its `args` make Blink's
   `alltoall_man` run until it is stopped (`-endl`), in bursts of 10 ms (`-blength 0.01`) separated
-  by 1 ms pauses (`-bpause 0.001`). Longer bursts and shorter pauses mean heavier interference.
+  by 1 ms pauses (`-bpause 0.001`). Each burst sends 2 MiB to every other rank (`-msgsize 2097152`).
+  Longer bursts and shorter pauses mean heavier interference.
 - **`minruns`/`maxruns`** — repeat each experiment 5–10 times, stopping early once the victim's
   metrics [converge](glossary.md#convergence).
 

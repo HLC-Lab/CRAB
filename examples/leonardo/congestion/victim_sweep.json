@@ -28,7 +28,7 @@
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -45,7 +45,7 @@
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0",  "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "15", "end": "f", "partition": "aggressor" }
             }
         },
@@ -54,7 +54,7 @@
             "apps": {
                 "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0", "end": "",   "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "60", "partition": "aggressor" }
             }
         },
@@ -69,7 +69,7 @@
             "apps": {
                 "0": { "path": "blink/incast_b.py",            "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "0", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -92,7 +92,7 @@
             "apps": {
                 "0": { "path": "blink/allgather_comm_only.py",  "args": "-msgsize 512 -iter 2000",
                        "collect": true,  "start": "0", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py","args": "-endl -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall_man.py","args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
