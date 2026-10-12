@@ -142,6 +142,47 @@ def test_slurm_cpus_without_exclusive_are_refused(directives: list) -> None:
         plan([_head(0, "0-3")], "slurm", None, directives)
 
 
+_EXCLUSIVE = [["--exclusive"]]
+
+
+def test_slurm_group_mixing_cpus_and_no_cpus_is_refused_naming_the_apps_without() -> None:
+    heads = [_head(0, "0-3"), _head(1), _head(2)]
+    with pytest.raises(ValueError, match=r"app 1 and app 2 share nodes .* set cpus on every app"):
+        plan(heads, "slurm", None, _EXCLUSIVE)
+
+
+def test_slurm_group_with_one_app_without_cpus_names_just_it() -> None:
+    with pytest.raises(ValueError, match=r"^app 1 shares nodes"):
+        plan([_head(0, "0-3"), _head(1)], "slurm", None, _EXCLUSIVE)
+
+
+def test_slurm_group_with_cpus_on_every_app_is_accepted() -> None:
+    placed, _ = plan([_head(0, "0-3"), _head(1, "4-7")], "slurm", None, _EXCLUSIVE)
+    assert placed == {"app 0": (0, 1, 2, 3), "app 1": (4, 5, 6, 7)}
+
+
+def test_slurm_group_with_no_cpus_is_accepted() -> None:
+    assert plan([_head(0), _head(1)], "slurm", None, [])[0] == {"app 0": None, "app 1": None}
+
+
+def test_slurm_mixed_cpus_on_different_nodes_are_not_one_group() -> None:
+    alone = Head("app 1", frozenset({"n1"}), None, False, 4)
+    placed, _ = plan([_head(0, "0-3"), alone], "slurm", None, _EXCLUSIVE)
+    assert placed == {"app 0": (0, 1, 2, 3), "app 1": None}
+
+
+def test_local_group_mixing_cpus_and_no_cpus_is_split_automatically() -> None:
+    placed, warnings = _local([_head(0, "0-3"), _head(1)])
+    assert placed == {"app 0": (0, 1, 2, 3), "app 1": (4, 5, 6, 7)}
+    assert warnings == [AUTO_SPLIT_WARNING]
+
+
+def test_slurm_shared_cores_group_may_mix_cpus_and_no_cpus() -> None:
+    heads = [_head(0, "0-3", True), _head(1, shared=True)]
+    placed, _ = plan(heads, "slurm", None, _EXCLUSIVE)
+    assert placed == {"app 0": (0, 1, 2, 3), "app 1": None}
+
+
 def test_cpus_shorter_than_ppn_is_refused() -> None:
     with pytest.raises(ValueError, match=r"app 0: cpus lists 2 core\(s\), fewer than ppn 4"):
         _local([_head(0, "0-1")])

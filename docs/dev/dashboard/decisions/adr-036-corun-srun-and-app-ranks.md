@@ -62,6 +62,11 @@ per-node load by hand.
 
 `cpus` under Slurm still needs `--exclusive` among the directives (ADR-033).
 
+Under Slurm, in a group of apps that share nodes with `cores: "disjoint"`, either every app sets
+`cpus` or none does: an `--overlap --cpu-bind=map_cpu` step does not reserve its cores, so a
+concurrent `--exact` step could be given them, and `mpirun` inside Slurm binds an app without
+`cpus` by its default (the first cores).
+
 This amends ADR-033, which treats `ppn` as one value for the whole job: `ppn` can now differ per
 app and per experiment, and the checks that compare `ppn` with `cpus` or with a host's cores use
 each app's own value.

@@ -293,7 +293,10 @@ These are errors, reported before anything is submitted:
   local preset (for example three apps with `ppn` 8 on a host of 16 cores): lower `ppn`, use
   fewer apps, or set `cpus`;
 - `cpus` under Slurm when `--exclusive` is not among the `sbatch_directives` or the preset's
-  `sbatch` (without it the cores are not yours alone).
+  `sbatch` (without it the cores are not yours alone);
+- under Slurm, apps that share nodes with `cores: "disjoint"` where some set `cpus` and others do
+  not (the message names the apps without): an `--overlap` step does not reserve its cores, so a
+  step without `cpus` could be given them; set `cpus` on every app of the group, or on none.
 
 ## `experiments`
 

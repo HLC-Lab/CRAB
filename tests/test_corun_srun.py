@@ -108,9 +108,10 @@ def test_shared_cores_co_run_apps_overlap_and_are_not_bound(tmp_path, monkeypatc
 
 
 def test_a_co_run_app_with_cpus_is_bound_to_them_under_overlap(tmp_path, monkeypatch):
-    first, second = _lines(tmp_path, monkeypatch, [{"cpus": "0-1", "ppn": 2}, {"ppn": 1}], _SHARED)
+    apps = [{"cpus": "0-1", "ppn": 2}, {"cpus": "2", "ppn": 1}]
+    first, second = _lines(tmp_path, monkeypatch, apps, _SHARED)
     assert " --overlap --cpu-bind=verbose,map_cpu:0,1 --ntasks-per-node=2 -n 4 -N 2 " in first
-    assert " --exact --mem=0 --cpu-bind=verbose,cores --ntasks-per-node=1 " in second
+    assert " --overlap --cpu-bind=verbose,map_cpu:2 --ntasks-per-node=1 -n 2 -N 2 " in second
 
 
 def test_an_app_alone_on_its_nodes_keeps_the_plain_line(tmp_path, monkeypatch):

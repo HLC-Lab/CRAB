@@ -185,6 +185,25 @@ def _check_overlap(group: Sequence[Head]) -> None:
                 )
 
 
+def _check_cpus_on_all_or_none(group: Sequence[Head]) -> None:
+    """Under Slurm, the apps of a group that set `cpus` and the apps that do not cannot mix.
+
+    An `--overlap --cpu-bind=map_cpu` step does not reserve its cores, so a concurrent `--exact`
+    step may be given them, and mpirun inside Slurm binds an app without cpus by its default
+    (the first cores).
+    """
+    if all(h.cpus is None for h in group) or all(h.cpus is not None for h in group):
+        return
+    names = [h.key for h in group if h.cpus is None]
+    many = len(names) > 1
+    raise ValueError(
+        f"{' and '.join(names)} {'share' if many else 'shares'} nodes with apps that set cpus "
+        f"but set none {'themselves' if many else 'itself'}; under Slurm set cpus on every app "
+        "of the group, or on none (an app without cpus may be given the cores of one that has "
+        "them)"
+    )
+
+
 def _split_automatically(
     group: Sequence[Head], host_cores: int | None, result: dict[str, Any]
 ) -> bool:
@@ -228,7 +247,8 @@ def plan(
 
     Raises:
         ValueError: `cpus` shorter than the head's `ppn`, `cpus` under Slurm without `--exclusive`,
-            overlapping `cpus` of apps running together, or more cores wanted than the host has.
+            overlapping `cpus` of apps running together, under Slurm `cpus` on some apps of a
+            group sharing nodes and not on others, or more cores wanted than the host has.
     """
     for head in heads:
         if head.cpus is not None and len(head.cpus) < head.ppn:
@@ -255,6 +275,8 @@ def plan(
                 warnings.append(SHARED_CORES_WARNING)
             continue
         _check_overlap(group)
+        if scheduler == "slurm":
+            _check_cpus_on_all_or_none(group)
         # Under Slurm no core list is chosen here: the srun launcher binds each co-run app to its
         # own cores (`--exact --cpu-bind=cores`), or to its `cpus`.
         if scheduler == "local" and _split_automatically(group, host_cores, result):
