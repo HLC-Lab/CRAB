@@ -88,13 +88,26 @@ def make_dir(root: Path, config: dict[str, Any], ts: str = "2026-01-01") -> Path
 
 
 def write_csv(
-    data_dir: Path, exp: str, app: int, size: int, rows: list[tuple[Any, ...]], *, header_only=False
+    data_dir: Path,
+    exp: str,
+    app: int,
+    size: int,
+    rows: list[tuple[Any, ...]],
+    *,
+    header_only: bool = False,
+    main_rank: bool = True,
 ) -> None:
-    """A data_app_<app>.csv with the columns CRAB writes for one collected app."""
-    cols = [f"{app}_{c}-Duration_s" for c in ("Avg", "Min", "Max", "Median", "MainRank")]
+    """A data_app_<app>.csv with the columns CRAB writes for one collected app.
+
+    The MainRank column carries the row's max (it differs from the median); `main_rank=False`
+    leaves the column out.
+    """
+    names = ["Avg", "Min", "Max", "Median"] + (["MainRank"] if main_rank else [])
+    cols = [f"{app}_{c}-Duration_s" for c in names]
     lines = [",".join(["run_id", "msg_size", *cols])]
     for run, mn, mx, med in [] if header_only else rows:
-        lines.append(f"{run},{size},{med * US!r},{mn * US!r},{mx * US!r},{med * US!r},{mx * US!r}")
+        cells = [med * US, mn * US, mx * US, med * US, mx * US][: len(cols)]
+        lines.append(",".join([str(run), str(size), *(repr(c) for c in cells)]))
     (data_dir / exp).mkdir(exist_ok=True)
     (data_dir / exp / f"data_app_{app}.csv").write_text("\n".join(lines) + "\n")
 
@@ -140,6 +153,68 @@ def test_metrics_of_one_experiment(tmp_path: Path, configs: dict[str, dict[str, 
     assert r["spread_skipped"] == 0
     assert r["run_cv"] == pytest.approx(CV)
     assert r["slowdown_med"] == pytest.approx(1.0)  # an alone row against itself
+
+
+PINGPONG = "blink/pingpong_b.py"
+
+
+def pingpong_config(config: dict[str, Any]) -> dict[str, Any]:
+    """The config with the victim app of the alone experiment swapped for a ping-pong."""
+    config = copy.deepcopy(config)
+    config["experiments"]["p2_perm_alone_C0_P1"]["apps"]["1"]["path"] = PINGPONG
+    return config
+
+
+# The ALONE rows' MainRank column is their max: 20 20 20 30 30 40 40 50 -> median 30, p99 = 49.3.
+# Run medians (of the max) 25 and 40 -> CV = (15 / sqrt 2) / 32.5.
+PP_T_MED = 30 * US
+PP_CV = 15 / math.sqrt(2) / 32.5
+
+
+def test_pingpong_time_comes_from_the_main_rank(
+    tmp_path: Path, configs: dict[str, dict[str, Any]]
+) -> None:
+    data = make_dir(tmp_path, pingpong_config(configs["smoke_md_p2_perm_C0_P1"]))
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE)
+    r = row(summarize(tmp_path, data)[0], "p2_perm_alone_C0_P1")
+    assert r["program"] == PINGPONG
+    assert r["t_med"] == pytest.approx(PP_T_MED)
+    assert r["t_p99"] == pytest.approx(49.3 * US)
+    assert r["t_max_p99"] == pytest.approx(49.3 * US)
+    assert r["bw_gbps"] == pytest.approx(SIZE * 8 / PP_T_MED / 1e9)
+    assert r["run_cv"] == pytest.approx(PP_CV)
+    assert r["n_runs"] == 2 and r["n_iters"] == 8
+
+
+def test_pingpong_has_no_spread(tmp_path: Path, configs: dict[str, dict[str, Any]]) -> None:
+    data = make_dir(tmp_path, pingpong_config(configs["smoke_md_p2_perm_C0_P1"]))
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE)
+    df, md, _ = summarize(tmp_path, data)
+    r = row(df, "p2_perm_alone_C0_P1")
+    assert math.isnan(r["spread_med"]) and math.isnan(r["spread_p99"])
+    assert r["spread_skipped"] == 0
+    line = next(ln for ln in md.splitlines() if "| 32 KiB |" in ln)
+    cells = [c.strip() for c in line.strip().strip("|").split("|")]
+    assert cells[6] == "–" and cells[7] == "–"  # spread_med, spread_p99
+
+
+def test_pingpong_without_main_rank_is_skipped(
+    tmp_path: Path, configs: dict[str, dict[str, Any]], capsys: pytest.CaptureFixture[str]
+) -> None:
+    data = make_dir(tmp_path, pingpong_config(configs["smoke_md_p2_perm_C0_P1"]))
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE, main_rank=False)
+    df, _, printed = summarize(tmp_path, data, capsys=capsys)
+    assert df.empty
+    assert "lacks columns: 1_MainRank-Duration_s" in printed
+
+
+def test_other_apps_do_not_need_the_main_rank(
+    tmp_path: Path, configs: dict[str, dict[str, Any]]
+) -> None:
+    data = make_dir(tmp_path, configs["smoke_md_p2_perm_C0_P1"])
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE, main_rank=False)
+    r = row(summarize(tmp_path, data)[0], "p2_perm_alone_C0_P1")
+    assert r["t_med"] == pytest.approx(T_MED) and r["spread_med"] == pytest.approx(3.0)
 
 
 def test_bandwidth_counts_the_granularity(

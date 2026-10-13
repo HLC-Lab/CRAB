@@ -160,8 +160,8 @@ In the job's data directory:
 
 | Column | Meaning |
 |--------|---------|
-| `bw_gbps` | per-rank bandwidth: message size × granularity / median time (one-way for pingpong) |
-| `spread_med`, `spread_p99` | max / min time across ranks, per iteration (median and p99): the collision signal |
+| `bw_gbps` | per-rank bandwidth: message size × granularity / median time; for pingpong, one-way, from rank 0's round trip / 2 (Blink's `MainRank` column) |
+| `spread_med`, `spread_p99` | max / min time across ranks, per iteration (median and p99): the collision signal. `–` for pingpong. At small sizes it mostly measures how far apart the ranks enter each timed window (Blink runs an `MPI_Allreduce` before every window), so read it at large sizes |
 | `run_cv` | coefficient of variation of the per-run medians: ECMP hash luck |
 | `slowdown_med`, `slowdown_p99` | victim time with the aggressor / victim time alone, same file and size |
 

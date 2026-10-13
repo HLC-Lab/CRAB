@@ -10,6 +10,13 @@ Reads the data dirs of runs made with the configs of make_configs.py and writes,
 Per-rank bandwidth is `msg_size * grty * 8 / t_med`: Blink times one window of `-grty` operations
 (default 1) per sample and records the whole window, except ping-pong, which records the window's
 round trips divided by 2 (one-way). Spread is max / min over ranks within one iteration.
+
+Ping-pong is read differently. Blink runs an MPI_Allreduce before every timed window, so the ranks
+enter a window at different times, and the rank that enters late finds the message already there
+and times almost nothing. Only rank 0, which sends first and waits for the reply, measures the real
+round trip: a ping-pong app's time comes from Blink's `MainRank` column (rank 0's sample), and its
+spread is not reported (`–`). For the other apps the spread at small sizes mostly measures how far
+apart the ranks entered the window, so read it at large sizes.
 """
 
 from __future__ import annotations
@@ -99,13 +106,30 @@ def file_fields(file_name: str) -> tuple[str, bool, str | None]:
     return found["set"], found["smoke"] is not None, key
 
 
-def size_metrics(group: pd.DataFrame, app: int, msg_size: int, grty: int) -> dict[str, Any]:
-    """The metrics of one app's rows for one message size (pure: no IO)."""
-    med = group[f"{app}_Median-Duration_s"]
-    low, high = group[f"{app}_Min-Duration_s"], group[f"{app}_Max-Duration_s"]
+def is_pingpong(program: str) -> bool:
+    """Whether an app is a ping-pong, judged by its program path (`blink/pingpong_b.py`)."""
+    return "pingpong" in program
+
+
+def size_metrics(
+    group: pd.DataFrame, app: int, msg_size: int, grty: int, pingpong: bool = False
+) -> dict[str, Any]:
+    """The metrics of one app's rows for one message size (pure: no IO).
+
+    A ping-pong takes its time from rank 0's column and has no spread (see the module docstring).
+    """
+    high = group[f"{app}_Max-Duration_s"]
+    med = group[f"{app}_{'MainRank' if pingpong else 'Median'}-Duration_s"]
     t_med = float(med.median())
-    valid = low > 0
-    spread = (high[valid] / low[valid]).astype(float)
+    if pingpong:
+        high = med
+        spread = pd.Series([], dtype=float)
+        skipped = 0
+    else:
+        low = group[f"{app}_Min-Duration_s"]
+        valid = low > 0
+        spread = (high[valid] / low[valid]).astype(float)
+        skipped = int((~valid).sum())
     run_medians = med.groupby(group["run_id"]).median()
     mean = float(run_medians.mean())
     cv = float(run_medians.std(ddof=1)) / mean if len(run_medians) >= 2 and mean > 0 else NAN
@@ -118,12 +142,12 @@ def size_metrics(group: pd.DataFrame, app: int, msg_size: int, grty: int) -> dic
         "bw_gbps": msg_size * grty * 8 / t_med / 1e9 if t_med > 0 else NAN,
         "spread_med": float(spread.median()) if len(spread) else NAN,
         "spread_p99": float(spread.quantile(0.99)) if len(spread) else NAN,
-        "spread_skipped": int((~valid).sum()),
+        "spread_skipped": skipped,
         "run_cv": cv,
     }
 
 
-def read_app_csv(path: Path, app: int) -> pd.DataFrame | str:
+def read_app_csv(path: Path, app: int, pingpong: bool = False) -> pd.DataFrame | str:
     """The CSV of one app, or the reason it cannot be used."""
     if not path.is_file():
         return f"missing CSV {path.name}"
@@ -133,7 +157,8 @@ def read_app_csv(path: Path, app: int) -> pd.DataFrame | str:
         return f"unreadable CSV {path.name}"
     if df.empty:
         return f"empty CSV {path.name}"
-    needed = {"run_id", "msg_size"} | {f"{app}_{k}-Duration_s" for k in ("Min", "Max", "Median")}
+    kinds = ("Min", "Max", "Median", "MainRank") if pingpong else ("Min", "Max", "Median")
+    needed = {"run_id", "msg_size"} | {f"{app}_{k}-Duration_s" for k in kinds}
     if not needed <= set(df.columns):
         return f"CSV {path.name} lacks columns: {', '.join(sorted(needed - set(df.columns)))}"
     return df
@@ -160,7 +185,9 @@ def read_dir(path: Path, report: Report) -> list[dict[str, Any]]:
             report.skipped.append(f"{path.name}: {exp}: unknown experiment name")
             continue
         for app_id, app in apps.items():
-            df = read_app_csv(path / exp / f"data_app_{app_id}.csv", int(app_id))
+            program = app.get("path", "")
+            pingpong = is_pingpong(program)
+            df = read_app_csv(path / exp / f"data_app_{app_id}.csv", int(app_id), pingpong)
             if isinstance(df, str):
                 report.skipped.append(f"{path.name}: {exp}: {df}")
                 continue
@@ -176,12 +203,13 @@ def read_dir(path: Path, report: Report) -> list[dict[str, Any]]:
                     "experiment": exp,
                     **parsed,
                     "app": int(app_id),
-                    "program": app.get("path", ""),
+                    "program": program,
                     "grty": grty,
                     "msg_size": int(msg_size),
                 }
                 ident["victim"] = parsed["victim"] or key
-                rows.append({**ident, **size_metrics(group, int(app_id), int(msg_size), grty)})
+                found = size_metrics(group, int(app_id), int(msg_size), grty, pingpong)
+                rows.append({**ident, **found})
     return rows
 
 
@@ -314,8 +342,12 @@ def markdown(df: pd.DataFrame, report: Report) -> str:
     """The text of summary.md."""
     intro = (
         "# NPLB campaign summary\n\n"
-        "- bw_gbps: per-rank bandwidth, msg_size x grty x 8 / median time; for ping-pong, one-way.\n"
-        "- spread: max / min over ranks within one iteration (median and p99 over iterations).\n"
+        "- bw_gbps: per-rank bandwidth, msg_size x grty x 8 / median time. Ping-pong: one-way, from"
+        " rank 0's round trip / 2 (Blink's MainRank column).\n"
+        "- spread: max / min over ranks within one iteration (median and p99 over iterations)."
+        f" {DASH} for ping-pong. At small sizes it mostly measures how far apart the ranks enter"
+        " each timed window (Blink runs an MPI_Allreduce before every window), so read it at"
+        " large sizes.\n"
         "- run_cv: std / mean over the CRAB runs of each run's median time.\n"
         "- slowdown: co-run time / `*_alone` time of the same file and size (median and p99).\n"
         f"- {DASH}: not available (no alone baseline, one run, or no such size on that network).\n"
