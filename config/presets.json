@@ -171,6 +171,23 @@
         "sbatch": [],
         "header": []
     },
+    "nplb_h100": {
+        "description": "NPLB test cluster, 4 H100 nodes",
+        "scheduler": "slurm",
+        "launcher": "srun",
+        "launchers": {
+            "srun": {
+                "flags": [
+                    "--mpi=pmix"
+                ]
+            }
+        },
+        "env": {},
+        "sbatch": [
+            "--partition=h100_4nodes"
+        ],
+        "header": []
+    },
     "example_preset": {
         "description": "Example Template",
         "env": {
