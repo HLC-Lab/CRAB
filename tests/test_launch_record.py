@@ -427,6 +427,17 @@ def test_the_srun_shim_gives_each_local_rank_its_nic_round_robin(
         assert f"UCX_NET_DEVICES={nic}" in result.stderr
 
 
+def test_shim_names_the_node_it_runs_on(layout: tuple[Path, Path]) -> None:
+    _, exp_dir = layout
+    job = _nics_job(exp_dir)
+    _run(job, SRUN)
+
+    result = _run_shim(_shim_path(job), {"SLURM_LOCALID": "1", "HOSTNAME": "batch-host-elsewhere"})
+    assert result.returncode == 0
+    assert f"crab: {os.uname().nodename} local rank 1 -> UCX_NET_DEVICES=" in result.stderr
+    assert "batch-host-elsewhere" not in result.stderr
+
+
 def test_the_shim_passes_the_ranks_arguments_through_intact(
     layout: tuple[Path, Path],
 ) -> None:

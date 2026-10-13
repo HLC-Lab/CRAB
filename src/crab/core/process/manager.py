@@ -257,7 +257,7 @@ def _rank_shim_text(job_id: int, nics: tuple[str, ...], launcher: object) -> str
         lines.append("r=0")
     lines += [
         'export UCX_NET_DEVICES="${nics[$((10#$r % ${#nics[@]}))]}"',
-        'echo "crab: $HOSTNAME local rank $r -> UCX_NET_DEVICES=$UCX_NET_DEVICES" >&2',
+        'echo "crab: $(uname -n) local rank $r -> UCX_NET_DEVICES=$UCX_NET_DEVICES" >&2',
         'exec "$@"',
     ]
     return "\n".join(lines) + "\n"
