@@ -1,0 +1,736 @@
+{
+  "schema_version": 2,
+  "global_options": {
+    "name": "h100_a2a_vs_a2a_C0_P1",
+    "numnodes": "4",
+    "ppn": "16",
+    "minruns": "20",
+    "maxruns": "40",
+    "timeout": "3600.0",
+    "outformat": "csv",
+    "walltime": "04:00:00",
+    "sbatch_directives": [
+      "--exclusive",
+      "--job-name=nplb_a2a_vs_a2a"
+    ],
+    "allocation": {
+      "mode": "interleaved",
+      "partitions": {
+        "victim": {
+          "share": 50
+        },
+        "aggressor": {
+          "share": 50
+        }
+      }
+    }
+  },
+  "experiments": {
+    "p2_a2a_alone_C0_P1": {
+      "description": "Victim (a2a) over a size sweep on the victim nodes, alone: the reference for the runs with an aggressor.",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 1 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "0",
+          "end": "",
+          "partition": "victim",
+          "ppn": 16,
+          "cpus": "0,4,8,12,16,20,24,28,40,44,48,52,56,60,64,68",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "1": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 8 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "2": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 64 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "3": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 512 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "4": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 4096 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "5": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 32768 -iter 1000 -grty 64",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "6": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 262144 -iter 1000 -grty 8",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "7": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 2097152 -iter 1000 -grty 1",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "8": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 16777216 -iter 1000 -grty 1",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "9": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 134217728 -iter 100 -grty 1",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "10": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 536870912 -iter 25 -grty 1",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        }
+      }
+    },
+    "p2_a2a_vs_a2a_C0_P1": {
+      "description": "Victim (a2a) over a size sweep on the victim nodes, while a continuous all-to-all runs on the aggressor nodes (it starts first and stops at the end).",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 1 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "3",
+          "end": "",
+          "partition": "victim",
+          "ppn": 16,
+          "cpus": "0,4,8,12,16,20,24,28,40,44,48,52,56,60,64,68",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "1": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 8 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "2": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 64 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "3": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 512 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "4": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 4096 -iter 1000 -grty 100",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "5": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 32768 -iter 1000 -grty 64",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "6": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 262144 -iter 1000 -grty 8",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "7": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 2097152 -iter 1000 -grty 1",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "8": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 16777216 -iter 1000 -grty 1",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "9": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 134217728 -iter 100 -grty 1",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "10": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 536870912 -iter 25 -grty 1",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 16,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        },
+        "11": {
+          "path": "blink/alltoall_nb.py",
+          "args": "-msgsize 2097152 -endl",
+          "collect": false,
+          "start": "0",
+          "end": "f",
+          "partition": "aggressor",
+          "ppn": 16,
+          "cpus": "0,4,8,12,16,20,24,28,40,44,48,52,56,60,64,68",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_1:1",
+            "mlx5_2:1",
+            "mlx5_3:1",
+            "mlx5_4:1",
+            "mlx5_5:1",
+            "mlx5_8:1",
+            "mlx5_9:1",
+            "mlx5_10:1",
+            "mlx5_11:1",
+            "mlx5_12:1",
+            "mlx5_13:1",
+            "mlx5_14:1",
+            "mlx5_15:1",
+            "mlx5_16:1",
+            "mlx5_17:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_NUM_PATHS": "1"
+          }
+        }
+      }
+    }
+  }
+}
