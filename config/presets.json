@@ -174,11 +174,18 @@
     "nplb_h100": {
         "description": "NPLB test cluster, 4 H100 nodes",
         "scheduler": "slurm",
-        "launcher": "srun",
+        "launcher": "mpirun",
         "launchers": {
-            "srun": {
+            "mpirun": {
+                "dialect": "openmpi4",
                 "flags": [
-                    "--mpi=pmix"
+                    "--allow-run-as-root",
+                    "--mca",
+                    "pml",
+                    "ucx",
+                    "--mca",
+                    "btl",
+                    "^openib"
                 ]
             }
         },

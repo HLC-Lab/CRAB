@@ -28,7 +28,10 @@ _LAUNCH_LINES = {
     "leonardo": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "cresco8": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nanjing": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
-    "nplb_h100": "srun --export=ALL --nodelist n1 --mpi=pmix -n 1 -N 1 ./app",
+    "nplb_h100": (
+        "mpirun -n 1 -H n1 --report-bindings --allow-run-as-root --mca pml ucx --mca btl ^openib "
+        "./app"
+    ),
     "slimfly": (
         # binding report always on since C4
         f"{_SLIMFLY_MPIRUN} -n 1 -H n1 --report-bindings -mca plm_rsh_no_tree_spawn 1 --map-by node "
