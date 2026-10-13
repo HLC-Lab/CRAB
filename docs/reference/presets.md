@@ -107,7 +107,9 @@ other flags stay.
 `--exact --mem=0` gives each such app its cores and the node's memory, so it overrides a
 `--mem` or `--mem-per-cpu` in `<flags>`.
 
-`verbose` makes `srun` print each rank's CPU mask into the app's log.
+`verbose` makes `srun` print each rank's CPU mask to the app's standard error, which CRAB keeps in
+`<experiment dir>/bindings_app_<id>.log`; see
+[What a run records about its launches](../using/running-without-slurm.md#what-a-run-records-about-its-launches).
 
 ## The mpirun launcher
 

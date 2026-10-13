@@ -894,6 +894,13 @@ describe("per-app env and cpus", () => {
     expect(app.rest).toEqual({ extra: "x" });
   });
 
+  it("keeps nics in the app draft's rest and round-trips it in order", () => {
+    const nics = ["mlx5_0:1", "mlx5_1:1"];
+    const config = withApp({ nics });
+    expect(fromConfig(config).experiments[0].apps[0].rest).toEqual({ nics });
+    expect(appOut(config).nics).toEqual(nics);
+  });
+
   it("emits neither key for an app that sets none", () => {
     const out = appOut(withApp({}));
     expect("env" in out).toBe(false);

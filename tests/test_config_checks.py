@@ -637,6 +637,24 @@ def test_invalid_app_env_is_refused_with_the_experiment_and_app() -> None:
         _check(config, _sixteen_core_host())
 
 
+def test_invalid_app_nics_is_refused_with_the_experiment_and_app() -> None:
+    config = _placed_config([{}, {"nics": ["mlx5 0:1"]}])
+    with pytest.raises(ValueError, match="experiment e1: app 1: nics: 'mlx5 0:1' is not a NIC"):
+        _check(config, _sixteen_core_host())
+
+
+def test_nics_with_ucx_net_devices_is_refused_with_the_experiment_and_app() -> None:
+    both = {"nics": ["mlx5_0:1"], "env": {"UCX_NET_DEVICES": "mlx5_1:1"}}
+    config = _placed_config([{}, both])
+    with pytest.raises(ValueError, match="experiment e1: app 1: nics and env UCX_NET_DEVICES"):
+        _check(config, _sixteen_core_host())
+
+
+def test_nics_is_a_placement_key_so_a_token_skips_the_placement_check() -> None:
+    config = _placed_config([{"nics": "{n}"}])
+    assert _check(config, _sixteen_core_host()) == []
+
+
 def test_placement_is_skipped_without_settings_and_for_tokens() -> None:
     config = _placed_config([{"cpus": "0-3"}, {"cpus": "2-5"}])
     assert _check(config) == []

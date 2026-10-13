@@ -233,7 +233,9 @@ preset and not the allocation.
 
 For every application started with `mpirun`, CRAB asks `mpirun` to report how it bound the ranks
 to cores, and keeps the report in `<experiment dir>/bindings_app_<id>.log`, where the experiment
-dir is `<run data dir>/<experiment name>/` and `<id>` is the application's number. Each run of
+dir is `<run data dir>/<experiment name>/` and `<id>` is the application's number. For an
+application started with `srun`, the file holds whatever `srun` and the ranks write to standard
+error, including the `--cpu-bind=verbose` CPU masks when CRAB binds the cores. Each run of
 the experiment appends to it, under a `# run <n>` line. Because the file lives in the experiment
 directory and not in a run directory, it stays even when `retain_files` is `false`. Use it to
 check that the applications sit on the cores you meant.
@@ -248,4 +250,4 @@ files produced the results. Two of its sections describe the launches:
   the failure does not stop the job at this point.
 - `launches`: for each experiment and application, the first launch line that was run (`line`),
   the launcher `kind`, the `dialect` (`null` unless it was `mpirun`), the path of its
-  `binding_report` (`null` unless it was `mpirun`), the application's `ppn` and its `env`.
+  `binding_report` (`null` unless it was `mpirun` or `srun`), the application's `ppn` and its `env`.

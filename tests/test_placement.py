@@ -14,6 +14,7 @@ from crab.core.execution.placement import (
     Head,
     app_ppn,
     parse_app_env,
+    parse_app_nics,
     parse_cpus,
     place_experiment,
     plan,
@@ -235,6 +236,29 @@ def test_place_experiment_names_the_experiment_and_app_of_a_bad_env_key() -> Non
         )  # fmt: skip
 
 
+# -- nics --------------------------------------------------------------------------------------
+
+
+def test_nics_is_a_tuple_of_device_names_in_order() -> None:
+    assert parse_app_nics(["mlx5_0:1"], "w") == ("mlx5_0:1",)
+    names = ["mlx5_0:1", "mlx5_1:1", "bnxt_re0:1", "mlx5_bond_0"]
+    assert parse_app_nics(names, "w") == tuple(names)
+
+
+@pytest.mark.parametrize("value", ["mlx5_0:1", {}, None, [], ("mlx5_0:1",), 1])
+def test_nics_refuses_anything_but_a_non_empty_list(value: object) -> None:
+    with pytest.raises(ValueError, match=r"app 0: nics: must be a non-empty list of NIC device"):
+        parse_app_nics(value, "app 0: nics")
+
+
+@pytest.mark.parametrize(
+    "item", [1, None, "", "mlx5 0:1", 'mlx5_0:1"', "mlx5_0:1'", "$X", "a;b", "a,b", "a/b", "a\n"]
+)
+def test_nics_refuses_an_item_that_is_not_a_device_name(item: object) -> None:
+    with pytest.raises(ValueError, match=r"app 0: nics: .* is not a NIC device name"):
+        parse_app_nics(["mlx5_0:1", item], "app 0: nics")
+
+
 # -- place_experiment ----------------------------------------------------------------------------
 
 _SHARED = {"mode": "shared"}
@@ -287,6 +311,31 @@ def test_place_experiment_collects_each_apps_env_in_order() -> None:
 def test_place_experiment_errors_name_the_experiment_and_app() -> None:
     with pytest.raises(ValueError, match="experiment e1: app 1: env: must be an object"):
         _place([{}, {"env": "A=1"}], [["localhost"], ["localhost"]], {})
+
+
+def test_place_experiment_returns_each_apps_nics_in_order() -> None:
+    configs = [{"nics": ["mlx5_0:1", "mlx5_1:1"]}, {}, {"start": "s0", "nics": ["mlx5_2:1"]}]
+    placed = _place(configs, [["localhost"]] * 3, _SHARED)
+    assert placed.nics == [("mlx5_0:1", "mlx5_1:1"), None, ("mlx5_2:1",)]
+
+
+def test_place_experiment_refuses_a_bad_nics_naming_the_experiment_and_app() -> None:
+    with pytest.raises(ValueError, match="experiment e1: app 1: nics: must be a non-empty list"):
+        _place([{}, {"nics": []}], [["localhost"], ["localhost"]], {})
+
+
+def test_place_experiment_refuses_nics_together_with_ucx_net_devices() -> None:
+    configs = [{"nics": ["mlx5_0:1"], "env": {"UCX_NET_DEVICES": "mlx5_1:1"}}]
+    with pytest.raises(
+        ValueError,
+        match="experiment e1: app 0: nics and env UCX_NET_DEVICES both set the NIC; keep one",
+    ):
+        _place(configs, [["localhost"]], {})
+
+
+def test_nics_with_other_env_keys_is_allowed() -> None:
+    placed = _place([{"nics": ["mlx5_0:1"], "env": {"A": "1"}}], [["localhost"]], {})
+    assert placed.nics == [("mlx5_0:1",)]
 
 
 def test_local_bare_localhost_uses_the_machines_core_count(monkeypatch) -> None:

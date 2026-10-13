@@ -121,6 +121,7 @@ class ExperimentRunner:
                 "cpus",
                 "env",
                 "ppn",
+                "nics",
             ]
             for key, value in details.items():
                 if key not in reserved_keys:
@@ -201,18 +202,20 @@ class ExperimentRunner:
             self.node_list,
             self.global_opts,
         )
-        for app, cpu_list, app_env, shared, co_run in zip(
+        for app, cpu_list, app_env, shared, co_run, nics in zip(
             self.apps,
             placed.cpu_lists,
             placed.envs,
             placed.shared_cores,
             placed.co_run,
+            placed.nics,
             strict=True,
         ):
             app.cpu_list = cpu_list
             app.app_env = app_env
             app.shared_cores = shared
             app.co_run = co_run
+            app.nics = nics
 
         # 3. Initialize Data Containers
         for app in self.apps:
