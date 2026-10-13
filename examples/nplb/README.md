@@ -149,6 +149,12 @@ assumptions it made. Useful flags: `--set md|colleague|both`, `--net C0 C2`, `--
 `--iter-128m`, `--iter-512m`. `--smoke` writes a short version (3 sizes, 50 iterations, one run)
 to test the whole chain.
 
+In the md set, every app except the aggressors times `-grty G` operations per sample, with
+`G = min(100, ceil(2 MiB / message size))`: 100 up to 4 KiB, 64 at 32 KiB, 8 at 256 KiB, 1 from
+2 MiB. Blink synchronizes the ranks before every timed sample, so with one small operation per
+sample the times mostly measure how far apart the ranks start. The colleague set keeps its own
+arguments.
+
 The layout follows the node count in the profile: 4 nodes use partitions Server1+Server3 (victim)
 and Server2+Server4 (aggressor); 3 nodes use Server1+Server3 (victim) and Server2 (aggressor).
 
