@@ -181,7 +181,7 @@ def test_pingpong_time_comes_from_the_main_rank(
     assert r["t_med"] == pytest.approx(PP_T_MED)
     assert r["t_p99"] == pytest.approx(49.3 * US)
     assert r["t_max_p99"] == pytest.approx(49.3 * US)
-    assert r["bw_gbps"] == pytest.approx(SIZE * 8 / PP_T_MED / 1e9)
+    assert r["bw_gbps"] == pytest.approx(SIZE * 64 * 8 / PP_T_MED / 1e9)
     assert r["run_cv"] == pytest.approx(PP_CV)
     assert r["n_runs"] == 2 and r["n_iters"] == 8
 
