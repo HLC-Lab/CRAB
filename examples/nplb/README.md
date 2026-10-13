@@ -1,12 +1,14 @@
 # NPLB campaign
 
 Tools to measure how a fabric's per-packet load balancing (NPLB) compares with ECMP, with Blink
-microbenchmarks run through CRAB. Every number comes from Blink timings: no switch or NIC counters
-are read.
+microbenchmarks run through CRAB. Every number in the results comes from Blink timings; NIC
+counters are read only by the [NIC check](#check-that-each-rank-uses-its-own-nic) before the
+campaign.
 
 | File | What it does |
 |------|--------------|
 | `probe.py` | Reads each node's RDMA NICs (ports, speed, NUMA node, netdev, memory, GPU layout) and writes a cluster profile with the `nics` and `cpus` lists to use. |
+| `nic_check.sh` | Runs Blink in four placements on 2 nodes and shows per-rank bandwidth and the bytes each NIC sent, to confirm every rank uses its own NIC. |
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
 | `analyze.py` | Reads CRAB data directories and writes `summary.csv` and `summary.md`. |
 | `plot.py` | Draws PNG charts from `summary.csv` (needs matplotlib). |
@@ -105,6 +107,34 @@ Read every warning before going on. In particular:
 
 The probe cannot see which leaf each NIC is cabled to. Get the NIC-to-leaf wiring from the
 network team and record it; the 3-node layout and `p0_local` depend on it.
+
+### Check that each rank uses its own NIC
+
+On a new cluster, run this before generating configs. If the ranks of a node end up sharing one
+card, every phase-2 slowdown reads 1.00, because each node is already capped before the aggressor
+starts. In a 2-node allocation:
+
+```bash
+salloc -N2 --exclusive -A <account> -p <partition> -t 00:15:00
+BLINK=$(.venv/bin/python -c "import crab.setup.memory as m; print(m.get_receipt('blink')['binary_path'])")
+SRUN_FLAGS="--mpi=pmix" examples/nplb/nic_check.sh profile.json "$BLINK"
+```
+
+Load the modules Blink was built with first, as in the preset's `header`. `SRUN_FLAGS` takes the
+preset's launcher flags (leave it out if it has none); `MSG` and `ITER` change the message size
+(default 2 MiB) and the iterations (default 200). The script runs Blink's `pairwise_nb` on the two
+nodes in four placements (1 rank per node; all ranks with one NIC each; all ranks on the first
+NIC; the same with Open MPI forced onto UCX). For each it prints the per-rank bandwidth and the
+GB each NIC sent, read from the nodes' RDMA counters (`port_xmit_data`).
+
+Good: `per-rank` is close to `one-rank` (about one link's rate per rank) and its bytes are spread
+evenly over every NIC. Bad: `per-rank` is close to `first-nic`, about `one-rank` divided by the
+ranks per node, which means the ranks share one card's bandwidth whatever `UCX_NET_DEVICES` says;
+the counters then show where the bytes went. A `per-rank-ucx` that fails or differs from `per-rank`
+is a finding too: note it.
+
+If `per-rank` is not close to `one-rank`, stop: phase 2 would show slowdown 1.00 because each node
+is capped. A counter shown as `n/a` is not readable on that node; the bandwidth is still valid.
 
 ## 4. Generate the configs
 
