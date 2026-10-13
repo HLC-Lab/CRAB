@@ -596,3 +596,61 @@ def test_colleague_set_skips_c3(tmp_path: Path, capsys: pytest.CaptureFixture[st
     (tmp_path / "again").mkdir()
     only_c3 = generate(tmp_path / "again", profile(), "--set", "colleague", "--net", "C3")
     assert only_c3 == {}
+
+
+def grty_of(app: dict[str, Any]) -> int | None:
+    words = app["args"].split()
+    return int(words[words.index("-grty") + 1]) if "-grty" in words else None
+
+
+@pytest.mark.parametrize(
+    ("size", "expected"),
+    [
+        (1, 100),
+        (8, 100),
+        (4096, 100),
+        (3000, 100),
+        (32768, 64),
+        (262144, 8),
+        (300000, 7),
+        (2097152, 1),
+        (16777216, 1),
+        (536870912, 1),
+    ],
+)
+def test_grty_rule(size: int, expected: int) -> None:
+    assert make_configs.grty_for(size) == expected
+
+
+def test_md_set_victims_get_grty_from_the_rule(
+    four_node: dict[str, dict[str, Any]], tmp_path: Path
+) -> None:
+    smoke = generate(
+        tmp_path, profile(4, 4), "--smoke", "--set", "md", "--net", "C0", "--paths", "1"
+    )
+    checked = 0
+    for configs in (four_node, smoke):
+        for name, config in configs.items():
+            if "md_p" not in name:
+                continue
+            for exp in config["experiments"]:
+                for app in app_list(config, exp):
+                    if app["collect"]:
+                        size = sizes_of([app])[0]
+                        assert grty_of(app) == make_configs.grty_for(size), (name, exp, size)
+                        checked += 1
+                    else:
+                        assert grty_of(app) is None, (name, exp)
+    assert checked > 0
+    p1 = app_list(four_node["md_p1_C0_P1.json"], "p1_a2a_C0_P1")
+    assert [grty_of(a) for a in p1[:6]] == [100, 100, 100, 100, 100, 64]
+    assert p1[0]["args"] == "-msgsize 1 -iter 1000 -grty 100"
+    assert p1[5]["args"] == "-msgsize 32768 -iter 1000 -grty 64"
+    assert p1[7]["args"] == "-msgsize 2097152 -iter 1000 -grty 1"
+
+
+def test_colleague_set_has_no_grty(four_node: dict[str, dict[str, Any]]) -> None:
+    chain = app_list(four_node["col_a2a_C2_P4.json"], "cong_burst-0.01-0.0001_C2_P4")[:-1]
+    assert chain[0]["args"] == "-msgsize 8 -iter 1000"
+    assert chain[4]["args"] == "-msgsize 32768 -iter 1000"
+    assert all(grty_of(a) is None for a in chain)

@@ -143,11 +143,11 @@ def test_metrics_of_one_experiment(tmp_path: Path, configs: dict[str, dict[str, 
     )
     assert r["smoke"] and r["app"] == 1 and r["program"] == "blink/pairwise_nb.py"
     assert r["aggressor"] != r["aggressor"]  # NaN: alone has none
-    assert (r["n_runs"], r["n_iters"], r["grty"]) == (2, 8, 1)
+    assert (r["n_runs"], r["n_iters"], r["grty"]) == (2, 8, 64)
     assert r["t_med"] == pytest.approx(T_MED)
     assert r["t_p99"] == pytest.approx(T_P99)
     assert r["t_max_p99"] == pytest.approx(49.3 * US)
-    assert r["bw_gbps"] == pytest.approx(SIZE * 8 / T_MED / 1e9)
+    assert r["bw_gbps"] == pytest.approx(SIZE * 64 * 8 / T_MED / 1e9)
     assert r["spread_med"] == pytest.approx(3.0)
     assert r["spread_p99"] == pytest.approx(4.93)
     assert r["spread_skipped"] == 0
@@ -222,7 +222,7 @@ def test_bandwidth_counts_the_granularity(
 ) -> None:
     config = copy.deepcopy(configs["smoke_md_p2_perm_C0_P1"])
     app = config["experiments"]["p2_perm_alone_C0_P1"]["apps"]["1"]
-    app["args"] += " -grty 4"
+    app["args"] = app["args"].replace("-grty 64", "-grty 4")
     data = make_dir(tmp_path, config)
     write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE)
     df, _, _ = summarize(tmp_path, data)
@@ -309,7 +309,7 @@ def test_c0_against_c2_pairing(tmp_path: Path, configs: dict[str, dict[str, Any]
         parts = [c.strip() for c in line.strip().strip("|").split("|")]
         cells[parts[0]] = parts
     header = cells["size"]
-    bw0 = SIZE * 8 / (35 * US * 2) / 1e9
+    bw0 = SIZE * 64 * 8 / (35 * US * 2) / 1e9
     got = dict(zip(header, cells["32 KiB"], strict=True))
     assert got["bw C0"] == f"{bw0:.3g}"
     assert got["bw C2"] == f"{bw0 * 2:.3g}"

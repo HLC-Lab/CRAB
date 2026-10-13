@@ -54,6 +54,7 @@ def build_p0(cfg: Settings, stem: str, net: str, paths: int) -> Built:
             head_start="0",
             partition="victim",
             memory=("pp", 2),
+            grty=True,
         )
         out.add(
             experiment_name("p0", test, net, paths),
@@ -90,6 +91,7 @@ def build_p1(cfg: Settings, stem: str, net: str, paths: int) -> Built:
             head_start="0",
             partition="victim" if partitioned else None,
             memory=(kind, nranks),
+            grty=True,
         )
         text = (
             f"{rules[test].capitalize()} over a size sweep, alone, on {nodes} nodes with "
@@ -157,6 +159,7 @@ def build_p2(cfg: Settings, stem: str, net: str, paths: int, victim: str) -> Bui
             head_start="0" if agg is None else VICTIM_LEAD,
             partition="victim",
             memory=(kind, nranks),
+            grty=True,
         )
         text = f"Victim ({victim}) over a size sweep on the victim nodes, "
         if agg is None:

@@ -9,6 +9,9 @@ Two test sets, for path counts 1 and 4:
 * colleague set (colleague_set.py), on C0 and C2: the three congestion tests of the existing
   Leonardo configs, adapted to this hardware. Files `col_a2a_...`, `col_agtr_...`, `col_ardc_...`.
 
+Every md-set app except the aggressors gets `-grty min(100, ceil(2 MiB / msgsize))`; the
+colleague set has none.
+
 `--smoke` writes the same structure with few sizes and iterations for a quick test (files get a
 `smoke_` prefix). The profile is the JSON the probe's `--merge` writes:
 `{"nodes": [...], "ppn": 8, "nics": [...], "cpus": "0,1,...", "mem_gib": 1800}`; node names are
@@ -24,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,11 +38,18 @@ from colleague_set import COLLEAGUE_NETS, build_colleague_files  # noqa: E402
 from md_set import P0_ASSUMPTION, build_md_files  # noqa: E402
 
 MIB = 1 << 20
+GRTY_BYTES = 2 * MIB  # data per timed window the md set aims for
+GRTY_MAX = 100  # operations per timed window, at most
 SMOKE_SIZES = [8, 32768, 2 * MIB]
 BURST_LENGTHS = ("0.001", "0.01", "0.1")
 BURST_PAUSES = ("0.000001", "0.0001", "0.01")
 SMOKE_BURST = ("0.01", "0.0001")
 NETS = ("C0", "C2", "C3")
+
+
+def grty_for(size: int) -> int:
+    """`-grty` for one message size: about 2 MiB or 100 operations per timed window."""
+    return min(GRTY_MAX, math.ceil(GRTY_BYTES / size))
 
 
 @dataclass(frozen=True)
@@ -205,13 +216,14 @@ class Settings:
         head_start: str,
         partition: str | None,
         memory: tuple[str, int] | None = None,
+        grty: bool = False,
     ) -> tuple[dict[str, dict[str, Any]], list[str]]:
         """The apps of one test: one per size, each starting after the previous one ends.
 
         `memory` is (kind, nranks) with kind "pp" (ping-pong/pairwise: 2 x size per rank), "a2a"
         (2 x nranks x size) or "ag" ((nranks + 1) x size): sizes whose buffers on one node pass
         half the node's memory are dropped and returned as text. Only the head carries the
-        partition.
+        partition. `grty` adds `-grty` from the size (md set).
         """
         apps: dict[str, dict[str, Any]] = {}
         skipped: list[str] = []
@@ -228,6 +240,8 @@ class Settings:
                     continue
             key = len(apps)
             args = f"{prefix} -msgsize {size} -iter {self.iterations(size)}".strip()
+            if grty:
+                args += f" -grty {grty_for(size)}"
             apps[str(key)] = self.app(
                 path,
                 args,
