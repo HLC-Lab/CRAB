@@ -29,8 +29,8 @@ _LAUNCH_LINES = {
     "cresco8": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nanjing": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nplb_h100": (
-        "mpirun -n 1 -H n1 --report-bindings --allow-run-as-root --map-by core "
-        "--mca pml ucx --mca btl ^openib ./app"
+        "mpirun -n 1 -H n1 --report-bindings --allow-run-as-root --mca pml ucx --mca btl ^openib "
+        "./app"
     ),
     "slimfly": (
         # binding report always on since C4

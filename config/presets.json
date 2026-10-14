@@ -180,8 +180,6 @@
                 "dialect": "openmpi4",
                 "flags": [
                     "--allow-run-as-root",
-                    "--map-by",
-                    "core",
                     "--mca",
                     "pml",
                     "ucx",
