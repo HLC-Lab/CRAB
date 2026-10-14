@@ -654,3 +654,96 @@ def test_colleague_set_has_no_grty(four_node: dict[str, dict[str, Any]]) -> None
     assert chain[0]["args"] == "-msgsize 8 -iter 1000"
     assert chain[4]["args"] == "-msgsize 32768 -iter 1000"
     assert all(grty_of(a) is None for a in chain)
+
+
+def _p2_experiments(configs: dict[str, dict[str, Any]], victim: str) -> set[str]:
+    """The experiment names of one victim's phase-2 file on C0 with one path."""
+    return set(configs[f"md_p2_{victim}_C0_P1.json"]["experiments"])
+
+
+def test_aggressors_a2a_keeps_alone_and_the_steady_a2a(
+    tmp_path: Path, four_node: dict[str, dict[str, Any]]
+) -> None:
+    from crab.core.config_checks import check_config
+
+    configs = generate(tmp_path, profile(), "--aggressors", "a2a")
+    assert set(configs) == set(four_node)
+    for victim in ("perm", "a2a", "ag"):
+        for net in ("C0", "C2"):
+            for paths in (1, 4):
+                config = configs[f"md_p2_{victim}_{net}_P{paths}.json"]
+                assert set(config["experiments"]) == {
+                    f"p2_{victim}_alone_{net}_P{paths}",
+                    f"p2_{victim}_vs_a2a_{net}_P{paths}",
+                }
+    for name, config in configs.items():
+        assert check_config(config, slurm_settings()) == [], name
+        if "_p2_" not in name:  # phases 0 and 1 and the colleague set do not change
+            assert config == four_node[name], name
+
+
+def test_aggressors_burst_keeps_alone_and_every_burst(tmp_path: Path) -> None:
+    configs = generate(tmp_path, profile(), "--aggressors", "burst")
+    expected = {"p2_ag_alone_C0_P1"} | {
+        f"p2_ag_vs_burst-{length}-{pause}_C0_P1" for length, pause in BURSTS
+    }
+    assert _p2_experiments(configs, "ag") == expected
+    assert len(expected) == 10
+
+
+def test_aggressors_incast_and_several_kinds(tmp_path: Path) -> None:
+    configs = generate(tmp_path, profile(), "--aggressors", "incast", "a2a")
+    assert _p2_experiments(configs, "perm") == {
+        "p2_perm_alone_C0_P1",
+        "p2_perm_vs_a2a_C0_P1",
+        "p2_perm_vs_incast_C0_P1",
+    }
+
+
+def test_aggressors_default_is_every_kind(four_node: dict[str, dict[str, Any]]) -> None:
+    expected = {"p2_perm_alone_C0_P1", "p2_perm_vs_a2a_C0_P1", "p2_perm_vs_incast_C0_P1"}
+    expected |= {f"p2_perm_vs_burst-{length}-{pause}_C0_P1" for length, pause in BURSTS}
+    assert _p2_experiments(four_node, "perm") == expected
+
+
+def test_aggressors_the_three_node_layout_only_has_pw(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    prof_path = tmp_path / "profile.json"
+    prof_path.write_text(json.dumps(profile(3, 8)))
+    out = tmp_path / "out"
+    with pytest.raises(SystemExit) as stop:
+        make_configs.main([str(prof_path), "--out", str(out), "--aggressors", "a2a"])
+    assert stop.value.code != 0
+    assert "3-node layout has only the pw aggressor" in capsys.readouterr().err
+    assert not out.exists()
+    (tmp_path / "ok").mkdir()
+    configs = generate(tmp_path / "ok", profile(3, 8), "--set", "md", "--aggressors", "pw", "a2a")
+    assert _p2_experiments(configs, "perm") == {"p2_perm_alone_C0_P1", "p2_perm_vs_pw_C0_P1"}
+
+
+def test_aggressors_pw_is_refused_on_four_nodes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    prof_path = tmp_path / "profile.json"
+    prof_path.write_text(json.dumps(profile()))
+    with pytest.raises(SystemExit):
+        make_configs.main([str(prof_path), "--out", str(tmp_path / "out"), "--aggressors", "pw"])
+    assert "pw is only for the 3-node layout" in capsys.readouterr().err
+
+
+def test_aggressors_do_not_matter_for_the_colleague_set_alone(tmp_path: Path) -> None:
+    configs = generate(tmp_path, profile(3, 8), "--set", "colleague", "--aggressors", "a2a")
+    assert configs
+
+
+def test_summary_names_the_selected_aggressors(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    generate(tmp_path, profile(), "--set", "md", "--net", "C0", "--paths", "1")
+    assert "Phase-2 aggressors: a2a, burst, incast" in capsys.readouterr().out
+    (tmp_path / "again").mkdir()
+    generate(
+        tmp_path / "again", profile(), "--set", "md", "--aggressors", "incast", "a2a", "--net", "C0"
+    )
+    assert "Phase-2 aggressors: a2a, incast" in capsys.readouterr().out

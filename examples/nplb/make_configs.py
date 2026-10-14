@@ -35,7 +35,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from colleague_set import COLLEAGUE_NETS, build_colleague_files  # noqa: E402
-from md_set import P0_ASSUMPTION, build_md_files  # noqa: E402
+from md_set import (  # noqa: E402
+    AGGRESSOR_KINDS,
+    P0_ASSUMPTION,
+    build_md_files,
+    layout_kinds,
+    selected_kinds,
+)
 
 MIB = 1 << 20
 GRTY_BYTES = 2 * MIB  # data per timed window the md set aims for
@@ -136,6 +142,7 @@ class Settings:
     iter_small: int
     iter_128m: int
     iter_512m: int
+    aggressor_kinds: tuple[str, ...] = AGGRESSOR_KINDS  # phase-2 aggressors to build
 
     aggressor_size = 2 * MIB  # both sets: the aggressor's message size
 
@@ -332,6 +339,14 @@ def build_all(
     return files
 
 
+def aggressor_refusal(nodes: int) -> str:
+    """Why no selected aggressor fits the layout."""
+    if nodes == 3:
+        return "--aggressors: the 3-node layout has only the pw aggressor"
+    offered = ", ".join(layout_kinds(nodes))
+    return f"--aggressors: pw is only for the 3-node layout; this one has {offered}"
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Write the NPLB campaign configs from a profile.")
     p.add_argument("profile", type=Path, help="cluster profile JSON")
@@ -347,6 +362,15 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--paths", nargs="+", type=int, default=[1, 4], help="UCX_IB_NUM_PATHS values")
     p.add_argument(
         "--smoke", action="store_true", help="few sizes and iterations, for a quick test"
+    )
+    p.add_argument(
+        "--aggressors",
+        nargs="+",
+        choices=AGGRESSOR_KINDS,
+        default=list(AGGRESSOR_KINDS),
+        metavar="KIND",
+        help="phase-2 aggressors of the md set, any of: a2a, burst (every burst of the grid), "
+        "incast, pw (the 3-node layout's only one); default: all",
     )
     p.add_argument("--minruns", type=int)
     p.add_argument("--maxruns", type=int)
@@ -376,7 +400,10 @@ def main(argv: list[str] | None = None) -> int:
         args.iter_small,
         args.iter_128m,
         args.iter_512m,
+        tuple(args.aggressors),
     )
+    if args.sets in ("md", "both") and not selected_kinds(cfg):
+        ap.error(aggressor_refusal(prof.layout.nodes))
     files = build_all(cfg, args.sets, args.net, args.paths)
     args.out.mkdir(parents=True, exist_ok=True)
     for stem, built in files.items():
@@ -394,6 +421,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Colleague set: {' and '.join(COLLEAGUE_NETS)} only; C3 is left out of it.")
     if args.sets in ("md", "both"):
         print(P0_ASSUMPTION)
+        print(f"Phase-2 aggressors: {', '.join(selected_kinds(cfg))}")
     return 0
 
 

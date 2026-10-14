@@ -21,6 +21,7 @@ VICTIM_PROGRAMS = {  # key -> (wrapper, memory kind)
     "a2a": ("blink/alltoall_nb.py", "a2a"),
     "ag": ("blink/allgather_nb.py", "ag"),
 }
+AGGRESSOR_KINDS = ("a2a", "burst", "incast", "pw")  # --aggressors; every burst-grid key is "burst"
 P0_ASSUMPTION = (
     "Assumption (p0_local): the same NIC index on the first and second node of the victim "
     "partition reaches the same leaf switch."
@@ -107,8 +108,25 @@ def build_p1(cfg: Settings, stem: str, net: str, paths: int) -> Built:
     return out.built(cfg.config(stem, net, "md", {"mode": "linear"}))
 
 
+def layout_kinds(nodes: int) -> tuple[str, ...]:
+    """The aggressor kinds a layout offers: the 3-node one only has the in-node pairwise."""
+    return ("pw",) if nodes == 3 else ("a2a", "burst", "incast")
+
+
+def selected_kinds(cfg: Settings) -> tuple[str, ...]:
+    """The kinds of the selection that the layout offers, in the order of AGGRESSOR_KINDS."""
+    offered = layout_kinds(cfg.prof.layout.nodes)
+    return tuple(k for k in AGGRESSOR_KINDS if k in cfg.aggressor_kinds and k in offered)
+
+
 def aggressors(cfg: Settings) -> list[tuple[str, str, str, str, dict[str, str]]]:
-    """(key, wrapper, args, what it does, extra env) of each aggressor of phase 2."""
+    """(key, wrapper, args, what it does, extra env) of each selected aggressor of phase 2."""
+    kinds = selected_kinds(cfg)
+    return [agg for agg in all_aggressors(cfg) if agg[0].split("-")[0] in kinds]
+
+
+def all_aggressors(cfg: Settings) -> list[tuple[str, str, str, str, dict[str, str]]]:
+    """Every aggressor the layout offers, before the --aggressors selection."""
     size = cfg.aggressor_size
     if cfg.prof.layout.nodes == 3:
         offset = max(1, cfg.prof.ppn // 2)
