@@ -41,8 +41,10 @@ def _cores(placement: Placement) -> str:
 
 
 def _openmpi4_binding(placement: Placement) -> list[str]:
+    # Open MPI 4.1: `--cpu-set` is only an envelope (ranks stay unbound); `cpu-list:ordered`
+    # binds local rank i to the i-th listed core.
     if placement.cpus:
-        return ["--cpu-set", _cores(placement), "--bind-to", "core"]
+        return ["--cpu-list", _cores(placement), "--bind-to", "cpu-list:ordered"]
     return ["--bind-to", "none"] if placement.bind_none else []
 
 

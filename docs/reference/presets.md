@@ -127,7 +127,7 @@ host:
 | | `openmpi4` | `openmpi5` | `hydra` |
 |---|---|---|---|
 | `<hosts>` | `-H h,h,...` (a host repeated once per rank slot) | `--host h:N,...` | `-hosts h:N,...` |
-| `<binding>` for an application with `cpus` | `--cpu-set <cores> --bind-to core` | `--map-by pe-list=<cores>:ordered` | `-bind-to user:<cores>` |
+| `<binding>` for an application with `cpus` | `--cpu-list <cores> --bind-to cpu-list:ordered` | `--map-by pe-list=<cores>:ordered` | `-bind-to user:<cores>` |
 | `<binding>` for an application on [shared cores](configuration.md#shared-nodes) without `cpus` | `--bind-to none` | `--bind-to none` | `-bind-to none` |
 | `-x NAME` for each forwarded variable | yes | yes | no: Hydra passes the whole environment |
 | `<report>` | `--report-bindings` | `--display bindings` | `-report-bindings` |
