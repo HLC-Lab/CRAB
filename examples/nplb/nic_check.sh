@@ -108,7 +108,7 @@ run_case() {
         export NICS=$nics UCX_MAX_RNDV_RAILS=1
         if [[ $LAUNCHER == mpirun ]]; then
             exec "$MPIRUN" -n $((2 * n)) -H "$(mpirun_hosts "$n")" --cpu-set "$cpumap" --bind-to core \
-                --map-by core --report-bindings -x NICS -x UCX_MAX_RNDV_RAILS ${MPIRUN_EXTRA[@]+"${MPIRUN_EXTRA[@]}"} \
+                --report-bindings -x NICS -x UCX_MAX_RNDV_RAILS ${MPIRUN_EXTRA[@]+"${MPIRUN_EXTRA[@]}"} \
                 bash -c "$WRAP_MPI" _ "$BIN" -mode rot -offset "$n" -msgsize "$MSG" -iter "$ITER"
         fi
         [[ -n $pml ]] && export OMPI_MCA_pml=$pml

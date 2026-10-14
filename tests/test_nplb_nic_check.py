@@ -313,10 +313,10 @@ def test_mpirun_argv_per_rank_and_one_rank(world):
     result = run_check(world, MPIRUN_FLAGS="--allow-run-as-root --mca pml ucx", **MPI)
     assert result.returncode == 0, result.stderr
     one, per_rank, first = mpirun_calls(world)
+    # Open MPI 4 maps by the --cpu-set list already; --map-by conflicts with it
+    assert all("--map-by" not in call for call in (one, per_rank, first))
     fixed = [
         "--bind-to",
-        "core",
-        "--map-by",
         "core",
         "--report-bindings",
         "-x",
