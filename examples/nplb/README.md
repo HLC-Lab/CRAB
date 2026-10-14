@@ -7,8 +7,10 @@ campaign.
 
 | File | What it does |
 |------|--------------|
-| `probe.py` | Reads each node's RDMA NICs (ports, speed, NUMA node, netdev, memory, GPU layout) and writes a cluster profile with the `nics` and `cpus` lists to use. |
-| `nic_check.sh` | Runs Blink in four placements on 2 nodes and shows per-rank bandwidth and the bytes each NIC sent, to confirm every rank uses its own NIC. |
+| `preflight.sh` | Checks over ssh that every node sees the CRAB checkout, the Blink programs and the same MPI, so ranks can start there. |
+| `sr_state.sh` | Reads the Selective Repeat setting of every active NIC on every node (read only). |
+| `probe.py` | Reads each node's RDMA NICs (ports, PCI address, speed, NUMA node, netdev, memory, GPU layout) and writes a cluster profile with the `nics` and `cpus` lists to use. |
+| `nic_check.sh` | Runs Blink in several placements on 2 nodes and shows per-rank bandwidth and the bytes each NIC sent, to confirm every rank uses its own NIC. |
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
 | `analyze.py` | Reads CRAB data directories and writes `summary.csv` and `summary.md`. |
 | `plot.py` | Draws PNG charts from `summary.csv` (needs matplotlib). |
@@ -77,6 +79,50 @@ Leave `--cpu-bind` out of the flags: the configs set `cpus`, and CRAB binds thos
 warns at submit if it has to drop a `--cpu-bind`). `srun --mpi=list` shows which PMI plugins the
 cluster offers.
 
+### Clusters where srun cannot start MPI
+
+If `srun --mpi=list` offers no PMI plugin that the cluster's Open MPI was built with (no `pmix`),
+launch with Open MPI's own `mpirun` instead; it still runs inside the Slurm allocation:
+
+```json
+{
+  "mycluster": {
+    "description": "NPLB test cluster, mpirun",
+    "scheduler": "slurm",
+    "launcher": "mpirun",
+    "launchers": {
+      "mpirun": {
+        "dialect": "openmpi4",
+        "flags": ["--map-by", "core", "--mca", "pml", "ucx", "--mca", "btl", "^openib"]
+      }
+    },
+    "env": {},
+    "sbatch": ["--partition=<partition>"],
+    "header": []
+  }
+}
+```
+
+Keep `--map-by core`: with more than two ranks Open MPI 4 maps them across sockets by default,
+which would put rank *i* on a core of the other socket than its NIC (CRAB passes the app's `cpus`
+as `--cpu-set`). Add `--allow-run-as-root` when the jobs run as root.
+
+`mpirun` reads every program and every per-rank script from the same path on every node, so the
+CRAB checkout (its `benchmarks/` and `data/` folders included) must be on a filesystem all nodes
+share. Without one, export the checkout's parent folder from the node that holds it over NFS and
+mount it at the same path on the others. Then check every node from that node:
+
+```bash
+examples/nplb/preflight.sh <node1> <node2> <node3> <node4>   # or: PARTITION=<partition> examples/nplb/preflight.sh
+```
+
+It prints one `OK`, `WARN` or `FAIL` line per check and node and exits 1 on any `FAIL`. It checks
+that the checkout is there and NFS-mounted (exported, on the node you run it from), that `data/`
+is writable, that the nine Blink programs are there, and that `mpirun`, the `libmpi` that Blink
+loads, `ompi_info`, `ucx_info` and CRAB's Python are the same as on the node you run it from. The
+`route` line shows which network interface reaches that node: a `WARN` naming an RDMA device
+means the NFS traffic shares a link with the measurements.
+
 ## 3. Probe the nodes
 
 Run the probe once per node, on the nodes the campaign will use, and merge the lines:
@@ -104,6 +150,30 @@ Read every warning before going on. In particular:
   device per rank uses only half the card. Report it before running the campaign.
 - **Link rate** per port: record it in the run log. It sets the expected bandwidth ceilings.
 - **Link layer** must be `Ethernet` (RoCE) on the NPLB fabric.
+
+When each card shows up as two devices (two PCI functions of one slot, such as `mlx5_0` and
+`mlx5_1` on `0000:19:00.0` and `0000:19:00.1`), the default profile has one rank per port. For
+one rank per card, merge again with `--per-card`: it keeps the lowest active port of each card
+(the device with the lowest PCI function that has one) and pairs the cores the same way:
+
+```bash
+.venv/bin/python examples/nplb/probe.py --merge probe.jsonl --out profile16.json
+.venv/bin/python examples/nplb/probe.py --merge probe.jsonl --per-card --out profile8.json
+```
+
+Which port of a card faces which switch is not visible from the node: ask the network team
+before comparing per-card results with per-port ones.
+
+### Read the NIC side of the network configuration
+
+```bash
+examples/nplb/sr_state.sh <node1> <node2> <node3> <node4>
+```
+
+For every active device of every node it reads the `ROCE_ACCL` register with `mlxreg` and prints
+Selective Repeat (`SR`) and adaptive routing (`AR`). It exits 0 only when every device was read
+and all SR values agree. It never changes them. Record the result in the run log; the switch side
+(NPLB on or off) has to be read on the switches.
 
 The probe cannot see which leaf each NIC is cabled to. Get the NIC-to-leaf wiring from the
 network team and record it; the 3-node layout and `p0_local` depend on it.
@@ -136,6 +206,20 @@ is a finding too: note it.
 If `per-rank` is not close to `one-rank`, stop: phase 2 would show slowdown 1.00 because each node
 is capped. A counter shown as `n/a` is not readable on that node; the bandwidth is still valid.
 
+On a cluster that launches with `mpirun` (see the preset section), run it with:
+
+```bash
+LAUNCHER=mpirun MPIRUN_FLAGS="--mca pml ucx --mca btl ^openib" \
+    examples/nplb/nic_check.sh profile.json "$BLINK"
+```
+
+(add `--allow-run-as-root` to `MPIRUN_FLAGS` when running as root). The ranks then start with
+`mpirun -H <the two allocated hosts> --cpu-set <the profile's cores> --bind-to core --map-by core`,
+the same way CRAB launches them; the NIC counters are still read with plain `srun`. There are
+three cases (no `per-rank-ucx`: the flags already choose UCX), each followed by `unbound ranks: N`
+from mpirun's `--report-bindings`, and `per-rank` also lists the binding of every rank. Good: 0
+unbound ranks, and local rank *i* bound to the *i*-th core of the profile's `cpus`.
+
 ## 4. Generate the configs
 
 ```bash
@@ -147,7 +231,13 @@ summary lists every file, its experiments, the message sizes skipped for memory,
 assumptions it made. Useful flags: `--set md|colleague|both`, `--net C0 C2`, `--paths 1`,
 `--minruns`, `--maxruns`, `--walltime`, `--timeout`, `--mem-gib`, `--iter-small`,
 `--iter-128m`, `--iter-512m`. `--smoke` writes a short version (3 sizes, 50 iterations, one run)
-to test the whole chain.
+to test the whole chain. `--aggressors a2a burst incast` limits phase 2 of the md set to those
+aggressors (`burst` is the whole burst grid; the 3-node layout only has `pw`), for example
+`--aggressors a2a` for the victims alone and against a steady all-to-all.
+
+`--tag T` appends `_T` to every file name, config name and job name (experiment names do not
+change), so two variants of the same campaign stay apart, such as `--tag ppn8` from
+`profile8.json` and `--tag ppn16` from `profile16.json`. A tag has letters, digits and `-` only.
 
 In the md set, every app except the aggressors times `-grty G` operations per sample, with
 `G = min(100, ceil(2 MiB / message size))`: 100 up to 4 KiB, 64 at 32 KiB, 8 at 256 KiB, 1 from
@@ -190,6 +280,10 @@ In the job's data directory:
 ```bash
 .venv/bin/python examples/nplb/analyze.py data/mycluster/md_* data/mycluster/col_* --out results/
 ```
+
+With tagged configs, analyze one tag at a time (`data/mycluster/md_*_ppn8_*` into one `--out`,
+`*_ppn16_*` into another): the C0-vs-C2 tables pair rows by experiment, not by file, so two
+variants in one call would be mixed.
 
 `results/summary.csv` has one row per data directory, experiment and message size;
 `results/summary.md` has the tables, including **C0 vs C2** side by side. The metrics:
