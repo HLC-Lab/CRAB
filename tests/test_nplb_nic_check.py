@@ -49,7 +49,7 @@ FAKE_MPIRUN = r"""#!/usr/bin/env bash
 hosts=""
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -n | --cpu-set | --bind-to | --map-by | -x) shift 2 ;;
+        -n | --cpu-set | --cpu-list | --bind-to | --map-by | -x) shift 2 ;;
         -H) hosts=$2; shift 2 ;;
         --mca) shift 3 ;;
         -*) shift ;;
@@ -313,11 +313,14 @@ def test_mpirun_argv_per_rank_and_one_rank(world):
     result = run_check(world, MPIRUN_FLAGS="--allow-run-as-root --mca pml ucx", **MPI)
     assert result.returncode == 0, result.stderr
     one, per_rank, first = mpirun_calls(world)
-    # Open MPI 4 maps by the --cpu-set list already; --map-by conflicts with it
-    assert all("--map-by" not in call for call in (one, per_rank, first))
+    # Open MPI 4: --cpu-list with cpu-list:ordered binds rank i to the i-th core; --cpu-set only
+    # sets an envelope (ranks stay unbound) and --map-by conflicts with the list
+    assert all(
+        "--map-by" not in call and "--cpu-set" not in call for call in (one, per_rank, first)
+    )
     fixed = [
         "--bind-to",
-        "core",
+        "cpu-list:ordered",
         "--report-bindings",
         "-x",
         "NICS",
@@ -331,12 +334,12 @@ def test_mpirun_argv_per_rank_and_one_rank(world):
         "-c",
     ]
     hosts4 = ",".join(["gn01"] * 4 + ["gn02"] * 4)
-    head4 = ["-n", "8", "-H", hosts4, "--cpu-set", "8,24,40,56"]
+    head4 = ["-n", "8", "-H", hosts4, "--cpu-list", "8,24,40,56"]
     assert per_rank[: 6 + len(fixed)] == head4 + fixed
     tail = per_rank[6 + len(fixed) :]  # WRAP, _, BIN, args
     assert tail[1] == "_" and tail[2].endswith("/pairwise_nb")
     assert tail[3:] == ["-mode", "rot", "-offset", "4", "-msgsize", str(MSG), "-iter", str(ITER)]
-    head1 = ["-n", "2", "-H", "gn01,gn02", "--cpu-set", "8"]
+    head1 = ["-n", "2", "-H", "gn01,gn02", "--cpu-list", "8"]
     assert one[: 6 + len(fixed)] == head1 + fixed
     assert one[6 + len(fixed) + 3 :][:4] == ["-mode", "rot", "-offset", "1"]
     assert first[: 6 + len(fixed)] == head4 + fixed
