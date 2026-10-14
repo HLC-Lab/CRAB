@@ -41,12 +41,56 @@ done
 exit $rc
 """
 
+# Open MPI 4 look-alike: logs its argv (fields joined by 0x1f), then runs the command once per -H
+# entry, the way mpirun starts ranks (OMPI_COMM_WORLD_* set, no SLURM_* variables). It prints
+# FAKE_UNBOUND "not bound" lines on stderr, like --report-bindings does for an unbound rank.
+FAKE_MPIRUN = r"""#!/usr/bin/env bash
+(IFS=$'\x1f'; echo "mpirun$IFS$*" >>"$FAKE_LOG")
+hosts=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -n | --cpu-set | --bind-to | --map-by | -x) shift 2 ;;
+        -H) hosts=$2; shift 2 ;;
+        --mca) shift 3 ;;
+        -*) shift ;;
+        *) break ;;
+    esac
+done
+IFS=, read -ra slots <<<"$hosts"
+if [[ -n ${FAKE_BIND_LINES:-} ]]; then
+    IFS='|' read -ra lines <<<"$FAKE_BIND_LINES"
+    printf '%s\n' "${lines[@]}" >&2
+fi
+for ((k = 0; k < ${FAKE_UNBOUND:-0}; k++)); do
+    echo "[h:1] MCW rank $k is not bound (or bound to all available processors)" >&2
+done
+declare -A seen; declare -A node_of; nodes=0; size=${#slots[@]}; rc=0
+for h in "${slots[@]}"; do
+    [[ -n ${node_of[$h]:-} ]] || node_of[$h]=$((++nodes))
+done
+for ((rank = 0; rank < size; rank++)); do
+    h=${slots[rank]}
+    node=$((node_of[$h] - 1)); local=${seen[$h]:-0}; seen[$h]=$((local + 1))
+    OMPI_COMM_WORLD_RANK=$rank OMPI_COMM_WORLD_LOCAL_RANK=$local \
+        OMPI_COMM_WORLD_LOCAL_SIZE=$((size / nodes)) SLURM_NODEID=$node \
+        NIC_SYSFS="$FAKE_SYSFS/node$node" "$@" || rc=$?
+done
+exit $rc
+"""
+
+FAKE_SCONTROL = r"""#!/usr/bin/env bash
+[[ $1 == show && $2 == hostnames ]] || exit 1
+for h in ${FAKE_HOSTS-gn01 gn02 gn03}; do echo "$h"; done
+"""
+
 FAKE_UNAME = '#!/usr/bin/env bash\n[[ ${1:-} == -n ]] && echo "node-$SLURM_NODEID"\n'
 
 # Only rank 0 prints, like Blink. The median is FAKE_MEDIAN, times ranks per node when
 # FAKE_SHARED=1 (every rank on one card). Each copy adds msgsize*iter/4 to its device's counter.
 FAKE_BLINK = r"""#!/usr/bin/env bash
-echo "pnb rank=$SLURM_PROCID ppn=$SLURM_NTASKS_PER_NODE dev=${UCX_NET_DEVICES:-} pml=${OMPI_MCA_pml:-}" \
+rank=${OMPI_COMM_WORLD_RANK:-${SLURM_PROCID:-}}
+ppn=${OMPI_COMM_WORLD_LOCAL_SIZE:-${SLURM_NTASKS_PER_NODE:-}}
+echo "pnb rank=$rank ppn=$ppn dev=${UCX_NET_DEVICES:-} pml=${OMPI_MCA_pml:-}" \
     "rails=${UCX_MAX_RNDV_RAILS:-} args=$*" >>"$FAKE_LOG"
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -56,15 +100,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 if [[ ${FAKE_FAIL_PML:-} == 1 && ${OMPI_MCA_pml:-} == ucx ]] ||
-   [[ ${FAKE_FAIL_PPN:-} == "$SLURM_NTASKS_PER_NODE" ]]; then
+   [[ ${FAKE_FAIL_PPN:-} == "$ppn" ]]; then
     echo "pml selection failed" >&2
     exit 3
 fi
 dev=${UCX_NET_DEVICES%%:*}; port=${UCX_NET_DEVICES##*:}
 f=$NIC_SYSFS/$dev/ports/$port/counters/port_xmit_data
 [[ -f $f ]] && echo $(($(cat "$f") + msg * iter / 4)) >"$f"
-if [[ $SLURM_PROCID == 0 ]]; then
-    mult=1; [[ ${FAKE_SHARED:-} == 1 ]] && mult=$SLURM_NTASKS_PER_NODE
+if [[ $rank == 0 ]]; then
+    mult=1; [[ ${FAKE_SHARED:-} == 1 ]] && mult=$ppn
     echo "Average,Minimum,Maximum,Median,MainRank"
     for k in 1.5 1 0.5 0.6 2; do
         awk -v m="$FAKE_MEDIAN" -v k="$k" -v x="$mult" \
@@ -85,6 +129,8 @@ def world(tmp_path: Path) -> dict:
     for path, text in (
         (bindir / "srun", FAKE_SRUN),
         (bindir / "uname", FAKE_UNAME),
+        (bindir / "mpirun", FAKE_MPIRUN),
+        (bindir / "scontrol", FAKE_SCONTROL),
         (blink / "pairwise_nb", FAKE_BLINK),
     ):
         path.write_text(text)
@@ -230,3 +276,163 @@ def test_bad_arguments_exit_2(world, tmp_path, which):
     assert result.returncode == 2
     assert not world["log"].exists()
     assert result.stderr
+
+
+# ---- LAUNCHER=mpirun ----
+
+MPI = {"LAUNCHER": "mpirun", "SLURM_JOB_NODELIST": "gn[01-03]"}
+
+
+def mpirun_calls(world: dict) -> list[list[str]]:
+    """Argv (after the program name) of every fake mpirun call, in order."""
+    return [
+        ln.split("\x1f")[1:]
+        for ln in world["log"].read_text().splitlines()
+        if ln.startswith("mpirun\x1f")
+    ]
+
+
+def test_mpirun_prints_three_cases_with_rate_and_gb(world):
+    result = run_check(world, **MPI)
+    assert result.returncode == 0, result.stderr
+    assert not re.search(r"^per-rank-ucx", result.stdout, re.M)
+    one = block(result.stdout, "one-rank")
+    assert re.search(r"\b80\.0 Gb/s per rank", one[0])
+    assert "node-0: mlx5_0 1.00 mlx5_1 0.00 mlx5_2 0.00 mlx5_3 0.00 GB" in one[0]
+    assert "node-1: mlx5_0 1.00 mlx5_1 0.00 mlx5_2 0.00 mlx5_3 0.00 GB" in one[1]
+    per_rank = block(result.stdout, "per-rank")
+    assert re.search(r"\b80\.0 Gb/s per rank", per_rank[0])
+    assert "node-0: mlx5_0 1.00 mlx5_1 1.00 mlx5_2 1.00 mlx5_3 1.00 GB" in per_rank[0]
+    first = block(result.stdout, "first-nic")
+    assert "node-1: mlx5_0 4.00 mlx5_1 0.00 mlx5_2 0.00 mlx5_3 0.00 GB" in first[1]
+    assert len(mpirun_calls(world)) == 3
+    assert "stop and find out why" in result.stdout
+
+
+def test_mpirun_argv_per_rank_and_one_rank(world):
+    result = run_check(world, MPIRUN_FLAGS="--allow-run-as-root --mca pml ucx", **MPI)
+    assert result.returncode == 0, result.stderr
+    one, per_rank, first = mpirun_calls(world)
+    fixed = [
+        "--bind-to",
+        "core",
+        "--map-by",
+        "core",
+        "--report-bindings",
+        "-x",
+        "NICS",
+        "-x",
+        "UCX_MAX_RNDV_RAILS",
+        "--allow-run-as-root",
+        "--mca",
+        "pml",
+        "ucx",
+        "bash",
+        "-c",
+    ]
+    hosts4 = ",".join(["gn01"] * 4 + ["gn02"] * 4)
+    head4 = ["-n", "8", "-H", hosts4, "--cpu-set", "8,24,40,56"]
+    assert per_rank[: 6 + len(fixed)] == head4 + fixed
+    tail = per_rank[6 + len(fixed) :]  # WRAP, _, BIN, args
+    assert tail[1] == "_" and tail[2].endswith("/pairwise_nb")
+    assert tail[3:] == ["-mode", "rot", "-offset", "4", "-msgsize", str(MSG), "-iter", str(ITER)]
+    head1 = ["-n", "2", "-H", "gn01,gn02", "--cpu-set", "8"]
+    assert one[: 6 + len(fixed)] == head1 + fixed
+    assert one[6 + len(fixed) + 3 :][:4] == ["-mode", "rot", "-offset", "1"]
+    assert first[: 6 + len(fixed)] == head4 + fixed
+    # counters stay on plain srun, one task per node, no MPI flags
+    snaps = [ln for ln in world["log"].read_text().splitlines() if ln.startswith("srun")]
+    assert len(snaps) == 6 and all("N=2 ppn=1" in ln for ln in snaps)
+    assert not any("pairwise_nb" in ln for ln in snaps)
+
+
+def test_mpirun_ranks_pick_their_nic_from_the_local_rank(world):
+    profile = json.loads(world["profile"].read_text())
+    profile["nics"] = NICS[:2]
+    world["profile"].write_text(json.dumps(profile))
+    result = run_check(world, **MPI)
+    assert result.returncode == 0, result.stderr
+    lines = rank_lines(world)
+    assert len(lines) == 2 + 8 + 8
+    devs = [re.search(r"dev=(\S+)", ln).group(1) for ln in lines]
+    assert devs[:2] == ["mlx5_0:1"] * 2
+    assert devs[2:10] == ["mlx5_0:1", "mlx5_1:1"] * 4  # local rank r -> nics[r % 2]
+    assert devs[10:] == ["mlx5_0:1"] * 8
+    assert all("rails=1" in ln for ln in lines)
+    assert "rank=5 ppn=4" in lines[7]
+
+
+def test_mpirun_counts_unbound_ranks(world):
+    result = run_check(world, FAKE_UNBOUND="3", **MPI)
+    assert result.returncode == 0, result.stderr
+    for name in ("one-rank", "per-rank", "first-nic"):
+        assert "unbound ranks: 3" in "\n".join(block(result.stdout, name))
+    clean = run_check(world, **MPI)
+    for name in ("one-rank", "per-rank", "first-nic"):
+        assert "unbound ranks: 0" in "\n".join(block(clean.stdout, name))
+
+
+def test_srun_mode_prints_no_unbound_line(world):
+    assert "unbound" not in run_check(world).stdout
+
+
+def test_mpirun_failed_case_is_reported_and_the_next_goes_on(world):
+    result = run_check(world, FAKE_FAIL_PPN="1", **MPI)
+    assert result.returncode == 0
+    assert re.search(r"^one-rank\s+failed \(exit 3\)", result.stdout, re.M)
+    assert "pml selection failed" in result.stdout
+    assert re.search(r"\b80\.0 Gb/s per rank", block(result.stdout, "per-rank")[0])
+
+
+@pytest.mark.parametrize("hosts", ["", "gn01"])
+def test_mpirun_needs_two_hosts(world, hosts):
+    result = run_check(world, FAKE_HOSTS=hosts, **MPI)
+    assert result.returncode == 2
+    assert "2-node allocation" in result.stderr
+    assert not world["log"].exists()
+
+
+def test_mpirun_without_a_nodelist_exits_2(world):
+    result = run_check(world, LAUNCHER="mpirun", SLURM_JOB_NODELIST="")
+    assert result.returncode == 2
+    assert "2-node allocation" in result.stderr
+    assert not world["log"].exists()
+
+
+def test_unknown_launcher_exits_2(world):
+    result = run_check(world, LAUNCHER="bogus")
+    assert result.returncode == 2
+    assert "srun|mpirun" in result.stderr
+    assert not world["log"].exists()
+
+
+BINDINGS = (
+    "[gn01:11] MCW rank 10 bound to socket 1[core 60[hwt 0-1]]: [../..]"
+    "|[gn01:11] MCW rank 2 bound to socket 0[core 40[hwt 0-1]]: [../..]"
+    "|[gn01:11] MCW rank 1 bound to socket 0[core 24[hwt 0-1]]: [../..]"
+    "|[gn01:11] MCW rank 1 bound to socket 0[core 24[hwt 0-1]]: [../..]"
+    "|[gn01:11] MCW rank 0 bound to socket 0[core 8[hwt 0-1]]: [../..]"
+)
+
+
+def test_mpirun_per_rank_prints_the_bindings_sorted_by_rank(world):
+    result = run_check(world, FAKE_BIND_LINES=BINDINGS, **MPI)
+    assert result.returncode == 0, result.stderr
+    per_rank = block(result.stdout, "per-rank")
+    text = "\n".join(per_rank)
+    assert "unbound ranks: 0" in text and "bindings:" in text
+    ranks = [int(m.group(1)) for ln in per_rank if (m := re.search(r"MCW rank (\d+) bound", ln))]
+    assert ranks == [0, 1, 2, 10]  # numeric order, the repeated line printed once
+    assert all(ln.startswith(" ") for ln in per_rank[1:])
+    assert text.index("unbound ranks") < text.index("bindings:")
+    for name in ("one-rank", "first-nic"):
+        assert "MCW rank" not in "\n".join(block(result.stdout, name))
+        assert "bindings:" not in "\n".join(block(result.stdout, name))
+
+
+def test_mpirun_failure_tail_drops_the_binding_lines(world):
+    result = run_check(world, FAKE_BIND_LINES=BINDINGS, FAKE_FAIL_PPN="1", **MPI)
+    failed = result.stdout.split("per-rank ")[0]
+    assert re.search(r"^one-rank\s+failed \(exit 3\)", failed, re.M)
+    assert "pml selection failed" in failed
+    assert "MCW rank" not in failed
