@@ -9,12 +9,15 @@ Run once per node (stdlib only, Python 3.10+), then merge the lines:
 Modes:
   probe.py [--sysfs ROOT] [--no-gpu]        readable table for this node
   probe.py --json [...]                     one JSON line for this node
-  probe.py --merge FILE... [--out FILE]     per-node lines (or "-" for stdin) in, table and
+  probe.py --merge FILE... [--out FILE] [--per-card]
+                                            per-node lines (or "-" for stdin) in, table and
                                             warnings on stderr, cluster profile JSON out
 
 The profile's `nics` and `cpus` can be pasted into a CRAB app config. CRAB sorts an app's `cpus`,
 and under srun local rank i gets the i-th core of the sorted list, while `nics[i]` is rank i's
-NIC: so each NIC is paired with a core next to it, and the pairs are sorted by core.
+NIC: so each NIC is paired with a core next to it, and the pairs are sorted by core. With
+`--per-card` a multi-function card (several devices on one PCI slot) contributes one NIC, not one
+per device.
 
 Everything is read from sysfs (default /sys); a missing file is recorded as null.
 """
@@ -150,6 +153,14 @@ def _env_int(environ: Mapping[str, str], key: str) -> int | None:
         return None
 
 
+def _pci_address(base: Path) -> str | None:
+    """PCI address (e.g. 0000:19:00.0) of a device: where its `device` symlink points, else None."""
+    link = base / "device"
+    if not link.is_symlink():
+        return None
+    return os.path.basename(os.path.realpath(link)) or None
+
+
 def collect_node(
     sysfs: Path,
     with_gpu: bool = True,
@@ -173,6 +184,7 @@ def collect_node(
             }
         netdevs = _list_dir(base / "device" / "net") or []
         devices[dev] = {
+            "pci": _pci_address(base),
             "numa": _read_int(base / "device" / "numa_node"),
             "cpulist": _read(base / "device" / "local_cpulist"),
             "netdevs": netdevs,
@@ -239,6 +251,58 @@ def _active_ports(node: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
     return found
 
 
+def _card_of(pci: str) -> str:
+    """PCI slot of an address with the function stripped: 0000:19:00.1 -> 0000:19:00."""
+    return pci.rpartition(".")[0] or pci
+
+
+def _function_key(pci: str, dev: str) -> list[Any]:
+    """Order of a card's devices: by PCI function, then by name."""
+    return [_natural_key(pci.rpartition(".")[2]), _natural_key(dev)]
+
+
+def _one_port_per_card(node: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """One ACTIVE port per physical card (devices sharing a PCI slot), and the warnings.
+
+    A card keeps the lowest active port of its first device (by PCI function) that has one; a
+    card with no active port is left out with a warning. Raises ValueError when a device has no
+    PCI address (probe output from before the address was recorded): the grouping would be a guess.
+    """
+    devices = node.get("devices", {})
+    unknown = sorted((d for d, info in devices.items() if not info.get("pci")), key=_natural_key)
+    if unknown:
+        raise ValueError(
+            f"--per-card needs PCI addresses but {node.get('hostname')} has none for "
+            f"{', '.join(unknown)}: run the current probe.py on the nodes again"
+        )
+    active = _active_ports(node)
+    cards: dict[str, list[str]] = {}
+    for dev in sorted(devices, key=lambda d: _function_key(devices[d]["pci"], d)):
+        cards.setdefault(_card_of(devices[dev]["pci"]), []).append(dev)
+    chosen: dict[str, dict[str, Any]] = {}
+    warnings: list[str] = []
+    for card in sorted(cards, key=_natural_key):
+        names = [
+            sorted((n for n, p in active.items() if p["dev"] == dev), key=_natural_key)
+            for dev in cards[card]
+        ]
+        first = next((ports for ports in names if ports), None)
+        if first is None:
+            warnings.append(f"card {card} has no active port; left out")
+            continue
+        chosen[first[0]] = active[first[0]]
+    return chosen, warnings
+
+
+def _selected_ports(
+    node: Mapping[str, Any], per_card: bool
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """The ports that become NICs (every active port, or one per card) and per-card warnings."""
+    if per_card:
+        return _one_port_per_card(node)
+    return _active_ports(node), []
+
+
 def _netdev_of(info: Mapping[str, Any], port: str) -> str | None:
     """The netdev of a port: the only one, or the i-th when there are as many as ports."""
     netdevs = info.get("netdevs") or []
@@ -264,18 +328,10 @@ def _pick_core(
     return core, "any"
 
 
-def _layout(node: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], list[str]]:
-    """Per-NIC layout of a node (numa, core, rate, netdev, speed) and the warnings it raises."""
+def _port_warnings(node: Mapping[str, Any], active: Mapping[str, Any]) -> list[str]:
+    """Warnings for ports that are not active and for devices with several active ports."""
     warnings: list[str] = []
-    devices = node.get("devices", {})
-    numa_lists = {
-        int(k): parse_cpulist(v)
-        for k, v in (node.get("numa_cpulists") or {}).items()
-        if k.isdigit()
-    }
-    everything = sorted({c for cores in numa_lists.values() for c in cores})
-    active = _active_ports(node)
-    for dev, info in devices.items():
+    for dev, info in node.get("devices", {}).items():
         count = 0
         for port, data in (info.get("ports") or {}).items():
             if f"{dev}:{port}" not in active:
@@ -288,6 +344,23 @@ def _layout(node: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], list[st
                 f"{dev} has {count} active ports (possible dual-port NIC exposed as one device): "
                 "report before continuing"
             )
+    return warnings
+
+
+def _layout(
+    node: Mapping[str, Any], per_card: bool = False
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """Per-NIC layout of a node (numa, core, rate, netdev, speed) and the warnings it raises."""
+    devices = node.get("devices", {})
+    numa_lists = {
+        int(k): parse_cpulist(v)
+        for k, v in (node.get("numa_cpulists") or {}).items()
+        if k.isdigit()
+    }
+    everything = sorted({c for cores in numa_lists.values() for c in cores})
+    active, warnings = _selected_ports(node, per_card)
+    if not per_card:  # with per-card, a card's other ports are expected to be left out
+        warnings.extend(_port_warnings(node, active))
     taken: set[int] = set()
     layout: dict[str, dict[str, Any]] = {}
     for name in sorted(active, key=_natural_key):
@@ -320,6 +393,8 @@ def _layout(node: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], list[st
             "netdev": netdev,
             "speed_mbps": speed,
         }
+        if info.get("pci"):  # absent (not null) for probe lines from before it was recorded
+            layout[name]["pci"] = info["pci"]
     return layout, warnings
 
 
@@ -350,8 +425,14 @@ def _differences(
     return out
 
 
-def build_profile(nodes: list[dict[str, Any]], junk_lines: int = 0) -> dict[str, Any]:
-    """Cluster profile for the nodes (already in Slurm order): the first node sets the layout."""
+def build_profile(
+    nodes: list[dict[str, Any]], junk_lines: int = 0, per_card: bool = False
+) -> dict[str, Any]:
+    """Cluster profile for the nodes (already in Slurm order): the first node sets the layout.
+
+    With `per_card` every physical card (PCI slot) gives one NIC; raises ValueError when a node
+    has devices without a recorded PCI address.
+    """
     warnings: list[str] = []
     if junk_lines:
         plural = "" if junk_lines == 1 else "s"
@@ -364,20 +445,21 @@ def build_profile(nodes: list[dict[str, Any]], junk_lines: int = 0) -> dict[str,
             "nics": [],
             "cpus": "",
             "link_layer": None,
+            "per_card": per_card,
             "per_nic": {},
             "mem_gib": None,
             "warnings": warnings,
         }
-    layout, first_warnings = _layout(nodes[0])
+    layout, first_warnings = _layout(nodes[0], per_card)
     warnings.extend(first_warnings)
-    layers = {p.get("link_layer") for p in _active_ports(nodes[0]).values()}
+    layers = {p.get("link_layer") for p in _selected_ports(nodes[0], per_card)[0].values()}
     ref = str(nodes[0].get("hostname"))
     for node in nodes[1:]:
-        other, other_warnings = _layout(node)
+        other, other_warnings = _layout(node, per_card)
         host = str(node.get("hostname"))
         warnings.extend(f"{host}: {w}" for w in other_warnings)
         warnings.extend(_differences(layout, other, host, ref))
-        layers.update(p.get("link_layer") for p in _active_ports(node).values())
+        layers.update(p.get("link_layer") for p in _selected_ports(node, per_card)[0].values())
     layers.discard(None)
     if not layout:
         warnings.append("no active RDMA ports found")
@@ -400,6 +482,7 @@ def build_profile(nodes: list[dict[str, Any]], junk_lines: int = 0) -> dict[str,
         "link_layer": (
             next(iter(layers)) if len(layers) == 1 else ("mixed" if len(layers) > 1 else None)
         ),
+        "per_card": per_card,
         "per_nic": {n: layout[n] for n in pairs},
         "mem_gib": min(mems) if mems else None,
         "warnings": warnings,
@@ -419,13 +502,14 @@ def render_table(nodes: list[dict[str, Any]], profile: Mapping[str, Any]) -> str
     names = ", ".join(profile["nodes"]) or "none"
     lines.append(f"Nodes ({len(profile['nodes'])}): {names}")
     lines.append(f"Memory (smallest node): {_fmt(profile['mem_gib'])} GiB")
-    header = ("NIC", "NUMA", "core", "link layer", "rate", "netdev", "netdev Mb/s")
+    header = ("NIC", "PCI", "NUMA", "core", "link layer", "rate", "netdev", "netdev Mb/s")
     rows: list[tuple[str, ...]] = []
     first_ports = _active_ports(nodes[0]) if nodes else {}
     for name, nic in profile["per_nic"].items():
         rows.append(
             (
                 name,
+                _fmt(nic.get("pci")),
                 _fmt(nic["numa"]),
                 _fmt(nic["core"]),
                 _fmt(first_ports.get(name, {}).get("link_layer")),
@@ -480,7 +564,14 @@ def main(argv: list[str] | None = None) -> int:
         help="merge per-node JSON lines (FILE or - for stdin) into a cluster profile",
     )
     parser.add_argument("--out", help="with --merge: write the profile JSON here, not to stdout")
+    parser.add_argument(
+        "--per-card",
+        action="store_true",
+        help="with --merge: one NIC per physical card (devices grouped by PCI slot)",
+    )
     args = parser.parse_args(argv)
+    if args.per_card and not args.merge:
+        parser.error("--per-card needs --merge")
 
     if args.merge:
         try:
@@ -489,7 +580,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"probe: {exc}", file=sys.stderr)
             return 1
         nodes, junk = parse_node_lines(lines)
-        profile = build_profile(nodes, junk_lines=junk)
+        try:
+            profile = build_profile(nodes, junk_lines=junk, per_card=args.per_card)
+        except ValueError as exc:
+            print(f"probe: {exc}", file=sys.stderr)
+            return 1
         table = render_table(nodes, profile)
         text = json.dumps(profile, indent=2) + "\n"
         if args.out:

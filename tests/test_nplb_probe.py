@@ -45,8 +45,15 @@ def make_nic(
     rate: str = RATE,
     netdev: str | None = None,
     speed: str | None = "400000",
+    pci: str | None = None,
 ) -> None:
     base = root / "class" / "infiniband" / dev
+    if pci is not None and not (base / "device").is_symlink():
+        # as on a real node: <dev>/device is a symlink to the PCI device directory
+        target = root / "devices" / "pci0000:00" / pci
+        target.mkdir(parents=True, exist_ok=True)
+        base.mkdir(parents=True, exist_ok=True)
+        (base / "device").symlink_to(target)
     for port, state, layer in ports:
         _write(base / "ports" / str(port) / "state", state)
         _write(base / "ports" / str(port) / "rate", rate)
@@ -378,3 +385,152 @@ def test_json_line_and_table_carry_memory(probe, tmp_path, monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["mem_gib"] == 2016.0
     assert probe.main(args) == 0
     assert "2016.0 GiB" in capsys.readouterr().out
+
+
+CARDS = ("0000:19:00", "0000:3b:00", "0000:98:00", "0000:bb:00")
+
+
+def card_nics(
+    root: Path,
+    down: tuple[str, ...] = (),
+    dead_cards: tuple[int, ...] = (),
+    with_pci: bool = True,
+) -> None:
+    """4 dual-function cards as 8 devices: mlx5_{2c} and mlx5_{2c+1} are functions 0 and 1 of card
+    c; cards 0-1 sit on NUMA node 0, cards 2-3 on node 1. `down` lists devices with a DOWN port,
+    `dead_cards` the cards whose two devices are both DOWN."""
+    for card, prefix in enumerate(CARDS):
+        numa = 0 if card < 2 else 1
+        for function in (0, 1):
+            dev = f"mlx5_{2 * card + function}"
+            is_down = dev in down or card in dead_cards
+            make_nic(
+                root,
+                dev,
+                numa=numa,
+                cpulist="0-31" if numa == 0 else "32-63",
+                ports=((1, "1: DOWN" if is_down else "4: ACTIVE", "Ethernet"),),
+                netdev=f"eth{2 * card + function}",
+                pci=f"{prefix}.{function}" if with_pci else None,
+            )
+    make_numa(root, {0: "0-31", 1: "32-63"})
+
+
+def per_card_profile(probe, root: Path, host: str = "node-a"):
+    node = probe.collect_node(root, with_gpu=False, hostname=host, environ={})
+    return probe.build_profile([node], per_card=True)
+
+
+def test_collect_node_records_the_pci_address_per_device(probe, tmp_path):
+    make_nic(tmp_path, "mlx5_0", pci="0000:19:00.0")
+    make_nic(tmp_path, "mlx5_1", pci="0000:19:00.1")
+    make_nic(tmp_path, "mlx5_2")  # a plain directory, not a symlink
+    make_nic(tmp_path, "mlx5_3", numa=None, cpulist=None)  # no device entry at all
+    node = probe.collect_node(tmp_path, with_gpu=False, hostname="node-a", environ={})
+    assert node["devices"]["mlx5_0"]["pci"] == "0000:19:00.0"
+    assert node["devices"]["mlx5_1"]["pci"] == "0000:19:00.1"
+    assert node["devices"]["mlx5_2"]["pci"] is None
+    assert node["devices"]["mlx5_3"]["pci"] is None
+
+
+def test_per_card_keeps_the_function_zero_port_of_each_card(probe, tmp_path):
+    card_nics(tmp_path)
+    profile = per_card_profile(probe, tmp_path)
+    assert profile["per_card"] is True
+    assert profile["ppn"] == 4
+    assert profile["nics"] == ["mlx5_0:1", "mlx5_2:1", "mlx5_4:1", "mlx5_6:1"]
+    assert profile["cpus"] == "0,1,32,33"
+    assert profile["warnings"] == []
+    assert profile["per_nic"]["mlx5_4:1"] == {
+        "numa": 1,
+        "core": 32,
+        "rate": RATE,
+        "netdev": "eth4",
+        "speed_mbps": 400000,
+        "pci": "0000:98:00.0",
+    }
+    assert [profile["per_nic"][n]["pci"] for n in profile["nics"]] == [
+        f"{prefix}.0" for prefix in CARDS
+    ]
+
+
+def test_per_card_falls_back_to_function_one_when_function_zero_is_down(probe, tmp_path):
+    card_nics(tmp_path, down=("mlx5_2",))
+    profile = per_card_profile(probe, tmp_path)
+    assert profile["ppn"] == 4
+    assert profile["nics"] == ["mlx5_0:1", "mlx5_3:1", "mlx5_4:1", "mlx5_6:1"]
+    assert profile["per_nic"]["mlx5_3:1"]["pci"] == "0000:3b:00.1"
+    assert profile["cpus"] == "0,1,32,33"
+
+
+def test_per_card_leaves_out_a_card_without_an_active_port_and_warns(probe, tmp_path):
+    card_nics(tmp_path, dead_cards=(1,))
+    profile = per_card_profile(probe, tmp_path)
+    assert profile["ppn"] == 3
+    assert profile["nics"] == ["mlx5_0:1", "mlx5_4:1", "mlx5_6:1"]
+    assert profile["cpus"] == "0,32,33"
+    assert any("0000:3b:00" in w and "left out" in w for w in profile["warnings"])
+
+
+def test_default_merge_still_keeps_every_active_port(probe, tmp_path):
+    card_nics(tmp_path)
+    node = probe.collect_node(tmp_path, with_gpu=False, hostname="node-a", environ={})
+    profile = probe.build_profile([node])
+    assert profile["per_card"] is False
+    assert profile["ppn"] == 8
+    assert profile["nics"] == [f"mlx5_{i}:1" for i in range(8)]
+    assert profile["cpus"] == "0,1,2,3,32,33,34,35"
+    assert profile["warnings"] == []
+
+
+def test_per_card_without_pci_addresses_is_an_error_not_a_guess(probe, tmp_path, capsys):
+    card_nics(tmp_path, with_pci=False)
+    node_file = tmp_path / "probe.jsonl"
+    node_file.write_text(_node_line(probe, tmp_path, "node-a", 0) + "\n")
+    nodes, _ = probe.parse_node_lines(node_file.read_text().splitlines())
+    with pytest.raises(ValueError, match="--per-card needs PCI addresses"):
+        probe.build_profile(nodes, per_card=True)
+    assert probe.main(["--merge", str(node_file), "--per-card"]) == 1
+    captured = capsys.readouterr()
+    assert captured.err.startswith("probe: --per-card needs PCI addresses")
+    assert captured.out == ""
+
+
+def test_per_card_flag_needs_merge(probe, tmp_path, capsys):
+    with pytest.raises(SystemExit) as exc:
+        probe.main(["--per-card", "--sysfs", str(tmp_path), "--no-gpu"])
+    assert exc.value.code == 2
+    assert "--per-card" in capsys.readouterr().err
+
+
+def test_per_card_merge_end_to_end_prints_the_pci_column(probe, tmp_path, capsys):
+    card_nics(tmp_path / "sys")
+    node_file = tmp_path / "probe.jsonl"
+    node_file.write_text(_node_line(probe, tmp_path / "sys", "node-a", 0) + "\n")
+    assert probe.main(["--merge", str(node_file), "--per-card"]) == 0
+    captured = capsys.readouterr()
+    profile = json.loads(captured.out)
+    assert profile["per_card"] is True and profile["ppn"] == 4
+    assert "PCI" in captured.err and "0000:98:00.0" in captured.err
+
+
+def test_per_card_merge_compares_nodes_card_by_card(probe, tmp_path):
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    c = tmp_path / "c"
+    card_nics(a)
+    card_nics(b)
+    card_nics(c)
+    shutil.rmtree(c / "class" / "infiniband" / "mlx5_6")
+    shutil.rmtree(c / "class" / "infiniband" / "mlx5_7")
+    lines = [_node_line(probe, a, "node-a", 0), _node_line(probe, b, "node-b", 1)]
+    nodes, _ = probe.parse_node_lines(lines)
+    profile = probe.build_profile(nodes, per_card=True)
+    assert profile["ppn"] == 4 and profile["warnings"] == []
+
+    lines.append(_node_line(probe, c, "node-c", 2))
+    nodes, _ = probe.parse_node_lines(lines)
+    profile = probe.build_profile(nodes, per_card=True)
+    joined = "\n".join(profile["warnings"])
+    assert "node-c" in joined and "mlx5_6:1" in joined
+    assert "node-b" not in joined
