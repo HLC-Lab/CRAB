@@ -93,7 +93,7 @@ launch with Open MPI's own `mpirun` instead; it still runs inside the Slurm allo
     "launchers": {
       "mpirun": {
         "dialect": "openmpi4",
-        "flags": ["--map-by", "core", "--mca", "pml", "ucx", "--mca", "btl", "^openib"]
+        "flags": ["--mca", "pml", "ucx", "--mca", "btl", "^openib"]
       }
     },
     "env": {},
@@ -103,9 +103,10 @@ launch with Open MPI's own `mpirun` instead; it still runs inside the Slurm allo
 }
 ```
 
-Keep `--map-by core`: with more than two ranks Open MPI 4 maps them across sockets by default,
-which would put rank *i* on a core of the other socket than its NIC (CRAB passes the app's `cpus`
-as `--cpu-set`). Add `--allow-run-as-root` when the jobs run as root.
+CRAB passes the app's `cpus` as `--cpu-set`, and Open MPI 4.1 then places the ranks in the
+order of that list, so leave `--map-by` out of the flags: mpirun refuses it next to `--cpu-set`
+("Conflicting directives for mapping policy"). Add `--allow-run-as-root` when the jobs run as
+root.
 
 `mpirun` reads every program and every per-rank script from the same path on every node, so the
 CRAB checkout (its `benchmarks/` and `data/` folders included) must be on a filesystem all nodes
@@ -214,7 +215,7 @@ LAUNCHER=mpirun MPIRUN_FLAGS="--mca pml ucx --mca btl ^openib" \
 ```
 
 (add `--allow-run-as-root` to `MPIRUN_FLAGS` when running as root). The ranks then start with
-`mpirun -H <the two allocated hosts> --cpu-set <the profile's cores> --bind-to core --map-by core`,
+`mpirun -H <the two allocated hosts> --cpu-set <the profile's cores> --bind-to core`,
 the same way CRAB launches them; the NIC counters are still read with plain `srun`. There are
 three cases (no `per-rank-ucx`: the flags already choose UCX), each followed by `unbound ranks: N`
 from mpirun's `--report-bindings`, and `per-rank` also lists the binding of every rank. Good: 0
