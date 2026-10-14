@@ -747,3 +747,58 @@ def test_summary_names_the_selected_aggressors(
         tmp_path / "again", profile(), "--set", "md", "--aggressors", "incast", "a2a", "--net", "C0"
     )
     assert "Phase-2 aggressors: a2a, incast" in capsys.readouterr().out
+
+
+def test_tag_is_appended_to_stems_and_names_but_not_experiments(tmp_path: Path) -> None:
+    from crab.core.config_checks import check_config
+
+    plain = generate(tmp_path, profile(), "--paths", "1")
+    (tmp_path / "tagged").mkdir()
+    tagged = generate(tmp_path / "tagged", profile(), "--paths", "1", "--tag", "ppn8")
+    assert set(tagged) == {f"{name[: -len('.json')]}_ppn8.json" for name in plain}
+    for name, config in tagged.items():
+        stem = name[: -len(".json")]
+        old = plain[f"{stem[: -len('_ppn8')]}.json"]
+        opts = config["global_options"]
+        assert opts["name"] == stem and opts["name"].endswith("_ppn8")
+        assert opts["sbatch_directives"][1] == f"--job-name=nplb_{stem}"
+        assert config["experiments"] == old["experiments"], name
+        assert list(config["experiments"]) == list(old["experiments"]), name
+        rest = {k: v for k, v in opts.items() if k not in ("name", "sbatch_directives")}
+        old_opts = old["global_options"]
+        assert rest == {k: v for k, v in old_opts.items() if k not in ("name", "sbatch_directives")}
+        assert check_config(config, slurm_settings()) == [], name
+
+
+def test_tag_with_smoke_goes_after_the_whole_stem(tmp_path: Path) -> None:
+    configs = generate(
+        tmp_path, profile(4, 4), "--smoke", "--net", "C0", "--paths", "1", "--tag", "ppn4"
+    )
+    assert "smoke_md_p1_C0_P1_ppn4.json" in configs
+    assert "smoke_col_a2a_C0_P1_ppn4.json" in configs
+    assert all(n.startswith("smoke_") and n.endswith("_ppn4.json") for n in configs)
+    assert configs["smoke_md_p1_C0_P1_ppn4.json"]["global_options"]["name"] == (
+        "smoke_md_p1_C0_P1_ppn4"
+    )
+
+
+def test_no_tag_is_the_default_output(tmp_path: Path, four_node: dict[str, dict[str, Any]]) -> None:
+    assert generate(tmp_path, profile(4, 8)) == four_node
+
+
+@pytest.mark.parametrize("tag", ["a_b", "a b", "", "ppn8!"])
+def test_bad_tags_are_refused(tmp_path: Path, capsys: pytest.CaptureFixture[str], tag: str) -> None:
+    prof_path = tmp_path / "profile.json"
+    prof_path.write_text(json.dumps(profile()))
+    with pytest.raises(SystemExit) as stop:
+        make_configs.main([str(prof_path), "--out", str(tmp_path / "out"), "--tag", tag])
+    assert stop.value.code == 2
+    assert "--tag" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
+def test_summary_mentions_the_tag(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    generate(tmp_path, profile(), "--set", "md", "--net", "C0", "--paths", "1", "--tag", "ppn8")
+    out = capsys.readouterr().out
+    assert "md_p0_C0_P1_ppn8.json" in out
+    assert "Tag: ppn8" in out

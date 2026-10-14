@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -324,8 +325,35 @@ def load_profile(path: Path, mem_gib: float | None, smoke: bool) -> Profile:
     return Profile(ppn, nics, str(data["cpus"]), tuple(cores), gib, layout)
 
 
+def tagged(files: dict[str, Built], tag: str) -> dict[str, Built]:
+    """The files with `_<tag>` appended to each stem and to its config name and job name.
+
+    Experiment names stay as they are: naming.py and analyze.py parse them.
+    """
+    out: dict[str, Built] = {}
+    for stem, built in files.items():
+        new = f"{stem}_{tag}"
+        opts = built.config["global_options"]
+        opts["name"] = new
+        opts["sbatch_directives"] = [
+            f"--job-name=nplb_{new}" if d.startswith("--job-name=") else d
+            for d in opts["sbatch_directives"]
+        ]
+        out[new] = built
+    return out
+
+
+def tag_text(text: str) -> str:
+    """argparse type of --tag: letters, digits and `-` (a `_` would split a name field)."""
+    if re.fullmatch(r"[A-Za-z0-9-]+", text) is None:
+        raise argparse.ArgumentTypeError(
+            f"{text!r} must be letters, digits and '-' only (no '_', no spaces)"
+        )
+    return text
+
+
 def build_all(
-    cfg: Settings, sets: str, nets: list[str], path_counts: list[int]
+    cfg: Settings, sets: str, nets: list[str], path_counts: list[int], tag: str | None = None
 ) -> dict[str, Built]:
     """Every file to write: {file stem: Built}."""
     prefix = "smoke_" if cfg.smoke else ""
@@ -336,7 +364,7 @@ def build_all(
                 files.update(build_md_files(cfg, prefix, net, paths))
             if sets in ("colleague", "both") and net in COLLEAGUE_NETS:
                 files.update(build_colleague_files(cfg, prefix, net, paths))
-    return files
+    return tagged(files, tag) if tag else files
 
 
 def aggressor_refusal(nodes: int) -> str:
@@ -372,6 +400,12 @@ def parser() -> argparse.ArgumentParser:
         help="phase-2 aggressors of the md set, any of: a2a, burst (every burst of the grid), "
         "incast, pw (the 3-node layout's only one); default: all",
     )
+    p.add_argument(
+        "--tag",
+        type=tag_text,
+        help="appended as _TAG to every file name and config name (not to experiment names), "
+        "so runs of different setups, say ppn8 and ppn16, never mix",
+    )
     p.add_argument("--minruns", type=int)
     p.add_argument("--maxruns", type=int)
     p.add_argument("--walltime", help="HH:MM:SS")
@@ -404,7 +438,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.sets in ("md", "both") and not selected_kinds(cfg):
         ap.error(aggressor_refusal(prof.layout.nodes))
-    files = build_all(cfg, args.sets, args.net, args.paths)
+    files = build_all(cfg, args.sets, args.net, args.paths, args.tag)
     args.out.mkdir(parents=True, exist_ok=True)
     for stem, built in files.items():
         (args.out / f"{stem}.json").write_text(json.dumps(built.config, indent=2) + "\n")
@@ -417,6 +451,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {stem}.json: {count} experiment{'s' if count != 1 else ''}")
         for name, sizes in built.skipped.items():
             print(f"    skipped in {name}: {'; '.join(sizes)}")
+    if args.tag:
+        print(f"Tag: {args.tag} (appended to every file and config name).")
     if args.sets in ("colleague", "both"):
         print(f"Colleague set: {' and '.join(COLLEAGUE_NETS)} only; C3 is left out of it.")
     if args.sets in ("md", "both"):
