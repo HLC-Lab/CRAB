@@ -23,7 +23,7 @@ from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.profiles import Profile  # noqa: E402
 from crab.web.store.sbatchman import save_campaign_yaml  # noqa: E402
 
-_YAML = 'configs: "configs.yaml"\njobs:\n  - tag: "demo"\n'
+_YAML = 'jobs:\n  - tag: "demo"\n'
 _INFO_JSON = '{"schema":1,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"Leonardo @ CINECA"}]}'
 
 
@@ -163,7 +163,8 @@ def test_write_without_connection_fails(tmp_path: Path):
 # /api/sbatchman/campaigns — the saved-campaign-draft library
 # --------------------------------------------------------------------------- #
 _SPEC = {
-    "configsPath": "",
+    # A campaign saved before the dashboard dropped the configs field: stored as opaque data.
+    "configsPath": "old/configs.yaml",
     "crabRoot": "",
     "system": "",
     "env": [],

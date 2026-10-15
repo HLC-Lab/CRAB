@@ -16,7 +16,6 @@ from crab.web.settings import Settings
 from crab.web.store.campaign_library import CampaignLibraryStore, _slug
 
 _SPEC = {
-    "configsPath": "",
     "crabRoot": "",
     "system": "",
     "env": [],

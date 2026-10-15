@@ -53,7 +53,6 @@ function group(tag: string): GroupState {
 
 function entry(overrides: Partial<CampaignEntry> = {}): CampaignEntry {
   const spec: CampaignSpec = {
-    configsPath: "",
     crabRoot: "",
     system: "leonardo",
     env: [],
@@ -257,7 +256,6 @@ describe("sbatchman store: older saved specs and stale write results", () => {
       name: "old campaign",
       updated_at: "2026-09-01T00:00:00+00:00",
       spec: {
-        configsPath: "",
         groups: [{ tag: "t", draft: { numnodes: "2", experiments: [{ name: "run" }] } }],
       },
     });
@@ -274,6 +272,23 @@ describe("sbatchman store: older saved specs and stale write results", () => {
     expect(g.draft.options).toEqual(emptyDraft().options);
     expect(g.draft.experiments[0].apps).toEqual([]);
     expect(typeof store.yaml).toBe("string");
+  });
+
+  it("a campaign saved with a configsPath still opens; the value is ignored and dropped on save", async () => {
+    getMock.mockResolvedValueOnce(
+      entry({ spec: { ...entry().spec, configsPath: "x.yaml" } as Record<string, unknown> }),
+    );
+    updateMock.mockResolvedValueOnce(entry());
+    const store = useSbatchmanStore();
+
+    await store.open("a2a-baseline");
+
+    expect(store.error).toBeNull();
+    expect(store.yaml).not.toMatch(/configs/);
+    expect(store.yaml).not.toContain("x.yaml");
+    expect(await store.save()).toBe(true);
+    const sentSpec = updateMock.mock.calls[0][2] as Record<string, unknown>;
+    expect(sentSpec).not.toHaveProperty("configsPath");
   });
 
   it("a group saved with no experiment gets one, so the editor has something to show", async () => {

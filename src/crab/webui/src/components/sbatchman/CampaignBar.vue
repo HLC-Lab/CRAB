@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Campaign-level settings: the SbatchMan configs.yaml reference, the remote
-// CRAB checkout, CRAB_SYSTEM, extra environment entries, and the campaign-wide
-// sweep variables (a group's own variables of the same name override these —
-// see lib/sbatchman.ts). ADR-027: CRAB_ROOT/CRAB_SYSTEM/env below are reference
+// Campaign-level settings: the remote CRAB checkout, CRAB_SYSTEM, extra
+// environment entries, and the campaign-wide sweep variables (a group's own
+// variables of the same name override these — see lib/sbatchman.ts). ADR-027:
+// CRAB_ROOT/CRAB_SYSTEM/env below are reference
 // values for the partner's own SbatchMan preset — nothing here is written into
 // a generated file; put them in `sbatchman configure --env ...` instead.
 import { computed } from "vue";
@@ -12,14 +12,12 @@ import VariablesEditor from "@/components/sbatchman/VariablesEditor.vue";
 import { rowKey } from "@/lib/rowKey";
 
 const props = defineProps<{
-  configsPath: string;
   crabRoot: string;
   system: string;
   env: EnvPair[];
   variables: SbatchmanVar[];
 }>();
 const emit = defineEmits<{
-  "update:configsPath": [string];
   "update:crabRoot": [string];
   "update:system": [string];
 }>();
@@ -36,15 +34,6 @@ function removeEnv(i: number) {
 <template>
   <h2 class="pane-title">Campaign</h2>
   <div class="grid">
-    <label class="wide"
-      >SbatchMan configs.yaml
-      <input
-        :value="configsPath"
-        placeholder="path on the cluster"
-        @input="emit('update:configsPath', ($event.target as HTMLInputElement).value)"
-      />
-      <small>Referenced by the generated jobs YAML's `configs:` key.</small>
-    </label>
     <label
       >Remote CRAB checkout
       <input

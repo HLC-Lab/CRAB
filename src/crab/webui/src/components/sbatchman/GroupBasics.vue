@@ -42,7 +42,7 @@ const d = computed(() => props.draft);
     </label>
     <label class="wide"
       >SbatchMan preset <input v-model="presetModel" placeholder="e.g. {nodes}_nodes" />
-      <small>A config name from the referenced SbatchMan configs.yaml.</small>
+      <small>The name of a preset you created with `sbatchman configure`.</small>
     </label>
     <label
       >Nodes <input v-model="d.numnodes" placeholder="e.g. {nodes}" />

@@ -42,8 +42,6 @@ export interface SbatchmanGroup {
 }
 
 export interface SbatchmanCampaign {
-  /** SbatchMan presets file, referenced by the jobs YAML `configs:` key. */
-  configsPath: string;
   /** Remote CRAB checkout dir. Reference only (ADR-027): not written to any generated
    * file -- put it in the SbatchMan preset's `--env CRAB_ROOT=...` instead. */
   crabRoot: string;
@@ -197,7 +195,7 @@ function preprocessLines(_campaign: SbatchmanCampaign, group: SbatchmanGroup): s
 
 /** Compose the full SbatchMan jobs YAML for a campaign. */
 export function composeCampaignYaml(campaign: SbatchmanCampaign): string {
-  const doc: Record<string, unknown> = { configs: campaign.configsPath };
+  const doc: Record<string, unknown> = {};
   if (campaign.variables.length) doc.variables = varsObject(campaign.variables);
   doc.jobs = campaign.groups.map((group) => {
     const job: Record<string, unknown> = { config: group.preset, tag: group.tag };

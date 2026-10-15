@@ -20,7 +20,6 @@ import {
 
 function campaign(): SbatchmanCampaign {
   return {
-    configsPath: "graph500/configs.yaml",
     crabRoot: "/leonardo/home/user/CRAB",
     system: "leonardo",
     env: {},
@@ -120,7 +119,9 @@ describe("sampleTags", () => {
 describe("composeCampaignYaml", () => {
   it("emits YAML that parses to the expected structure", () => {
     const doc = yaml.load(composeCampaignYaml(campaign())) as any;
-    expect(doc.configs).toBe("graph500/configs.yaml");
+    // SbatchMan reads a non-empty `configs:` as a definition file to re-provision from
+    // and crashes on a registry path; the key is optional, so the writer omits it.
+    expect(Object.keys(doc)).not.toContain("configs");
     expect(doc.variables.scale).toEqual([20, 24]);
     expect(doc.variables.ef).toEqual([8, 16]);
     expect(doc.jobs).toHaveLength(1);
@@ -128,6 +129,13 @@ describe("composeCampaignYaml", () => {
     expect(doc.jobs[0].tag).toBe("g500_baseline_{scale}_{ef}_{nodes}");
     expect(doc.jobs[0].variables.nodes).toEqual([8, 16, 32]);
     expect(doc.jobs[0].command).toBe('crab worker --workdir "$SBATCHMAN_JOB_DIR"');
+  });
+
+  it("never writes `configs:`, even for an object that still carries a configsPath", () => {
+    const stale = { ...campaign(), configsPath: "graph500/configs.yaml" };
+    const text = composeCampaignYaml(stale);
+    expect(text).not.toMatch(/configs/);
+    expect(Object.keys(yaml.load(text) as object)).toEqual(["variables", "jobs"]);
   });
 
   it("dedents the heredoc bodies to column 0 for bash", () => {

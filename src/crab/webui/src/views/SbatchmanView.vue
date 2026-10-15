@@ -98,12 +98,10 @@ function confirmRemoveGroup(): void {
       <main class="pane">
         <template v-if="view.kind === 'campaign'">
           <CampaignBar
-            :configs-path="store.configsPath"
             :crab-root="store.crabRoot"
             :system="store.system"
             :env="store.env"
             :variables="store.variables"
-            @update:configs-path="store.configsPath = $event"
             @update:crab-root="store.crabRoot = $event"
             @update:system="store.system = $event"
           />
