@@ -308,11 +308,17 @@ def test_openmpi4_binds_to_the_placed_cores() -> None:
         "2",
         "-H",
         "h,h",
-        "--cpu-set",
+        "--cpu-list",
         "2,3",
         "--bind-to",
-        "core",
+        "cpu-list:ordered",
     ]
+
+
+def test_openmpi4_never_uses_cpu_set_which_is_only_an_envelope() -> None:
+    argv = _prefix("openmpi4", Placement(("h",), 4, cpus=(0, 1, 2, 3)))
+    assert "--cpu-set" not in argv
+    assert argv[argv.index("--cpu-list") + 1 :][:3] == ["0,1,2,3", "--bind-to", "cpu-list:ordered"]
 
 
 def test_openmpi5_binds_to_the_placed_cores() -> None:
@@ -381,10 +387,10 @@ def test_binding_flags_come_after_hosts_and_before_export_report_and_preset_flag
         "2",
         "-H",
         "h,h",
-        "--cpu-set",
+        "--cpu-list",
         "2,3",
         "--bind-to",
-        "core",
+        "cpu-list:ordered",
         "-x",
         "NCCL_IB_HCA",
         "--report-bindings",
