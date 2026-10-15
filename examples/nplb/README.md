@@ -307,6 +307,54 @@ python3 -m venv ~/nplb-plot && ~/nplb-plot/bin/pip install matplotlib pandas
 It writes `bw_*.png` and `spread_*.png` per test without an aggressor, and `slowdown_*.png` with
 one panel per aggressor, C0 and C2 on the same axes.
 
+## Round 2: topology and ping-pong ceilings
+
+Two stages, one command each, run on the node that holds the CRAB checkout. Both read
+`profile8.json` (per card) and `profile16.json` (every port) from `PROFILE_DIR` (the checkout by
+default), written in [section 3](#3-probe-the-nodes). `bringup.sh` sources `env.sh`, echoes every
+command before it runs and stops at the first failure.
+
+```bash
+examples/nplb/bringup.sh topo           # the topology probe
+examples/nplb/bringup.sh pingpong       # generate and submit the 4 ping-pong jobs
+examples/nplb/bringup.sh analyze pingpong   # when the jobs are done
+```
+
+**`topo [HOST...]`** runs `topology.sh`: over ssh, every node reports each RDMA port (state,
+speed, netdev, bond, PCI, NUMA) and listens for one LLDP frame per netdev, which names the leaf
+switch and port behind it. Without a HOST it lists the nodes of `PARTITION`. It changes nothing
+on the nodes or the switches. It takes about `LLDP_WAIT` (40 s by default) plus the ssh round
+trips, around a minute, and prints a summary of at most 40 lines; the raw lines go to
+`$WORK/topology_<time>.tsv`. It exits with the code of `topology.sh` (0 all nodes answered, 1 a
+node failed, 2 setup missing).
+
+A good result: every port has a speed and a `leaf:port`, every node is named in a pod, and the
+victim pair verdict reads `YES` (the victim pair crosses the spine). If it says `NO` or
+`UNKNOWN`, photograph the summary and stop before the a2a round: the node order or the layout
+must change. If LLDP is not visible on the hosts, the summary says so: the leaf wiring then has to
+come from the switch reader (a later phase), and the rest of the output still holds.
+
+**`pingpong`** removes the old `*.json` of `$WORK/pingpong`, generates the ping-pong set into it
+(`--set pingpong` with the per-card profile and `--all-ports` the every-port one; one `NET`
+and one `PATHS`, `RUNS` runs, 1000 iterations up to 128 MiB and 200 at 512 MiB) and submits
+its 4 jobs: the pairs node 1 with nodes 2, 3 and 4, each with three variants (`md` with the
+campaign's UCX settings, `default` with no UCX variable, `dual` with both ports of the card and
+two rails), and `pw8`, the node total: a pairwise permutation of every rank of node 1 against
+node 3, one port per card. Each submit adds a line to `$WORK/run_log.tsv`. All 4 jobs
+are submitted at once; node 1 is in every pair and every config asks for `--exclusive`, so
+Slurm runs them one after another, about 1.5 to 2 hours in total. `bringup.sh status` shows the queue and the last submits.
+
+**`analyze pingpong`** runs `analyze.py` on the data directories `$DATA_ROOT/*/pp_*` into
+`$WORK/results_pingpong/` and prints the first 60 lines of its `summary.md`.
+
+A good result: `md` and `default` agree, `dual` is about twice `md` at large sizes (two rails),
+and the `pw8` node total is about 8 times the md bandwidth of the pair n1-n3 (one port per card,
+every card busy).
+
+`bringup.sh check` marks the `dual` experiments `CHECK`: they select the NICs through
+`UCX_NET_DEVICES` instead of the per-rank shim, so there are no "local rank -> UCX_NET_DEVICES"
+lines to count. That is expected.
+
 ## Smoke test on another cluster
 
 Before the real campaign, the whole chain can run on any Slurm cluster with RDMA NICs and at least

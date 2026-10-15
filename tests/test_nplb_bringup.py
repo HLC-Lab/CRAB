@@ -24,6 +24,7 @@ COPIED = [
     "naming.py",
     "md_set.py",
     "colleague_set.py",
+    "pingpong_set.py",
 ]
 MPIRUN_FLAGS = "--allow-run-as-root --mca pml ucx --mca btl ^openib"
 NICS = [f"mlx5_{i}:1" for i in range(8)]
@@ -45,6 +46,11 @@ FAKE_MPIRUN = "#!/usr/bin/env bash\nexit 0\n"
 FAKE_NIC_CHECK = r"""#!/usr/bin/env bash
 echo "nic_check LAUNCHER=$LAUNCHER MPIRUN_FLAGS=$MPIRUN_FLAGS args=$*" >>"$FAKE_LOG"
 echo "fake nic check output"
+"""
+FAKE_TOPOLOGY = r"""#!/usr/bin/env bash
+echo "topology args=$* PARTITION=${PARTITION-unset} WORK=${WORK-unset}" >>"$FAKE_LOG"
+echo "fake topology summary"
+exit "${FAKE_TOPO_RC:-0}"
 """
 FAKE_ANALYZE = r"""import sys
 from pathlib import Path
@@ -100,6 +106,7 @@ def site(tmp_path: Path) -> dict:
     for name in COPIED:
         shutil.copy(NPLB / name, nplb / name)
     write_exec(nplb / "nic_check.sh", FAKE_NIC_CHECK)
+    write_exec(nplb / "topology.sh", FAKE_TOPOLOGY)
     (nplb / "analyze.py").write_text(FAKE_ANALYZE)
     write_exec(chk / ".venv" / "bin" / "python", fake_python())
     write_exec(chk / ".venv" / "bin" / "crab", FAKE_CRAB)
@@ -119,6 +126,10 @@ def site(tmp_path: Path) -> dict:
             "nics": [f"mlx5_{i}:1" for i in range(ppn)],
             "cpus": f"0-{ppn - 1}",
         }
+        if ppn == 16:  # the all-ports profile of the probe's --merge: two ports per card
+            profile["per_nic"] = {
+                f"mlx5_{i}:1": {"pci": f"0000:{i // 2:02x}:00.{i % 2}"} for i in range(ppn)
+            }
         (chk / f"profile{ppn}.json").write_text(json.dumps(profile))
     return {
         "root": tmp_path,
@@ -455,7 +466,133 @@ def test_analyze_without_matching_dirs_fails(site):
     assert "no data dirs" in result.stderr
 
 
+# ---- topo ----
+
+
+def test_topo_runs_topology_sh_and_passes_the_environment_through(site):
+    result = bringup(site, "topo", PARTITION="other", WORK=str(site["root"] / "w"))
+    assert result.returncode == 0, result.stderr
+    assert log_lines(site, "topology") == [
+        f"topology args= PARTITION=other WORK={site['root'] / 'w'}"
+    ]
+    assert "fake topology summary" in result.stdout
+    assert f"+ {site['chk']}/examples/nplb/topology.sh" in result.stdout
+
+
+def test_topo_passes_the_hosts_and_the_default_partition(site):
+    result = bringup(site, "topo", "hostA", "hostB")
+    assert result.returncode == 0, result.stderr
+    assert log_lines(site, "topology") == [
+        f"topology args=hostA hostB PARTITION=h100_4nodes WORK={site['chk']}/local/nplb-work"
+    ]
+
+
+@pytest.mark.parametrize("code", [1, 2])
+def test_topo_exits_with_the_exit_code_of_topology_sh(site, code):
+    result = bringup(site, "topo", FAKE_TOPO_RC=str(code))
+    assert result.returncode == code
+    assert "fake topology summary" in result.stdout
+
+
+# ---- pingpong ----
+
+
+def pingpong_dir(site: dict) -> Path:
+    return site["chk"] / "local" / "nplb-work" / "pingpong"
+
+
+def test_pingpong_generates_the_set_and_submits_its_four_jobs(site):
+    out = pingpong_dir(site)
+    out.mkdir(parents=True)
+    (out / "pp_stale.json").write_text("{}")
+    result = bringup(site, "pingpong")
+    assert result.returncode == 0, result.stderr
+    assert not (out / "pp_stale.json").exists()
+    names = [
+        "pp_n1n2_C2_P1.json",
+        "pp_n1n3_C2_P1.json",
+        "pp_n1n3_pw8_C2_P1.json",
+        "pp_n1n4_C2_P1.json",
+    ]
+    assert sorted(p.name for p in out.glob("*.json")) == names
+    chk = site["chk"]
+    assert (
+        f"+ {chk}/.venv/bin/python {chk}/examples/nplb/make_configs.py {chk}/profile8.json"
+        f" --all-ports {chk}/profile16.json --set pingpong --out {out} --net C2 --paths 1"
+        " --minruns 5 --maxruns 5 --iter-small 1000 --iter-128m 1000 --iter-512m 200"
+    ) in result.stdout
+    assert log_lines(site, "crab ") == [f"crab run -p nplb_h100 --json {out / n}" for n in names]
+    rows = run_log(site)
+    assert [r[3] for r in rows] == ["1", "1", "8", "1"]  # ppn: pairs 1, the node total 8
+    for row, name, job in zip(rows, names, ("1001", "1002", "1003", "1004"), strict=True):
+        assert row[1:3] == ["C2", "1"]
+        assert row[4:6] == [str(out / name), job]
+        assert row[6] == f"{site['data']}/sys/{Path(name).stem}_2026-10-14_10-00-00-000000"
+    assert result.stdout.strip().splitlines()[-1].startswith("Submitted 4 ping-pong jobs")
+    opts = json.loads((out / names[0]).read_text())["global_options"]
+    assert (opts["minruns"], opts["maxruns"]) == ("5", "5")
+    assert opts["name"] == "pp_n1n2_C2_P1"
+
+
+def test_pingpong_honours_net_paths_and_runs(site):
+    result = bringup(site, "pingpong", NET="C0", PATHS="2", RUNS="3")
+    assert result.returncode == 0, result.stderr
+    out = pingpong_dir(site)
+    assert (out / "pp_n1n2_C0_P2.json").exists()
+    assert "--net C0 --paths 2 --minruns 3 --maxruns 3" in result.stdout
+    assert {(r[1], r[2]) for r in run_log(site)} == {("C0", "2")}
+
+
+def test_pingpong_without_the_all_ports_profile_stops(site):
+    (site["chk"] / "profile16.json").unlink()
+    result = bringup(site, "pingpong")
+    assert result.returncode == 1
+    assert "profile16.json" in result.stderr
+    assert log_lines(site, "crab ") == []
+
+
+def test_pingpong_with_two_nets_fails_at_make_configs(site):
+    result = bringup(site, "pingpong", NET="C0 C2")
+    assert result.returncode == 1
+    assert "step failed" in result.stderr and "make_configs.py" in result.stderr
+    assert log_lines(site, "crab ") == []
+
+
+# ---- analyze pingpong ----
+
+
+def test_analyze_pingpong_uses_the_pp_dirs_and_prints_the_summary_head(site):
+    base = site["data"] / "sys"
+    for name in (
+        "pp_n1n3_pw8_C2_P1_2026-10-14",
+        "pp_n1n2_C2_P1_2026-10-14",
+        "md_p2_a2a_C2_P1_ppn8_2026-10-14",
+    ):
+        (base / name).mkdir(parents=True)
+    result = bringup(site, "analyze", "pingpong")
+    assert result.returncode == 0, result.stderr
+    assert log_lines(site, "analyze") == [
+        f"analyze {base}/pp_n1n2_C2_P1_2026-10-14 {base}/pp_n1n3_pw8_C2_P1_2026-10-14"
+    ]
+    assert (site["chk"] / "local" / "nplb-work" / "results_pingpong" / "summary.md").exists()
+    assert "summary line 60" in result.stdout
+    assert "summary line 61" not in result.stdout
+
+
+def test_analyze_pingpong_without_data_dirs_names_the_pattern(site):
+    result = bringup(site, "analyze", "pingpong")
+    assert result.returncode == 1
+    assert f"no data dirs matching {site['data']}/*/pp_*" in result.stderr
+
+
 # ---- usage and failures ----
+
+
+def test_usage_lists_the_stage_subcommands(site):
+    result = bringup(site, "bogus")
+    assert result.returncode == 2
+    for line in ("topo", "pingpong", "analyze pingpong"):
+        assert line in result.stderr
 
 
 @pytest.mark.parametrize(

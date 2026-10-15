@@ -5,13 +5,20 @@
 #   nic PPN              NIC check in a 2-node allocation (PPN 8 or 16), output kept in $WORK
 #   smoke PPN            smoke configs, then submit md p0, p1 and p2_a2a
 #   real PPN             full configs (RUNS runs), then submit md p2_a2a
+#   topo [HOST...]       topology probe (topology.sh): ports, LLDP leaf:port, pods, victim pair;
+#                        no HOST lists the nodes of $PARTITION. Exits with topology.sh's code
+#   pingpong             ping-pong ceilings: generate the set (3 pairs from node 1 and the node
+#                        total) into $WORK/pingpong, then submit its 4 jobs one after another
 #   status               squeue of the partition and the last submits
 #   check [DATA_DIR...]  per experiment: unbound ranks and NICs per host against ranks per host
 #   analyze smoke|real PPN   analyze.py on the data dirs of that kind and PPN, summary.md head
+#   analyze pingpong     analyze.py on the ping-pong data dirs ($DATA_ROOT/*/pp_*), summary.md head
 #
 # It sources env.sh first (Open MPI in PATH, BLINK, local/nplb_env.sh). Every command is echoed
 # before it runs and the first failure stops the script. Every submit adds a line to
 # $WORK/run_log.tsv: time, net, paths, ppn, config file, job id, data dir.
+# pingpong needs profile8.json (per card) and profile16.json (every port) in PROFILE_DIR; it runs
+# one NET and one PATHS, RUNS runs, 1000 iterations up to 128 MiB and 200 at 512 MiB.
 # Env: PRESET (nplb_h100), PARTITION (h100_4nodes), NET (C2), PATHS (1), RUNS (5),
 #      WORK (<checkout>/local/nplb-work), PROFILE_DIR (<checkout>: profile8.json, profile16.json),
 #      DATA_ROOT (<checkout>/data), PYTHON and CRAB (default: the checkout's .venv).
@@ -111,9 +118,15 @@ pick() {
     PICKED=()
     for pat in "$@"; do
         local before=${#PICKED[@]}
-        while IFS= read -r f; do PICKED+=("$f"); done < <(compgen -G "$dir/$pat" | sort)
+        while IFS= read -r f; do PICKED+=("$f"); done < <(compgen -G "$dir/$pat" | LC_ALL=C sort)
         ((${#PICKED[@]} > before)) || die "no $pat in $dir"
     done
+}
+
+cmd_topo() {
+    show "$HERE/topology.sh" "$@"
+    PARTITION=$PARTITION WORK=$WORK "$HERE/topology.sh" "$@"
+    exit $?
 }
 
 cmd_nic() {
@@ -149,6 +162,28 @@ cmd_real() {
     pick "$WORK/real_ppn$ppn" 'md_p2_a2a_*.json'
     for f in "${PICKED[@]}"; do submit "$ppn" "$f"; done
     echo "Submitted ${#PICKED[@]} real job(s) (ppn $ppn, $RUNS runs). Run: $0 status"
+}
+
+cmd_pingpong() {
+    local profile ports out ppn8 f
+    profile=$(profile_for 8) || exit 1
+    ports=$(profile_for 16) || exit 1
+    out=$WORK/pingpong
+    mkdir -p "$out"
+    step rm -f "$out"/*.json
+    # NET and PATHS may hold several values (make_configs then refuses), so they stay unquoted
+    # shellcheck disable=SC2086
+    step "$PYTHON" "$HERE/make_configs.py" "$profile" --all-ports "$ports" --set pingpong \
+        --out "$out" --net $NET --paths $PATHS --minruns "$RUNS" --maxruns "$RUNS" \
+        --iter-small 1000 --iter-128m 1000 --iter-512m 200
+    pick "$out" 'pp_*.json'
+    ppn8=$("$PYTHON" -c 'import json, sys; print(json.load(open(sys.argv[1]))["ppn"])' "$profile") ||
+        die "cannot read the ppn of $profile"
+    for f in "${PICKED[@]}"; do
+        # the node total (pw8) runs every rank of the node, the pairs one rank per node
+        if [[ $f == *_pw8_* ]]; then submit "$ppn8" "$f"; else submit 1 "$f"; fi
+    done
+    echo "Submitted ${#PICKED[@]} ping-pong jobs ($NET, paths $PATHS, $RUNS runs). Run: $0 status"
 }
 
 cmd_status() {
@@ -230,16 +265,22 @@ cmd_check() {
 
 cmd_analyze() {
     local kind=${1:-}
+    local ppn pat out dirs=() d
     case $kind in
-        smoke | real) ;;
-        *) echo "bringup: analyze needs smoke or real" >&2; usage ;;
+        smoke | real)
+            need_ppn "${2:-}"
+            ppn=$2
+            [[ $kind == smoke ]] && pat="smoke_*_ppn${ppn}_*" || pat="md_*_ppn${ppn}_*"
+            out=$WORK/results_${kind}_ppn$ppn
+            ;;
+        pingpong)
+            pat="pp_*"
+            out=$WORK/results_pingpong
+            ;;
+        *) echo "bringup: analyze needs smoke, real or pingpong" >&2; usage ;;
     esac
-    need_ppn "${2:-}"
-    local ppn=$2 pat out dirs=() d
-    [[ $kind == smoke ]] && pat="smoke_*_ppn${ppn}_*" || pat="md_*_ppn${ppn}_*"
     while IFS= read -r d; do dirs+=("$d"); done < <(compgen -G "$DATA_ROOT/*/$pat" | sort)
     ((${#dirs[@]})) || die "no data dirs matching $DATA_ROOT/*/$pat"
-    out=$WORK/results_${kind}_ppn$ppn
     step "$PYTHON" "$HERE/analyze.py" "${dirs[@]}" --out "$out"
     echo "+ head -n 60 $out/summary.md"
     head -n 60 "$out/summary.md"
@@ -248,9 +289,11 @@ cmd_analyze() {
 sub=${1:-}
 [[ $# -gt 0 ]] && shift
 case $sub in
+    topo) cmd_topo "$@" ;;
     nic) cmd_nic "$@" ;;
     smoke) cmd_smoke "$@" ;;
     real) cmd_real "$@" ;;
+    pingpong) cmd_pingpong ;;
     status) cmd_status ;;
     check) cmd_check "$@" ;;
     analyze) cmd_analyze "$@" ;;

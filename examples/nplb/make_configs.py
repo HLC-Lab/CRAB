@@ -51,6 +51,7 @@ from md_set import (  # noqa: E402
     layout_kinds,
     selected_kinds,
 )
+from pingpong_set import build_pingpong_files  # noqa: E402
 
 MIB = 1 << 20
 GRTY_BYTES = 2 * MIB  # data per timed window the md set aims for
@@ -414,9 +415,6 @@ def build_all(
         for paths in path_counts:
             if sets == "pingpong":
                 assert all_ports is not None
-                # imported here: the bring-up test copies only the sets it exercises
-                from pingpong_set import build_pingpong_files
-
                 files.update(build_pingpong_files(cfg, prefix, net, paths, all_ports))
             if sets in ("md", "both"):
                 files.update(build_md_files(cfg, prefix, net, paths))
