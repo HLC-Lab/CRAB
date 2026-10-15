@@ -2,7 +2,7 @@
 
 The web dashboard (`crab web`) is a **laptop-local control plane** for CRAB: a FastAPI backend
 plus a Vue single-page app that let a researcher manage clusters, author experiment configs,
-and (in upcoming phases) submit, monitor, and analyze runs — for all their clusters from one
+and submit, monitor, and analyze runs, for all their clusters from one
 UI. It never runs on the HPC system itself.
 
 ## The one immovable fact
@@ -27,7 +27,7 @@ crab web → uvicorn (127.0.0.1) → browser SPA        researcher's CRAB checko
 | `run.py` | `crab web` entry: uvicorn on localhost, opens the browser |
 | `settings.py` | `platformdirs` paths; env overrides `CRAB_WEB_CONFIG_DIR` / `CRAB_WEB_DATA_DIR` / `CRAB_WEB_LIBRARY_DIR` / `CRAB_WEB_PORT` |
 | `errors.py` | Error taxonomy; every API error is the stable envelope `{code, message, detail?}` |
-| `api/` | Routes only — no business logic: `remotes.py`, `bootstrap.py`, `experiments.py`, `local.py` |
+| `api/` | Routes only, no business logic: `remotes.py`, `bootstrap.py`, `wrappers.py`, `experiments.py`, `local.py`, `jobs.py`, `results.py` |
 | `connections/` | `transport.py` (`Transport` ABC; `SSHTransport` via asyncssh, `LocalTransport` via subprocess), `manager.py` (one reused live connection per remote, liveness eviction) |
 | `remoteops/` | `crab_cli.py` (builds/runs `bash -lc "… crab <args> --json"`, parses JSON), `bootstrap.py` (guided CRAB install) |
 | `store/` | `profiles.py` (`clusters.json`), `library.py` (experiment configs) — atomic writes, slug-validated ids |
@@ -49,7 +49,14 @@ an `errors.py` class — the process must never crash on a remote or user error.
 | `GET /api/remotes/{name}/benchmarks` · `/nodes` | Cluster catalog (wrapper picker, node reference) |
 | `POST /api/remotes/{name}/bootstrap/plan` · `/install` · `/verify` | Guided CRAB install on a bare cluster |
 | `GET /api/local/benchmarks` | Same catalog introspection for the CRAB checkout on this machine |
+| `GET /api/remotes/{name}/wrappers` · `POST /api/remotes/{name}/receipts` | Wrappers page: list a cluster's wrappers and where each binary comes from; record a binary location (`crab receipts set`) |
 | `GET/POST /api/experiments`, `GET/PUT/DELETE /api/experiments/{id}`, `POST .../duplicate` | Local experiment library |
+| `POST /api/jobs/submit` · `GET /api/jobs/submissions/{id}` | Submit an authored config to a cluster; poll the submission |
+| `GET /api/jobs` · `POST /api/jobs/{id}/cancel` | Job list and cancel |
+| `GET /api/jobs/{id}/logs` · `/experiments` · `GET /api/jobs/report/{config_name}` | Job detail: logs, per-experiment rows, the use-case report across submissions |
+| `GET /api/results` · `GET /api/results/{cluster}/{system}/{job}` · `.../experiments` | Fetched results: list, one job, its experiments |
+| `POST /api/results/{cluster}/{system}/{job}/fetch` · `GET .../fetch/{fetch_id}` | Start a result download from the cluster; poll it |
+| `GET/DELETE /api/results/cache` | Inspect or clear the local results cache |
 | `GET /{path}` | SPA fallback (serves `web/static/`) |
 
 ### Local state (laptop)
@@ -86,14 +93,22 @@ removing one requires a schema bump.
 
 ## Frontend map — `src/crab/webui/`
 
-Vue 3 (`<script setup lang="ts">`, strict TS) + Vite + Pinia + vue-router. Views:
-Remotes · Author · Wrappers (stub) · Jobs (stub) · Results (stub).
+Vue 3 (`<script setup lang="ts">`, strict TS) + Vite + Pinia + vue-router. The top navigation
+is Remotes · Author · Wrappers · Jobs · Results (`App.vue`); `/` redirects to `/remotes`.
+
+| Route | View |
+|---|---|
+| `/remotes` | Cluster profiles and connections |
+| `/author` | Experiment authoring and library |
+| `/wrappers` | A cluster's wrappers and binary receipts |
+| `/jobs` · `/jobs/:recordId` · `/jobs/report/:configName` | Job list, one submission, use-case report |
+| `/results` · `/results/compare` · `/results/:cluster/:system/:jobBasename` | Fetched results, comparison, one job's results |
 
 | Where | Role |
 |---|---|
 | `src/api/` | `client.ts` (the only place `fetch` is called; errors normalized to the envelope) + `types.ts` |
 | `src/lib/config.ts` | The config brain: UI `Draft` ⇄ engine JSON (`toConfig`/`fromConfig`), validation, flow-diagram layout. Pure — no IO — and covered by the round-trip unit suite |
-| `src/stores/` | Pinia: `app` (health/theme), `remotes`, `author` (draft + library), `catalog` (per-cluster benchmark/node cache) |
+| `src/stores/` | Pinia: `app` (health/theme), `remotes`, `author` (draft + library), `catalog` (per-cluster benchmark/node cache), `wrappers`, `jobs`, `jobDetail`, `report`, `results` |
 | `src/views/`, `src/components/` | Presentation; components never fetch directly |
 
 Config-mapping rules that must not regress (enforced by the round-trip suite): options are

@@ -77,3 +77,11 @@ dashboard mode. Harder: a generated campaign cannot be monitored or have its res
 from the dashboard yet, so a user still needs the SbatchMan CLI (or its own TUI) to check job
 status after launch, and CRAB's `crab history`/registry-based views don't recognize a
 SbatchMan-run job's directory layout — both are the deliberately deferred "full drive" step.
+
+**Amendment (2026-10-15):** the jobs YAML's `configs:` reference is superseded. The campaign
+editor no longer offers the field and the generated YAML never writes `configs:`, because
+`sbatchman launch` fails with a `TypeError` when `configs:` points at SbatchMan's own registry.
+Leave it unset and let SbatchMan resolve its configuration itself; the partner guide on the
+`sbatchman` branch (`docs/using/sbatchman-integration.md`) describes the supported setup. The
+rest of this decision (file-based worker seam, generator not driver, `{var}` expansion left to
+SbatchMan) stands.
