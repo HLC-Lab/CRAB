@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Write the CRAB configs of the NPLB campaign from a cluster profile (stdlib only).
 
-Two test sets, for path counts 1 and 4:
+Three test sets; the first two for path counts 1 and 4:
 
 * md set (md_set.py), on network configs C0, C2 and C3: phase 0 (ping-pong across and within a
   leaf), phase 1 (victim alone), phase 2 (victim against an aggressor, and alone). Files
   `md_p0_...`, `md_p1_...`, `md_p2_<victim>_...`. C3 gets phase 1 with one path only.
 * colleague set (colleague_set.py), on C0 and C2: the three congestion tests of the existing
   Leonardo configs, adapted to this hardware. Files `col_a2a_...`, `col_agtr_...`, `col_ardc_...`.
+* ping-pong set (pingpong_set.py), `--set pingpong`, one network config and one path count: the
+  bandwidth ceiling of one rank per node for three node pairs and three port variants, and the
+  node total of a pairwise x8. It needs `--all-ports PROFILE` (the probe's profile over every
+  port, to find a card's second port), writes the node names into each file's `--nodelist`, and
+  is the only set that does: `--out` must therefore sit inside a `local/` directory. Files
+  `pp_n1n2_...`, `pp_n1n3_pw8_...`; it is not part of `both`.
 
 Every md-set app except the aggressors gets `-grty min(100, ceil(2 MiB / msgsize))`; the
 colleague set has none.
@@ -15,9 +21,11 @@ colleague set has none.
 `--smoke` writes the same structure with few sizes and iterations for a quick test (files get a
 `smoke_` prefix). The profile is the JSON the probe's `--merge` writes:
 `{"nodes": [...], "ppn": 8, "nics": [...], "cpus": "0,1,...", "mem_gib": 1800}`; node names are
-never written into a config.
+never written into a config (except by the ping-pong set).
 
     python3 make_configs.py profile.json --out configs/ [--set md|colleague|both] [--smoke]
+    python3 make_configs.py profile8.json --out local/pp --set pingpong
+        --all-ports profile16.json --net C2 --paths 1
 
 The set modules build their files through a `Settings`, which carries the options of the run and
 the pieces both sets share (apps, chains, allocations, global options).
@@ -70,6 +78,7 @@ class Layout:
 
 
 LAYOUTS = {4: Layout(4, 50, 50, 2), 3: Layout(3, 67, 33, 2)}
+PAIR_LAYOUT = Layout(2, 50, 50, 1)  # the ping-pong set: two nodes per job, no partitions
 
 
 @dataclass(frozen=True)
@@ -89,6 +98,7 @@ class Profile:
     cores: tuple[int, ...]
     mem_gib: float
     layout: Layout
+    nodes: tuple[str, ...] = ()  # in the profile's (Slurm) order; only the ping-pong set uses them
 
 
 @dataclass
@@ -200,8 +210,13 @@ class Settings:
         collect: bool = True,
         partition: str | None = None,
         env: dict[str, str] | None = None,
+        ucx_env: bool = True,
     ) -> dict[str, Any]:
-        """One app entry with the placement keys of the profile."""
+        """One app entry with the placement keys of the profile.
+
+        An empty `where.nics` leaves the `nics` key out (the app picks its devices through
+        `env`); `ucx_env=False` leaves out the campaign's UCX variables.
+        """
         entry: dict[str, Any] = {"path": path, "args": args, "collect": collect}
         entry["start"], entry["end"] = start, end
         if partition:
@@ -209,8 +224,11 @@ class Settings:
         entry["ppn"] = where.ppn
         if not start.startswith("s"):  # a chained app runs on its head's cores: no cpus allowed
             entry["cpus"] = where.cpus
-        entry["nics"] = list(where.nics)
-        entry["env"] = {"UCX_MAX_RNDV_RAILS": "1", "UCX_IB_NUM_PATHS": str(paths), **(env or {})}
+        if where.nics:
+            entry["nics"] = list(where.nics)
+        base = {"UCX_MAX_RNDV_RAILS": "1", "UCX_IB_NUM_PATHS": str(paths)} if ucx_env else {}
+        if base or env:
+            entry["env"] = {**base, **(env or {})}
         return entry
 
     def chain(
@@ -225,13 +243,16 @@ class Settings:
         partition: str | None,
         memory: tuple[str, int] | None = None,
         grty: bool = False,
+        env: dict[str, str] | None = None,
+        ucx_env: bool = True,
     ) -> tuple[dict[str, dict[str, Any]], list[str]]:
         """The apps of one test: one per size, each starting after the previous one ends.
 
         `memory` is (kind, nranks) with kind "pp" (ping-pong/pairwise: 2 x size per rank), "a2a"
         (2 x nranks x size) or "ag" ((nranks + 1) x size): sizes whose buffers on one node pass
         half the node's memory are dropped and returned as text. Only the head carries the
-        partition. `grty` adds `-grty` from the size (md set).
+        partition. `grty` adds `-grty` from the size (md set). `env` and `ucx_env` go to every app
+        (see `app`).
         """
         apps: dict[str, dict[str, Any]] = {}
         skipped: list[str] = []
@@ -257,15 +278,31 @@ class Settings:
                 paths,
                 start=head_start if key == 0 else f"s{key - 1}",
                 partition=partition if key == 0 else None,
+                env=env,
+                ucx_env=ucx_env,
             )
         return apps, skipped
 
     def config(
-        self, stem: str, net: str, kind: str, allocation: dict[str, Any] | None
+        self,
+        stem: str,
+        net: str,
+        kind: str,
+        allocation: dict[str, Any] | None,
+        *,
+        ppn: int | None = None,
+        nodelist: tuple[str, ...] | None = None,
     ) -> dict[str, Any]:
-        """A config without experiments. `kind` is "md" or "colleague": other run defaults."""
+        """A config without experiments.
+
+        `kind` is "md", "colleague" or "pingpong": other run defaults. `ppn` and `nodelist`
+        (ping-pong set) set the ranks per node and pin the job to those nodes with `--nodelist`;
+        numnodes is then their count.
+        """
         if self.smoke:
             minruns, walltime, timeout, factor = 1, "00:15:00", 300.0, 1
+        elif kind == "pingpong":
+            minruns, walltime, timeout, factor = 5, "02:00:00", 3600.0, 1
         elif kind == "md":
             minruns, walltime, timeout, factor = (20 if net == "C0" else 10), "04:00:00", 3600.0, 2
         else:
@@ -274,8 +311,8 @@ class Settings:
         maxruns = self.maxruns if self.maxruns is not None else minruns * factor
         opts: dict[str, Any] = {
             "name": stem,
-            "numnodes": str(self.prof.layout.nodes),
-            "ppn": str(self.prof.ppn),
+            "numnodes": str(len(nodelist) if nodelist else self.prof.layout.nodes),
+            "ppn": str(ppn if ppn is not None else self.prof.ppn),
             "minruns": str(minruns),
             "maxruns": str(maxruns),
             "timeout": str(self.timeout if self.timeout is not None else timeout),
@@ -283,6 +320,8 @@ class Settings:
             "walltime": self.walltime or walltime,
             "sbatch_directives": ["--exclusive", f"--job-name=nplb_{stem}"],
         }
+        if nodelist:
+            opts["sbatch_directives"].append(f"--nodelist={','.join(nodelist)}")
         if allocation is not None:
             opts["allocation"] = allocation
         return {"schema_version": 2, "global_options": opts}
@@ -300,8 +339,11 @@ def parse_cpus(text: str) -> list[int]:
     return cores
 
 
-def load_profile(path: Path, mem_gib: float | None, smoke: bool) -> Profile:
-    """Read and validate a profile; raises ValueError with what is wrong."""
+def load_profile(path: Path, mem_gib: float | None, smoke: bool, pingpong: bool = False) -> Profile:
+    """Read and validate a profile; raises ValueError with what is wrong.
+
+    The ping-pong set takes any profile of two or more distinct nodes; the others need 3 or 4.
+    """
     try:
         data = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
@@ -315,14 +357,19 @@ def load_profile(path: Path, mem_gib: float | None, smoke: bool) -> Profile:
     if len(cores) != ppn:
         raise ValueError(f"cpus {data['cpus']!r} has {len(cores)} cores, ppn is {ppn}")
     count = len(data["nodes"])
-    if count in LAYOUTS:
+    if pingpong:
+        if count < 2 or len(set(data["nodes"])) != count:
+            raise ValueError(f"nodes: {count} listed; the ping-pong set needs 2 or more distinct")
+        layout = PAIR_LAYOUT
+    elif count in LAYOUTS:
         layout = LAYOUTS[count]
     elif smoke and count > 4:
         layout = LAYOUTS[4]
     else:
         raise ValueError(f"nodes: {count} listed; the sets need 3 or 4 (--smoke accepts 4 or more)")
     gib = mem_gib if mem_gib is not None else float(data.get("mem_gib", 256))
-    return Profile(ppn, nics, str(data["cpus"]), tuple(cores), gib, layout)
+    nodes = tuple(str(n) for n in data["nodes"])
+    return Profile(ppn, nics, str(data["cpus"]), tuple(cores), gib, layout, nodes)
 
 
 def tagged(files: dict[str, Built], tag: str) -> dict[str, Built]:
@@ -353,13 +400,24 @@ def tag_text(text: str) -> str:
 
 
 def build_all(
-    cfg: Settings, sets: str, nets: list[str], path_counts: list[int], tag: str | None = None
+    cfg: Settings,
+    sets: str,
+    nets: list[str],
+    path_counts: list[int],
+    tag: str | None = None,
+    all_ports: dict[str, Any] | None = None,
 ) -> dict[str, Built]:
-    """Every file to write: {file stem: Built}."""
+    """Every file to write: {file stem: Built}. `all_ports` is the ping-pong set's profile."""
     prefix = "smoke_" if cfg.smoke else ""
     files: dict[str, Built] = {}
     for net in nets:
         for paths in path_counts:
+            if sets == "pingpong":
+                assert all_ports is not None
+                # imported here: the bring-up test copies only the sets it exercises
+                from pingpong_set import build_pingpong_files
+
+                files.update(build_pingpong_files(cfg, prefix, net, paths, all_ports))
             if sets in ("md", "both"):
                 files.update(build_md_files(cfg, prefix, net, paths))
             if sets in ("colleague", "both") and net in COLLEAGUE_NETS:
@@ -379,7 +437,20 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Write the NPLB campaign configs from a profile.")
     p.add_argument("profile", type=Path, help="cluster profile JSON")
     p.add_argument("--out", type=Path, required=True, help="directory for the config files")
-    p.add_argument("--set", dest="sets", choices=("md", "colleague", "both"), default="both")
+    p.add_argument(
+        "--set",
+        dest="sets",
+        choices=("md", "colleague", "both", "pingpong"),
+        default="both",
+        help="test set; pingpong is not part of both and needs --all-ports, one --net and one "
+        "--paths value, and an --out inside a local/ directory",
+    )
+    p.add_argument(
+        "--all-ports",
+        type=Path,
+        help="pingpong set: profile JSON over every port (probe --merge without per-card), "
+        "to find the second port of the first card",
+    )
     p.add_argument(
         "--net",
         nargs="+",
@@ -417,11 +488,35 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
+def check_pingpong_args(ap: argparse.ArgumentParser, args: argparse.Namespace) -> dict[str, Any]:
+    """Refuse a bad `--set pingpong` call; return the all-ports profile."""
+    if args.all_ports is None:
+        ap.error("--all-ports: --set pingpong needs the profile over every port")
+    if len(args.net) != 1 or len(args.paths) != 1:
+        ap.error("--set pingpong takes exactly one --net value and one --paths value")
+    if "local" not in args.out.resolve().parts:
+        ap.error(
+            "--out: --set pingpong writes node names into the configs, so --out must be inside "
+            "a local/ directory (git-ignored)"
+        )
+    try:
+        data = json.loads(args.all_ports.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        ap.error(f"--all-ports: cannot read {args.all_ports}: {exc}")
+    if not isinstance(data, dict) or not isinstance(data.get("per_nic"), dict):
+        ap.error(
+            f"--all-ports: {args.all_ports} has no per_nic (a profile from the probe's --merge)"
+        )
+    return data
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = parser()
     args = ap.parse_args(argv)
+    pingpong = args.sets == "pingpong"
+    all_ports = check_pingpong_args(ap, args) if pingpong else None
     try:
-        prof = load_profile(args.profile, args.mem_gib, args.smoke)
+        prof = load_profile(args.profile, args.mem_gib, args.smoke, pingpong)
     except ValueError as exc:
         ap.error(str(exc))
     cfg = Settings(
@@ -438,12 +533,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.sets in ("md", "both") and not selected_kinds(cfg):
         ap.error(aggressor_refusal(prof.layout.nodes))
-    files = build_all(cfg, args.sets, args.net, args.paths, args.tag)
+    files = build_all(cfg, args.sets, args.net, args.paths, args.tag, all_ports)
     args.out.mkdir(parents=True, exist_ok=True)
     for stem, built in files.items():
         (args.out / f"{stem}.json").write_text(json.dumps(built.config, indent=2) + "\n")
+    layout = (
+        f"ping-pong set on {len(prof.nodes)} nodes"
+        if pingpong
+        else f"{prof.layout.nodes}-node layout"
+    )
     print(
-        f"Wrote {len(files)} files to {args.out} ({prof.layout.nodes}-node layout, "
+        f"Wrote {len(files)} files to {args.out} ({layout}, "
         f"ppn {prof.ppn}, {prof.mem_gib:g} GiB per node):"
     )
     for stem, built in files.items():

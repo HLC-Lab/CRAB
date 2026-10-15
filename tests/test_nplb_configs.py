@@ -802,3 +802,283 @@ def test_summary_mentions_the_tag(tmp_path: Path, capsys: pytest.CaptureFixture[
     out = capsys.readouterr().out
     assert "md_p0_C0_P1_ppn8.json" in out
     assert "Tag: ppn8" in out
+
+
+# --- ping-pong set (--set pingpong) ---------------------------------------------------------
+
+
+def _pci(card: int, function: int) -> str:
+    return f"0000:{0x19 + 0x10 * card:02x}:00.{function}"
+
+
+def per_card_profile(nodes: int = 4) -> dict[str, Any]:
+    """profile8: the first port of each of 8 cards."""
+    per_nic = {
+        f"mlx5_{2 * k}:1": {"numa": k // 4, "core": 4 * k, "pci": _pci(k, 0), "speed_mbps": 400000}
+        for k in range(8)
+    }
+    return profile(
+        nodes,
+        8,
+        nics=list(per_nic),
+        cpus=",".join(str(v["core"]) for v in per_nic.values()),
+        per_nic=per_nic,
+    )
+
+
+def all_ports_profile(missing: tuple[str, ...] = ()) -> dict[str, Any]:
+    """profile16: both ports of each of 8 cards; `missing` names devices left out."""
+    per_nic = {
+        f"mlx5_{2 * k + f}:1": {"numa": k // 4, "core": 4 * k + f, "pci": _pci(k, f)}
+        for k in range(8)
+        for f in (0, 1)
+    }
+    for name in missing:
+        del per_nic[name]
+    return profile(4, 16, nics=list(per_nic), per_nic=per_nic)
+
+
+def pingpong(
+    tmp_path: Path, nodes: int = 4, *args: str, all_ports: dict[str, Any] | None = None
+) -> dict[str, dict[str, Any]]:
+    """Run `--set pingpong` on the fake profiles into tmp_path/local/out."""
+    (tmp_path / "ports.json").write_text(json.dumps(all_ports or all_ports_profile()))
+    prof_path = tmp_path / "profile.json"
+    prof_path.write_text(json.dumps(per_card_profile(nodes)))
+    out = tmp_path / "local" / "out"
+    argv = [str(prof_path), "--out", str(out), "--set", "pingpong", "--all-ports"]
+    argv += [str(tmp_path / "ports.json"), "--net", "C2", "--paths", "1", *args]
+    assert make_configs.main(argv) == 0
+    return {p.name: json.loads(p.read_text()) for p in sorted(out.glob("*.json"))}
+
+
+@pytest.fixture(scope="module")
+def pp_four(tmp_path_factory: pytest.TempPathFactory) -> dict[str, dict[str, Any]]:
+    return pingpong(tmp_path_factory.mktemp("pp4"))
+
+
+def test_pingpong_file_set_per_node_count(tmp_path: Path, pp_four: dict[str, Any]) -> None:
+    assert set(pp_four) == {
+        "pp_n1n2_C2_P1.json",
+        "pp_n1n3_C2_P1.json",
+        "pp_n1n4_C2_P1.json",
+        "pp_n1n3_pw8_C2_P1.json",
+    }
+    for label in ("n1n2", "n1n3", "n1n4"):
+        config = pp_four[f"pp_{label}_C2_P1.json"]
+        assert list(config["experiments"]) == [
+            f"pp_{label}-{v}_C2_P1" for v in ("md", "default", "dual")
+        ]
+    assert list(pp_four["pp_n1n3_pw8_C2_P1.json"]["experiments"]) == ["pp_n1n3-pw8_C2_P1"]
+    (tmp_path / "two").mkdir()
+    two = pingpong(tmp_path / "two", 2)
+    assert set(two) == {"pp_n1n2_C2_P1.json", "pp_n1n2_pw8_C2_P1.json"}
+    assert list(two["pp_n1n2_pw8_C2_P1.json"]["experiments"]) == ["pp_n1n2-pw8_C2_P1"]
+    (tmp_path / "three").mkdir()
+    three = pingpong(tmp_path / "three", 3)
+    assert set(three) == {"pp_n1n2_C2_P1.json", "pp_n1n3_C2_P1.json", "pp_n1n3_pw8_C2_P1.json"}
+
+
+def test_pingpong_configs_pass_the_checks(pp_four: dict[str, Any]) -> None:
+    from crab.core.config_checks import check_config
+
+    for name, config in pp_four.items():
+        assert config["schema_version"] == 2, name
+        assert check_config(config, slurm_settings()) == [], name
+
+
+def test_pingpong_global_options(pp_four: dict[str, Any], tmp_path: Path) -> None:
+    pairs = {"n1n2": "node-b", "n1n3": "node-c", "n1n4": "node-d"}
+    for label, other in pairs.items():
+        opts = pp_four[f"pp_{label}_C2_P1.json"]["global_options"]
+        assert opts["numnodes"] == "2" and opts["ppn"] == "1"
+        assert opts["minruns"] == opts["maxruns"] == "5"
+        assert opts["walltime"] == "02:00:00"
+        assert opts["sbatch_directives"] == [
+            "--exclusive",
+            f"--job-name=nplb_pp_{label}_C2_P1",
+            f"--nodelist=node-a,{other}",
+        ]
+        assert "allocation" not in opts
+    pw8 = pp_four["pp_n1n3_pw8_C2_P1.json"]["global_options"]
+    assert pw8["numnodes"] == "2" and pw8["ppn"] == "8" and "allocation" not in pw8
+    assert pw8["sbatch_directives"][2] == "--nodelist=node-a,node-c"
+    (tmp_path / "over").mkdir()
+    over = pingpong(
+        tmp_path / "over", 4, "--minruns", "3", "--maxruns", "7", "--walltime", "01:00:00"
+    )
+    opts = over["pp_n1n2_C2_P1.json"]["global_options"]
+    assert (opts["minruns"], opts["maxruns"], opts["walltime"]) == ("3", "7", "01:00:00")
+
+
+def test_pingpong_variants(pp_four: dict[str, Any]) -> None:
+    experiments = pp_four["pp_n1n3_C2_P1.json"]["experiments"]
+    for variant in ("md", "default", "dual"):
+        apps = app_list(pp_four["pp_n1n3_C2_P1.json"], f"pp_n1n3-{variant}_C2_P1")
+        assert {a["path"] for a in apps} == {"blink/pingpong_b.py"}
+        assert {a["ppn"] for a in apps} == {1}
+        assert [a["start"] for a in apps] == ["0"] + [f"s{k}" for k in range(10)]
+        head = apps[0]
+        assert head["cpus"] == "0" and all("cpus" not in a for a in apps[1:])
+        for app in apps:
+            if variant == "dual":
+                assert "nics" not in app
+            else:
+                assert app["nics"] == ["mlx5_0:1"]
+    md = app_list(pp_four["pp_n1n3_C2_P1.json"], "pp_n1n3-md_C2_P1")
+    assert all(a["env"] == {"UCX_MAX_RNDV_RAILS": "1", "UCX_IB_NUM_PATHS": "1"} for a in md)
+    default = app_list(pp_four["pp_n1n3_C2_P1.json"], "pp_n1n3-default_C2_P1")
+    assert all(not any(k.startswith("UCX_") for k in a.get("env", {})) for a in default)
+    dual = app_list(pp_four["pp_n1n3_C2_P1.json"], "pp_n1n3-dual_C2_P1")
+    assert all(
+        a["env"]
+        == {
+            "UCX_NET_DEVICES": "mlx5_0:1,mlx5_1:1",
+            "UCX_MAX_RNDV_RAILS": "2",
+            "UCX_IB_NUM_PATHS": "1",
+        }
+        for a in dual
+    )
+    assert len(experiments) == 3
+
+
+def test_pingpong_program_and_sweep(pp_four: dict[str, Any], tmp_path: Path) -> None:
+    pw8 = app_list(pp_four["pp_n1n3_pw8_C2_P1.json"], "pp_n1n3-pw8_C2_P1")
+    assert {a["path"] for a in pw8} == {"blink/pairwise_nb.py"}
+    assert all(a["args"].startswith("-mode rot -offset 8 -msgsize ") for a in pw8)
+    assert {a["ppn"] for a in pw8} == {8}
+    assert pw8[0]["cpus"] == "0,4,8,12,16,20,24,28"
+    assert pw8[0]["nics"] == [f"mlx5_{2 * k}:1" for k in range(8)]
+    assert all(a["env"] == {"UCX_MAX_RNDV_RAILS": "1", "UCX_IB_NUM_PATHS": "1"} for a in pw8)
+    for config, exp in (
+        (pp_four["pp_n1n3_pw8_C2_P1.json"], "pp_n1n3-pw8_C2_P1"),
+        (pp_four["pp_n1n2_C2_P1.json"], "pp_n1n2-md_C2_P1"),
+        (pp_four["pp_n1n2_C2_P1.json"], "pp_n1n2-dual_C2_P1"),
+    ):
+        apps = app_list(config, exp)
+        assert sizes_of(apps) == MD_SIZES
+        assert [iter_of(a) for a in apps] == [1000] * 9 + [100, 25]
+        assert [grty_of(a) for a in apps] == [make_configs.grty_for(s) for s in MD_SIZES]
+    (tmp_path / "iter").mkdir()
+    flags = ("--iter-small", "300", "--iter-128m", "60", "--iter-512m", "7")
+    iters = pingpong(tmp_path / "iter", 4, *flags)
+    apps = app_list(iters["pp_n1n2_C2_P1.json"], "pp_n1n2-md_C2_P1")
+    assert [iter_of(a) for a in apps] == [300] * 9 + [60, 7]
+
+
+def test_pingpong_without_a_sibling_omits_dual(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    configs = pingpong(tmp_path, 4, all_ports=all_ports_profile(missing=("mlx5_1:1",)))
+    for label in ("n1n2", "n1n3", "n1n4"):
+        assert list(configs[f"pp_{label}_C2_P1.json"]["experiments"]) == [
+            f"pp_{label}-md_C2_P1",
+            f"pp_{label}-default_C2_P1",
+        ]
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if "dual" in ln]
+    assert lines and all("mlx5_0:1" in ln for ln in lines)
+
+
+def test_pingpong_summary_lists_the_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    pingpong(tmp_path)
+    out = capsys.readouterr().out
+    assert "pp_n1n2_C2_P1.json: 3 experiments" in out
+    assert "pp_n1n3_pw8_C2_P1.json: 1 experiment" in out
+    assert "dual" not in out.replace("pp_n1n2-dual", "")  # no omission note when all are written
+
+
+def test_pingpong_needs_all_ports(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    prof_path = tmp_path / "profile.json"
+    prof_path.write_text(json.dumps(per_card_profile()))
+    argv = [str(prof_path), "--out", str(tmp_path / "local" / "o"), "--set", "pingpong"]
+    with pytest.raises(SystemExit) as stop:
+        make_configs.main([*argv, "--net", "C2", "--paths", "1"])
+    assert stop.value.code == 2
+    assert "--all-ports" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "extra", [[], ["--net", "C0", "C2", "--paths", "1"], ["--net", "C2", "--paths", "1", "4"]]
+)
+def test_pingpong_takes_one_net_and_one_paths(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], extra: list[str]
+) -> None:
+    (tmp_path / "ports.json").write_text(json.dumps(all_ports_profile()))
+    (tmp_path / "profile.json").write_text(json.dumps(per_card_profile()))
+    argv = [str(tmp_path / "profile.json"), "--out", str(tmp_path / "local" / "o")]
+    argv += ["--set", "pingpong", "--all-ports", str(tmp_path / "ports.json"), *extra]
+    with pytest.raises(SystemExit) as stop:
+        make_configs.main(argv)
+    assert stop.value.code == 2
+    assert "exactly one" in capsys.readouterr().err
+    assert not (tmp_path / "local").exists()
+
+
+def test_pingpong_refuses_an_out_outside_local(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "ports.json").write_text(json.dumps(all_ports_profile()))
+    (tmp_path / "profile.json").write_text(json.dumps(per_card_profile()))
+    argv = [str(tmp_path / "profile.json"), "--out", str(tmp_path / "configs")]
+    argv += ["--set", "pingpong", "--all-ports", str(tmp_path / "ports.json")]
+    argv += ["--net", "C2", "--paths", "1"]
+    with pytest.raises(SystemExit) as stop:
+        make_configs.main(argv)
+    assert stop.value.code == 2
+    err = capsys.readouterr().err
+    assert "node names" in err and "local/" in err
+    assert not (tmp_path / "configs").exists()
+
+
+def test_pingpong_tag_keeps_the_nodelist(tmp_path: Path) -> None:
+    from crab.core.config_checks import check_config
+
+    configs = pingpong(tmp_path, 4, "--tag", "ppn8")
+    assert set(configs) == {
+        "pp_n1n2_C2_P1_ppn8.json",
+        "pp_n1n3_C2_P1_ppn8.json",
+        "pp_n1n4_C2_P1_ppn8.json",
+        "pp_n1n3_pw8_C2_P1_ppn8.json",
+    }
+    for name, config in configs.items():
+        stem = name[: -len(".json")]
+        opts = config["global_options"]
+        assert opts["name"] == stem
+        assert opts["sbatch_directives"][1] == f"--job-name=nplb_{stem}"
+        assert opts["sbatch_directives"][2].startswith("--nodelist=node-a,node-")
+        assert check_config(config, slurm_settings()) == [], name
+
+
+def test_pingpong_names_round_trip(pp_four: dict[str, Any]) -> None:
+    seen = 0
+    for config in pp_four.values():
+        for exp in config["experiments"]:
+            parsed = naming.parse_experiment_name(exp)
+            assert parsed is not None, exp
+            assert (
+                naming.experiment_name(
+                    parsed["phase"], parsed["test"], parsed["net"], parsed["paths"]
+                )
+                == exp
+            )
+            seen += 1
+    assert seen == 10
+
+
+def test_parse_pingpong_name_fields() -> None:
+    assert naming.parse_experiment_name("pp_n1n3-pw8_C2_P1") == {
+        "phase": "pp",
+        "test": "n1n3-pw8",
+        "victim": "n1n3-pw8",
+        "aggressor": None,
+        "net": "C2",
+        "paths": 1,
+    }
+    for bad in ("pp_n1n3-foo_C2_P1", "pp_x-md_C2_P1", "pp_n1n3_C2_P1"):
+        assert naming.parse_experiment_name(bad) is None
+
+
+def test_pingpong_set_is_not_part_of_both(four_node: dict[str, dict[str, Any]]) -> None:
+    assert not any(name.startswith("pp_") for name in four_node)
