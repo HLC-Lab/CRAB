@@ -155,15 +155,19 @@ def test_openmpi5_report_bindings() -> None:
     ]
 
 
-def test_hydra_report_bindings() -> None:
-    assert _prefix("hydra", Placement(("n1",), 1), report_bindings=True) == [
-        "mpirun",
-        "-n",
-        "1",
-        "-hosts",
-        "n1:1",
-        "-report-bindings",
-    ]
+def test_hydra_report_bindings_passes_no_report_flag_and_no_env_prefix() -> None:
+    # MPICH 4.2 rejects `-report-bindings` (exit 255); HYDRA_TOPO_DEBUG would print to stdout.
+    argv = _prefix("hydra", Placement(("n1",), 1), report_bindings=True)
+
+    assert argv == ["mpirun", "-n", "1", "-hosts", "n1:1"]
+    assert argv[0] != "env"
+    assert not any("report-bindings" in word for word in argv)
+
+
+def test_hydra_without_report_bindings_has_neither_flag_nor_variable() -> None:
+    argv = _prefix("hydra", Placement(("n1",), 1), report_bindings=False)
+
+    assert argv == ["mpirun", "-n", "1", "-hosts", "n1:1"]
 
 
 def test_order_is_ranks_hosts_env_report_then_preset_flags() -> None:

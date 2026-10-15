@@ -69,7 +69,10 @@ _BINDING_FLAGS: dict[Dialect, Callable[[Placement], list[str]]] = {
 _REPORT_BINDINGS: dict[Dialect, list[str]] = {
     "openmpi4": ["--report-bindings"],
     "openmpi5": ["--display", "bindings"],  # `--report-bindings` is deprecated in Open MPI 5.
-    "hydra": ["-report-bindings"],
+    # Hydra gets nothing: MPICH 4.2 rejects `-report-bindings` (exit 255), and the variable that
+    # makes it report, HYDRA_TOPO_DEBUG=1, prints to the launcher's stdout, which would pollute
+    # the output the wrappers parse.
+    "hydra": [],
 }
 # Hydra exports the whole environment by default (`-genvall`); only Open MPI names variables.
 _EXPORT_WITH_X: tuple[Dialect, ...] = ("openmpi4", "openmpi5")

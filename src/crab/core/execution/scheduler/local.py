@@ -285,23 +285,29 @@ class LocalScheduler:
 
         The lock is probed first: once it is free every write of the supervisor is done, so the
         files read afterwards are final. A final state in `local_state.json` (COMPLETED, FAILED,
-        CANCELLED, TIMEOUT) wins, with the exit code from the exit-code file when there is one
-        (a cancelled job has both). Otherwise the exit-code file decides COMPLETED or FAILED (the
-        supervisor wrote it a moment before the final state); a live job reports its state file
-        (PENDING before the supervisor wrote one); a dead job with neither is `LOST`.
+        CANCELLED, TIMEOUT) wins, with the exit code the same file holds, else the exit-code
+        file's (a cancelled job has both). Otherwise the exit-code file decides COMPLETED or FAILED
+        (the supervisor wrote it a moment before the final state); a live job reports its state
+        file (PENDING before the supervisor wrote one); a dead job with neither is `LOST`.
         """
         record = self._read_record(job_id)
         if record is None:
             return JobStatus(job_id, "UNKNOWN", "local")
         alive = local_state.is_alive(self._jobs_dir, job_id)
+        # The exit-code file is read before the state file: the supervisor writes the final state
+        # of a cancelled or timed-out job before that file, so a file found here means the final
+        # state is already in place when it is read next.
         exit_code_path = _exit_code_path(record)
         code = exit_code_path.read_text().strip() if exit_code_path.is_file() else None
         try:
-            state = local_state.read_job_state(Path(record.data_dir))
+            result = local_state.read_job_result(Path(record.data_dir))
         except ValueError:
             if code is None:
                 raise
-            state = None  # an unreadable state file never hides a finished job
+            result = None  # an unreadable state file never hides a finished job
+        state = None if result is None else result[0]
+        if result is not None and result[1] is not None:
+            code = str(result[1])  # written in the same atomic write as the state
         if state in _FINAL_STATES:
             return JobStatus(job_id, state, "local", code)
         if code is not None:

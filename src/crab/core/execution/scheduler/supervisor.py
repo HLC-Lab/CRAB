@@ -4,9 +4,10 @@
 which keeps it for its whole life (the kernel drops it when the process dies, however it dies).
 It reads the job spec `local_job.json`, writes PENDING, takes the host locks of an exclusive job,
 writes RUNNING, runs the worker, then writes `local_exit_code` and the final state, both
-atomically. It imports only `local_state` before it installs its SIGTERM handler (the process
-manager that holds `STOP_GRACE_SECONDS` is imported later, when the deadline is computed), so a
-cancel that lands during start-up is not lost.
+atomically (the final state also holds the exit code, in the one write). It imports only
+`local_state` before it installs its SIGTERM handler (the process manager that holds
+`STOP_GRACE_SECONDS` is imported later, when the deadline is computed), so a cancel that lands
+during start-up is not lost.
 
 The worker runs in its own session, so the supervisor's group holds the supervisor alone. The
 supervisor handles SIGTERM (ADR-034, "Cancel order"):
@@ -202,23 +203,28 @@ def _wait_for_worker(run: _Run, worker: subprocess.Popen, walltime: int) -> int 
 def _finish(job_dir: Path, run: _Run, code: int | None) -> None:
     """Write the exit code and the final state of a job whose worker has ended.
 
+    The final state carries the exit code in the same atomic write (`local_state.json`), so a
+    reader never sees a final state without its code; `local_exit_code` is written next to it.
+
     The job timed out when its walltime ran out first (`timed_out`), even if a cancel came while
     the worker was being stopped. It is cancelled when a SIGTERM was forwarded to its worker
     (`forwarded_at`) or the worker had to be killed (`code` is None, recorded as `-9`). A SIGTERM
     that arrived after the worker had exited is no cancel: the worker's own result stands. The
-    state of a timed-out or cancelled job is written first, so status never shows FAILED (the
-    worker's 143) for it; the normal order is exit code, then state.
+    state of a timed-out or cancelled job is written first, so a reader never finds the exit-code
+    file next to a RUNNING state and reports FAILED (the worker's 143) for it; the normal order is
+    exit code, then state.
     """
+    recorded = -9 if code is None else code
     if run.timed_out:
-        local_state.write_job_state(job_dir, "TIMEOUT")
-        _write_exit_code(job_dir, -9 if code is None else code)
+        local_state.write_job_state(job_dir, "TIMEOUT", recorded)
+        _write_exit_code(job_dir, recorded)
         return
     if run.forwarded_at is not None or code is None:
-        local_state.write_job_state(job_dir, "CANCELLED")
-        _write_exit_code(job_dir, -9 if code is None else code)
+        local_state.write_job_state(job_dir, "CANCELLED", recorded)
+        _write_exit_code(job_dir, recorded)
         return
     _write_exit_code(job_dir, code)
-    local_state.write_job_state(job_dir, "COMPLETED" if code == 0 else "FAILED")
+    local_state.write_job_state(job_dir, "COMPLETED" if code == 0 else "FAILED", code)
 
 
 def _run_worker(job_dir: Path, spec: dict[str, Any], run: _Run) -> int | None:

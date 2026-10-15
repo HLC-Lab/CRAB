@@ -22,6 +22,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from crab.core.execution.scheduler import local as local_module
 from crab.core.execution.scheduler import local_state, supervisor
 from crab.core.execution.scheduler.base import JobStatus
 from crab.core.execution.scheduler.local import LocalScheduler
@@ -512,7 +513,9 @@ def test_the_final_state_of_a_cancel_is_written_before_its_exit_code(
 ) -> None:
     """With the exit code first, status would show FAILED (143) for a moment."""
     writes: list[str] = []
-    monkeypatch.setattr(local_state, "write_job_state", lambda d, st: writes.append(f"state:{st}"))
+    monkeypatch.setattr(
+        local_state, "write_job_state", lambda d, st, code=None: writes.append(f"state:{st}:{code}")
+    )
     monkeypatch.setattr(supervisor, "_write_exit_code", lambda d, c: writes.append(f"exit:{c}"))
     cancelled = supervisor._Run()
     cancelled.forwarded_at = 1.0
@@ -520,7 +523,7 @@ def test_the_final_state_of_a_cancel_is_written_before_its_exit_code(
     supervisor._finish(tmp_path, cancelled, 143)
     supervisor._finish(tmp_path, supervisor._Run(), 3)
 
-    assert writes == ["state:CANCELLED", "exit:143", "exit:3", "state:FAILED"]
+    assert writes == ["state:CANCELLED:143", "exit:143", "exit:3", "state:FAILED:3"]
 
 
 def test_a_sigterm_after_the_worker_exited_does_not_turn_its_result_into_cancelled(
@@ -658,7 +661,9 @@ def test_the_final_state_of_a_timeout_is_written_before_its_exit_code(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     writes: list[str] = []
-    monkeypatch.setattr(local_state, "write_job_state", lambda d, st: writes.append(f"state:{st}"))
+    monkeypatch.setattr(
+        local_state, "write_job_state", lambda d, st, code=None: writes.append(f"state:{st}:{code}")
+    )
     monkeypatch.setattr(supervisor, "_write_exit_code", lambda d, c: writes.append(f"exit:{c}"))
     timed_out = supervisor._Run()
     timed_out.timed_out = True
@@ -667,4 +672,135 @@ def test_the_final_state_of_a_timeout_is_written_before_its_exit_code(
     supervisor._finish(tmp_path, timed_out, -15)
     supervisor._finish(tmp_path, timed_out, None)
 
-    assert writes == ["state:TIMEOUT", "exit:-15", "state:TIMEOUT", "exit:-9"]
+    assert writes == ["state:TIMEOUT:-15", "exit:-15", "state:TIMEOUT:-9", "exit:-9"]
+
+
+def _run_in(timed_out: bool, cancelled: bool) -> supervisor._Run:
+    run = supervisor._Run()
+    run.timed_out = timed_out
+    run.forwarded_at = 1.0 if (timed_out or cancelled) else None
+    return run
+
+
+@pytest.mark.parametrize(
+    ("timed_out", "cancelled", "code", "state", "recorded"),
+    [
+        (True, False, -15, "TIMEOUT", -15),
+        (True, False, None, "TIMEOUT", -9),
+        (False, True, 143, "CANCELLED", 143),
+        (False, True, None, "CANCELLED", -9),
+        (False, False, 0, "COMPLETED", 0),
+        (False, False, 3, "FAILED", 3),
+    ],
+)
+def test_a_reader_never_sees_a_final_state_without_its_exit_code(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    timed_out: bool,
+    cancelled: bool,
+    code: int | None,
+    state: str,
+    recorded: int,
+) -> None:
+    """CI flake: `status` read TIMEOUT from `local_state.json` in the instant before the
+    supervisor wrote `local_exit_code`, and returned exit_code None. The file is read after every
+    write the supervisor makes: a final state always carries the exit code in the same file."""
+    seen: list[tuple[str, int | None]] = []
+
+    def snapshot() -> None:
+        path = tmp_path / "local_state.json"
+        if path.is_file():
+            body = json.loads(path.read_text())
+            seen.append((body["state"], body.get("exit_code")))
+
+    real_atomic = local_state._atomic_write
+    real_exit = supervisor._write_exit_code
+
+    def atomic_then_snapshot(path: Path, text: str) -> None:
+        real_atomic(path, text)
+        snapshot()
+
+    def exit_then_snapshot(job_dir: Path, value: int) -> None:
+        real_exit(job_dir, value)
+        snapshot()
+
+    monkeypatch.setattr(local_state, "_atomic_write", atomic_then_snapshot)
+    monkeypatch.setattr(supervisor, "_write_exit_code", exit_then_snapshot)
+
+    supervisor._finish(tmp_path, _run_in(timed_out, cancelled), code)
+
+    assert seen and {s for s, _ in seen} == {state}
+    assert all(c == recorded for _, c in seen), seen
+    assert (tmp_path / "local_exit_code").read_text() == str(recorded)
+
+
+def test_status_reads_the_exit_code_from_the_state_file(harness: Harness) -> None:
+    """The state file alone is a complete answer: the exit-code file is written just after it."""
+    job_id, job_dir = harness.submit("job", ["true"])
+    _final(harness, job_id)
+    (job_dir / "local_exit_code").unlink()
+    local_state.write_job_state(job_dir, "TIMEOUT", -9)
+
+    assert harness.status(job_id) == JobStatus(job_id, "TIMEOUT", "local", "-9")
+
+
+class _ExitFileSpy:
+    """The exit-code path of a job, calling `after` once its file has been looked at."""
+
+    def __init__(self, path: Path, after: Callable[[], None]) -> None:
+        self._path = path
+        self._after = after
+
+    def is_file(self) -> bool:
+        present = self._path.is_file()
+        if not present:
+            self._after()  # `status` will not read it
+        return present
+
+    def read_text(self) -> str:
+        text = self._path.read_text()
+        self._after()
+        return text
+
+
+@pytest.mark.parametrize(
+    ("timed_out", "state", "exit_code"), [(False, "COMPLETED", "0"), (True, "TIMEOUT", "-9")]
+)
+def test_status_survives_the_supervisor_finishing_between_its_two_reads(
+    harness: Harness,
+    monkeypatch: pytest.MonkeyPatch,
+    timed_out: bool,
+    state: str,
+    exit_code: str,
+) -> None:
+    """The supervisor's final writes (the real `_finish` ones) land after `status` read its first
+    file. `_job_status` reads the exit-code file, then the state file: the writes land between
+    the two. Read the state file first and a TIMEOUT shows as FAILED (its state is written before
+    the exit-code file); read only the exit-code file and its code is lost."""
+    job_id, job_dir = harness.submit("job", ["true"])
+    _final(harness, job_id)
+    _poll(lambda: _group_gone(harness.pid(job_id)), "the supervisor to exit")
+    (job_dir / "local_exit_code").unlink()
+    local_state.write_job_state(job_dir, "RUNNING")
+    fired: list[bool] = []
+
+    def finish_once() -> None:
+        if not fired:
+            fired.append(True)
+            supervisor._finish(job_dir, _run_in(timed_out, False), None if timed_out else 0)
+
+    real_path = local_module._exit_code_path
+    real_result = local_state.read_job_result
+
+    def result_then_finish(data_dir: Path) -> tuple[str, int | None] | None:
+        result = real_result(data_dir)
+        finish_once()  # a no-op when the exit-code file was looked at first
+        return result
+
+    monkeypatch.setattr(
+        local_module, "_exit_code_path", lambda record: _ExitFileSpy(real_path(record), finish_once)
+    )
+    monkeypatch.setattr(local_state, "read_job_result", result_then_finish)
+
+    assert harness.status(job_id) == JobStatus(job_id, state, "local", exit_code)
+    assert fired == [True]
