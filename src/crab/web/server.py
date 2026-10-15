@@ -102,7 +102,8 @@ def create_app(
             "status": "ok",
             "crab_version": _crab_version(),
             "api_schema": API_SCHEMA_VERSION,
-            "sbatchman": settings.sbatchman,
+            # This branch always runs in SbatchMan mode (ADR-026).
+            "sbatchman": True,
         }
 
     app.include_router(api)
@@ -240,11 +241,11 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
         """index.html with the session token injected as a meta tag — the SPA
         reads it and sends X-Crab-Token on every API call (see api_guard)."""
         html = index.read_text(encoding="utf-8")
-        # SbatchMan mode is a launch-time toggle; inject it next to the token so the
-        # SPA can gate its nav/route before making any API call.
+        # This branch always runs in SbatchMan mode (ADR-026); inject it next to the
+        # token so the SPA can gate its nav/route before making any API call.
         meta = (
             f'<meta name="crab-token" content="{app.state.api_token}">'
-            f'<meta name="crab-sbatchman" content="{str(settings.sbatchman).lower()}">'
+            '<meta name="crab-sbatchman" content="true">'
         )
         html = html.replace("</head>", f"{meta}</head>", 1)
         return HTMLResponse(html, headers=_index_headers)

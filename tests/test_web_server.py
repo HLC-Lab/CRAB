@@ -70,17 +70,11 @@ def test_health_handshake(tmp_path: Path):
 
 
 # --------------------------------------------------------------------------- #
-# SbatchMan mode flag (ADR-025)
+# SbatchMan mode (always on in this branch, ADR-026; the frontend reads both)
 # --------------------------------------------------------------------------- #
-def test_health_reports_sbatchman_flag(tmp_path: Path):
-    off = auth_client(create_app(_settings(tmp_path)))
-    assert off.get("/api/health").json()["sbatchman"] is False
-
-    on_settings = Settings(
-        config_dir=tmp_path / "config", data_dir=tmp_path / "data", sbatchman=True
-    )
-    on = auth_client(create_app(on_settings))
-    assert on.get("/api/health").json()["sbatchman"] is True
+def test_health_reports_sbatchman_true(tmp_path: Path):
+    client = auth_client(create_app(_settings(tmp_path)))
+    assert client.get("/api/health").json()["sbatchman"] is True
 
 
 def test_spa_shell_injects_sbatchman_meta(tmp_path: Path):
@@ -88,67 +82,8 @@ def test_spa_shell_injects_sbatchman_meta(tmp_path: Path):
     static.mkdir()
     (static / "index.html").write_text("<!doctype html><head></head><body>app</body>")
 
-    off = auth_client(create_app(_settings(tmp_path, static=static)))
-    assert '<meta name="crab-sbatchman" content="false">' in off.get("/").text
-
-    on_settings = Settings(
-        config_dir=tmp_path / "config",
-        data_dir=tmp_path / "data",
-        static_override=static,
-        sbatchman=True,
-    )
-    on = auth_client(create_app(on_settings))
-    assert '<meta name="crab-sbatchman" content="true">' in on.get("/").text
-
-
-def test_get_settings_always_enables_sbatchman(tmp_path: Path, monkeypatch):
-    """This branch is dedicated to the SbatchMan flow (ADR-026): `get_settings()`
-    always turns the mode on, regardless of `CRAB_WEB_SBATCHMAN` being set, set to
-    a falsy value, or unset."""
-    from crab.web.settings import get_settings
-
-    monkeypatch.setenv("CRAB_WEB_CONFIG_DIR", str(tmp_path / "c"))
-    monkeypatch.setenv("CRAB_WEB_DATA_DIR", str(tmp_path / "d"))
-
-    monkeypatch.setenv("CRAB_WEB_SBATCHMAN", "nope")
-    get_settings.cache_clear()
-    assert get_settings().sbatchman is True
-
-    monkeypatch.delenv("CRAB_WEB_SBATCHMAN", raising=False)
-    get_settings.cache_clear()
-    assert get_settings().sbatchman is True
-
-
-def test_run_server_threads_sbatchman_flag_into_settings(tmp_path: Path, monkeypatch):
-    """The CLI flag must reach the app's Settings even when the env var is unset,
-    without binding a socket (uvicorn.run is stubbed)."""
-    import uvicorn
-
-    import crab.web.run as run_mod
-    from crab.web.settings import get_settings
-
-    monkeypatch.setenv("CRAB_WEB_CONFIG_DIR", str(tmp_path / "c"))
-    monkeypatch.setenv("CRAB_WEB_DATA_DIR", str(tmp_path / "d"))
-    monkeypatch.delenv("CRAB_WEB_SBATCHMAN", raising=False)
-    get_settings.cache_clear()
-
-    captured: dict = {}
-
-    def fake_create_app(settings):
-        captured["settings"] = settings
-
-        class _App:
-            class state:
-                api_token = "x"
-
-        return _App()
-
-    monkeypatch.setattr("crab.web.server.create_app", fake_create_app)
-    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: None)
-
-    run_mod.run_server(open_browser=False, sbatchman=True)
-    assert captured["settings"].sbatchman is True
-    get_settings.cache_clear()
+    client = auth_client(create_app(_settings(tmp_path, static=static)))
+    assert '<meta name="crab-sbatchman" content="true">' in client.get("/").text
 
 
 # --------------------------------------------------------------------------- #

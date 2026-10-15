@@ -80,8 +80,6 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
   (`views/AuthorView.vue`, `views/JobsView.vue`, `views/ResultsView.vue`,
   `views/ResultsCompareView.vue`, `views/ResultsJobView.vue`, `views/ReportView.vue`, and their
   supporting stores/components) sit unregistered in the tree. Delete them for real if this
-  branch is ever picked up for further work. The `--sbatchman` CLI flag, `Settings.sbatchman`,
-  and the `CRAB_WEB_SBATCHMAN` env var are similarly dead — `get_settings()` now hardcodes
-  `sbatchman=True` — and should go with the same cleanup. `webui/tests/e2e/authoring.spec.ts` is
-  `test.skip`ped rather than deleted or rewritten; the real replacement is a campaign-editor e2e
-  spec, not written yet.
+  branch is ever picked up for further work. `webui/tests/e2e/authoring.spec.ts` is
+  `test.skip`ped rather than deleted or rewritten; `webui/tests/e2e/campaign.spec.ts` is the
+  campaign-editor e2e spec that replaces it.
