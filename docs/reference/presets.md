@@ -130,7 +130,11 @@ host:
 | `<binding>` for an application with `cpus` | `--cpu-list <cores> --bind-to cpu-list:ordered` | `--map-by pe-list=<cores>:ordered` | `-bind-to user:<cores>` |
 | `<binding>` for an application on [shared cores](configuration.md#shared-nodes) without `cpus` | `--bind-to none` | `--bind-to none` | `-bind-to none` |
 | `-x NAME` for each forwarded variable | yes | yes | no: Hydra passes the whole environment |
-| `<report>` | `--report-bindings` | `--display bindings` | `-report-bindings` |
+| `<report>` | `--report-bindings` | `--display bindings` | none |
+
+Hydra gets no report: MPICH 4.2 rejects `-report-bindings`. Setting `HYDRA_TOPO_DEBUG=1` by hand
+makes it print `process <n> binding: <one 0/1 per core>` for each bound rank, but those lines land
+in the app's standard output.
 
 An application with neither `cpus` nor shared cores gets no binding flag, and `mpirun` uses its
 own default. `<flags>` are the preset's `launchers.mpirun.flags`, or the config's

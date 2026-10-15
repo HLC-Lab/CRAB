@@ -134,13 +134,20 @@ def test_two_fake_hosts_launch_one_daemon_each(mpirun: str, tmp_path: Path) -> N
     assert sorted(entry.split(":", 1)[0] for entry in log) == ["nodea", "nodeb"], "\n".join(log)
 
 
-def _bound_to(stderr: str) -> list[str]:
-    """What the binding report says each rank is bound to (the text after "bound to")."""
-    return [
-        line.lower().split("bound to", 1)[1].strip()
-        for line in stderr.splitlines()
-        if "bound to" in line.lower()
-    ]
+def _bound_to(output: str) -> list[str]:
+    """What the binding report says each rank is bound to.
+
+    Open MPI prints `... bound to <cores>` on its standard error; Hydra, when the test sets
+    HYDRA_TOPO_DEBUG=1 (CRAB's launcher never does: the lines go to stdout), prints
+    `process <n> binding: <one 0/1 per core>` on its standard output.
+    """
+    bound = []
+    for line in output.lower().splitlines():
+        if "bound to" in line:
+            bound.append(line.split("bound to", 1)[1].strip())
+        elif line.startswith("process ") and " binding: " in line:
+            bound.append(line.split(" binding: ", 1)[1].strip())
+    return bound
 
 
 @pytest.mark.parametrize("mpirun", MPIRUNS)
@@ -157,6 +164,8 @@ def test_two_concurrent_launches_on_different_cores_are_bound_to_different_cores
         launch_line(launcher, Placement(("localhost",), 1, cpus=(core,)), command)
         for core in cores[:2]
     ]
+    # Hydra only reports bindings on request, and CRAB's launcher does not ask: the test does.
+    environment = dict(os.environ, HYDRA_TOPO_DEBUG="1")
     processes = [
         subprocess.Popen(
             ["bash", "-c", line],
@@ -164,20 +173,21 @@ def test_two_concurrent_launches_on_different_cores_are_bound_to_different_cores
             stderr=subprocess.PIPE,
             text=True,
             start_new_session=True,
+            env=environment,
         )
         for line in lines
     ]
     reports: list[str] = []
     for process, line in zip(processes, lines, strict=True):
         try:
-            _, err = process.communicate(timeout=LAUNCH_TIMEOUT_SECONDS)
+            out, err = process.communicate(timeout=LAUNCH_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             for running in processes:
                 if running.poll() is None:
                     os.killpg(running.pid, signal.SIGKILL)
             pytest.fail(f"launch timed out: {line}")
-        assert process.returncode == 0, f"{line}\nstderr: {err}"
-        reports.append(err)
+        assert process.returncode == 0, f"{line}\nstdout: {out}\nstderr: {err}"
+        reports.append(f"{out}\n{err}")
 
     bound = [_bound_to(report) for report in reports]
     shown = "\n".join(f"{line}\n{report}" for line, report in zip(lines, reports, strict=True))
