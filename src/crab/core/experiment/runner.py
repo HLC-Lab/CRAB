@@ -69,6 +69,8 @@ class ExperimentRunner:
         self.data_containers = []
         # The experiment's ranks per node, which the registry records; an app may set its own.
         self.ppn = parse_ppn(self.exp_opts.get("ppn", 1))
+        # Epoch seconds when execute began; the registry timestamps a job folder with none by it.
+        self.started_at: float | None = None
 
     def setup(self):
         """Loads apps, workload manager, and calculates node layout."""
@@ -254,6 +256,7 @@ class ExperimentRunner:
         runs = 0
         failed_runs = 0
         global_start = time.time()
+        self.started_at = global_start
         converged = False
         run_open = False  # a run has started and is not counted yet
 
@@ -401,4 +404,5 @@ class ExperimentRunner:
             total_runs,
             failed_runs,
             lambda message: self.log.error(message),
+            started_at=self.started_at,
         )

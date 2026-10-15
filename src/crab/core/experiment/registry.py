@@ -1,6 +1,7 @@
 """Appending an experiment's row to the system-level metadata.csv."""
 
 import csv
+import datetime
 import fcntl
 import os
 import re
@@ -17,6 +18,7 @@ def write_registry_row(
     total_runs: int,
     failed_runs: int,
     log_error: Callable[[str], None],
+    started_at: float | None = None,
 ) -> None:
     """
     Appends a data row for this experiment to the system-level metadata.csv.
@@ -28,6 +30,11 @@ def write_registry_row(
     081). An existing metadata.csv from before this field existed keeps
     its old header forever (no migration, by design) -- new rows still
     append fine, they just aren't readable by these column names.
+
+    The timestamp column is the job folder's own timestamp when its name has one
+    (CRAB's `<job_name>_<timestamp>` folders). A job folder without one, such as a
+    SbatchMan job directory, gets `started_at` (epoch seconds, when the experiment began),
+    or the time of this write when the caller passes none.
     """
     try:
         # Traversal: self.exp_dir is system/job_name_timestamp/experiment_name
@@ -39,10 +46,16 @@ def write_registry_row(
         exp_basename = os.path.basename(exp_dir)
 
         # Extract standard ISO-like timestamp from the job folder suffix
-        timestamp = "unknown"
         ts_match = re.search(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}", job_basename)
         if ts_match:
             timestamp = ts_match.group(0)
+        else:
+            moment = (
+                datetime.datetime.fromtimestamp(started_at)
+                if started_at is not None
+                else datetime.datetime.now()
+            )
+            timestamp = moment.strftime("%Y-%m-%d_%H-%M-%S")
 
         # Safely gather metadata parameters
         job_name = global_opts.get("name", "unknown")
