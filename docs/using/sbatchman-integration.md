@@ -79,10 +79,10 @@ If your site needs a module for a recent Python, load it before creating the env
 (for example `module load python/3.11`).
 
 Install SbatchMan **from GitHub `main`, not from PyPI**. As of this writing, PyPI's release
-(`1.0.8`) predates two fixes on `main` that this flow depends on: SbatchMan exporting
-`SBATCHMAN_JOB_DIR` into each job, and its jobs-file `configs:` key actually being read. This
-page was verified against `main` at commit `18701e426d627d6bb7c5b8e4ef9fced533868345`; `main`
-has no version pin, so if something here stops matching what you see, check that first.
+(`1.0.8`) predates a fix on `main` that this flow depends on: SbatchMan exporting
+`SBATCHMAN_JOB_DIR` into each job. This page was verified against `main` at commit
+`18701e426d627d6bb7c5b8e4ef9fced533868345`; `main` has no version pin,
+so if something here stops matching what you see, check that first.
 
 Check both tools from the activated environment:
 
@@ -155,7 +155,7 @@ not now on the login node.
 - `PATH` puts `crab` on the job's path. Without it, the job only finds `crab` if you launched
   from an activated shell and your site forwards the submitting environment to jobs.
 - `CRAB_ROOT`, `CRAB_SYSTEM` and `CRAB_PATH_WRAPPERS` are what the worker needs to find its
-  install, name the system, and resolve wrapper paths like `blink/a2a_b.py`.
+  install, name the system, and resolve wrapper paths like `blink/alltoall_b.py`.
 - `SBATCHMAN_JOB_DIR={EXP_DIR}` points the worker at the job's own directory. Recent SbatchMan
   `main` already exports it; keeping the line makes the preset work with builds that don't.
 
@@ -168,12 +168,42 @@ See SbatchMan's own documentation for every other `configure slurm` option (`--t
 `--nodes`, `--gpus`, `--qos`, ...). To change a preset later, re-run the command with
 `--overwrite`.
 
+### Sizing the allocation for co-runs
+
+When an experiment co-runs apps on the same nodes (`allocation.mode: "shared"`), the Slurm
+allocation has to hold all of their ranks at once. CRAB sizes `--ntasks-per-node` itself in the
+batch scripts it writes, but SbatchMan writes its own from the preset, so here you size it by
+hand: set `--ntasks-per-node` in the preset to the largest number of ranks any node carries, and
+`--nodes` to the experiment's `numnodes`. On each node, apps that share it add up; apps that start
+after another one on its nodes (`start: "sN"`) count once, at the largest `ppn` of the chain.
+[Ranks per node](../reference/configuration.md#ranks-per-node-ppn) gives the rule CRAB itself
+applies.
+
+For example, two apps on the same 2 nodes, with `ppn` 4 each, need 8 tasks per node:
+
+```bash
+sbatchman configure slurm \
+  --name crab_corun_2n \
+  --nodes 2 \
+  --ntasks-per-node 8 \
+  ... \
+  --env 'SBATCHMAN_JOB_DIR={EXP_DIR}'
+```
+
+A group that sweeps the node count needs one preset per value (for example `crab_corun_2n` and
+`crab_corun_4n`), picked through a `{nodes}`-style placeholder in the group's **SbatchMan preset**.
+
+CRAB does not check this value for a SbatchMan campaign. When it is smaller than the largest
+per-node load, the allocation cannot hold every app's ranks at the same time, so the co-run does
+not happen as configured: what follows is Slurm's behavior (a step is refused, or waits for
+free ranks), not a CRAB error message.
+
 ## 6. Author a campaign
 
 In the dashboard, open **SbatchMan** and build your campaign: give the group a tag, set its
 **SbatchMan preset** to the name you configured above (`crab_run` in the example), and add an
 app the same way you would in a normal CRAB experiment: for `blink`, pick a wrapper such as
-`blink/a2a_b.py` from the picker and set its args. Sweep values go in variables and are used as
+`blink/alltoall_b.py` from the picker and set its args. Sweep values go in variables and are used as
 `{name}` placeholders, including in numeric fields such as the node count or an allocation's
 stride.
 
@@ -181,13 +211,8 @@ The preview panel lists anything that would make the campaign fail at launch (a 
 a name, a `{placeholder}` no variable defines, a group without a preset, an invalid experiment).
 **Write files** stays disabled until that list is empty.
 
-Leave the **SbatchMan configs.yaml** field blank unless you specifically want SbatchMan's
-jobs-file `configs:` key to auto-provision configurations from a bulk config-definition file (the
-same format `sbatchman configure -f <file>` accepts). Pointing it at your project's own
-`SbatchMan/configs/configurations.yaml` registry (the file `sbatchman configure` itself writes
-to) does not work: SbatchMan reads a non-empty `configs:` value as a *definition* file to
-re-provision from, not a reference to the registry, and the registry's shape does not match, so
-it errors out. An empty field (the default) skips that step and resolves your preset by name.
+The dashboard does not write SbatchMan's jobs-file `configs:` key: each group's **SbatchMan
+preset** is resolved by name from the presets you created with `sbatchman configure`.
 
 Choose the connected cluster and click **Write files**. This saves the jobs YAML on your laptop
 and copies it to the cluster's staging directory; the page shows both paths. Each job's
@@ -300,13 +325,12 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `crab: command not found` in a job's `stderr.log` | The job's shell cannot see the CRAB environment | Add `--env 'PATH=<install dir>/CRAB/.venv/bin:$PATH'` to the preset ([step 5](#5-create-a-sbatchman-preset-for-crab)), re-run `configure` with `--overwrite`, relaunch |
 | `SbatchMan root not found. Please run 'sbatchman init'`, or a prompt offering to create a project | The command ran outside the project directory | `cd` into the directory where you ran `sbatchman init` ([step 4](#4-create-a-sbatchman-project)) |
 | `Cluster name not set. Please run 'sbatchman set-cluster-name'.` | No cluster name in SbatchMan's global settings | `sbatchman set-cluster-name your_cluster_name` |
-| `Wrapper not found: blink/a2a_b.py` (a relative path) in the job log | `CRAB_PATH_WRAPPERS` is not set in the job | Add it to the preset ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
+| `Wrapper not found: blink/alltoall_b.py` (a relative path) in the job log | `CRAB_PATH_WRAPPERS` is not set in the job | Add it to the preset ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
 | `Wrapper not found: <absolute path>` | The wrapper file is not in that CRAB checkout | Check the path, and that the cluster's CRAB is on the `sbatchman` branch and up to date (`crab update`) |
 | `No binary for ... Tried: ...` in the job log | No config `binary`, receipt, or program on `PATH` for that wrapper | Build it, load its module in the preset, or record it with `crab receipts set` ([step 3](#3-build-or-register-the-benchmarks)) |
 | `PARSE FAILED  app <n>: ...` in the job log, and the run counted as failed | The wrapper could not read the application's output (the reason follows) | Compare the output with what the wrapper expects; fix the wrapper and check it with `crab parse` |
 | `This config has schema_version <n>, but this CRAB reads up to <m>` | The campaign was written by a newer dashboard than the cluster's CRAB | `crab update` on the cluster |
 | `crab update` stops with `Local edits to tracked files would be overwritten` | A tracked file in the checkout was changed by hand | Move the change to `local/` (presets, receipts, wrappers), or commit or stash it, then retry |
-| `sbatchman launch` fails with a `TypeError` | The campaign's **SbatchMan configs.yaml** field points at the project's configuration registry | Clear that field in the dashboard, write the campaign again ([step 6](#6-author-a-campaign)) |
 | `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job: SbatchMan is the PyPI release, or the preset lacks the entry | Install SbatchMan from GitHub `main` ([step 2](#2-install-crab-and-sbatchman-on-the-cluster)) and keep the `SBATCHMAN_JOB_DIR={EXP_DIR}` entry |
 | `worker environment: CRAB_... is no longer read; use ...` in the job log | The preset still exports an old `CRAB_*` launch variable | Remove it from the preset and re-run `configure` with `--overwrite` ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
