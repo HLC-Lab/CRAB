@@ -375,3 +375,266 @@ def test_writes_only_inside_out(tmp_path: Path, configs: dict[str, dict[str, Any
     assert snapshot() == before
     assert {p.name for p in out.iterdir()} == {"summary.csv", "summary.md"}
     assert {p.name for p in tmp_path.iterdir()} == {"inputs", "deep"}
+
+
+# --- The ping-pong set: per-run statistics and the Ceilings section -------------------------------
+
+PP_SIZES = (8, 2 * 1024 * 1024)
+# Times in microseconds, one list per run; the ping-pong time is the MainRank column (the CSV
+# helper writes a row's `max` there). Run medians 10, 25, 42.5 -> median of them 25 (the pooled
+# median of all ten iterations is 20.5, so the two differ). Slow iterations (over 1.5 x the median
+# of their own run: 15, 37.5, 63.75): 16 and 31 of run 1 -> 2 of 10 = 20 %. Against the pooled
+# median (30.75) 31, 40 and 45 would count: 30 %.
+PP_RUNS = {1: [10, 10, 10, 10, 16, 31], 2: [25, 25], 3: [40, 45]}
+PP_T_RUN = (10 * US, 25 * US, 42.5 * US)  # fastest, median and slowest run median
+PP_GRTY = 2
+# The node total (pairwise, Max and Median columns): Median 5 / 8 / 9 -> run medians 5, 8, 9;
+# Max 10 10 / 12 12 / 30 30 -> run medians 10, 12, 30: only the Max of run 3 is not slow, and
+# each run's own median says that none is (15, 18, 45).
+PW_RUNS = {1: [(1, 10, 5), (1, 10, 5)], 2: [(1, 12, 8), (1, 12, 8)], 3: [(1, 30, 9), (1, 30, 9)]}
+
+
+def pp_app(path: str, size: int, **extra: Any) -> dict[str, Any]:
+    args = f"-msgsize {size} -iter 100 -grty {PP_GRTY}"
+    return {"path": path, "args": args, "collect": True, "start": "0", "end": "", **extra}
+
+
+def pp_config(
+    stem: str,
+    tests: tuple[str, ...],
+    global_ppn: str = "1",
+    sizes: tuple[int, ...] = PP_SIZES,
+    **app: Any,
+) -> dict[str, Any]:
+    """A config of the ping-pong set: one experiment per test, one collected app per size."""
+    experiments = {}
+    for test in tests:
+        path = "blink/pairwise_nb.py" if test.endswith("pw8") else PINGPONG
+        apps = {str(i): pp_app(path, size, **app) for i, size in enumerate(sizes)}
+        experiments[f"pp_{test}_C2_P1"] = {"apps": apps}
+    return {"global_options": {"name": stem, "ppn": global_ppn}, "experiments": experiments}
+
+
+def write_pp(data: Path, test: str, sizes: tuple[int, ...] = PP_SIZES) -> None:
+    """The CSVs of one pp experiment (every size with the same rows)."""
+    for app, size in enumerate(sizes):
+        if test.endswith("pw8"):
+            rows = [(r, 1, mx, med) for r, its in PW_RUNS.items() for _, mx, med in its]
+        else:
+            rows = [(r, 1, t, 1) for r, its in PP_RUNS.items() for t in its]
+        write_csv(data, f"pp_{test}_C2_P1", app, size, rows)
+
+
+@pytest.fixture
+def pp_dirs(tmp_path: Path) -> list[Path]:
+    pair = make_dir(tmp_path, pp_config("pp_n1n2_C2_P1", ("n1n2-md", "n1n2-default", "n1n2-dual")))
+    for test in ("n1n2-md", "n1n2-default", "n1n2-dual"):
+        write_pp(pair, test)
+    total = make_dir(tmp_path, pp_config("pp_n1n3_pw8_C2_P1", ("n1n3-pw8",), global_ppn="4"))
+    write_pp(total, "n1n3-pw8")
+    return [pair, total]
+
+
+def test_pp_rows_carry_phase_victim_and_one_way_time(pp_dirs: list[Path], tmp_path: Path) -> None:
+    df, _, _ = summarize(tmp_path, *pp_dirs)
+    assert set(df["phase"]) == {"pp"}
+    assert set(df["test"]) == {"n1n2-md", "n1n2-default", "n1n2-dual", "n1n3-pw8"}
+    r = row(df, "pp_n1n2-md_C2_P1", 8)
+    assert r["victim"] == r["test"] == "n1n2-md"
+    assert r["n_runs"] == 3 and r["n_iters"] == 10 and r["grty"] == PP_GRTY
+    assert r["t_med"] == pytest.approx(20.5 * US)  # the pooled median stays as before
+    assert r["bw_gbps"] == pytest.approx(8 * PP_GRTY * 8 / (20.5 * US) / 1e9)
+
+
+def test_bandwidth_from_the_per_run_medians(pp_dirs: list[Path], tmp_path: Path) -> None:
+    df, _, _ = summarize(tmp_path, *pp_dirs)
+    r = row(df, "pp_n1n2-md_C2_P1", 2 * 1024 * 1024)
+    bits = 2 * 1024 * 1024 * PP_GRTY * 8 / 1e9
+    fast, mid, slow = PP_T_RUN
+    assert r["bw_runs_med"] == pytest.approx(bits / mid)
+    assert r["bw_runs_max"] == pytest.approx(bits / fast)  # the fastest run
+    assert r["bw_runs_min"] == pytest.approx(bits / slow)  # the slowest run
+    assert r["bw_runs_med"] != pytest.approx(r["bw_gbps"])
+
+
+def test_slow_iterations_are_counted_against_their_own_run(
+    pp_dirs: list[Path], tmp_path: Path
+) -> None:
+    df, _, _ = summarize(tmp_path, *pp_dirs)
+    assert row(df, "pp_n1n2-md_C2_P1", 8)["slow_pct"] == pytest.approx(20.0)
+    # The node total is no ping-pong: the Max column against the median of the Max column.
+    assert row(df, "pp_n1n3-pw8_C2_P1", 8)["slow_pct"] == pytest.approx(0.0)
+
+
+def test_slow_iterations_of_a_non_pingpong_use_the_max_column(
+    tmp_path: Path, configs: dict[str, dict[str, Any]]
+) -> None:
+    data = make_dir(tmp_path, configs["smoke_md_p2_perm_C0_P1"])
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE)
+    r = row(summarize(tmp_path, data)[0], "p2_perm_alone_C0_P1")
+    # Max per run: 20 20 30 30 (median 25) and 20 40 40 50 (median 40): over 37.5 and 60: none.
+    assert r["slow_pct"] == pytest.approx(0.0)
+    rows = [(1, 10, 20, 10)] * 3 + [(1, 10, 40, 10)] + [(2, 10, 20, 10)] * 4
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, rows)
+    # Run 1 Max: 20 20 20 40 -> median 20, 40 > 30 is slow: 1 of 8.
+    assert row(summarize(tmp_path, data)[0], "p2_perm_alone_C0_P1")["slow_pct"] == pytest.approx(
+        12.5
+    )
+
+
+def test_node_total_scales_the_per_rank_bandwidth(pp_dirs: list[Path], tmp_path: Path) -> None:
+    df, _, _ = summarize(tmp_path, *pp_dirs)
+    total = row(df, "pp_n1n3-pw8_C2_P1", 8)
+    assert total["program"] == "blink/pairwise_nb.py"
+    # Median column run medians 5 8 9 -> 8 us; the config's ppn is 4.
+    assert total["bw_runs_med"] == pytest.approx(8 * PP_GRTY * 8 / (8 * US) / 1e9)
+    assert total["node_gbps"] == pytest.approx(4 * total["bw_runs_med"])
+    assert math.isnan(row(df, "pp_n1n2-md_C2_P1", 8)["node_gbps"])
+
+
+def test_node_total_prefers_the_ppn_of_the_app(tmp_path: Path) -> None:
+    data = make_dir(tmp_path, pp_config("pp_n1n3_pw8_C2_P1", ("n1n3-pw8",), global_ppn="4", ppn=8))
+    write_pp(data, "n1n3-pw8")
+    df, _, _ = summarize(tmp_path, data)
+    r = row(df, "pp_n1n3-pw8_C2_P1", 8)
+    assert r["node_gbps"] == pytest.approx(8 * r["bw_runs_med"])
+
+
+def test_other_rows_have_the_per_run_columns_too(
+    tmp_path: Path, configs: dict[str, dict[str, Any]]
+) -> None:
+    data = make_dir(tmp_path, configs["smoke_md_p2_perm_C0_P1"])
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE)
+    r = row(summarize(tmp_path, data)[0], "p2_perm_alone_C0_P1")
+    # Run medians 25 and 50: the median of them is 37.5 (the pooled one is 35).
+    assert r["bw_runs_med"] == pytest.approx(SIZE * 64 * 8 / (37.5 * US) / 1e9)
+    assert r["bw_runs_max"] == pytest.approx(SIZE * 64 * 8 / (25 * US) / 1e9)
+    assert r["bw_runs_min"] == pytest.approx(SIZE * 64 * 8 / (50 * US) / 1e9)
+    assert r["bw_gbps"] == pytest.approx(SIZE * 64 * 8 / T_MED / 1e9)  # unchanged
+
+
+def section(md: str) -> list[str]:
+    """The lines of the Ceilings section of summary.md."""
+    lines = md.splitlines()
+    start = lines.index("# Ceilings (ping-pong set)")
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("#")), len(lines))
+    return lines[start:end]
+
+
+def cells(line: str) -> list[str]:
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def test_ceilings_come_first_after_the_intro(pp_dirs: list[Path], tmp_path: Path) -> None:
+    _, md, _ = summarize(tmp_path, *pp_dirs)
+    lines = md.splitlines()
+    assert lines[0] == "# NPLB campaign summary"
+    headings = [ln for ln in lines if ln.startswith("#")]
+    assert headings[:2] == ["# NPLB campaign summary", "# Ceilings (ping-pong set)"]
+    assert md.index("# Ceilings") > md.index("- bw_gbps:")
+    assert " pp n1n" not in md  # no per-phase table of the pp rows: no second copy
+
+
+def test_ceilings_table_of_bandwidth(pp_dirs: list[Path], tmp_path: Path) -> None:
+    _, md, _ = summarize(tmp_path, *pp_dirs)
+    lines = section(md)
+    tables = [i for i, ln in enumerate(lines) if ln.startswith("size")]
+    assert len(tables) == 2
+    header = cells(lines[tables[0]])
+    assert header == ["size", "n1n2 md", "n1n2 def", "n1n2 dual", "n1n3 pw8/rank", "n1n3 pw8/node"]
+    body = {cells(ln)[0]: cells(ln) for ln in lines[tables[0] + 2 : tables[0] + 4]}
+    assert set(body) == {"8 B", "2 MiB"}
+    big = 2 * 1024 * 1024 * PP_GRTY * 8 / (25 * US) / 1e9
+    got = dict(zip(header, body["2 MiB"], strict=True))
+    # 1342.2 Gb/s per rank on the pair, 4194.3 per rank and 16777.2 per node on the total:
+    # from 100 up the cells are whole numbers.
+    assert big == pytest.approx(1342.177)
+    assert got["n1n2 md"] == got["n1n2 def"] == got["n1n2 dual"] == "1342"
+    assert got["n1n3 pw8/rank"] == "4194" and got["n1n3 pw8/node"] == "16777"
+    small = dict(zip(header, body["8 B"], strict=True))
+    assert small["n1n2 md"] == "0.00512" and small["n1n3 pw8/rank"] == "0.016"  # 3 significant
+    text = "\n".join(lines)
+    assert "runs: 3" in text and "medians of per-run medians" in text and "one-way" in text
+
+
+def test_ceilings_table_of_slow_iterations(pp_dirs: list[Path], tmp_path: Path) -> None:
+    _, md, _ = summarize(tmp_path, *pp_dirs)
+    lines = section(md)
+    second = [i for i, ln in enumerate(lines) if ln.startswith("size")][1]
+    header = cells(lines[second])
+    got = dict(zip(header, cells(lines[second + 2]), strict=True))
+    assert got["n1n2 md"] == got["n1n2 dual"] == "20.0"
+    assert got["n1n3 pw8/rank"] == "0.0"
+
+
+def test_ceilings_stay_compact_for_the_full_set(tmp_path: Path) -> None:
+    kib, mib = 1024, 1024 * 1024
+    sizes = (8, 64, 512, 4 * kib, 32 * kib, 64 * kib, 128 * kib, 256 * kib, 512 * kib, mib, 2 * mib)
+    tests = tuple(f"n1n{j}-{v}" for j in (2, 3, 4) for v in ("md", "default", "dual"))
+    tests += ("n1n3-pw8",)
+    data = make_dir(tmp_path, pp_config("pp_n1n2_C2_P1", tests, global_ppn="8", sizes=sizes))
+    for test in tests:
+        write_pp(data, test, sizes)
+    _, md, _ = summarize(tmp_path, data)
+    lines = section(md)
+    assert len(lines) <= 40, len(lines)
+    assert max(len(ln) for ln in lines) <= 120, max(lines, key=len)
+    assert cells(next(ln for ln in lines if "size" in ln))[1:] == [
+        *(f"n1n{j} {v}" for j in (2, 3, 4) for v in ("md", "def", "dual")),
+        "n1n3 pw8/rank",
+        "n1n3 pw8/node",
+    ]
+
+
+def test_missing_variant_leaves_its_column_out(tmp_path: Path) -> None:
+    data = make_dir(tmp_path, pp_config("pp_n1n2_C2_P1", ("n1n2-md", "n1n2-default")))
+    for test in ("n1n2-md", "n1n2-default"):
+        write_pp(data, test)
+    _, md, _ = summarize(tmp_path, data)
+    header = next(cells(ln) for ln in section(md) if "size" in ln)
+    assert header == ["size", "n1n2 md", "n1n2 def"]
+
+
+def test_unreadable_pp_csv_is_reported(
+    pp_dirs: list[Path], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (pp_dirs[0] / "pp_n1n2-dual_C2_P1" / "data_app_0.csv").write_bytes(b"\xff\xfe\x00 \x80\n\x00")
+    df, md, printed = summarize(tmp_path, *pp_dirs, capsys=capsys)
+    assert "pp_n1n2-dual_C2_P1" in printed and "CSV" in printed
+    assert 8 not in set(df[df["test"] == "n1n2-dual"]["msg_size"])
+    assert "n1n2 md" in md
+
+
+def test_no_ceilings_without_pp_rows(tmp_path: Path, configs: dict[str, dict[str, Any]]) -> None:
+    data = make_dir(tmp_path, configs["smoke_md_p2_perm_C0_P1"])
+    write_csv(data, "p2_perm_alone_C0_P1", 1, SIZE, ALONE)
+    _, md, _ = summarize(tmp_path, data)
+    assert "Ceilings" not in md and "## md (smoke) p2 perm" in md
+
+
+def test_runs_per_column_become_a_row_when_they_differ(tmp_path: Path) -> None:
+    data = make_dir(tmp_path, pp_config("pp_n1n2_C2_P1", ("n1n2-md", "n1n2-default")))
+    write_pp(data, "n1n2-md")
+    for app, size in enumerate(PP_SIZES):  # the default variant has only the first two runs
+        rows = [(r, 1, t, 1) for r, its in PP_RUNS.items() if r < 3 for t in its]
+        write_csv(data, "pp_n1n2-default_C2_P1", app, size, rows)
+    _, md, _ = summarize(tmp_path, data)
+    lines = section(md)
+    assert "runs: see the last row" in "\n".join(lines)
+    last = next(cells(ln) for ln in lines if ln.startswith("runs "))
+    assert last == ["runs", "3", "2"]  # n1n2 md, n1n2 def
+
+
+@pytest.mark.parametrize(
+    ("value", "cell_text"),
+    [
+        (1040.4, "1040"),
+        (168.4, "168"),
+        (99.96, "100"),
+        (41.94, "41.9"),
+        (0.0409, "0.0409"),
+        (float("nan"), "–"),
+    ],
+)
+def test_ceilings_bandwidth_cells(value: float, cell_text: str) -> None:
+    assert analyze.ceiling_bw(value) == cell_text

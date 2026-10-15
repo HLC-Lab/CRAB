@@ -17,6 +17,19 @@ and times almost nothing. Only rank 0, which sends first and waits for the reply
 round trip: a ping-pong app's time comes from Blink's `MainRank` column (rank 0's sample), and its
 spread is not reported (`–`). For the other apps the spread at small sizes mostly measures how far
 apart the ranks entered the window, so read it at large sizes.
+
+Per-run statistics never pool iterations of different runs (runs are separate repetitions, so they
+differ by what else shared the fabric at the time). `bw_runs_med`, `bw_runs_min` and
+`bw_runs_max` are the bandwidth at the median, the slowest and the fastest of the per-run median
+times. `slow_pct` is the percentage of iterations slower than 1.5 times the median of their own
+run (the MainRank column for ping-pong, the Max column otherwise): a stall that hits some of the
+iterations shows there while the median does not move. `node_gbps` (node-total rows only) is
+`bw_runs_med` times the ranks per node.
+
+The ping-pong set (`pp_*` experiments: one node pair per variant, and the node total `pw8`) gets
+a `# Ceilings (ping-pong set)` section at the top of summary.md instead of per-phase tables: one
+table of bandwidth per size and pair-variant, short enough to photograph from a console, and a
+table of slow-iteration rates.
 """
 
 from __future__ import annotations
@@ -26,6 +39,7 @@ import json
 import math
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -63,12 +77,19 @@ COLUMNS = [
     "run_cv",
     "slowdown_med",
     "slowdown_p99",
+    "bw_runs_med",
+    "bw_runs_min",
+    "bw_runs_max",
+    "slow_pct",
+    "node_gbps",
 ]
 NAN = float("nan")
 DASH = "–"
-_FILE_NAME = re.compile(r"^(?P<smoke>smoke_)?(?P<set>md|col)_(?P<rest>.+)$")
+_FILE_NAME = re.compile(r"^(?P<smoke>smoke_)?(?P<set>md|col|pp)_(?P<rest>.+)$")
 _GRTY = re.compile(r"(?:^|\s)-grty\s+(\d+)")
 BW = ".3g"  # bandwidth cells: three significant digits (small sizes are tiny)
+SLOW_FACTOR = 1.5  # an iteration this many times slower than its run's median is slow
+PP_VARIANTS = {"md": "md", "default": "def", "dual": "dual"}  # variant -> column label
 SIZE_UNITS = (("GiB", 1 << 30), ("MiB", 1 << 20), ("KiB", 1 << 10))
 
 
@@ -111,12 +132,33 @@ def is_pingpong(program: str) -> bool:
     return "pingpong" in program
 
 
+def bandwidth(msg_size: int, grty: int, t: float) -> float:
+    """Gb/s of `grty` messages of `msg_size` bytes in `t` seconds; NaN without a time."""
+    return msg_size * grty * 8 / t / 1e9 if t > 0 else NAN
+
+
+def ranks_per_node(app: dict[str, Any], global_ppn: Any) -> int:
+    """The ranks per node of an app: its own `ppn`, else the config's, else 1."""
+    for value in (app.get("ppn"), global_ppn):
+        try:
+            return max(1, int(value))
+        except (TypeError, ValueError):
+            continue
+    return 1
+
+
+def is_node_total(parsed: dict[str, Any]) -> bool:
+    """Whether an experiment is the ping-pong set's node total (`pp_n1n3-pw8_...`)."""
+    return parsed["phase"] == "pp" and str(parsed["test"]).endswith("-pw8")
+
+
 def size_metrics(
     group: pd.DataFrame, app: int, msg_size: int, grty: int, pingpong: bool = False
 ) -> dict[str, Any]:
     """The metrics of one app's rows for one message size (pure: no IO).
 
     A ping-pong takes its time from rank 0's column and has no spread (see the module docstring).
+    The `*_runs_*` bandwidths and `slow_pct` are per run, never pooled over runs.
     """
     high = group[f"{app}_Max-Duration_s"]
     med = group[f"{app}_{'MainRank' if pingpong else 'Median'}-Duration_s"]
@@ -131,6 +173,8 @@ def size_metrics(
         spread = (high[valid] / low[valid]).astype(float)
         skipped = int((~valid).sum())
     run_medians = med.groupby(group["run_id"]).median()
+    own_median = high.groupby(group["run_id"]).transform("median")
+    slow = high > SLOW_FACTOR * own_median
     mean = float(run_medians.mean())
     cv = float(run_medians.std(ddof=1)) / mean if len(run_medians) >= 2 and mean > 0 else NAN
     return {
@@ -139,11 +183,15 @@ def size_metrics(
         "t_med": t_med,
         "t_p99": float(med.quantile(0.99)),
         "t_max_p99": float(high.quantile(0.99)),
-        "bw_gbps": msg_size * grty * 8 / t_med / 1e9 if t_med > 0 else NAN,
+        "bw_gbps": bandwidth(msg_size, grty, t_med),
         "spread_med": float(spread.median()) if len(spread) else NAN,
         "spread_p99": float(spread.quantile(0.99)) if len(spread) else NAN,
         "spread_skipped": skipped,
         "run_cv": cv,
+        "bw_runs_med": bandwidth(msg_size, grty, float(run_medians.median())),
+        "bw_runs_min": bandwidth(msg_size, grty, float(run_medians.max())),  # the slowest run
+        "bw_runs_max": bandwidth(msg_size, grty, float(run_medians.min())),  # the fastest run
+        "slow_pct": 100 * float(slow.mean()),
     }
 
 
@@ -175,6 +223,7 @@ def read_dir(path: Path, report: Report) -> list[dict[str, Any]]:
         return []
     report.dirs += 1
     set_name, smoke, key = file_fields(file_name)
+    global_ppn = config.get("global_options", {}).get("ppn")
     rows: list[dict[str, Any]] = []
     for exp, body in experiments.items():
         apps = {k: a for k, a in body.get("apps", {}).items() if a.get("collect")}
@@ -194,6 +243,7 @@ def read_dir(path: Path, report: Report) -> list[dict[str, Any]]:
             report.experiments.add((path.name, exp))
             report.csvs += 1
             grty = app_grty(str(app.get("args", "")))
+            ppn = ranks_per_node(app, global_ppn)
             for msg_size, group in df.groupby("msg_size"):
                 ident = {
                     "data_dir": path.name,
@@ -209,6 +259,7 @@ def read_dir(path: Path, report: Report) -> list[dict[str, Any]]:
                 }
                 ident["victim"] = parsed["victim"] or key
                 found = size_metrics(group, int(app_id), int(msg_size), grty, pingpong)
+                found["node_gbps"] = found["bw_runs_med"] * ppn if is_node_total(parsed) else NAN
                 rows.append({**ident, **found})
     return rows
 
@@ -338,6 +389,91 @@ def c0_c2_tables(df: pd.DataFrame, report: Report) -> list[str]:
     return out
 
 
+def ceiling_bw(value: float) -> str:
+    """A ceilings bandwidth cell: whole Gb/s from 100 up (`1040`), else 3 significant digits."""
+    if isinstance(value, float) and math.isnan(value):
+        return DASH
+    return format(value, ".0f" if value >= 100 else BW)
+
+
+def pp_column(row_: dict[str, Any]) -> list[tuple[str, str]]:
+    """The (sort key, label) of the ceilings columns a pp row feeds: `n1n2 md`, `n1n3 pw8/rank`..."""
+    pair, _, variant = str(row_["test"]).rpartition("-")
+    if variant == "pw8":
+        return [(f"1 {pair} 0", f"{pair} pw8/rank"), (f"1 {pair} 1", f"{pair} pw8/node")]
+    order = list(PP_VARIANTS).index(variant) if variant in PP_VARIANTS else len(PP_VARIANTS)
+    return [(f"0 {pair} {order}", f"{pair} {PP_VARIANTS.get(variant, variant)}")]
+
+
+def compact_table(header: list[str], body: list[list[str]]) -> list[str]:
+    """A markdown table with right-aligned columns, no spaces and no outer pipes (narrow).
+
+    A full pp set has 11 columns and must fit 120 characters; the outer pipes are optional.
+    """
+    widths = [max(len(c) for c in col) for col in zip(header, *body, strict=True)]
+    align = ["<"] + [">"] * (len(header) - 1)
+    lines = [
+        "|".join(f"{c:{a}{w}}" for c, a, w in zip(cells_, align, widths, strict=True))
+        for cells_ in (header, *body)
+    ]
+    lines.insert(1, "|".join("-" * w for w in widths))
+    return lines
+
+
+def ceilings_tables(df: pd.DataFrame) -> str:
+    """The `# Ceilings (ping-pong set)` section of the pp rows of `df` (empty when it has none).
+
+    One column per pair-variant (the node total twice: per rank and per node), one row per size:
+    the bandwidth of the median of the per-run medians, and the share of slow iterations.
+    """
+    pp = df[df["phase"] == "pp"]
+    if pp.empty:
+        return ""
+    pp = pp.sort_values("data_dir").drop_duplicates(
+        ["net", "paths", "test", "msg_size"], keep="last"
+    )
+    several = pp[["net", "paths"]].drop_duplicates().shape[0] > 1
+    columns: dict[str, dict[str, Any]] = {}  # sort key -> {label, bw: {size: x}, slow, runs}
+    for r in pp.to_dict("records"):
+        for index, (key, label) in enumerate(pp_column(r)):
+            suffix = f" {r['net']}P{r['paths']}" if several else ""
+            col = columns.setdefault(
+                f"{key}{suffix}", {"label": label + suffix, "bw": {}, "slow": {}, "runs": []}
+            )
+            node = index == 1
+            col["bw"][r["msg_size"]] = r["node_gbps"] if node else r["bw_runs_med"]
+            col["slow"][r["msg_size"]] = NAN if node else r["slow_pct"]
+            col["runs"].append(r["n_runs"])
+    ordered = [columns[k] for k in sorted(columns)]
+    sizes = sorted(set(pp["msg_size"]))
+    header = ["size", *(c["label"] for c in ordered)]
+    runs = {c["label"]: min(c["runs"]) for c in ordered}
+    uniform = len(set(runs.values())) == 1
+
+    def table(
+        field: str, fmt_cell: Callable[[float], str], footer: list[str] | None = None
+    ) -> list[str]:
+        body = [[human_size(n), *(fmt_cell(c[field].get(n, NAN)) for c in ordered)] for n in sizes]
+        return compact_table(header, body + ([footer] if footer else []))
+
+    runs_row = None if uniform else ["runs", *(str(runs[c["label"]]) for c in ordered)]
+    count = f"runs: {next(iter(runs.values()))}" if uniform else "runs: see the last row"
+    lines = [
+        "# Ceilings (ping-pong set)",
+        "",
+        "Bandwidth in Gb/s, one-way for ping-pong; pw8/node is pw8/rank times the ranks per node.",
+        "",
+        *table("bw", ceiling_bw, runs_row),
+        "",
+        f"{count}. Values are medians of per-run medians, one-way for ping-pong.",
+        "",
+        "Slow iterations, % of iterations over 1.5 x the median of their own run:",
+        "",
+        *table("slow", lambda v: fmt(v, ".1f")),
+    ]
+    return "\n".join(lines)
+
+
 def markdown(df: pd.DataFrame, report: Report) -> str:
     """The text of summary.md."""
     intro = (
@@ -354,8 +490,10 @@ def markdown(df: pd.DataFrame, report: Report) -> str:
     )
     if df.empty:
         return intro + "\nNo data: no experiment of the given directories could be read.\n"
-    comparison = c0_c2_tables(df, report)
-    sections = main_tables(df)
+    rest = df[df["phase"] != "pp"]  # the pp rows are in the ceilings section only
+    comparison = c0_c2_tables(rest, report)
+    sections = [ceilings] if (ceilings := ceilings_tables(df)) else []
+    sections += main_tables(rest)
     if comparison:
         sections += ["# C0 vs C2\n\nbw C2/C0 above 1 means C2 is faster.", *comparison]
     return intro + "\n" + "\n\n".join(sections) + "\n"
