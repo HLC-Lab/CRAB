@@ -291,24 +291,37 @@ def release_hosts(fds: list[int]) -> None:
         os.close(fd)
 
 
-def write_job_state(data_dir: Path, state: str) -> None:
+def write_job_state(data_dir: Path, state: str, exit_code: int | None = None) -> None:
     """Replace `data_dir/local_state.json` with `state` and the current time, atomically.
 
+    A final state of a job whose worker ran carries `exit_code` (key `exit_code`) in the same
+    write, so a reader never sees the final state without it. PENDING, RUNNING and a job cancelled
+    before its worker started have none.
+
     Raises:
-        ValueError: `state` is not one of `JOB_STATES` (LOST is derived, never written).
+        ValueError: `state` is not one of `JOB_STATES` (LOST is derived, never written), or
+            `exit_code` is not an int.
     """
     if state not in JOB_STATES:
         raise ValueError(f"invalid job state {state!r}: expected one of {', '.join(JOB_STATES)}")
-    body = {"state": state, "at": datetime.now().isoformat(timespec="seconds")}
+    body: dict[str, str | int] = {
+        "state": state,
+        "at": datetime.now().isoformat(timespec="seconds"),
+    }
+    if exit_code is not None:
+        if type(exit_code) is not int:
+            raise ValueError(f"invalid exit code {exit_code!r}: expected an int")
+        body["exit_code"] = exit_code
     _atomic_write(data_dir / _STATE_FILE, json.dumps(body))
 
 
-def read_job_state(data_dir: Path) -> str | None:
-    """The state in `data_dir/local_state.json`, or None when there is no such file.
+def read_job_result(data_dir: Path) -> tuple[str, int | None] | None:
+    """The state and the exit code in `data_dir/local_state.json` (one read), or None when there
+    is no such file. The exit code is None when the file holds none.
 
     Raises:
-        ValueError: the file is unreadable, not valid JSON, or does not hold a state from
-            `JOB_STATES` (the message names the file).
+        ValueError: the file is unreadable, not valid JSON, does not hold a state from
+            `JOB_STATES`, or holds an `exit_code` that is not an int (the message names the file).
     """
     path = data_dir / _STATE_FILE
     try:
@@ -324,4 +337,17 @@ def read_job_state(data_dir: Path) -> str | None:
     state = data.get("state") if isinstance(data, dict) else None
     if not isinstance(state, str) or state not in JOB_STATES:
         raise ValueError(f"job state {path} does not hold a state from {', '.join(JOB_STATES)}")
-    return state
+    exit_code = data.get("exit_code")
+    if exit_code is not None and type(exit_code) is not int:
+        raise ValueError(f"job state {path} holds an exit_code that is not an int")
+    return state, exit_code
+
+
+def read_job_state(data_dir: Path) -> str | None:
+    """The state in `data_dir/local_state.json`, or None when there is no such file.
+
+    Raises:
+        ValueError: as `read_job_result`.
+    """
+    result = read_job_result(data_dir)
+    return None if result is None else result[0]
