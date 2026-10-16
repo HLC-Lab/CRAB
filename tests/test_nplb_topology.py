@@ -43,6 +43,7 @@ source "$dir/env"
 exec bash -c "$cmd"
 """
 FAKE_TCPDUMP = r"""#!/usr/bin/env bash
+args="$*"
 nd=
 while (($#)); do
     case $1 in
@@ -50,6 +51,12 @@ while (($#)); do
     esac
     shift
 done
+# a host that runs an LLDP agent hears its own outgoing frame first, unless the filter drops it
+own=$FAKE_HOST_DIR/lldp/$nd.own
+if [[ -f $own && $args != *"not ether src $(cat "$FAKE_HOST_DIR/mac/$nd")"* ]]; then
+    cat "$own"
+    exit 0
+fi
 [[ -f $FAKE_HOST_DIR/lldp/$nd ]] && cat "$FAKE_HOST_DIR/lldp/$nd"
 exit 0
 """
@@ -140,6 +147,7 @@ def build_host(
         put(net / "operstate", "down\n" if is_down else "up\n")
         put(net / "speed", "-1\n" if is_down else f"{speed_mbps}\n")
         put(net / "address", f"aa:bb:cc:00:{i:02x}:01\n")
+        put(d / "mac" / nd, f"aa:bb:cc:00:{i:02x}:01")
         if bonds and i in bonds:
             (sysfs / "class" / "net" / bonds[i]).mkdir(parents=True, exist_ok=True)
             (net / "master").symlink_to(sysfs / "class" / "net" / bonds[i])
@@ -230,12 +238,12 @@ def test_two_hosts_in_two_pods(world):
     assert "400 L2:1/1/2" in row1 and "800 L4:1/1/2" in row1
     head = find(lines, "n1:hostA")
     assert "n2:hostB" in head
-    assert find(lines, "hostA", "pod A")
-    assert find(lines, "hostB", "pod B")
+    assert find(lines, "hostA: pod L1/L2")
+    assert find(lines, "hostB: pod L3/L4")
     assert "hostA-hostB cross-pod" in find(lines, "pairs")
     assert "hostA f0→L1 f1→L2 on 4/4" in find(lines, "cards")
     assert "hostB f0→L3 f1→L4 on 4/4" in find(lines, "cards")
-    assert find(lines, "pods:", "A = L1/L2", "B = L3/L4", "lab figure")
+    assert find(lines, "pods:", "nodes that share a switch")
     assert "LLDP heard on 16/16 active ports" in find(lines, "LLDP heard")
     verdict = lines.index("== VERDICT")
     assert verdict > lines.index(row0)
@@ -379,7 +387,7 @@ def test_unreachable_host_is_a_fail_line_and_exit_1(world):
     assert "FAIL hostB: ssh exited 255" in find(lines, "FAIL")
     assert "unreachable" in find(lines, "mlx5_0 ")
     assert "400 L1:1/1/1" in find(lines, "mlx5_0 ")
-    assert find(lines, "hostA", "pod A")
+    assert find(lines, "hostA: pod L1/L2")
     assert find(lines, "hostB:", "unreachable")
 
 
@@ -542,23 +550,31 @@ def tsv_row(
 def test_leaf_label(summary):
     assert summary.leaf_label("NV_Leaf3_CE9866_x") == "L3"
     assert summary.leaf_label("Spine2-core") == "S2"
-    assert summary.leaf_label("weirdname_long") == "weirdn"
+    assert summary.leaf_label("weirdname_long") == "weirdnam"
+    assert summary.leaf_label("node117.cluster") == "node117"
     assert summary.leaf_label("-") == "-"
 
 
 def test_port_label(summary):
     assert summary.port_label("400GE1/1/5") == "1/1/5"
+    assert summary.port_label("400GE1/0/2:1") == "1/0/2:1"
     assert summary.port_label("Ethernet1/2") == "1/2"
     assert summary.port_label("swp17_long_name") == "ong_name"
     assert summary.port_label("-") == "-"
 
 
-def test_pod_rule(summary):
-    assert summary.pod_of({"L1", "L2"}) == "A"
-    assert summary.pod_of({"L3", "L4"}) == "B"
-    assert summary.pod_of({"L1", "L3"}) == "?"
-    assert summary.pod_of({"L1", "S1"}) == "?"
-    assert summary.pod_of(set()) == "?"
+def test_pods_group_the_hosts_that_share_a_switch(summary):
+    pods = summary.pods_of(
+        {
+            "a": {"L5", "L6"},
+            "b": {"L6"},
+            "c": {"L3", "L4"},
+            "d": {"L3", "node117"},
+            "e": set(),
+            "f": {"node110"},
+        }
+    )
+    assert pods == {"a": "L5/L6", "b": "L5/L6", "c": "L3/L4", "d": "L3/L4", "e": "?", "f": "?"}
 
 
 def test_render_orders_devices_naturally_and_hosts_by_first_appearance(summary):
@@ -589,5 +605,36 @@ def test_render_names_a_pod_from_the_leaves_heard_and_counts_cards_heard_on_both
         ]
     )
     lines = summary.render(text, "x.tsv")
-    assert "pod A (L1)" in find(lines, "hostA", "pod")
+    assert find(lines, "hostA: pod L1")
     assert "hostA f0/f1 both heard on 0/1" in find(lines, "cards")
+
+
+# 10. what the real cluster showed (2026-10-16) ----------------------------------------------
+
+
+def test_the_host_own_lldp_frame_is_filtered_out_and_the_switch_frame_is_kept(world):
+    d = build_host(world["root"], "hostA", world["base"], devs=2, leaves=("5", "6"))
+    for nd, port in (("eth0", "enp5s0f0np0"), ("eth1", "enp5s0f1np1")):
+        put(d / "lldp" / f"{nd}.own", lldp_frame("hostA", port))
+    result = run_topology(world, ["hostA"])
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = summary_lines(result)
+    assert "400 L5:1/1/1" in find(lines, "mlx5_0 ")
+    assert "400 L6:1/1/2" in find(lines, "mlx5_1 ")
+    assert find(lines, "hostA: pod L5/L6")
+
+
+def test_breakout_ports_keep_their_lane_and_another_host_heard_is_not_a_pod(summary):
+    text = "\n".join(
+        [
+            TSV_HEADER,
+            tsv_row("node110", "mlx5_4", sysname="NV_Leaf5_x", port="400GE1/0/2:1"),
+            tsv_row("node110", "mlx5_8", sysname="NV_Leaf5_x", port="400GE1/0/2:2"),
+            tsv_row("node114", "mlx5_0", sysname="node117", port="enp5s0f0np0"),
+        ]
+    )
+    lines = summary.render(text, "x.tsv")
+    assert "L5:1/0/2:1" in find(lines, "mlx5_4 ")
+    assert "L5:1/0/2:2" in find(lines, "mlx5_8 ")
+    assert "node117:5s0f0np0" in find(lines, "mlx5_0 ")
+    assert find(lines, "node114: pod ? (no switch heard; also node117)")

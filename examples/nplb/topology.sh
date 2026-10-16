@@ -3,8 +3,8 @@
 #   examples/nplb/topology.sh [HOST...]
 # With no HOST, the nodes of $PARTITION (sinfo). Over ssh, in parallel, every node reports each of
 # its RDMA ports (state, rate, netdev, speed, MAC, bond, IPv4, RoCE v2 GID index, PCI, NUMA) and
-# listens for one LLDP frame per netdev (tcpdump), which names the leaf switch and port behind
-# it. All raw lines go to $WORK/topology_<time>.tsv; the screen gets a summary of at most 40
+# listens for one incoming LLDP frame per netdev (tcpdump, the port's own frames filtered out:
+# hosts running an LLDP agent send them too), which names the leaf switch and port behind it. All raw lines go to $WORK/topology_<time>.tsv; the screen gets a summary of at most 40
 # lines x 120 columns (grid of devices x nodes, then pods, victim pair, ports, cards, LLDP).
 # Nothing is changed on any node or switch: it only reads sysfs and listens.
 # Exit status: 0 when every node answered, 1 when a node failed, 2 when the setup is missing
@@ -71,6 +71,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 lines=()
 netdevs=()
+declare -A macs=()
 for devdir in "$sysfs"/class/infiniband/mlx5_*; do
     [[ -d $devdir ]] || continue
     dev=${devdir##*/}
@@ -89,6 +90,7 @@ for devdir in "$sysfs"/class/infiniband/mlx5_*; do
         oper=$(rd "$net/operstate")
         speed=$(rd "$net/speed")
         mac=$(rd "$net/address")
+        macs[$nd]=$mac
         if [[ -L $net/master ]]; then
             master=$(readlink "$net/master" 2>/dev/null)
             bond=$(clean "${master##*/}")
@@ -126,7 +128,7 @@ if ((${#lines[@]} == 0)); then
     exit 0
 fi
 
-# one LLDP frame per netdev, all netdevs listening at once
+# one LLDP frame per netdev, all netdevs listening at once; never the host's own outgoing frame
 can_listen=1
 if ! command -v tcpdump >/dev/null; then
     warn "tcpdump not found, no LLDP from this host"
@@ -139,7 +141,9 @@ if ((can_listen)); then
     for nd in "${netdevs[@]}"; do
         [[ -e $tmp/$nd.out ]] && continue
         : >"$tmp/$nd.out"
-        timeout -k 2 "$wait_s" tcpdump -i "$nd" -nn -v -c 1 'ether proto 0x88cc' \
+        filter='ether proto 0x88cc'
+        [[ ${macs[$nd]:--} != - ]] && filter+=" and not ether src ${macs[$nd]}"
+        timeout -k 2 "$wait_s" tcpdump -i "$nd" -nn -v -c 1 "$filter" \
             >"$tmp/$nd.out" 2>"$tmp/$nd.err" &
     done
     wait

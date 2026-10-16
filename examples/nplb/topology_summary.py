@@ -27,7 +27,7 @@ FIELDS = (
     "host dev port state rate link_layer netdev operstate speed_mbps mac bond ipv4 gid pci numa "
     "lldp_sys lldp_port"
 ).split()
-POD_RULE = "pods: A = L1/L2, B = L3/L4, from the lab figure"
+POD_RULE = "pods: nodes that share a switch heard over LLDP (named by their switches)"
 NO_LLDP = "LLDP not visible on hosts: use the switch reader"
 ARROW = "→"
 
@@ -70,7 +70,8 @@ def natural_key(name: str) -> list[object]:
 
 
 def leaf_label(sysname: str) -> str:
-    """`NV_Leaf3_CE9866_x` -> L3, `Spine2...` -> S2, anything else: its first 6 characters."""
+    """`NV_Leaf3_CE9866_x` -> L3, `Spine2...` -> S2, anything else (a host): its short name, at
+    most 8 characters."""
     if sysname == "-":
         return "-"
     leaf = re.search(r"leaf(\d+)", sysname, re.IGNORECASE)
@@ -79,24 +80,43 @@ def leaf_label(sysname: str) -> str:
     spine = re.search(r"spine(\d+)", sysname, re.IGNORECASE)
     if spine:
         return f"S{spine.group(1)}"
-    return sysname[:6]
+    return short(sysname)[:8]
+
+
+def is_switch(label: str) -> bool:
+    return re.fullmatch(r"[LS]\d+", label) is not None
 
 
 def port_label(port: str) -> str:
-    """`400GE1/1/5` -> 1/1/5, anything without a slashed number: its last 8 characters."""
+    """`400GE1/1/5` -> 1/1/5, `400GE1/0/2:1` (breakout lane) -> 1/0/2:1, anything without a
+    slashed number: its last 8 characters."""
     if port == "-":
         return "-"
-    found = re.search(r"\d+(?:/\d+)+", port)
+    found = re.search(r"\d+(?:/\d+)+(?::\d+)?", port)
     return found.group(0) if found else port[-8:]
 
 
-def pod_of(leaves: set[str]) -> str:
-    """Pod of a node from the leaves its ports hear: A = {L1, L2}, B = {L3, L4}, else ?."""
-    if leaves and leaves <= {"L1", "L2"}:
-        return "A"
-    if leaves and leaves <= {"L3", "L4"}:
-        return "B"
-    return "?"
+def pods_of(heard: dict[str, set[str]]) -> dict[str, str]:
+    """Pod of each host: hosts that hear a common switch are one pod, named by all the switches
+    its hosts hear ("L5/L6"); a host that hears no switch (only hosts, or nothing) gets "?"."""
+    switches = {h: {s for s in labels if is_switch(s)} for h, labels in heard.items()}
+    groups: list[tuple[set[str], set[str]]] = []  # (hosts, switches)
+    for h, sw in switches.items():
+        if not sw:
+            continue
+        touching = [g for g in groups if g[1] & sw]
+        merged = ({h}, set(sw))
+        for g in touching:
+            merged[0].update(g[0])
+            merged[1].update(g[1])
+            groups.remove(g)
+        groups.append(merged)
+    pods = {h: "?" for h in heard}
+    for members, sw in groups:
+        name = "/".join(sorted(sw, key=natural_key))
+        for h in members:
+            pods[h] = name
+    return pods
 
 
 def short(host: str) -> str:
@@ -258,18 +278,24 @@ def verdicts(
     leaves: dict[str, set[str]] = {
         h: {p.leaf for p in ports[h] if p.leaf is not None and p.active} for h in hosts
     }
-    pods = {h: pod_of(leaves[h]) for h in hosts}
+    pods = pods_of(leaves)
     out = [POD_RULE]
 
     pod_entries = []
     for h in hosts:
         if h in unreachable:
             pod_entries.append(f"{short(h)}: unreachable")
-        elif pods[h] == "?" and not leaves[h]:
+        elif not leaves[h]:
             pod_entries.append(f"{short(h)}: pod ? (no leaf heard)")
         else:
-            seen = " ".join(sorted(leaves[h], key=natural_key))
-            pod_entries.append(f"{short(h)}: pod {pods[h]} ({seen})")
+            others = " ".join(sorted((s for s in leaves[h] if not is_switch(s)), key=natural_key))
+            text = f"{short(h)}: pod {pods[h]}"
+            if pods[h] == "?":
+                text += " (no switch heard"
+                text += f"; also {others})" if others else ")"
+            elif others:
+                text += f" (also {others})"
+            pod_entries.append(text)
     out += wrap("hosts: ", pod_entries) if compact else pod_entries
 
     def relation(a: str, b: str) -> str:
