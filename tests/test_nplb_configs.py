@@ -839,12 +839,16 @@ def all_ports_profile(missing: tuple[str, ...] = ()) -> dict[str, Any]:
 
 
 def pingpong(
-    tmp_path: Path, nodes: int = 4, *args: str, all_ports: dict[str, Any] | None = None
+    tmp_path: Path,
+    nodes: int = 4,
+    *args: str,
+    all_ports: dict[str, Any] | None = None,
+    prof: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Run `--set pingpong` on the fake profiles into tmp_path/local/out."""
     (tmp_path / "ports.json").write_text(json.dumps(all_ports or all_ports_profile()))
     prof_path = tmp_path / "profile.json"
-    prof_path.write_text(json.dumps(per_card_profile(nodes)))
+    prof_path.write_text(json.dumps(prof or per_card_profile(nodes)))
     out = tmp_path / "local" / "out"
     argv = [str(prof_path), "--out", str(out), "--set", "pingpong", "--all-ports"]
     argv += [str(tmp_path / "ports.json"), "--net", "C2", "--paths", "1", *args]
@@ -869,11 +873,17 @@ def test_pingpong_file_set_per_node_count(tmp_path: Path, pp_four: dict[str, Any
         assert list(config["experiments"]) == [
             f"pp_{label}-{v}_C2_P1" for v in ("md", "default", "dual")
         ]
-    assert list(pp_four["pp_n1n3_pw8_C2_P1.json"]["experiments"]) == ["pp_n1n3-pw8_C2_P1"]
+    assert list(pp_four["pp_n1n3_pw8_C2_P1.json"]["experiments"]) == [
+        "pp_n1n3-pw8_C2_P1",
+        "pp_n1n3-pw8d_C2_P1",
+    ]
     (tmp_path / "two").mkdir()
     two = pingpong(tmp_path / "two", 2)
     assert set(two) == {"pp_n1n2_C2_P1.json", "pp_n1n2_pw8_C2_P1.json"}
-    assert list(two["pp_n1n2_pw8_C2_P1.json"]["experiments"]) == ["pp_n1n2-pw8_C2_P1"]
+    assert list(two["pp_n1n2_pw8_C2_P1.json"]["experiments"]) == [
+        "pp_n1n2-pw8_C2_P1",
+        "pp_n1n2-pw8d_C2_P1",
+    ]
     (tmp_path / "three").mkdir()
     three = pingpong(tmp_path / "three", 3)
     assert set(three) == {"pp_n1n2_C2_P1.json", "pp_n1n3_C2_P1.json", "pp_n1n3_pw8_C2_P1.json"}
@@ -952,6 +962,7 @@ def test_pingpong_program_and_sweep(pp_four: dict[str, Any], tmp_path: Path) -> 
     assert all(a["env"] == {"UCX_MAX_RNDV_RAILS": "1", "UCX_IB_NUM_PATHS": "1"} for a in pw8)
     for config, exp in (
         (pp_four["pp_n1n3_pw8_C2_P1.json"], "pp_n1n3-pw8_C2_P1"),
+        (pp_four["pp_n1n3_pw8_C2_P1.json"], "pp_n1n3-pw8d_C2_P1"),
         (pp_four["pp_n1n2_C2_P1.json"], "pp_n1n2-md_C2_P1"),
         (pp_four["pp_n1n2_C2_P1.json"], "pp_n1n2-dual_C2_P1"),
     ):
@@ -985,7 +996,7 @@ def test_pingpong_summary_lists_the_files(
     pingpong(tmp_path)
     out = capsys.readouterr().out
     assert "pp_n1n2_C2_P1.json: 3 experiments" in out
-    assert "pp_n1n3_pw8_C2_P1.json: 1 experiment" in out
+    assert "pp_n1n3_pw8_C2_P1.json: 2 experiments" in out
     assert "dual" not in out.replace("pp_n1n2-dual", "")  # no omission note when all are written
 
 
@@ -1064,7 +1075,7 @@ def test_pingpong_names_round_trip(pp_four: dict[str, Any]) -> None:
                 == exp
             )
             seen += 1
-    assert seen == 10
+    assert seen == 11
 
 
 def test_parse_pingpong_name_fields() -> None:
@@ -1082,3 +1093,163 @@ def test_parse_pingpong_name_fields() -> None:
 
 def test_pingpong_set_is_not_part_of_both(four_node: dict[str, dict[str, Any]]) -> None:
     assert not any(name.startswith("pp_") for name in four_node)
+
+
+# --- ping-pong set: N ranks per node, warm-up, -maxsamples ----------------------------------
+
+
+def eight_card_profile() -> dict[str, Any]:
+    """profile8 with the first port of 8 cards and cores 0-3, 40-43."""
+    prof = per_card_profile()
+    prof["cpus"] = "0,1,2,3,40,41,42,43"
+    return prof
+
+
+def every_app(configs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    return [a for c in configs.values() for e in c["experiments"] for a in app_list(c, e)]
+
+
+@pytest.fixture(scope="module")
+def pp_ranks4(tmp_path_factory: pytest.TempPathFactory) -> dict[str, dict[str, Any]]:
+    return pingpong(tmp_path_factory.mktemp("pp-r4"), 4, "--ranks", "4", prof=eight_card_profile())
+
+
+def test_pingpong_ranks_names_the_file_and_the_experiments(pp_ranks4: dict[str, Any]) -> None:
+    assert set(pp_ranks4) == {
+        "pp_n1n2_C2_P1.json",
+        "pp_n1n3_C2_P1.json",
+        "pp_n1n4_C2_P1.json",
+        "pp_n1n3_pw4_C2_P1.json",
+    }
+    config = pp_ranks4["pp_n1n3_pw4_C2_P1.json"]
+    assert list(config["experiments"]) == ["pp_n1n3-pw4_C2_P1", "pp_n1n3-pw4d_C2_P1"]
+    assert config["global_options"]["ppn"] == "4"
+
+
+def test_pingpong_ranks_take_every_other_card_and_core(pp_ranks4: dict[str, Any]) -> None:
+    config = pp_ranks4["pp_n1n3_pw4_C2_P1.json"]
+    for exp in config["experiments"]:
+        apps = app_list(config, exp)
+        assert apps and {a["ppn"] for a in apps} == {4}
+        assert all(a["nics"] == ["mlx5_0:1", "mlx5_4:1", "mlx5_8:1", "mlx5_12:1"] for a in apps)
+        assert apps[0]["cpus"] == "0,2,40,42"
+        assert all(a["args"].startswith("-mode rot -offset 4 -msgsize ") for a in apps)
+
+
+def test_pingpong_ranks_ucx_env_on_and_off(pp_ranks4: dict[str, Any]) -> None:
+    config = pp_ranks4["pp_n1n3_pw4_C2_P1.json"]
+    on = app_list(config, "pp_n1n3-pw4_C2_P1")
+    assert all(a["env"] == {"UCX_MAX_RNDV_RAILS": "1", "UCX_IB_NUM_PATHS": "1"} for a in on)
+    off = app_list(config, "pp_n1n3-pw4d_C2_P1")
+    assert all(not any(k.startswith("UCX_") for k in a.get("env", {})) for a in off)
+    assert all(len(a["nics"]) == 4 for a in on + off)
+
+
+def test_pingpong_pairs_are_the_same_with_ranks(
+    pp_ranks4: dict[str, Any], pp_four: dict[str, Any]
+) -> None:
+    for label in ("n1n2", "n1n3", "n1n4"):
+        name = f"pp_{label}_C2_P1.json"
+        assert pp_ranks4[name]["experiments"] == pp_four[name]["experiments"]
+
+
+def test_pingpong_without_ranks_has_both_node_total_experiments(pp_four: dict[str, Any]) -> None:
+    config = pp_four["pp_n1n3_pw8_C2_P1.json"]
+    plain = app_list(config, "pp_n1n3-pw8_C2_P1")
+    off = app_list(config, "pp_n1n3-pw8d_C2_P1")
+    assert [a["args"] for a in plain] == [a["args"] for a in off]
+    assert all(a["env"] == {"UCX_MAX_RNDV_RAILS": "1", "UCX_IB_NUM_PATHS": "1"} for a in plain)
+    assert all("env" not in a for a in off)
+    assert all(a["nics"] == plain[0]["nics"] and a["ppn"] == 8 for a in off)
+
+
+@pytest.mark.parametrize("ranks", ["3", "0", "-2", "9"])
+def test_pingpong_ranks_must_divide_the_ppn(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], ranks: str
+) -> None:
+    with pytest.raises(SystemExit) as stop:
+        pingpong(tmp_path, 4, "--ranks", ranks)
+    assert stop.value.code == 2
+    err = capsys.readouterr().err.strip().splitlines()[-1]
+    assert "--ranks" in err and "ppn" in err
+    assert not (tmp_path / "local" / "out").exists()
+
+
+def test_ranks_needs_the_pingpong_set(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tmp_path / "profile.json").write_text(json.dumps(profile()))
+    argv = [str(tmp_path / "profile.json"), "--out", str(tmp_path / "out"), "--ranks", "4"]
+    with pytest.raises(SystemExit) as stop:
+        make_configs.main(argv)
+    assert stop.value.code == 2
+    assert "--ranks" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
+
+
+def test_subset_profile_keeps_every_nth_nic_and_core() -> None:
+    layout = make_configs.PAIR_LAYOUT
+    nics = tuple(f"n{i}" for i in range(8))
+    cores = (0, 1, 2, 3, 40, 41, 42, 43)
+    prof = make_configs.Profile(8, nics, "0,1,2,3,40,41,42,43", cores, 1800.0, layout, ("a", "b"))
+    sub = make_configs.subset_profile(prof, 2)
+    assert (sub.ppn, sub.nics, sub.cpus, sub.cores) == (2, ("n0", "n4"), "0,40", (0, 40))
+    assert sub.nodes == ("a", "b") and sub.mem_gib == 1800.0
+    assert make_configs.subset_profile(prof, 8) == prof
+
+
+def test_warmup_reaches_every_pingpong_app(tmp_path: Path) -> None:
+    apps = every_app(pingpong(tmp_path, 4, "--warmup", "200"))
+    assert apps and all(" -warmup 200" in a["args"] for a in apps)
+
+
+def test_warmup_zero_is_written_and_default_is_absent(
+    tmp_path: Path, pp_four: dict[str, Any], four_node: dict[str, Any]
+) -> None:
+    zero = every_app(pingpong(tmp_path, 4, "--warmup", "0"))
+    assert zero and all(" -warmup 0" in a["args"] for a in zero)
+    for files in (pp_four, four_node):
+        assert all("-warmup" not in a["args"] for a in every_app(files))
+
+
+def test_warmup_refuses_a_negative_value(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as stop:
+        pingpong(tmp_path, 4, "--warmup", "-1")
+    assert stop.value.code == 2
+    assert "--warmup" in capsys.readouterr().err
+
+
+def test_maxsamples_follows_iterations_over_1000(tmp_path: Path) -> None:
+    flags = ("--iter-small", "2000", "--iter-128m", "1000", "--iter-512m", "7")
+    pp = every_app(pingpong(tmp_path, 4, *flags))
+    assert {iter_of(a) for a in pp} == {2000, 1000, 7}
+    for app in pp:
+        words = app["args"].split()
+        if iter_of(app) > 1000:
+            assert words[words.index("-maxsamples") + 1] == str(iter_of(app))
+        else:
+            assert "-maxsamples" not in words
+    (tmp_path / "md").mkdir()
+    md = [
+        a
+        for a in every_app(
+            generate(tmp_path / "md", profile(), "--set", "md", "--iter-small", "1500")
+        )
+        if "-iter" in a["args"]
+    ]
+    assert {iter_of(a) for a in md} == {1500, 100, 25}
+    assert all(("-maxsamples" in a["args"]) == (iter_of(a) > 1000) for a in md)
+
+
+def test_maxsamples_is_absent_with_default_iterations(
+    four_node: dict[str, Any], pp_four: dict[str, Any]
+) -> None:
+    for files in (four_node, pp_four):
+        assert all("-maxsamples" not in a["args"] for a in every_app(files))
+
+
+def test_parse_node_total_names_with_any_rank_count() -> None:
+    for name in ("pp_n1n3-pw4_C2_P1", "pp_n1n3-pw4d_C2_P1", "pp_n1n3-pw16_C2_P1"):
+        parsed = naming.parse_experiment_name(name)
+        assert parsed is not None and parsed["phase"] == "pp", name
+    assert naming.parse_experiment_name("pp_n1n3-pwx_C2_P1") is None

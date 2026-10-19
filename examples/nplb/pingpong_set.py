@@ -9,7 +9,9 @@ one rank per node over a size sweep and three port variants:
   `nics` key allows one device per rank, so the device list goes through `env`.
 
 A last job runs a pairwise permutation with the profile's ranks per node (one port per card) on
-the first and third node (the first and second with only two nodes): the node total.
+the first and third node (the first and second with only two nodes): the node total, as `pw<N>`
+for N ranks per node (`--ranks` narrows the profile). It has two experiments: with the
+campaign's UCX variables, and (`pw<N>d`) without any.
 
 This is the only set that writes node names (a `--nodelist` of each job, in the profile's order).
 """
@@ -124,16 +126,27 @@ def build_pair(
 def build_node_total(
     cfg: Settings, stem: str, net: str, paths: int, pair: tuple[int, int]
 ) -> Built:
-    """The pairwise permutation with every rank of the node, one port per card."""
+    """The pairwise permutation with every rank of the node, one port per card.
+
+    Two experiments over the same apps: `pw<N>` with the campaign's UCX variables, `pw<N>d`
+    with none (the NIC choice stays in the `nics` key).
+    """
     nodes = tuple(cfg.prof.nodes[i - 1] for i in pair)
     ppn = cfg.prof.ppn
-    out = cfg.collector()
-    apps, skipped = sweep(cfg, PAIRWISE, f"-mode rot -offset {ppn}", cfg.placement(), paths)
+    out, where, label = cfg.collector(), cfg.placement(), pair_label(*pair)
     text = (
         f"Pairwise permutation between node {pair[0]} and node {pair[1]}, {ppn} ranks per node "
-        f"(one port per card), over a size sweep: the node total."
+        f"(one port per card), over a size sweep: the node total"
     )
-    out.add(experiment_name("pp", f"{pair_label(*pair)}-pw8", net, paths), text, apps, skipped)
+    for suffix, ucx_env, what in (
+        ("", True, "with the campaign's UCX settings"),
+        ("d", False, "with no UCX variable set"),
+    ):
+        apps, skipped = sweep(
+            cfg, PAIRWISE, f"-mode rot -offset {ppn}", where, paths, ucx_env=ucx_env
+        )
+        name = experiment_name("pp", f"{label}-pw{ppn}{suffix}", net, paths)
+        out.add(name, f"{text}, {what}.", apps, skipped)
     return out.built(cfg.config(stem, net, "pingpong", None, ppn=ppn, nodelist=nodes))
 
 
@@ -150,6 +163,6 @@ def build_pingpong_files(
         stem = f"{prefix}pp_{pair_label(1, second)}_{net}_P{paths}"
         files[stem] = build_pair(cfg, stem, net, paths, (1, second), all_ports)
     total = (1, min(count, PW_PARTNER))
-    stem = f"{prefix}pp_{pair_label(*total)}_pw8_{net}_P{paths}"
+    stem = f"{prefix}pp_{pair_label(*total)}_pw{cfg.prof.ppn}_{net}_P{paths}"
     files[stem] = build_node_total(cfg, stem, net, paths, total)
     return files

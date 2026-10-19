@@ -10,10 +10,16 @@ Three test sets; the first two for path counts 1 and 4:
   Leonardo configs, adapted to this hardware. Files `col_a2a_...`, `col_agtr_...`, `col_ardc_...`.
 * ping-pong set (pingpong_set.py), `--set pingpong`, one network config and one path count: the
   bandwidth ceiling of one rank per node for three node pairs and three port variants, and the
-  node total of a pairwise x8. It needs `--all-ports PROFILE` (the probe's profile over every
+  node total of a pairwise permutation (UCX variables on and off). `--ranks N` builds the node
+  total for N of the profile's cards (every ppn/N-th: `--ranks 4` on 8 cards takes cards 0, 2,
+  4, 6; N divides the ppn). It needs `--all-ports PROFILE` (the probe's profile over every
   port, to find a card's second port), writes the node names into each file's `--nodelist`, and
   is the only set that does: `--out` must therefore sit inside a `local/` directory. Files
-  `pp_n1n2_...`, `pp_n1n3_pw8_...`; it is not part of `both`.
+  `pp_n1n2_...`, `pp_n1n3_pw8_...` (`pw4` with `--ranks 4`); it is not part of `both`.
+
+`--warmup W` adds `-warmup W` to every measured app (Blink's default is 5). An app with more
+than 1000 iterations gets `-maxsamples <iterations>`: Blink keeps at most 1000 samples per rank
+otherwise.
 
 Every md-set app except the aggressors gets `-grty min(100, ceil(2 MiB / msgsize))`; the
 colleague set has none.
@@ -38,7 +44,7 @@ import json
 import math
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +67,7 @@ BURST_LENGTHS = ("0.001", "0.01", "0.1")
 BURST_PAUSES = ("0.000001", "0.0001", "0.01")
 SMOKE_BURST = ("0.01", "0.0001")
 NETS = ("C0", "C2", "C3")
+BLINK_MAX_SAMPLES = 1000  # samples Blink keeps per rank unless `-maxsamples` says more
 
 
 def grty_for(size: int) -> int:
@@ -155,6 +162,7 @@ class Settings:
     iter_128m: int
     iter_512m: int
     aggressor_kinds: tuple[str, ...] = AGGRESSOR_KINDS  # phase-2 aggressors to build
+    warmup: int | None = None  # `-warmup` of every measured app; None leaves Blink's default
 
     aggressor_size = 2 * MIB  # both sets: the aggressor's message size
 
@@ -253,7 +261,8 @@ class Settings:
         (2 x nranks x size) or "ag" ((nranks + 1) x size): sizes whose buffers on one node pass
         half the node's memory are dropped and returned as text. Only the head carries the
         partition. `grty` adds `-grty` from the size (md set). `env` and `ucx_env` go to every app
-        (see `app`).
+        (see `app`). `-warmup` follows the run's option; `-maxsamples` is added when `-iter`
+        passes Blink's default cap of 1000 samples.
         """
         apps: dict[str, dict[str, Any]] = {}
         skipped: list[str] = []
@@ -269,9 +278,14 @@ class Settings:
                     )
                     continue
             key = len(apps)
-            args = f"{prefix} -msgsize {size} -iter {self.iterations(size)}".strip()
+            iterations = self.iterations(size)
+            args = f"{prefix} -msgsize {size} -iter {iterations}".strip()
             if grty:
                 args += f" -grty {grty_for(size)}"
+            if self.warmup is not None:
+                args += f" -warmup {self.warmup}"
+            if iterations > BLINK_MAX_SAMPLES:
+                args += f" -maxsamples {iterations}"
             apps[str(key)] = self.app(
                 path,
                 args,
@@ -373,6 +387,26 @@ def load_profile(path: Path, mem_gib: float | None, smoke: bool, pingpong: bool 
     return Profile(ppn, nics, str(data["cpus"]), tuple(cores), gib, layout, nodes)
 
 
+def subset_profile(prof: Profile, ranks: int) -> Profile:
+    """The profile narrowed to `ranks` cards: every (ppn // ranks)-th NIC and core, in order.
+
+    Raises ValueError when `ranks` is not in 1..ppn or does not divide the ppn.
+    """
+    if not 1 <= ranks <= prof.ppn or prof.ppn % ranks:
+        raise ValueError(
+            f"--ranks: {ranks} must be between 1 and the profile's ppn {prof.ppn} and divide it"
+        )
+    take = range(0, prof.ppn, prof.ppn // ranks)
+    cores = tuple(prof.cores[i] for i in take)
+    return replace(
+        prof,
+        ppn=ranks,
+        nics=tuple(prof.nics[i] for i in take),
+        cpus=",".join(str(c) for c in cores),
+        cores=cores,
+    )
+
+
 def tagged(files: dict[str, Built], tag: str) -> dict[str, Built]:
     """The files with `_<tag>` appended to each stem and to its config name and job name.
 
@@ -398,6 +432,17 @@ def tag_text(text: str) -> str:
             f"{text!r} must be letters, digits and '-' only (no '_', no spaces)"
         )
     return text
+
+
+def non_negative(text: str) -> int:
+    """argparse type of --warmup: an integer of 0 or more."""
+    try:
+        value = int(text)
+    except ValueError:
+        value = -1
+    if value < 0:
+        raise argparse.ArgumentTypeError(f"{text!r} must be an integer of 0 or more")
+    return value
 
 
 def build_all(
@@ -475,6 +520,17 @@ def parser() -> argparse.ArgumentParser:
         help="appended as _TAG to every file name and config name (not to experiment names), "
         "so runs of different setups, say ppn8 and ppn16, never mix",
     )
+    p.add_argument(
+        "--ranks",
+        type=int,
+        help="pingpong set: build the node total for this many of the profile's cards (every "
+        "ppn/N-th; N must divide the ppn), default: all of them",
+    )
+    p.add_argument(
+        "--warmup",
+        type=non_negative,
+        help="-warmup of every measured app, in iterations; default: Blink's (5)",
+    )
     p.add_argument("--minruns", type=int)
     p.add_argument("--maxruns", type=int)
     p.add_argument("--walltime", help="HH:MM:SS")
@@ -512,9 +568,13 @@ def main(argv: list[str] | None = None) -> int:
     ap = parser()
     args = ap.parse_args(argv)
     pingpong = args.sets == "pingpong"
+    if args.ranks is not None and not pingpong:
+        ap.error("--ranks: only the ping-pong set (--set pingpong) takes it")
     all_ports = check_pingpong_args(ap, args) if pingpong else None
     try:
         prof = load_profile(args.profile, args.mem_gib, args.smoke, pingpong)
+        if args.ranks is not None:
+            prof = subset_profile(prof, args.ranks)
     except ValueError as exc:
         ap.error(str(exc))
     cfg = Settings(
@@ -528,6 +588,7 @@ def main(argv: list[str] | None = None) -> int:
         args.iter_128m,
         args.iter_512m,
         tuple(args.aggressors),
+        args.warmup,
     )
     if args.sets in ("md", "both") and not selected_kinds(cfg):
         ap.error(aggressor_refusal(prof.layout.nodes))

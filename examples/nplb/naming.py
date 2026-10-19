@@ -9,6 +9,8 @@ one (it uses `-`). Examples:
     p2_perm_vs_burst-0.01-0.0001_C2_P1      phase 2, victim against a bursty aggressor
     cong_burst-0.01-0.0001_C0_P1            colleague's set (the file says which victim)
     pp_n1n3-md_C2_P1                        ping-pong set: nodes 1 and 3, the md port variant
+    pp_n1n3-pw8_C2_P1                       ping-pong set: node total of 8 ranks per node
+    pp_n1n3-pw4d_C2_P1                      the same with 4 ranks and no UCX variable (`d`)
 """
 
 from __future__ import annotations
@@ -23,7 +25,7 @@ _AGGRESSOR = rf"(?:a2a|incast|pw|{_BURST})"
 _NAME = re.compile(r"^(?P<phase>[a-z0-9]+)_(?P<test>.+)_(?P<net>C\d+)_P(?P<paths>\d+)$")
 _P2_TEST = re.compile(rf"^(?P<victim>perm|a2a|ag)_(?:alone|vs_(?P<aggressor>{_AGGRESSOR}))$")
 _CONG_TEST = re.compile(rf"^(?P<aggressor>{_BURST})$")
-_PP_TEST = re.compile(r"^n\d+n\d+-(?:md|default|dual|pw8)$")
+_PP_TEST = re.compile(r"^n\d+n\d+-(?:md|default|dual|pw\d+d?)$")
 
 
 def experiment_name(phase: str, test: str, net: str, paths: int) -> str:
