@@ -61,7 +61,7 @@ one exists, running anything you put in **Pre-commands** first (for example
 
 ```bash
 source <install dir>/CRAB/.venv/bin/activate
-pip install "git+https://github.com/LorenzoPichetti/SbatchMan.git@18701e426d627d6bb7c5b8e4ef9fced533868345"
+pip install "git+https://github.com/LorenzoPichetti/SbatchMan.git@f4537e6312cb064d44a060d7c53901a91735b11a"
 ```
 
 **Option B, by hand**, over SSH:
@@ -72,7 +72,7 @@ git clone --branch sbatchman https://github.com/HLC-Lab/CRAB
 cd CRAB
 make
 source .venv/bin/activate
-pip install "git+https://github.com/LorenzoPichetti/SbatchMan.git@18701e426d627d6bb7c5b8e4ef9fced533868345"
+pip install "git+https://github.com/LorenzoPichetti/SbatchMan.git@f4537e6312cb064d44a060d7c53901a91735b11a"
 ```
 
 `make` creates `.venv`, installs CRAB into it, clones the shared wrappers into `wrappers/`, and
@@ -83,10 +83,10 @@ then opens the `crab setup` wizard. You can build the benchmarks there right awa
 `make` needs `python3` 3.10 or newer. If your site's default is older, load a module for a
 recent Python before running it (for example `module load python/3.11`).
 
-Install SbatchMan **from GitHub at this commit**, not from PyPI and not from `main`. PyPI's
-release (`1.0.8`) predates a fix this flow depends on: SbatchMan exporting `SBATCHMAN_JOB_DIR`
-into each job. `main` has moved to a 2.0.0 rewrite that has not been verified with CRAB yet. This
-page was verified against commit `18701e426d627d6bb7c5b8e4ef9fced533868345`.
+Install SbatchMan **from GitHub at this commit**, not from PyPI. PyPI's release (`1.0.8`)
+predates a fix this flow depends on: SbatchMan exporting `SBATCHMAN_JOB_DIR` into each job. This
+page was verified against commit `f4537e6312cb064d44a060d7c53901a91735b11a` (SbatchMan `2.0.3`;
+`sbatchman --version` prints it). If something here stops matching, check whether `main` has moved.
 
 Check both tools from the activated environment:
 
@@ -275,9 +275,9 @@ Use SbatchMan's own tooling from here: `sbatchman status`, `sbatchman campaign-t
 results.
 
 !!! warning "Port collision"
-    Both `crab web` and `sbatchman visualize` default to port `8765`. To run both at once, start
-    one of them on a different port (`crab web --port <other port>`, or check
-    `sbatchman visualize --help` for its own port option).
+    Both `crab web` and `sbatchman visualize` use port `8765`, and `sbatchman visualize` has no
+    option to change it. To run both at once, start the dashboard on a different port with
+    `crab web --port <other port>`.
 
 ## Writing a wrapper for your own application
 
@@ -391,4 +391,4 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | "SSH support isn't installed in this environment" in the dashboard | The laptop install lacks the `web` extra | `pip install -e ".[web]"` from your CRAB checkout, then restart `crab web` |
 | `No such option: --ntasks-per-node` from `sbatchman configure slurm` | SbatchMan names that option `--tasks-per-node` (it writes Slurm's `--ntasks-per-node` itself) | Use `--tasks-per-node` and re-run with `--overwrite` ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
 | Timings vary between jobs of the same campaign, or `squeue` shows two of its jobs on the same nodes | The preset lacks `--exclusive`, so the jobs share nodes | Add `--exclusive` and re-run `configure` with `--overwrite` ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
-| The dashboard or `sbatchman visualize` will not start: port in use | Both default to `8765` | Start one on another port (see [step 8](#8-monitor-and-visualize)) |
+| The dashboard or `sbatchman visualize` will not start: port in use | Both use `8765`, and `sbatchman visualize` cannot change it | Start the dashboard on another port with `crab web --port <other port>` (see [step 8](#8-monitor-and-visualize)) |
