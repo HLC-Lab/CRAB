@@ -15,6 +15,9 @@
 // in docs/using/sbatchman-integration.md), not generated here. config.json still gets
 // heredoc'd -- it is per-job sweep data, not a static preset value.
 //
+// config.json's `global_options.name` defaults to the group tag (placeholders included),
+// so the run registry names each job instead of recording `unknown`.
+//
 // The embedded CRAB JSON keeps its `{var}` placeholders literal — SbatchMan's own
 // substitution regex ignores `{` followed by whitespace, so JSON object braces are
 // safe; only `{token}` (no spaces) is substituted.
@@ -174,9 +177,21 @@ function markNumericTokens(node: unknown, inAllocation = false): unknown {
   return out;
 }
 
+/** The group's config with `global_options.name` set to the group tag when the
+ * experiment sets no name of its own. Returns a copy; the group is never modified. */
+function withRunName(group: SbatchmanGroup): CrabConfig {
+  const name = group.config.global_options.name;
+  const hasName = typeof name === "string" && name.trim() !== "";
+  if (hasName || !group.tag.trim()) return group.config;
+  return { ...group.config, global_options: { ...group.config.global_options, name: group.tag } };
+}
+
 /** config.json text, with numeric-position placeholders unquoted. */
-function configJson(config: CrabConfig): string {
-  return JSON.stringify(markNumericTokens(config), null, 2).replace(SENTINEL_QUOTED, "{$1}");
+function configJson(group: SbatchmanGroup): string {
+  return JSON.stringify(markNumericTokens(withRunName(group)), null, 2).replace(
+    SENTINEL_QUOTED,
+    "{$1}",
+  );
 }
 
 /** The bash heredoc lines (at column 0) that write config.json. They become one
@@ -190,7 +205,7 @@ function preprocessLines(_campaign: SbatchmanCampaign, group: SbatchmanGroup): s
     ...json.split("\n"),
     "JSON",
   ];
-  return [`mkdir -p "${WORKDIR}"`, ...heredoc("config.json", configJson(group.config))];
+  return [`mkdir -p "${WORKDIR}"`, ...heredoc("config.json", configJson(group))];
 }
 
 /** Compose the full SbatchMan jobs YAML for a campaign. */
@@ -245,7 +260,7 @@ export function validateCampaign(campaign: SbatchmanCampaign): string[] {
     const combo = cartesian(usedVars(campaign, group))[0] ?? {};
     let config: unknown;
     try {
-      config = JSON.parse(substitute(configJson(group.config), combo));
+      config = JSON.parse(substitute(configJson(group), combo));
     } catch {
       issues.push(
         `${where}: a variable value makes config.json invalid (a text value in a numeric field?).`,

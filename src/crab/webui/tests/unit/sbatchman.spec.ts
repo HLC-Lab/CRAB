@@ -223,6 +223,38 @@ describe("composeCampaignYaml", () => {
     // Other string fields keep their quotes (numnodes stays a string, as in every config).
     expect(cfg.global_options.numnodes).toBe("8");
   });
+
+  it("names the run after the group tag, placeholders kept literal", () => {
+    const c = campaign();
+    c.groups[0].tag = "pilot_a2a_{size}";
+    const pre = (yaml.load(composeCampaignYaml(c)) as ParsedDoc).jobs[0].preprocess;
+    const raw = JSON.parse(heredocBody(pre, "config.json"));
+    expect(raw.global_options.name).toBe("pilot_a2a_{size}");
+    // SbatchMan's substitution turns it into the real job tag.
+    const expanded = JSON.parse(heredocBody(substituteAll(pre, { size: "1024" }), "config.json"));
+    expect(expanded.global_options.name).toBe("pilot_a2a_1024");
+  });
+
+  it("fills a blank run name from the tag too", () => {
+    const c = campaign();
+    c.groups[0].tag = "blank_name";
+    c.groups[0].config.global_options.name = "  ";
+    const pre = (yaml.load(composeCampaignYaml(c)) as ParsedDoc).jobs[0].preprocess;
+    expect(JSON.parse(heredocBody(pre, "config.json")).global_options.name).toBe("blank_name");
+  });
+
+  it("keeps a run name the experiment already sets", () => {
+    const c = campaign();
+    c.groups[0].config.global_options.name = "my_run";
+    const pre = (yaml.load(composeCampaignYaml(c)) as ParsedDoc).jobs[0].preprocess;
+    expect(JSON.parse(heredocBody(pre, "config.json")).global_options.name).toBe("my_run");
+  });
+
+  it("does not mutate the group's config when it fills the run name", () => {
+    const c = campaign();
+    composeCampaignYaml(c);
+    expect(c.groups[0].config.global_options).toEqual({ numnodes: "{nodes}" });
+  });
 });
 
 describe("validateCampaign", () => {
