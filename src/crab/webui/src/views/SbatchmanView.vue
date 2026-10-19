@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// SbatchMan campaign authoring: campaign-level settings, a rail of
-// job groups, the selected group's SbatchMan fields + its CRAB experiment
-// template (via the now-decoupled ExperimentPane/AllocationEditor), a
-// live YAML preview, and writing it to a connected cluster. Launching
+// SbatchMan campaign authoring: a rail with the campaign settings entry and the
+// job groups, the selected group as three numbered cards (1 Group, 2 Variables,
+// 3 Experiment: the CRAB experiment template via the now-decoupled
+// ExperimentPane/AllocationEditor), a live YAML preview, and writing it to a
+// connected cluster. Launching
 // is SbatchMan's job (ADR-026): this view never triggers `sbatchman launch`.
 import { computed, onMounted, ref, watchEffect } from "vue";
 import { useSbatchmanStore } from "@/stores/sbatchman";
@@ -12,6 +13,8 @@ import CampaignLibraryBar from "@/components/sbatchman/CampaignLibraryBar.vue";
 import CampaignBar from "@/components/sbatchman/CampaignBar.vue";
 import GroupRail from "@/components/sbatchman/GroupRail.vue";
 import GroupBasics from "@/components/sbatchman/GroupBasics.vue";
+import SectionCard from "@/components/sbatchman/SectionCard.vue";
+import VariablesCard from "@/components/sbatchman/VariablesCard.vue";
 import CampaignPreview from "@/components/sbatchman/CampaignPreview.vue";
 import WriteTarget from "@/components/sbatchman/WriteTarget.vue";
 import ExperimentPane from "@/components/author/ExperimentPane.vue";
@@ -91,56 +94,82 @@ function confirmRemoveGroup(): void {
     <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
     <p v-if="store.notice" class="banner info" role="status">{{ store.notice }}</p>
 
-    <header class="toolbar">
-      <button class="btn" :class="{ on: view.kind === 'campaign' }" @click="selectCampaign">
-        Campaign settings
-      </button>
-    </header>
-
     <div class="layout">
       <GroupRail
         :groups="store.groups"
-        :selected="store.selected"
+        :selected="view.kind === 'group' ? store.selected : -1"
+        :campaign-active="view.kind === 'campaign'"
         :jobs-for-group="store.jobsForGroup"
         @select="selectGroup"
+        @select-campaign="selectCampaign"
         @add="store.addGroup"
         @request-remove="requestRemoveGroup"
       />
 
       <main class="pane">
-        <template v-if="view.kind === 'campaign'">
+        <SectionCard
+          v-if="view.kind === 'campaign'"
+          title="Campaign settings"
+          subtitle="Reference values for your SbatchMan preset, not written to the YAML"
+        >
           <CampaignBar
             :crab-root="store.crabRoot"
             :system="store.system"
             :env="store.env"
-            :variables="store.variables"
             @update:crab-root="store.crabRoot = $event"
             @update:system="store.system = $event"
           />
-        </template>
+        </SectionCard>
 
-        <template v-else-if="group && experiment">
-          <GroupBasics
-            :tag="group.tag"
-            :preset="group.preset"
-            :variables="group.variables"
-            :draft="group.draft"
-            :samples="store.tagSamples(store.selected)"
-            @update:tag="group.tag = $event"
-            @update:preset="group.preset = $event"
-          />
-          <ExperimentPane
-            :experiment="experiment"
-            :exp-index="0"
-            :global-allocation="group.draft.allocation"
-            :global-numnodes="group.draft.numnodes"
-            :source-cluster="store.destination"
-            hide-remove
-            hide-cluster-select
-          />
+        <template v-else-if="group">
+          <SectionCard
+            :n="1"
+            title="Group"
+            subtitle="How SbatchMan names and submits this group's jobs"
+          >
+            <GroupBasics
+              :tag="group.tag"
+              :preset="group.preset"
+              :draft="group.draft"
+              :samples="store.tagSamples(store.selected)"
+              @update:tag="group.tag = $event"
+              @update:preset="group.preset = $event"
+            />
+          </SectionCard>
+          <SectionCard
+            :n="2"
+            title="Variables"
+            subtitle="Every combination of values becomes one job"
+          >
+            <VariablesCard
+              :group-variables="group.variables"
+              :campaign-variables="store.variables"
+            />
+          </SectionCard>
+          <SectionCard
+            v-if="experiment"
+            :n="3"
+            title="Experiment"
+            subtitle="What runs inside each job"
+          >
+            <ExperimentPane
+              :experiment="experiment"
+              :exp-index="0"
+              :global-allocation="group.draft.allocation"
+              :global-numnodes="group.draft.numnodes"
+              :source-cluster="store.destination"
+              hide-remove
+              hide-cluster-select
+            />
+          </SectionCard>
         </template>
 
         <p v-else class="empty pad">Add a group to start authoring the campaign.</p>
+
+        <!-- With no group there is no Variables card: keep the campaign-wide ones reachable. -->
+        <SectionCard v-if="!group" title="Variables" subtitle="Shared by every group you add">
+          <VariablesCard :campaign-variables="store.variables" />
+        </SectionCard>
       </main>
 
       <CampaignPreview
@@ -186,12 +215,6 @@ function confirmRemoveGroup(): void {
   margin: 0 -1.5rem 0.25rem;
   padding: 1rem 1.5rem 0.75rem;
 }
-.toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 1rem;
-}
 .banner {
   padding: 0.5rem 0.75rem;
   border-radius: var(--r);
@@ -207,23 +230,6 @@ function confirmRemoveGroup(): void {
   color: var(--text2);
   border: 1px solid var(--border2);
 }
-.btn {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--r);
-  padding: 0.35rem 0.8rem;
-  cursor: pointer;
-  font-family: var(--sans);
-}
-.btn:hover {
-  border-color: var(--accent);
-}
-.btn.on {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .layout {
   display: grid;
   grid-template-columns: 15rem minmax(45rem, 1fr) auto;
@@ -232,15 +238,10 @@ function confirmRemoveGroup(): void {
   min-width: 60rem;
 }
 .pane {
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: var(--r2);
-  padding: 1.5rem;
-  min-height: 18rem;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 1rem;
 }
 .empty {
   color: var(--text3);

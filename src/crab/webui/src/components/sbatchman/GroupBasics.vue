@@ -1,19 +1,16 @@
 <script setup lang="ts">
 // A campaign group's SbatchMan-specific fields (tag template, preset
-// reference, node count/ppn) plus its own scoped variables. Deliberately NOT
+// reference, node count/ppn) and its sample tags. Deliberately NOT
 // BasicsPane: those fields accept a raw `{var}` placeholder (e.g. numnodes
 // "{nodes}"), which BasicsPane's shared draft.numnodes field also holds, but
 // there is no validateDraft-style check run against it here — SbatchMan
 // expands `{var}` at launch time, long after this editor is done with it.
 import { computed } from "vue";
 import type { Draft } from "@/lib/config";
-import type { SbatchmanVar } from "@/lib/sbatchman";
-import VariablesEditor from "@/components/sbatchman/VariablesEditor.vue";
 
 const props = defineProps<{
   tag: string;
   preset: string;
-  variables: SbatchmanVar[];
   draft: Draft;
   samples: string[];
 }>();
@@ -34,13 +31,12 @@ const d = computed(() => props.draft);
 </script>
 
 <template>
-  <h2 class="pane-title">Group basics</h2>
   <div class="grid">
-    <label class="wide"
+    <label
       >Tag <input v-model="tagModel" placeholder="e.g. g500_baseline_{scale}_{nodes}" />
       <small>Identifies this group's jobs to SbatchMan. Can use {var} placeholders.</small>
     </label>
-    <label class="wide"
+    <label
       >SbatchMan preset <input v-model="presetModel" placeholder="e.g. {nodes}_nodes" />
       <small>The name of a preset you created with `sbatchman configure`.</small>
     </label>
@@ -54,28 +50,16 @@ const d = computed(() => props.draft);
     </label>
   </div>
 
-  <div class="vars-section">
-    <div class="seclabel">Group variables</div>
-    <p class="hint">Scoped to this group; a name here overrides a campaign-wide one.</p>
-    <VariablesEditor :variables="variables" />
-  </div>
-
   <p v-if="samples.length" class="samples">
     Sample tags: <span v-for="(s, i) in samples" :key="i" class="chip">{{ s }}</span>
   </p>
 </template>
 
 <style scoped>
-.pane-title {
-  font-family: var(--sans);
-  font-size: var(--t-lg);
-  color: var(--text);
-}
 .grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.9rem;
-  max-width: 38rem;
 }
 .grid label {
   display: flex;
@@ -83,9 +67,6 @@ const d = computed(() => props.draft);
   gap: 0.25rem;
   color: var(--text2);
   font-size: var(--t-md);
-}
-.grid label.wide {
-  grid-column: 1 / -1;
 }
 input {
   background: var(--bg2);
@@ -103,26 +84,6 @@ input:focus {
 small {
   color: var(--text3);
   font-size: var(--t-xs);
-}
-
-.vars-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  max-width: 38rem;
-}
-.seclabel {
-  font-family: var(--sans);
-  font-size: var(--t-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text3);
-  font-weight: 700;
-}
-.hint {
-  color: var(--text3);
-  font-size: var(--t-sm);
-  margin: 0;
 }
 
 .samples {

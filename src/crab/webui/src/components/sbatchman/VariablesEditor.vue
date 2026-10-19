@@ -32,6 +32,7 @@ function removeVar(i: number) {
 
 <template>
   <div class="vars">
+    <span v-if="!variables.length" class="none">None.</span>
     <div v-for="(v, i) in variables" :key="rowKey(v)" class="var-row">
       <input
         class="name"
@@ -58,6 +59,10 @@ function removeVar(i: number) {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+}
+.none {
+  color: var(--text3);
+  font-size: var(--t-sm);
 }
 .var-row {
   display: flex;

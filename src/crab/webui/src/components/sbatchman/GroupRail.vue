@@ -1,15 +1,18 @@
 <script setup lang="ts">
-// Left rail: navigator over campaign groups, mirroring AuthorRail's
-// experiments zone. Selection is owned by the caller (SbatchmanView).
+// Left rail: the Campaign settings entry, then a navigator over campaign groups
+// (mirroring AuthorRail's experiments zone). Selection is owned by the caller
+// (SbatchmanView): `selected` is -1 while the campaign entry is the active one.
 import { rowKey } from "@/lib/rowKey";
 
 defineProps<{
   groups: Array<{ tag: string }>;
   selected: number;
+  campaignActive: boolean;
   jobsForGroup: (i: number) => number;
 }>();
 const emit = defineEmits<{
   select: [number];
+  "select-campaign": [];
   add: [];
   "request-remove": [number];
 }>();
@@ -17,6 +20,19 @@ const emit = defineEmits<{
 
 <template>
   <aside class="rail">
+    <div class="zone">
+      <div class="zlabel">
+        <span>Campaign</span>
+      </div>
+      <ul>
+        <li :class="{ on: campaignActive }">
+          <button type="button" class="camp" @click="emit('select-campaign')">
+            <span>Campaign settings</span>
+            <small>CRAB checkout, system, environment</small>
+          </button>
+        </li>
+      </ul>
+    </div>
     <div class="zone">
       <div class="zlabel">
         <span>Groups</span>
@@ -120,6 +136,28 @@ const emit = defineEmits<{
   background: var(--bg2);
   border-color: var(--accent);
   color: var(--text);
+}
+.zone li:has(.camp) {
+  padding: 0;
+}
+.camp {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.camp small {
+  color: var(--text3);
+  font-size: var(--t-sm);
+  line-height: 1.3;
 }
 .g-name {
   flex: 1;

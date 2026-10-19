@@ -1,21 +1,18 @@
 <script setup lang="ts">
-// Campaign-level settings: the remote CRAB checkout, CRAB_SYSTEM, extra
-// environment entries, and the campaign-wide sweep variables (a group's own
-// variables of the same name override these — see lib/sbatchman.ts). ADR-027:
+// Campaign-level settings: the remote CRAB checkout, CRAB_SYSTEM and extra
+// environment entries. (Campaign-wide sweep variables live in the Variables
+// card, next to the group's own.) ADR-027:
 // CRAB_ROOT/CRAB_SYSTEM/env below are reference
 // values for the partner's own SbatchMan preset — nothing here is written into
 // a generated file; put them in `sbatchman configure --env ...` instead.
 import { computed } from "vue";
 import type { EnvPair } from "@/stores/sbatchman";
-import type { SbatchmanVar } from "@/lib/sbatchman";
-import VariablesEditor from "@/components/sbatchman/VariablesEditor.vue";
 import { rowKey } from "@/lib/rowKey";
 
 const props = defineProps<{
   crabRoot: string;
   system: string;
   env: EnvPair[];
-  variables: SbatchmanVar[];
 }>();
 const emit = defineEmits<{
   "update:crabRoot": [string];
@@ -32,7 +29,6 @@ function removeEnv(i: number) {
 </script>
 
 <template>
-  <h2 class="pane-title">Campaign</h2>
   <div class="grid">
     <label
       >Remote CRAB checkout
@@ -69,20 +65,9 @@ function removeEnv(i: number) {
     </div>
     <button type="button" class="btn" @click="addEnv">+ Add entry</button>
   </div>
-
-  <div class="vars-section">
-    <div class="seclabel">Campaign variables</div>
-    <p class="hint">Shared by every group unless a group defines its own with the same name.</p>
-    <VariablesEditor :variables="variables" />
-  </div>
 </template>
 
 <style scoped>
-.pane-title {
-  font-family: var(--sans);
-  font-size: var(--t-lg);
-  color: var(--text);
-}
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -117,8 +102,7 @@ small {
   font-size: var(--t-xs);
 }
 
-.env-section,
-.vars-section {
+.env-section {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;

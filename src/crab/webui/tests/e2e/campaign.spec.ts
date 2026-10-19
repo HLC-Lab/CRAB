@@ -59,3 +59,56 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await expect(page.getByPlaceholder("Campaign name")).toHaveValue("campaign");
 });
+
+test("variables card edits both scopes, and Campaign settings lives in the rail", async ({
+  page,
+}) => {
+  await page.goto("/sbatchman");
+  const preview = page.locator("aside.yamlpane");
+  const rail = page.locator("aside.rail");
+  const campaignEntry = rail.locator("li", { hasText: "Campaign settings" });
+  const groupEntry = rail.locator("li", { hasText: "untitled group" });
+
+  // Three numbered cards for the selected group, in order.
+  const cards = page.locator("section.card");
+  await expect(cards).toHaveCount(3);
+  await expect(cards.nth(0)).toContainText("Group");
+  await expect(cards.nth(1)).toContainText("Variables");
+  await expect(cards.nth(2)).toContainText("Experiment");
+  await expect(groupEntry).toHaveClass(/on/);
+  await expect(campaignEntry).not.toHaveClass(/on/);
+
+  // Both variable scopes sit in the Variables card; each reaches its own place in the YAML.
+  const groupVars = page.getByRole("group", { name: "This group variables" });
+  const campaignVars = page.getByRole("group", { name: "Campaign-wide variables" });
+  await groupVars.getByRole("button", { name: "+ Add variable" }).click();
+  await groupVars.getByPlaceholder("name").fill("size");
+  await groupVars.getByPlaceholder("values, comma separated").fill("1, 2");
+  await groupVars.getByPlaceholder("values, comma separated").blur();
+  await campaignVars.getByRole("button", { name: "+ Add variable" }).click();
+  await campaignVars.getByPlaceholder("name").fill("iters");
+  await campaignVars.getByPlaceholder("values, comma separated").fill("10, 20, 30");
+  await campaignVars.getByPlaceholder("values, comma separated").blur();
+  let doc = yaml.load(await preview.locator("pre").innerText()) as {
+    variables?: Record<string, unknown[]>;
+    jobs: Array<{ variables?: Record<string, unknown[]> }>;
+  };
+  expect(doc.variables).toEqual({ iters: [10, 20, 30] });
+  expect(doc.jobs[0]!.variables).toEqual({ size: [1, 2] });
+
+  // Removing a campaign-wide variable takes it out of the top level.
+  await campaignVars.getByTitle("Remove variable").click();
+  doc = yaml.load(await preview.locator("pre").innerText()) as typeof doc;
+  expect(doc.variables).toBeUndefined();
+
+  // Campaign settings: selected from the rail, highlighted, and the cards give way to it.
+  await campaignEntry.getByRole("button").click();
+  await expect(campaignEntry).toHaveClass(/on/);
+  await expect(groupEntry).not.toHaveClass(/on/);
+  await expect(page.getByPlaceholder("e.g. /home/user/CRAB")).toBeVisible();
+  await expect(page.getByRole("group", { name: "Campaign-wide variables" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Campaign settings", exact: true })).toHaveCount(0);
+  await groupEntry.click();
+  await expect(groupEntry).toHaveClass(/on/);
+  await expect(cards).toHaveCount(3);
+});
