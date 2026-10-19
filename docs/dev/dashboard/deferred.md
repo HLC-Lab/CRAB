@@ -32,7 +32,7 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
 | Wrapper authoring/editing/upload in the browser | Large and risky; select-existing only in v1 | Wrappers section (post-v1) |
 | Background monitoring / notifications while the laptop is closed | Needs a persistent process the HPC will not host; against the no-daemon design | Low priority |
 | Editable presets from the UI | v1 reads presets; editing is a nice-to-have | Post-v1 |
-| Parameter sweeps / experiment matrices | Arrive with the planned SbatchMan integration | With that merge |
+| Parameter sweeps / experiment matrices | Live in the SbatchMan campaign editor on the `sbatchman` partner branch, which is never merged back into this line ([ADR-028](decisions/adr-028-branch-model.md)); the product line has no sweeps | Not planned here |
 | Multi-user / shared server / central instance | Explicitly a personal tool | Not planned |
 | Gantt-style scheduling visualizations, drag-and-drop reordering | Cosmetic | Later |
 | Interactive cluster map of real nodes (pick nodes visually) | Overkill for now; the placement strip is the stepping stone | Later |

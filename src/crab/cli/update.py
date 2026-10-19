@@ -194,7 +194,8 @@ def run_update(
     return {"schema": CONTRACT_SCHEMA, "crab": crab, "wrappers": wrappers}
 
 
-# The shared wrappers repository (the separate crab-wrappers checkout, see ADR-031/ADR-032).
+# The shared wrappers repository. `wrappers/` is a separate git clone of it, ignored by CRAB's
+# own git; the wrapper contract is ADR-031.
 WRAPPERS_REPO_URL = "https://github.com/HLC-Lab/crab-wrappers.git"
 
 
