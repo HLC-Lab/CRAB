@@ -1,4 +1,6 @@
 import argparse
+import importlib
+import importlib.util
 import os
 import subprocess
 import sys
@@ -235,12 +237,23 @@ def handle_tui(args):
     app.run()
 
 
+_WEB_EXTRA_PACKAGES = ("fastapi", "uvicorn", "asyncssh")
+
+
+def _missing_web_packages() -> list[str]:
+    """Web-extra packages the dashboard needs at startup that are not importable."""
+    return [name for name in _WEB_EXTRA_PACKAGES if importlib.util.find_spec(name) is None]
+
+
 def handle_web(args):
     """
     Launch the web dashboard with lazy loading and auto-installation
     of optional dependencies (mirrors the TUI launcher).
     """
     try:
+        if _missing_web_packages():
+            # crab.web.run imports uvicorn lazily, so importing it alone would not notice.
+            raise ImportError("web extra not installed")
         # Delayed import to avoid the 'import tax' on every CLI invocation.
         from crab.web.run import run_server
     except ImportError:
@@ -260,6 +273,7 @@ def handle_web(args):
                     raise RuntimeError("no CRAB checkout found to install from")
                 subprocess.check_call(install_args)
                 print("[+] Installation successful. Launching dashboard...")
+                importlib.invalidate_caches()
                 from crab.web.run import run_server
             except Exception as e:
                 print(f"[ERROR] Auto-installation failed: {e}")
