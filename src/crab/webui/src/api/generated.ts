@@ -617,6 +617,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sbatchman/staging-path": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Staging Path
+     * @description Where Write files will put this campaign on the cluster (`~` preserved).
+     */
+    get: operations["staging_path_api_sbatchman_staging_path_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sbatchman/write": {
     parameters: {
       query?: never;
@@ -1193,6 +1213,11 @@ export interface components {
        * @default []
        */
       warnings: string[];
+    };
+    /** StagingPathResponse */
+    StagingPathResponse: {
+      /** Path */
+      path: string;
     };
     /**
      * StaleCluster
@@ -2344,6 +2369,38 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+    };
+  };
+  staging_path_api_sbatchman_staging_path_get: {
+    parameters: {
+      query: {
+        profile_name: string;
+        name: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["StagingPathResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
       };
     };
   };

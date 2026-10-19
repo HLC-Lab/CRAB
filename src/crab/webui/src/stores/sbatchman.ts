@@ -4,7 +4,7 @@
 // mounted independently per group with no shared state between them — no
 // Pinia store per group is needed, a plain reactive object is enough.
 import { defineStore } from "pinia";
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { api, ApiError } from "@/api/client";
 import type { CampaignEntry, SbatchmanWriteResult } from "@/api/types";
 import {
@@ -136,6 +136,9 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const busy = ref(false);
   const error = ref<string | null>(null);
   const lastWrite = ref<SbatchmanWriteResult | null>(null);
+  // Where Write files will put the YAML on `destination`, computed by the
+  // backend (it owns the slug and staging-dir rules). Empty until known.
+  const stagingPath = ref("");
 
   // Campaign library: save/load, mirroring stores/author.ts.
   const library = ref<CampaignEntry[]>([]);
@@ -201,6 +204,39 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   // Problems that would break `sbatchman launch` or the CRAB worker; write() refuses
   // while any exist.
   const issues = computed(() => validateCampaign(campaign.value));
+
+  // Why Write files is unavailable, if it is. Problems come first: the user can
+  // act on them even with a cluster connected.
+  type WriteBlock = { kind: "issues"; count: number } | { kind: "no-cluster" };
+  const writeBlock = computed<WriteBlock | null>(() => {
+    if (issues.value.length) return { kind: "issues", count: issues.value.length };
+    if (!destination.value) return { kind: "no-cluster" };
+    return null;
+  });
+  const canWrite = computed(() => writeBlock.value === null && !busy.value);
+
+  /** Keep the shared cluster choice on a connected cluster (the first one by default). */
+  function syncDestination(connected: string[]): void {
+    if (!connected.includes(destination.value)) destination.value = connected[0] ?? "";
+  }
+
+  // Only the newest lookup may set the path: names change per keystroke.
+  let stagingRequest = 0;
+  watch([destination, name], async ([cluster, campaignName]) => {
+    const mine = ++stagingRequest;
+    if (!cluster) {
+      stagingPath.value = "";
+      return;
+    }
+    try {
+      const res = await api.sbatchman.stagingPath(cluster, campaignName);
+      if (mine === stagingRequest) stagingPath.value = res.path;
+    } catch {
+      // The preview is a convenience: a failed lookup shows no path, and Write
+      // files reports its own errors.
+      if (mine === stagingRequest) stagingPath.value = "";
+    }
+  });
 
   function jobsForGroup(i: number): number {
     const c = campaign.value;
@@ -365,6 +401,10 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     busy,
     error,
     lastWrite,
+    stagingPath,
+    writeBlock,
+    canWrite,
+    syncDestination,
     addGroup,
     removeGroup,
     campaign,

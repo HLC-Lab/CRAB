@@ -1,25 +1,20 @@
 <script setup lang="ts">
 // Read-only preview of the composed SbatchMan jobs YAML (mirrors JsonPanel's
-// layout), plus the destination picker and Write action (launch
-// removed, see ADR-026: SbatchMan owns launch/monitor/results). Presentational
-// only — the campaign store (owned by SbatchmanView) holds the write state
-// and does the API call; its error/notice banners are rendered by the view.
-import { ref } from "vue";
-import type { SbatchmanWriteResult } from "@/api/types";
+// layout) and the list of problems that block writing. Writing itself lives in
+// the page's top bar (WriteTarget). Hide/Show is in the pane header; the pane
+// stays as a one-line strip when hidden, so it can be shown again. Presentational
+// only: the campaign store owns the data.
+import { nextTick, ref } from "vue";
 
 const props = defineProps<{
   yaml: string;
   totalJobs: number;
-  connectedClusters: string[];
-  destination: string;
-  busy: boolean;
-  /** validateCampaign output; Write stays disabled while it is non-empty. */
+  /** validateCampaign output; Write files stays disabled while it is non-empty. */
   issues: string[];
-  lastWrite: SbatchmanWriteResult | null;
+  open: boolean;
 }>();
 const emit = defineEmits<{
-  "update:destination": [string];
-  write: [];
+  "update:open": [boolean];
 }>();
 
 const copied = ref(false);
@@ -32,29 +27,34 @@ async function copyYaml() {
     /* clipboard blocked; the YAML view is still available to copy by hand */
   }
 }
+
+const problemList = ref<HTMLElement | null>(null);
+/** Open the pane if hidden and bring the problem list into view. */
+async function revealProblems(): Promise<void> {
+  emit("update:open", true);
+  await nextTick();
+  problemList.value?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  problemList.value?.focus({ preventScroll: true });
+}
+defineExpose({ revealProblems });
 </script>
 
 <template>
-  <aside class="yamlpane">
+  <aside class="yamlpane" :class="{ closed: !open }">
     <header>
       <span>jobs.yaml · {{ totalJobs }} job{{ totalJobs === 1 ? "" : "s" }}</span>
-      <button class="link-btn" @click="copyYaml">{{ copied ? "Copied ✓" : "Copy" }}</button>
+      <span class="head-actions">
+        <button v-if="open" class="link-btn" @click="copyYaml">
+          {{ copied ? "Copied ✓" : "Copy" }}
+        </button>
+        <button class="link-btn" @click="emit('update:open', !open)">
+          {{ open ? "Hide" : "Show" }}
+        </button>
+      </span>
     </header>
-    <pre>{{ yaml }}</pre>
 
-    <div class="write-section">
-      <label
-        >Cluster
-        <select
-          :value="destination"
-          @change="emit('update:destination', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="" disabled>Choose a connected cluster…</option>
-          <option v-for="c in connectedClusters" :key="c" :value="c">{{ c }}</option>
-        </select>
-      </label>
-
-      <div v-if="issues.length" class="issues">
+    <template v-if="open">
+      <div v-if="issues.length" ref="problemList" class="issues" tabindex="-1">
         <p class="issues-title">
           {{ issues.length }} thing{{ issues.length === 1 ? "" : "s" }} to fix before writing
         </p>
@@ -62,22 +62,8 @@ async function copyYaml() {
           <li v-for="msg in issues" :key="msg">{{ msg }}</li>
         </ul>
       </div>
-
-      <div class="actions">
-        <button
-          class="btn"
-          :disabled="busy || !destination || issues.length > 0"
-          @click="emit('write')"
-        >
-          {{ busy ? "Writing…" : "Write files" }}
-        </button>
-      </div>
-
-      <p v-if="lastWrite" class="out">
-        Written to <b>{{ lastWrite.remote_path }}</b>
-        <span class="muted">(local copy: {{ lastWrite.local_path }})</span>
-      </p>
-    </div>
+      <pre>{{ yaml }}</pre>
+    </template>
   </aside>
 </template>
 
@@ -105,6 +91,10 @@ async function copyYaml() {
   display: flex;
   flex-direction: column;
 }
+.yamlpane.closed {
+  width: auto;
+  min-width: 13rem;
+}
 .yamlpane header {
   position: sticky;
   top: 0;
@@ -116,7 +106,15 @@ async function copyYaml() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
   z-index: 1;
+}
+.yamlpane.closed header {
+  border-bottom: none;
+}
+.head-actions {
+  display: flex;
+  gap: 0.8rem;
 }
 .yamlpane pre {
   padding: 0.75rem;
@@ -126,53 +124,15 @@ async function copyYaml() {
   margin: 0;
 }
 
-.write-section {
-  padding: 0.75rem;
-  border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-.write-section label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  color: var(--text2);
-  font-size: var(--t-sm);
-}
-select {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--r);
-  padding: 0.35rem 0.5rem;
-  font-family: var(--sans);
-  font-size: var(--t-md);
-}
-.actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.btn {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: var(--r);
-  padding: 0.35rem 0.8rem;
-  cursor: pointer;
-  font-family: var(--sans);
-  font-size: var(--t-sm);
-}
-.btn:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 .issues {
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border);
   font-size: var(--t-sm);
   color: var(--warn);
+  scroll-margin-top: 2.5rem;
+}
+.issues:focus {
+  outline: none;
 }
 .issues-title {
   margin: 0 0 0.25rem;
@@ -182,15 +142,5 @@ select {
   margin: 0;
   padding-left: 1.1rem;
   color: var(--text2);
-}
-.out {
-  font-size: var(--t-sm);
-  color: var(--text2);
-}
-.out b {
-  color: var(--text);
-}
-.out .muted {
-  color: var(--text3);
 }
 </style>

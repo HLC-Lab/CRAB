@@ -198,7 +198,6 @@ function confirmDiscard(): void {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 1rem;
 }
 .grp {
   display: flex;

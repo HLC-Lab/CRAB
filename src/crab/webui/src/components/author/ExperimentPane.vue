@@ -37,6 +37,9 @@ const props = defineProps<{
   // SbatchMan campaign groups have exactly one experiment; "Remove experiment"
   // doesn't apply there (removing the group itself is the rail's job).
   hideRemove?: boolean;
+  // The caller owns the cluster choice (the SbatchMan page's write target): show
+  // only the "Wrappers from <cluster>" note, never this pane's own select.
+  hideClusterSelect?: boolean;
 }>();
 const emit = defineEmits<{
   "update:sourceCluster": [string];
@@ -260,7 +263,7 @@ function chooseWrapper(relpath: string) {
 
   <!-- Where the wrapper picker sources its catalog -->
   <div v-if="sel" class="wrapper-source">
-    <template v-if="connectedClusters.length > 1">
+    <template v-if="connectedClusters.length > 1 && !hideClusterSelect">
       <label
         >Wrappers from
         <select v-model="sourceClusterModel">

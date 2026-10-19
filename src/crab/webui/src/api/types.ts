@@ -241,6 +241,9 @@ export type ExperimentRunStatusList = components["schemas"]["ExperimentRunStatus
 /** POST /api/sbatchman/write — local + remote paths of the persisted jobs YAML. */
 export type SbatchmanWriteResult = components["schemas"]["WriteResponse"];
 
+/** GET /api/sbatchman/staging-path — where Write files will put the campaign YAML. */
+export type SbatchmanStagingPath = components["schemas"]["StagingPathResponse"];
+
 /** /api/sbatchman/campaigns — saved campaign drafts. `spec` is opaque
  * here (the backend never validates it); `stores/sbatchman.ts` casts it to its
  * own typed `CampaignSpec` shape on load. */

@@ -28,6 +28,7 @@ import type {
   ResultsData,
   ResultsIndex,
   SavedEntry,
+  SbatchmanStagingPath,
   SbatchmanWriteResult,
   StepResult,
   SubmissionAccepted,
@@ -229,6 +230,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ profile_name: profileName, yaml, name }),
       }),
+
+    stagingPath: (profileName: string, name: string) =>
+      request<SbatchmanStagingPath>(
+        `/api/sbatchman/staging-path?profile_name=${encodeURIComponent(profileName)}&name=${encodeURIComponent(name)}`,
+      ),
 
     campaigns: {
       list: () => request<CampaignEntry[]>("/api/sbatchman/campaigns"),

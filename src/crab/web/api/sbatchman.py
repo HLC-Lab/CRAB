@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import RemoteConnectionError
-from crab.web.remoteops.transfer import stage_text
+from crab.web.remoteops.transfer import stage_text, staging_dir
 from crab.web.store.campaign_library import CampaignEntry, CampaignLibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.store.sbatchman import save_campaign_yaml
@@ -54,6 +54,24 @@ def _profile(profile_name: str, request: Request) -> Profile:
     return ProfileStore(request.app.state.settings).get(profile_name)
 
 
+def _campaign_filename(name: str) -> str:
+    """The staged file's name for a campaign: the single source of truth for the
+    write route and the staging-path preview."""
+    return f"{_slug(name)}.yaml"
+
+
+class StagingPathResponse(BaseModel):
+    path: str
+
+
+@router.get("/staging-path", response_model=StagingPathResponse)
+async def staging_path(profile_name: str, name: str, request: Request) -> StagingPathResponse:
+    """Where Write files will put this campaign on the cluster (`~` preserved)."""
+    profile = _profile(profile_name, request)
+    directory = staging_dir(profile, request.app.state.settings)
+    return StagingPathResponse(path=f"{directory}/{_campaign_filename(name)}")
+
+
 class WriteRequest(BaseModel):
     profile_name: str
     yaml: str
@@ -73,7 +91,7 @@ async def write_campaign(body: WriteRequest, request: Request) -> WriteResponse:
 
     local_path = save_campaign_yaml(body.yaml, body.name, settings)
     remote_path = await stage_text(
-        transport, profile, body.yaml, f"{_slug(body.name)}.yaml", settings=settings
+        transport, profile, body.yaml, _campaign_filename(body.name), settings=settings
     )
     return WriteResponse(local_path=str(local_path), remote_path=remote_path)
 

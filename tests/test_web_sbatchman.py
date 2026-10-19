@@ -159,6 +159,69 @@ def test_write_without_connection_fails(tmp_path: Path):
         assert resp.json()["code"] == "connection_error"
 
 
+def test_staging_path_for_an_ssh_profile_keeps_the_tilde(tmp_path: Path):
+    body = {**_leonardo_profile_body(), "remote_crab": "~"}
+    with _client(tmp_path, FakeTransport()) as client:
+        client.post("/api/remotes", json=body)
+
+        resp = client.get(
+            "/api/sbatchman/staging-path", params={"profile_name": "leonardo", "name": "Pilot A2A"}
+        )
+
+        assert resp.status_code == 200
+        assert resp.json() == {"path": "~/CRAB/.web_staging/pilot-a2a.yaml"}
+
+
+def test_staging_path_for_a_local_profile_is_under_the_data_dir(tmp_path: Path):
+    with _client(tmp_path, FakeTransport()) as client:
+        client.post("/api/remotes", json={"name": "here", "transport": "local"})
+
+        resp = client.get(
+            "/api/sbatchman/staging-path", params={"profile_name": "here", "name": "Pilot A2A"}
+        )
+
+        assert resp.json() == {"path": str(tmp_path / "data" / "web_staging" / "pilot-a2a.yaml")}
+
+
+def test_staging_path_blank_name_falls_back_to_campaign(tmp_path: Path):
+    with _client(tmp_path, FakeTransport()) as client:
+        client.post("/api/remotes", json=_leonardo_profile_body())
+
+        resp = client.get(
+            "/api/sbatchman/staging-path", params={"profile_name": "leonardo", "name": "  "}
+        )
+
+        assert resp.json() == {"path": "~/base/CRAB/.web_staging/campaign.yaml"}
+
+
+def test_staging_path_unknown_profile_is_not_found(tmp_path: Path):
+    with _client(tmp_path, FakeTransport()) as client:
+        resp = client.get(
+            "/api/sbatchman/staging-path", params={"profile_name": "nope", "name": "x"}
+        )
+
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
+
+
+def test_staging_path_matches_where_write_puts_the_file(tmp_path: Path):
+    transport = FakeTransport()
+    with _client(tmp_path, transport) as client:
+        client.post("/api/remotes", json=_leonardo_profile_body())
+        client.post("/api/remotes/leonardo/connect")
+
+        shown = client.get(
+            "/api/sbatchman/staging-path",
+            params={"profile_name": "leonardo", "name": "My Campaign"},
+        ).json()["path"]
+        written = client.post(
+            "/api/sbatchman/write",
+            json={"profile_name": "leonardo", "yaml": _YAML, "name": "My Campaign"},
+        ).json()["remote_path"]
+
+        assert shown.rsplit("/", 1)[1] == written.rsplit("/", 1)[1] == "my-campaign.yaml"
+
+
 # --------------------------------------------------------------------------- #
 # /api/sbatchman/campaigns — the saved-campaign-draft library
 # --------------------------------------------------------------------------- #

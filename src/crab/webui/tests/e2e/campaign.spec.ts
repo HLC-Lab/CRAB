@@ -9,11 +9,14 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
   await expect(page).toHaveURL(/\/sbatchman/);
 
   const preview = page.locator("aside.yamlpane");
-  const write = preview.getByRole("button", { name: "Write files" });
+  const writeBar = page.getByRole("region", { name: "Write to cluster" });
+  const write = writeBar.getByRole("button", { name: "Write files" });
 
-  // A fresh campaign is not writable, and says why.
+  // A fresh campaign is not writable, and says why: the count sits next to the
+  // button, the list is in the preview.
   await expect(preview.getByText(/to fix before writing/)).toBeVisible();
   await expect(write).toBeDisabled();
+  await expect(writeBar.getByRole("button", { name: /\d+ problems?/ })).toBeVisible();
 
   // Fill the group: tag, SbatchMan preset, nodes, one app with a wrapper path.
   await page.getByPlaceholder("e.g. g500_baseline_{scale}_{nodes}").fill("e2e_{nodes}");
@@ -30,6 +33,7 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
   await page.getByRole("button", { name: /\+ Add "blink\/a2a_b.py"/ }).click();
 
   await expect(preview.getByText(/to fix before writing/)).toHaveCount(0);
+  await expect(writeBar.getByRole("button", { name: /problems?/ })).toHaveCount(0);
   await expect(preview.getByText("jobs.yaml · 2 jobs")).toBeVisible();
 
   // A blank variable name is flagged, and the preview is still valid YAML.

@@ -13,6 +13,7 @@ import CampaignBar from "@/components/sbatchman/CampaignBar.vue";
 import GroupRail from "@/components/sbatchman/GroupRail.vue";
 import GroupBasics from "@/components/sbatchman/GroupBasics.vue";
 import CampaignPreview from "@/components/sbatchman/CampaignPreview.vue";
+import WriteTarget from "@/components/sbatchman/WriteTarget.vue";
 import ExperimentPane from "@/components/author/ExperimentPane.vue";
 
 const store = useSbatchmanStore();
@@ -31,18 +32,19 @@ function selectGroup(i: number) {
 const group = computed(() => store.groups[store.selected]);
 const experiment = computed(() => group.value?.draft.experiments[0]);
 
-// Cluster source for ExperimentPane's wrapper picker (same pattern as AuthorView).
+// One cluster choice for the whole page: the write target is also where the
+// wrapper picker reads its catalog from.
 const connectedClusters = computed(() =>
   remotes.items.filter((r) => r.connected).map((r) => r.name),
 );
-const sourceCluster = ref("");
-watchEffect(() => {
-  if (!connectedClusters.value.includes(sourceCluster.value)) {
-    sourceCluster.value = connectedClusters.value[0] ?? "";
-  }
-});
+watchEffect(() => store.syncDestination(connectedClusters.value));
 
 const showPreview = ref(true);
+const preview = ref<InstanceType<typeof CampaignPreview> | null>(null);
+// Works with the pane hidden: the pane opens itself before scrolling.
+function showProblems(): void {
+  preview.value?.revealProblems();
+}
 
 onMounted(() => {
   store.loadLibrary();
@@ -69,7 +71,21 @@ function confirmRemoveGroup(): void {
 
 <template>
   <section class="sbatchman">
-    <CampaignLibraryBar @new="afterNew" @opened="afterOpened" />
+    <div class="actionbar">
+      <CampaignLibraryBar @new="afterNew" @opened="afterOpened" />
+      <WriteTarget
+        :connected-clusters="connectedClusters"
+        :destination="store.destination"
+        :staging-path="store.stagingPath"
+        :busy="store.busy"
+        :problem-count="store.issues.length"
+        :can-write="store.canWrite"
+        :last-write="store.lastWrite"
+        @update:destination="store.destination = $event"
+        @write="store.write"
+        @show-problems="showProblems"
+      />
+    </div>
 
     <!-- Page-level so they show even with the YAML preview hidden. -->
     <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
@@ -78,10 +94,6 @@ function confirmRemoveGroup(): void {
     <header class="toolbar">
       <button class="btn" :class="{ on: view.kind === 'campaign' }" @click="selectCampaign">
         Campaign settings
-      </button>
-      <span class="spacer" />
-      <button class="btn" @click="showPreview = !showPreview">
-        {{ showPreview ? "Hide" : "Show" }} YAML preview
       </button>
     </header>
 
@@ -122,8 +134,9 @@ function confirmRemoveGroup(): void {
             :exp-index="0"
             :global-allocation="group.draft.allocation"
             :global-numnodes="group.draft.numnodes"
-            v-model:source-cluster="sourceCluster"
+            :source-cluster="store.destination"
             hide-remove
+            hide-cluster-select
           />
         </template>
 
@@ -131,16 +144,11 @@ function confirmRemoveGroup(): void {
       </main>
 
       <CampaignPreview
-        v-if="showPreview"
+        ref="preview"
+        v-model:open="showPreview"
         :yaml="store.yaml"
         :total-jobs="store.totalJobs"
-        :connected-clusters="connectedClusters"
-        :destination="store.destination"
-        :busy="store.busy"
         :issues="store.issues"
-        :last-write="store.lastWrite"
-        @update:destination="store.destination = $event"
-        @write="store.write"
       />
     </div>
 
@@ -156,19 +164,33 @@ function confirmRemoveGroup(): void {
 </template>
 
 <style scoped>
+/* The page scrolls inside itself (app header 48px + status bar above and below):
+   App's content wrapper is itself an overflow container that never scrolls, so a
+   sticky bar could not stick to the window. */
 .sbatchman {
-  padding: 1.25rem 1.5rem;
+  padding: 0 1.5rem 1.25rem;
   max-width: 98rem;
-  overflow-x: auto;
+  height: calc(100vh - 48px - 2.4rem);
+  overflow: auto;
+}
+/* The write controls never scroll away. */
+.actionbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  background: var(--bg);
+  /* extend over the page's side padding so scrolled content cannot peek out there */
+  margin: 0 -1.5rem 0.25rem;
+  padding: 1rem 1.5rem 0.75rem;
 }
 .toolbar {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 1rem;
-}
-.spacer {
-  flex: 1;
 }
 .banner {
   padding: 0.5rem 0.75rem;
