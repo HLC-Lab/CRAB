@@ -409,7 +409,7 @@ def pp_config(
     """A config of the ping-pong set: one experiment per test, one collected app per size."""
     experiments = {}
     for test in tests:
-        path = "blink/pairwise_nb.py" if test.endswith("pw8") else PINGPONG
+        path = "blink/pairwise_nb.py" if "-pw" in test else PINGPONG
         apps = {str(i): pp_app(path, size, **app) for i, size in enumerate(sizes)}
         experiments[f"pp_{test}_C2_P1"] = {"apps": apps}
     return {"global_options": {"name": stem, "ppn": global_ppn}, "experiments": experiments}
@@ -418,7 +418,7 @@ def pp_config(
 def write_pp(data: Path, test: str, sizes: tuple[int, ...] = PP_SIZES) -> None:
     """The CSVs of one pp experiment (every size with the same rows)."""
     for app, size in enumerate(sizes):
-        if test.endswith("pw8"):
+        if "-pw" in test:
             rows = [(r, 1, mx, med) for r, its in PW_RUNS.items() for _, mx, med in its]
         else:
             rows = [(r, 1, t, 1) for r, its in PP_RUNS.items() for t in its]
@@ -541,7 +541,7 @@ def test_ceilings_table_of_bandwidth(pp_dirs: list[Path], tmp_path: Path) -> Non
     tables = [i for i, ln in enumerate(lines) if ln.startswith("size")]
     assert len(tables) == 2
     header = cells(lines[tables[0]])
-    assert header == ["size", "n1n2 md", "n1n2 def", "n1n2 dual", "n1n3 pw8/rank", "n1n3 pw8/node"]
+    assert header == ["size", "n1n2 md", "n1n2 def", "n1n2 dual", "pw8/r", "pw8/n"]
     body = {cells(ln)[0]: cells(ln) for ln in lines[tables[0] + 2 : tables[0] + 4]}
     assert set(body) == {"8 B", "2 MiB"}
     big = 2 * 1024 * 1024 * PP_GRTY * 8 / (25 * US) / 1e9
@@ -550,9 +550,9 @@ def test_ceilings_table_of_bandwidth(pp_dirs: list[Path], tmp_path: Path) -> Non
     # from 100 up the cells are whole numbers.
     assert big == pytest.approx(1342.177)
     assert got["n1n2 md"] == got["n1n2 def"] == got["n1n2 dual"] == "1342"
-    assert got["n1n3 pw8/rank"] == "4194" and got["n1n3 pw8/node"] == "16777"
+    assert got["pw8/r"] == "4194" and got["pw8/n"] == "16777"
     small = dict(zip(header, body["8 B"], strict=True))
-    assert small["n1n2 md"] == "0.00512" and small["n1n3 pw8/rank"] == "0.016"  # 3 significant
+    assert small["n1n2 md"] == "0.00512" and small["pw8/r"] == "0.016"  # 3 significant
     text = "\n".join(lines)
     assert "runs: 3" in text and "medians of per-run medians" in text and "one-way" in text
 
@@ -564,26 +564,111 @@ def test_ceilings_table_of_slow_iterations(pp_dirs: list[Path], tmp_path: Path) 
     header = cells(lines[second])
     got = dict(zip(header, cells(lines[second + 2]), strict=True))
     assert got["n1n2 md"] == got["n1n2 dual"] == "20.0"
-    assert got["n1n3 pw8/rank"] == "0.0"
+    assert got["pw8/r"] == "0.0"
+
+
+PW_COLUMNS = [f"pw{n}{d}/{k}" for n in (4, 8) for d in ("", "d") for k in ("r", "n")]
+
+
+def pw_tests(*ns: int) -> tuple[str, ...]:
+    return tuple(f"n1n3-pw{n}{d}" for n in ns for d in ("", "d"))
+
+
+def widest(lines: list[str]) -> str:
+    return max(lines, key=len)
 
 
 def test_ceilings_stay_compact_for_the_full_set(tmp_path: Path) -> None:
     kib, mib = 1024, 1024 * 1024
     sizes = (8, 64, 512, 4 * kib, 32 * kib, 64 * kib, 128 * kib, 256 * kib, 512 * kib, mib, 2 * mib)
     tests = tuple(f"n1n{j}-{v}" for j in (2, 3, 4) for v in ("md", "default", "dual"))
-    tests += ("n1n3-pw8",)
+    tests += pw_tests(8)
     data = make_dir(tmp_path, pp_config("pp_n1n2_C2_P1", tests, global_ppn="8", sizes=sizes))
     for test in tests:
         write_pp(data, test, sizes)
     _, md, _ = summarize(tmp_path, data)
     lines = section(md)
     assert len(lines) <= 40, len(lines)
-    assert max(len(ln) for ln in lines) <= 120, max(lines, key=len)
+    assert max(len(ln) for ln in lines) <= 120, widest(lines)
     assert cells(next(ln for ln in lines if "size" in ln))[1:] == [
         *(f"n1n{j} {v}" for j in (2, 3, 4) for v in ("md", "def", "dual")),
-        "n1n3 pw8/rank",
-        "n1n3 pw8/node",
+        "pw8/r",
+        "pw8/n",
+        "pw8d/r",
+        "pw8d/n",
     ]
+
+
+def test_ceilings_of_the_pw_jobs_alone_stay_compact(tmp_path: Path) -> None:
+    kib, mib = 1024, 1024 * 1024
+    sizes = (8, 64, 512, 4 * kib, 32 * kib, 64 * kib, 128 * kib, 256 * kib, 512 * kib, mib, 2 * mib)
+    tests = pw_tests(4, 8)
+    data = make_dir(tmp_path, pp_config("pp_n1n3_pw4_C2_P1", tests, global_ppn="8", sizes=sizes))
+    for test in tests:
+        write_pp(data, test, sizes)
+    _, md, _ = summarize(tmp_path, data)
+    lines = section(md)
+    assert max(len(ln) for ln in lines) <= 120, widest(lines)
+    assert cells(next(ln for ln in lines if "size" in ln)) == ["size", *PW_COLUMNS]
+
+
+def test_pw_columns_are_ordered_by_n_then_env_then_rank_before_node(tmp_path: Path) -> None:
+    tests = ("n1n3-pw8d", "n1n3-pw8", "n1n3-pw16", "n1n3-pw4d", "n1n3-pw4")  # any order
+    data = make_dir(tmp_path, pp_config("pp_n1n3_pw4_C2_P1", tests, global_ppn="8"))
+    for test in tests:
+        write_pp(data, test)
+    _, md, _ = summarize(tmp_path, data)
+    header = next(cells(ln) for ln in section(md) if ln.startswith("size"))
+    assert header == [
+        "size",
+        "pw4/r",
+        "pw4/n",
+        "pw4d/r",
+        "pw4d/n",
+        "pw8/r",
+        "pw8/n",
+        "pw8d/r",
+        "pw8d/n",
+        "pw16/r",
+        "pw16/n",
+    ]
+
+
+def test_ceilings_intro_explains_rank_node_and_no_ucx_without_naming_pw8(
+    tmp_path: Path,
+) -> None:
+    data = make_dir(tmp_path, pp_config("pp_n1n3_pw4_C2_P1", pw_tests(4), global_ppn="4"))
+    for test in pw_tests(4):
+        write_pp(data, test)
+    _, md, _ = summarize(tmp_path, data)
+    intro = " ".join(section(md)[1:5])
+    assert "pw<N>" in intro and "/r" in intro and "/n" in intro and "no UCX" in intro
+    assert "pw8" not in intro
+
+
+@pytest.mark.parametrize("test", ["n1n3-pw8", "n1n3-pw8d", "n1n3-pw4", "n1n3-pw4d", "n1n3-pw16"])
+def test_is_node_total_for_every_pw_variant(test: str) -> None:
+    assert analyze.is_node_total({"phase": "pp", "test": test})
+
+
+@pytest.mark.parametrize("test", ["n1n3-md", "n1n3-default", "n1n3-dual"])
+def test_is_node_total_is_false_for_the_pairs(test: str) -> None:
+    assert not analyze.is_node_total({"phase": "pp", "test": test})
+
+
+def test_node_total_uses_the_ranks_per_node_of_each_pw_variant(tmp_path: Path) -> None:
+    ppns = {"n1n3-pw4": 4, "n1n3-pw4d": 4, "n1n3-pw8": 8, "n1n3-pw8d": 8, "n1n3-pw16": 16}
+    config = pp_config("pp_n1n3_pw4_C2_P1", tuple(ppns), global_ppn="1")
+    for exp, ppn in zip(config["experiments"].values(), ppns.values(), strict=True):
+        for app in exp["apps"].values():
+            app["ppn"] = ppn
+    data = make_dir(tmp_path, config)
+    for test in ppns:
+        write_pp(data, test)
+    df, _, _ = summarize(tmp_path, data)
+    for test, ppn in ppns.items():
+        r = row(df, f"pp_{test}_C2_P1", 8)
+        assert r["node_gbps"] == pytest.approx(ppn * r["bw_runs_med"]), test
 
 
 def test_missing_variant_leaves_its_column_out(tmp_path: Path) -> None:

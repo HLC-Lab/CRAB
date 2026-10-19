@@ -26,10 +26,11 @@ run (the MainRank column for ping-pong, the Max column otherwise): a stall that 
 iterations shows there while the median does not move. `node_gbps` (node-total rows only) is
 `bw_runs_med` times the ranks per node.
 
-The ping-pong set (`pp_*` experiments: one node pair per variant, and the node total `pw8`) gets
-a `# Ceilings (ping-pong set)` section at the top of summary.md instead of per-phase tables: one
-table of bandwidth per size and pair-variant, short enough to photograph from a console, and a
-table of slow-iteration rates.
+The ping-pong set (`pp_*` experiments: one node pair per variant, and the node totals `pw<N>`
+with N ranks per node, `pw<N>d` without the UCX variables) gets a `# Ceilings (ping-pong set)`
+section at the top of summary.md instead of per-phase tables: one table of bandwidth per size and
+pair-variant (a node total as `pw<N>/r` per rank and `pw<N>/n` per node), short enough to
+photograph from a console, and a table of slow-iteration rates.
 """
 
 from __future__ import annotations
@@ -87,6 +88,7 @@ NAN = float("nan")
 DASH = "–"
 _FILE_NAME = re.compile(r"^(?P<smoke>smoke_)?(?P<set>md|col|pp)_(?P<rest>.+)$")
 _GRTY = re.compile(r"(?:^|\s)-grty\s+(\d+)")
+_NODE_TOTAL = re.compile(r"-pw(?P<n>\d+)(?P<d>d?)$")  # `n1n3-pw8`, `n1n3-pw4d`
 BW = ".3g"  # bandwidth cells: three significant digits (small sizes are tiny)
 SLOW_FACTOR = 1.5  # an iteration this many times slower than its run's median is slow
 PP_VARIANTS = {"md": "md", "default": "def", "dual": "dual"}  # variant -> column label
@@ -148,8 +150,8 @@ def ranks_per_node(app: dict[str, Any], global_ppn: Any) -> int:
 
 
 def is_node_total(parsed: dict[str, Any]) -> bool:
-    """Whether an experiment is the ping-pong set's node total (`pp_n1n3-pw8_...`)."""
-    return parsed["phase"] == "pp" and str(parsed["test"]).endswith("-pw8")
+    """Whether an experiment is the ping-pong set's node total (`pp_n1n3-pw8_...`, `-pw4d_...`)."""
+    return parsed["phase"] == "pp" and _NODE_TOTAL.search(str(parsed["test"])) is not None
 
 
 def size_metrics(
@@ -397,10 +399,17 @@ def ceiling_bw(value: float) -> str:
 
 
 def pp_column(row_: dict[str, Any]) -> list[tuple[str, str]]:
-    """The (sort key, label) of the ceilings columns a pp row feeds: `n1n2 md`, `n1n3 pw8/rank`..."""
+    """The (sort key, label) of the ceilings columns a pp row feeds: `n1n2 md`, `pw8/r`, `pw8/n`...
+
+    A node total's labels leave the pair out (the 120-column rule): `pw<N>[d]/r` per rank and
+    `/n` per node. They sort by pair, then N, then md before d, then rank before node.
+    """
     pair, _, variant = str(row_["test"]).rpartition("-")
-    if variant == "pw8":
-        return [(f"1 {pair} 0", f"{pair} pw8/rank"), (f"1 {pair} 1", f"{pair} pw8/node")]
+    total = _NODE_TOTAL.search(f"-{variant}")
+    if total is not None:
+        n, d = int(total["n"]), total["d"]
+        order = f"1 {pair} {n:04d} {int(bool(d))}"
+        return [(f"{order} 0", f"pw{n}{d}/r"), (f"{order} 1", f"pw{n}{d}/n")]
     order = list(PP_VARIANTS).index(variant) if variant in PP_VARIANTS else len(PP_VARIANTS)
     return [(f"0 {pair} {order}", f"{pair} {PP_VARIANTS.get(variant, variant)}")]
 
@@ -423,7 +432,7 @@ def compact_table(header: list[str], body: list[list[str]]) -> list[str]:
 def ceilings_tables(df: pd.DataFrame) -> str:
     """The `# Ceilings (ping-pong set)` section of the pp rows of `df` (empty when it has none).
 
-    One column per pair-variant (the node total twice: per rank and per node), one row per size:
+    One column per pair-variant (a node total twice: per rank and per node), one row per size:
     the bandwidth of the median of the per-run medians, and the share of slow iterations.
     """
     pp = df[df["phase"] == "pp"]
@@ -461,7 +470,10 @@ def ceilings_tables(df: pd.DataFrame) -> str:
     lines = [
         "# Ceilings (ping-pong set)",
         "",
-        "Bandwidth in Gb/s, one-way for ping-pong; pw8/node is pw8/rank times the ranks per node.",
+        "Bandwidth in Gb/s, one-way for ping-pong. pw<N> is the node total with N ranks per node;"
+        " d = no UCX variables.",
+        "",
+        "pw<N>/r is per rank, pw<N>/n per node (pw<N>/r times the ranks per node).",
         "",
         *table("bw", ceiling_bw, runs_row),
         "",

@@ -318,6 +318,8 @@ command before it runs and stops at the first failure.
 examples/nplb/bringup.sh topo           # the topology probe
 examples/nplb/bringup.sh pingpong       # generate and submit the 4 ping-pong jobs
 examples/nplb/bringup.sh analyze pingpong   # when the jobs are done
+examples/nplb/bringup.sh pw 4 8         # node total with 4 and with 8 ranks per node, one long run
+examples/nplb/bringup.sh analyze pw     # when those jobs are done
 ```
 
 **`topo [HOST...]`** runs `topology.sh`: over ssh, every node reports each RDMA port (state,
@@ -350,6 +352,24 @@ Slurm runs them one after another, about 1.5 to 2 hours in total. `bringup.sh st
 A good result: `md` and `default` agree, `dual` is about twice `md` at large sizes (two rails),
 and the `pw8` node total is about 8 times the md bandwidth of the pair n1-n3 (one port per card,
 every card busy).
+
+**`pw N...`** repeats the node total for other numbers of ranks per node, one `N` at a time (for
+example `pw 4 8`). For each `N` it generates the ping-pong set with `--ranks N` into
+`$WORK/pw/ppn<N>` (the old `*.json` there are removed) and submits only the node-total file
+`pp_n1n3_pw<N>_*.json`, with `N` ranks per node: a pairwise permutation of the ranks of node 1
+against node 3, on every `ppn/N`-th card of the per-card profile (`pw4` on 8 cards uses cards
+0, 2, 4 and 6). The file holds two experiments: `pw<N>` with the campaign's UCX settings and
+`pw<N>d` with no UCX variable. It is one run of many consecutive iterations rather than several
+short runs: `ITER` iterations at every size (default 10000), `WARMUP` warmup iterations (default
+200) and `PW_RUNS` runs (default 1); above 1000 iterations the apps also get `-maxsamples`, so
+Blink keeps every sample. `NET` and `PATHS` work as for `pingpong`. Every submit adds a line to
+`$WORK/run_log.tsv`; the jobs queue one after another as `--exclusive` jobs on the same nodes.
+
+**`analyze pw`** runs `analyze.py` on the data directories that `$WORK/run_log.tsv` records for
+the configs under `$WORK/pw/` (the latest submit of each config file; older `pp_*` directories are
+left out) into `$WORK/results_pw/` and prints the first 60 lines of its `summary.md`. The ceilings
+table has, for each `N`, `pw<N>/r` (per rank) and `pw<N>/n` (per node: per rank times `N`), and
+the same with `d` for the run with no UCX variable. The lines stay within 120 columns.
 
 `bringup.sh check` marks the `dual` experiments `CHECK`: they select the NICs through
 `UCX_NET_DEVICES` instead of the per-rank shim, so there are no "local rank -> UCX_NET_DEVICES"

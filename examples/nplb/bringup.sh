@@ -9,17 +9,23 @@
 #                        no HOST lists the nodes of $PARTITION. Exits with topology.sh's code
 #   pingpong             ping-pong ceilings: generate the set (3 pairs from node 1 and the node
 #                        total) into $WORK/pingpong, then submit its 4 jobs one after another
+#   pw N...              node total with N ranks per node (N = 4, 8, ...): per N one job, one long run
+#                        (ITER iterations, WARMUP warmup), with the UCX variables and without (`d`)
 #   status               squeue of the partition and the last submits
 #   check [DATA_DIR...]  per experiment: unbound ranks and NICs per host against ranks per host
 #   analyze smoke|real PPN   analyze.py on the data dirs of that kind and PPN, summary.md head
 #   analyze pingpong     analyze.py on the ping-pong data dirs ($DATA_ROOT/*/pp_*), summary.md head
+#   analyze pw           analyze.py on the data dirs of the pw jobs in run_log.tsv, summary.md head
 #
 # It sources env.sh first (Open MPI in PATH, BLINK, local/nplb_env.sh). Every command is echoed
 # before it runs and the first failure stops the script. Every submit adds a line to
 # $WORK/run_log.tsv: time, net, paths, ppn, config file, job id, data dir.
 # pingpong needs profile8.json (per card) and profile16.json (every port) in PROFILE_DIR; it runs
 # one NET and one PATHS, RUNS runs, 1000 iterations up to 128 MiB and 200 at 512 MiB.
+# pw needs the same two profiles; per N it generates the ping-pong set with --ranks N into
+# $WORK/pw/ppn<N> and submits only its node-total file, with N ranks per node.
 # Env: PRESET (nplb_h100), PARTITION (h100_4nodes), NET (C2), PATHS (1), RUNS (5),
+#      ITER (10000), WARMUP (200), PW_RUNS (1) for pw,
 #      WORK (<checkout>/local/nplb-work), PROFILE_DIR (<checkout>: profile8.json, profile16.json),
 #      DATA_ROOT (<checkout>/data), PYTHON and CRAB (default: the checkout's .venv).
 set -uo pipefail
@@ -186,6 +192,34 @@ cmd_pingpong() {
     echo "Submitted ${#PICKED[@]} ping-pong jobs ($NET, paths $PATHS, $RUNS runs). Run: $0 status"
 }
 
+cmd_pw() {
+    local profile ports n out f count=0
+    (($# > 0)) || { echo "bringup: pw needs at least one N (ranks per node), e.g. pw 4 8" >&2; usage; }
+    for n in "$@"; do
+        [[ $n =~ ^[1-9][0-9]*$ ]] || { echo "bringup: pw: N must be a positive integer, got '$n'" >&2; usage; }
+    done
+    local iter=${ITER:-10000} warmup=${WARMUP:-200} runs=${PW_RUNS:-1}
+    profile=$(profile_for 8) || exit 1
+    ports=$(profile_for 16) || exit 1
+    for n in "$@"; do
+        out=$WORK/pw/ppn$n
+        mkdir -p "$out"
+        step rm -f "$out"/*.json
+        # NET and PATHS may hold several values (make_configs then refuses), so they stay unquoted
+        # shellcheck disable=SC2086
+        step "$PYTHON" "$HERE/make_configs.py" "$profile" --all-ports "$ports" --set pingpong \
+            --ranks "$n" --warmup "$warmup" --iter-small "$iter" --iter-128m "$iter" \
+            --iter-512m "$iter" --minruns "$runs" --maxruns "$runs" \
+            --out "$out" --net $NET --paths $PATHS
+        pick "$out" "pp_*_pw${n}_*.json"
+        for f in "${PICKED[@]}"; do
+            submit "$n" "$f"
+            count=$((count + 1))
+        done
+    done
+    echo "Submitted $count pw jobs ($NET, paths $PATHS, $iter iterations, $runs run(s)). Run: $0 status"
+}
+
 cmd_status() {
     step squeue -p "$PARTITION"
     echo "+ tail -n 10 $RUN_LOG"
@@ -277,10 +311,22 @@ cmd_analyze() {
             pat="pp_*"
             out=$WORK/results_pingpong
             ;;
-        *) echo "bringup: analyze needs smoke, real or pingpong" >&2; usage ;;
+        pw)
+            out=$WORK/results_pw
+            ;;
+        *) echo "bringup: analyze needs smoke, real, pingpong or pw" >&2; usage ;;
     esac
-    while IFS= read -r d; do dirs+=("$d"); done < <(compgen -G "$DATA_ROOT/*/$pat" | sort)
-    ((${#dirs[@]})) || die "no data dirs matching $DATA_ROOT/*/$pat"
+    if [[ $kind == pw ]]; then
+        # the last row of each pw config file; a job submitted twice counts once
+        [[ -r $RUN_LOG ]] || die "no $RUN_LOG yet: submit pw jobs first (bringup.sh pw N...)"
+        while IFS= read -r d; do dirs+=("$d"); done < <(
+            awk -F'\t' -v pre="$WORK/pw/" 'index($5, pre) == 1 { dir[$5] = $7 }
+                END { for (f in dir) if (dir[f] != "-") print dir[f] }' "$RUN_LOG" | sort)
+        ((${#dirs[@]})) || die "no pw rows in $RUN_LOG (submit with bringup.sh pw N...)"
+    else
+        while IFS= read -r d; do dirs+=("$d"); done < <(compgen -G "$DATA_ROOT/*/$pat" | sort)
+        ((${#dirs[@]})) || die "no data dirs matching $DATA_ROOT/*/$pat"
+    fi
     step "$PYTHON" "$HERE/analyze.py" "${dirs[@]}" --out "$out"
     echo "+ head -n 60 $out/summary.md"
     head -n 60 "$out/summary.md"
@@ -294,6 +340,7 @@ case $sub in
     smoke) cmd_smoke "$@" ;;
     real) cmd_real "$@" ;;
     pingpong) cmd_pingpong ;;
+    pw) cmd_pw "$@" ;;
     status) cmd_status ;;
     check) cmd_check "$@" ;;
     analyze) cmd_analyze "$@" ;;

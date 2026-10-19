@@ -585,13 +585,121 @@ def test_analyze_pingpong_without_data_dirs_names_the_pattern(site):
     assert f"no data dirs matching {site['data']}/*/pp_*" in result.stderr
 
 
+# ---- pw ----
+
+
+def pw_dir(site: dict, n: int) -> Path:
+    return site["chk"] / "local" / "nplb-work" / "pw" / f"ppn{n}"
+
+
+def pw_file(site: dict, n: int) -> Path:
+    return pw_dir(site, n) / f"pp_n1n3_pw{n}_C2_P1.json"
+
+
+def test_pw_generates_and_submits_one_node_total_per_n(site):
+    stale = pw_dir(site, 4)
+    stale.mkdir(parents=True)
+    (stale / "pp_stale.json").write_text("{}")
+    result = bringup(site, "pw", "4", "8")
+    assert result.returncode == 0, result.stderr
+    chk = site["chk"]
+    assert not (stale / "pp_stale.json").exists()
+    for n in (4, 8):
+        out = pw_dir(site, n)
+        assert pw_file(site, n).exists()
+        assert (out / "pp_n1n2_C2_P1.json").exists()  # the pairs are generated alongside
+        assert (
+            f"+ {chk}/.venv/bin/python {chk}/examples/nplb/make_configs.py {chk}/profile8.json"
+            f" --all-ports {chk}/profile16.json --set pingpong --ranks {n} --warmup 200"
+            " --iter-small 10000 --iter-128m 10000 --iter-512m 10000 --minruns 1 --maxruns 1"
+            f" --out {out} --net C2 --paths 1"
+        ) in result.stdout
+    # the pair files are not submitted
+    assert log_lines(site, "crab ") == [
+        f"crab run -p nplb_h100 --json {pw_file(site, n)}" for n in (4, 8)
+    ]
+    rows = run_log(site)
+    assert [r[3] for r in rows] == ["4", "8"]
+    assert [r[5] for r in rows] == ["1001", "1002"]
+    assert result.stdout.strip().splitlines()[-1].startswith("Submitted 2 pw jobs")
+    opts = json.loads(pw_file(site, 4).read_text())["global_options"]
+    assert (opts["minruns"], opts["maxruns"]) == ("1", "1")
+
+
+def test_pw_env_overrides_iterations_warmup_and_runs(site):
+    result = bringup(site, "pw", "4", ITER="5000", WARMUP="50", PW_RUNS="2")
+    assert result.returncode == 0, result.stderr
+    assert (
+        " --warmup 50 --iter-small 5000 --iter-128m 5000 --iter-512m 5000 --minruns 2 --maxruns 2 "
+    ) in result.stdout
+    assert log_lines(site, "crab ") == [f"crab run -p nplb_h100 --json {pw_file(site, 4)}"]
+
+
+@pytest.mark.parametrize("args", [("pw",), ("pw", "x"), ("pw", "4", "0"), ("pw", "4", "-2")])
+def test_pw_needs_positive_integers(site, args):
+    result = bringup(site, *args)
+    assert result.returncode != 0
+    assert "pw" in result.stderr and "bringup.sh SUBCOMMAND" in result.stderr
+    assert log_lines(site, "crab ") == []
+    assert not (site["chk"] / "local" / "nplb-work" / "pw").exists()  # nothing generated either
+
+
+# ---- analyze pw ----
+
+
+def seed_run_log(site: dict, rows: list[tuple[str, str, str]]) -> None:
+    """Rows of (config file, job id, data dir) in run_log.tsv."""
+    path = site["chk"] / "local" / "nplb-work" / "run_log.tsv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as fh:
+        for file, job, data_dir in rows:
+            fh.write(f"2026-10-14T10:00:00\tC2\t1\t4\t{file}\t{job}\t{data_dir}\n")
+
+
+def test_analyze_pw_uses_only_the_pw_dirs_of_the_run_log(site):
+    work = site["chk"] / "local" / "nplb-work"
+    base = site["data"] / "sys"
+    old = base / "pp_n1n3_pw8_C2_P1_old"
+    new = base / "pp_n1n3_pw8_C2_P1_new"
+    other = base / "pp_n1n2_C2_P1_x"
+    pw4 = base / "pp_n1n3_pw4_C2_P1_a"
+    for d in (old, new, other, pw4):
+        d.mkdir(parents=True)
+    seed_run_log(
+        site,
+        [
+            (f"{work}/pw/ppn8/pp_n1n3_pw8_C2_P1.json", "1", str(old)),
+            (f"{work}/pw/ppn4/pp_n1n3_pw4_C2_P1.json", "2", str(pw4)),
+            (f"{work}/pingpong/pp_n1n2_C2_P1.json", "3", str(other)),
+            (f"{work}/pw/ppn8/pp_n1n3_pw8_C2_P1.json", "4", str(new)),  # the later row wins
+            (f"{work}/pw/ppn4/pp_n1n3_pw4d_C2_P1.json", "5", "-"),  # no data dir recorded
+        ],
+    )
+    result = bringup(site, "analyze", "pw")
+    assert result.returncode == 0, result.stderr
+    assert log_lines(site, "analyze") == [f"analyze {pw4} {new}"]
+    assert (work / "results_pw" / "summary.md").exists()
+    assert "summary line 60" in result.stdout and "summary line 61" not in result.stdout
+
+
+def test_analyze_pw_without_rows_names_the_run_log_and_pw(site):
+    result = bringup(site, "analyze", "pw")
+    assert result.returncode == 1
+    assert "run_log.tsv" in result.stderr and "pw" in result.stderr
+    seed_run_log(site, [("/elsewhere/pingpong/pp_n1n2_C2_P1.json", "1", "/d/x")])
+    result = bringup(site, "analyze", "pw")
+    assert result.returncode == 1
+    assert "run_log.tsv" in result.stderr and "pw" in result.stderr
+    assert log_lines(site, "analyze") == []
+
+
 # ---- usage and failures ----
 
 
 def test_usage_lists_the_stage_subcommands(site):
     result = bringup(site, "bogus")
     assert result.returncode == 2
-    for line in ("topo", "pingpong", "analyze pingpong"):
+    for line in ("topo", "pingpong", "analyze pingpong", "pw N...", "analyze pw"):
         assert line in result.stderr
 
 
