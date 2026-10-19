@@ -477,21 +477,22 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
             target_env = os.environ.copy()
 
             if manifest.requires_modules:
+                # No default: Rich returns "" on Enter, which means "no modules".
                 mod_cmd = Prompt.ask(
-                    "Enter necessary pre-build cluster module loads",
-                    default="module load gcc openmpi",
-                )
-                try:
-                    target_env = capture_module_environment(mod_cmd)
-                except ModuleCaptureError as e:
-                    console.print(f"\n[bold red]Could not load the modules:[/bold red] {e}")
-                    console.print(
-                        f"[dim]Check the line works in a non-interactive bash: "
-                        f"bash -c {shlex.quote(mod_cmd)}[/dim]"
-                    )
-                    console.input("\n[dim]Press [Enter] to continue...[/dim]")
-                    continue
+                    "Enter necessary pre-build cluster module loads "
+                    "(e.g. 'module load gcc openmpi'; leave blank for none)"
+                ).strip()
                 if mod_cmd:
+                    try:
+                        target_env = capture_module_environment(mod_cmd)
+                    except ModuleCaptureError as e:
+                        console.print(f"\n[bold red]Could not load the modules:[/bold red] {e}")
+                        console.print(
+                            f"[dim]Check the line works in a non-interactive bash: "
+                            f"bash -c {shlex.quote(mod_cmd)}[/dim]"
+                        )
+                        console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                        continue
                     pre_run_hooks.append(mod_cmd)
 
             user_params = {}
