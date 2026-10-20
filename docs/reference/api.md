@@ -3,6 +3,22 @@
 The base-class signatures you implement against when [extending CRAB](../extending/overview.md).
 Source: `src/crab/wrappers/base.py` and `src/crab/setup/recipes/base.py`.
 
+## Stability
+
+From 1.0, a change that breaks existing use needs a new major version, after a minor release that
+warns about it. This holds for the CLI commands and flags (not their human-readable output: use
+`--json`), the `--json` answers, `crab worker`, the config and presets file formats, the result
+CSV columns and `crab_run.json`, receipts, the `CRAB_*` environment variables, and the wrapper
+base class on this page. Each versioned format carries its number: `schema` in `--json` answers,
+`schema_version` in configs, `wrapper_api` for wrappers. New commands, flags, keys and fields can
+appear in any minor release.
+
+Everything else is internal and can change in any release: other Python imports (the recipe base
+class below included), the module layout, and the dashboard's HTTP API and state files. CRAB has
+no Python API to call from your own code; to drive it from a script, run the CLI with `--json`.
+The full list and the reasons are in
+[ADR-039](../dev/dashboard/decisions/adr-039-public-surface-1-0.md).
+
 ## Wrapper base — `crab.wrappers.base.base`
 
 Subclass this as a class named `app` (or an intermediate suite class). Methods you typically
