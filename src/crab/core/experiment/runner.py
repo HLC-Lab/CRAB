@@ -17,6 +17,7 @@ from crab.core.execution.settings import (
 from crab.core.wrapper_paths import (
     load_module,
     missing_wrappers_hint,
+    moved_wrapper_note,
     resolve_wrapper_path,
 )
 from crab.log import CrabLogger
@@ -93,6 +94,9 @@ class ExperimentRunner:
             if not path:
                 continue
 
+            moved_note = moved_wrapper_note(path)
+            if moved_note:
+                self.log.warning(moved_note)
             path = resolve_wrapper_path(path)
 
             if not os.path.exists(path):
