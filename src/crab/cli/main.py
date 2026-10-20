@@ -49,6 +49,7 @@ def handle_info(args):
     def human(d):
         print(f"CRAB {d['crab_version']}  (contract schema v{d['schema']})")
         print(f"root: {d['crab_root']}")
+        print(f"layout: {d['layout']}")
         print("presets:")
         for p in d["presets"]:
             print(f"  {p['name']:<14} {p['description']}")
@@ -181,8 +182,9 @@ def handle_setup(args):
 
 
 def _local_install_args(extra: str, root=None) -> list[str] | None:
-    """pip command installing this checkout with an optional extra, or None if there is none.
+    """pip command installing CRAB with an optional extra, or None for an explicit root without one.
 
+    A checkout installs itself editable; a pip install asks for the `crab-hpc` distribution.
     Never `pip install crab[...]`: `crab` on PyPI is an unrelated package.
     """
     if root is None:
@@ -190,7 +192,7 @@ def _local_install_args(extra: str, root=None) -> list[str] | None:
 
         root = paths.checkout_root()
         if root is None:
-            return None
+            return [sys.executable, "-m", "pip", "install", f"crab-hpc[{extra}]"]
     if not os.path.isfile(os.path.join(root, "pyproject.toml")):
         return None
     return [sys.executable, "-m", "pip", "install", "-e", f"{root}[{extra}]"]
@@ -236,7 +238,12 @@ def handle_web(args):
                 from crab.web.run import run_server
             except Exception as e:
                 print(f"[ERROR] Auto-installation failed: {e}")
-                print("Please run 'pip install -e .[web]' from your CRAB checkout to fix this.")
+                from crab import paths
+
+                if paths.is_checkout():
+                    print("Please run 'pip install -e .[web]' from your CRAB checkout to fix this.")
+                else:
+                    print("Please run 'pipx install --force \"crab-hpc[web]\"' to fix this.")
                 return
         else:
             print("Aborting. The web dashboard requires optional dependencies to run.")

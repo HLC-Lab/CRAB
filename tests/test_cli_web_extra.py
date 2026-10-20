@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from crab import paths
 from crab.cli import main as cli_main
 
 INSTALL_ARGS = ["fake-python", "-m", "pip", "install", "-e", "/fake/checkout[web]"]
@@ -99,3 +100,37 @@ def test_all_present_runs_without_prompt(monkeypatch: pytest.MonkeyPatch) -> Non
     assert h.server_calls == [
         {"host": "127.0.0.1", "port": 8899, "open_browser": False, "verbose": True}
     ]
+
+
+def _failing_install(monkeypatch: pytest.MonkeyPatch) -> Harness:
+    h = _install(monkeypatch, missing={"uvicorn"}, answer="y")
+
+    def failing_check_call(cmd: list[str], *a: Any, **kw: Any) -> int:
+        raise cli_main.subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr(cli_main.subprocess, "check_call", failing_check_call)
+    return h
+
+
+def test_failed_install_names_the_pipx_command_when_installed(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    h = _failing_install(monkeypatch)
+    monkeypatch.setattr(paths, "is_checkout", lambda: False)
+    cli_main.handle_web(_args())
+    out = capsys.readouterr().out
+    assert 'pipx install --force "crab-hpc[web]"' in out
+    assert "from your CRAB checkout" not in out
+    assert h.server_calls == []
+
+
+def test_failed_install_names_the_checkout_command_in_a_checkout(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    h = _failing_install(monkeypatch)
+    monkeypatch.setattr(paths, "is_checkout", lambda: True)
+    cli_main.handle_web(_args())
+    out = capsys.readouterr().out
+    assert "Please run 'pip install -e .[web]' from your CRAB checkout to fix this." in out
+    assert "pipx" not in out
+    assert h.server_calls == []
