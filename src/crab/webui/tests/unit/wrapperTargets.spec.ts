@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/api/client", () => ({
   api: {
-    remotes: { wrappers: vi.fn(), importBinary: vi.fn() },
     wrappers: {
       list: vi.fn(),
       show: vi.fn(),
@@ -42,10 +41,13 @@ import {
 } from "@/lib/wrapperTree";
 import {
   attentionCount,
+  binaryLabel,
   buildTree,
+  canImport,
   drift,
   driftLines,
   filterTree,
+  hasProblem,
   missingReason,
   needsAttention,
   relativeTime,
@@ -310,6 +312,33 @@ describe("drift", () => {
       const d = drift(clone(s));
       expect(`${d.text} ${d.pullLabel}`).not.toMatch(/[–—]/);
     }
+  });
+});
+
+describe("binary helpers", () => {
+  it("flags wrappers that cannot load or have no binary", () => {
+    expect(
+      ["receipt", "path", "config", "missing", "error", "unknown"].map((s) =>
+        hasProblem(entry("a/1.py", s)),
+      ),
+    ).toEqual([false, false, false, true, true, true]);
+  });
+
+  it("labels binary sources in plain words", () => {
+    expect(binaryLabel(entry("a/1.py", "path"))).toBe("found on PATH");
+    expect(binaryLabel(entry("a/1.py", "receipt"))).toBe("receipt");
+    expect(binaryLabel(entry("a/1.py", "missing"))).toBe("missing");
+    expect(binaryLabel(entry("a/1.py", "unknown"))).toBe("cannot load");
+  });
+
+  it("offers an import only for loadable wrappers with a receipt id and no binary found", () => {
+    expect(canImport(entry("a/1.py", "missing"))).toBe(true);
+    // A failed lookup is a bug in the wrapper; a receipt would not fix it and might overwrite
+    // one that other wrappers of the same app share.
+    expect(canImport(entry("a/1.py", "error"))).toBe(false);
+    expect(canImport(entry("a/1.py", "receipt"))).toBe(false);
+    expect(canImport(entry("a/1.py", "missing", { benchmark_id: null }))).toBe(false);
+    expect(canImport(entry("a/1.py", "unknown"))).toBe(false);
   });
 });
 

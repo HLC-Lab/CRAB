@@ -10,10 +10,7 @@ import type {
   WrappersResult,
 } from "@/api/types";
 
-// The Wrappers page's data. Two generations live here until the view is rebuilt:
-//  - `catalog/load/importBinary`: the older per-cluster catalog (`/api/remotes/{name}/wrappers`).
-//  - the per-target state (`lists`, `statuses`, `summaries`, `pull`, `importBinaryOn`), where a
-//    target is "local" (this laptop) or a connected cluster's name.
+// The Wrappers section's data, per target: "local" (this laptop) or a connected cluster's name.
 
 // The cluster's own reason (e.g. "binary ... does not exist") is in the error's detail.
 function msg(e: unknown): string {
@@ -27,9 +24,6 @@ function toError(e: unknown): WrappersError {
 }
 
 export const useWrappersStore = defineStore("wrappers", () => {
-  const catalog = ref<Record<string, WrappersResult>>({});
-  const loading = ref<Record<string, boolean>>({});
-  const error = ref<Record<string, string>>({});
   // Keyed "<target>:<relpath>".
   const importing = ref<Record<string, boolean>>({});
   const importError = ref<Record<string, string>>({});
@@ -48,38 +42,6 @@ export const useWrappersStore = defineStore("wrappers", () => {
   const pulling = ref<Record<string, boolean>>({});
   const lastPull = ref<Record<string, PullResult>>({});
   const pullError = ref<Record<string, WrappersError | undefined>>({});
-
-  async function load(cluster: string) {
-    loading.value[cluster] = true;
-    delete error.value[cluster];
-    try {
-      catalog.value[cluster] = await api.remotes.wrappers(cluster);
-    } catch (e) {
-      error.value[cluster] = msg(e);
-    } finally {
-      loading.value[cluster] = false;
-    }
-  }
-
-  async function importBinary(
-    cluster: string,
-    relpath: string,
-    body: ReceiptImport,
-  ): Promise<boolean> {
-    const key = `${cluster}:${relpath}`;
-    importing.value[key] = true;
-    delete importError.value[key];
-    try {
-      await api.remotes.importBinary(cluster, body);
-      await load(cluster);
-      return true;
-    } catch (e) {
-      importError.value[key] = msg(e);
-      return false;
-    } finally {
-      importing.value[key] = false;
-    }
-  }
 
   async function loadList(target: string) {
     listLoading.value[target] = true;
@@ -159,13 +121,8 @@ export const useWrappersStore = defineStore("wrappers", () => {
   }
 
   return {
-    catalog,
-    loading,
-    error,
     importing,
     importError,
-    load,
-    importBinary,
     lists,
     listLoading,
     listError,

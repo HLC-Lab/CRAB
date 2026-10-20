@@ -1,14 +1,10 @@
 """The Wrappers section's routes.
 
-Two route families, both running the target's own CLI with ``--json`` (the engine decides):
-
-* ``/api/wrappers/{target}/list|show|status|pull|receipts``: ``target`` is ``local`` (this
-  laptop, always present, no connection needed) or the name of a connected cluster profile.
-  The name ``local`` is reserved for the laptop (``check_profile_name`` refuses it for
-  cluster profiles). Runs ``crab wrappers list|show|status|pull`` and
-  ``crab receipts set``.
-* ``/api/remotes/{name}/wrappers`` and ``/receipts``: the older cluster-only pair the current
-  frontend uses.
+``/api/wrappers/{target}/list|show|status|pull|receipts``, each running the target's own CLI with
+``--json`` (the engine decides). ``target`` is ``local`` (this laptop, always present, no
+connection needed) or the name of a connected cluster profile. The name ``local`` is reserved for
+the laptop (``check_profile_name`` refuses it for cluster profiles). Runs
+``crab wrappers list|show|status|pull`` and ``crab receipts set``.
 """
 
 from __future__ import annotations
@@ -31,7 +27,7 @@ from crab.web.errors import (
 from crab.web.remoteops.crab_cli import RemotePath, run_crab_json
 from crab.web.store.profiles import Profile
 
-# One router for both families (server.py includes it once), so the paths are spelled in full.
+# The paths are spelled in full: server.py includes the router once, without a prefix.
 router = APIRouter(tags=["wrappers"])
 
 _LOCAL_TARGET = "local"
@@ -54,28 +50,6 @@ def _receipt_args(body: ReceiptImport) -> list[str | RemotePath]:
     if body.launcher:
         args += ["--launcher", body.launcher]
     return [*args, "--json"]
-
-
-# --- /api/remotes/{name}/wrappers: the older cluster-only routes ---
-
-
-@router.get("/api/remotes/{name}/wrappers")
-async def remote_wrappers(name: str, request: Request) -> dict:
-    """`crab wrappers list --json` on the connected cluster.
-
-    Listing loads every wrapper module on the login node, so allow a generous timeout.
-    """
-    profile = _store(request).get(name)
-    transport = _live_transport(name, request)
-    return await run_crab_json(transport, profile, ["wrappers", "list", "--json"], timeout=90.0)
-
-
-@router.post("/api/remotes/{name}/receipts")
-async def import_binary(name: str, body: ReceiptImport, request: Request) -> dict:
-    """Record where a benchmark's binary lives on the cluster (`crab receipts set`)."""
-    profile = _store(request).get(name)
-    transport = _live_transport(name, request)
-    return await run_crab_json(transport, profile, _receipt_args(body), timeout=30.0)
 
 
 # --- /api/wrappers/{target}/...: this laptop or a connected cluster ---

@@ -255,14 +255,14 @@ export interface WrapperEntry {
   binary: { status: BinaryStatus; path: string | null; detail?: string };
 }
 
-/** GET /api/remotes/{name}/wrappers */
+/** GET /api/wrappers/{target}/list */
 export interface WrappersResult {
   schema: number;
   search_path: string[];
   wrappers: WrapperEntry[];
 }
 
-/** POST /api/remotes/{name}/receipts body (mirrors web/api/wrappers.py ReceiptImport). */
+/** POST /api/wrappers/{target}/receipts body (mirrors web/api/wrappers.py ReceiptImport). */
 export interface ReceiptImport {
   id: string;
   binary: string;
@@ -270,7 +270,7 @@ export interface ReceiptImport {
   launcher: "" | "srun" | "mpirun";
 }
 
-/** POST /api/remotes/{name}/receipts response (`crab receipts set --json`). */
+/** POST /api/wrappers/{target}/receipts response (`crab receipts set --json`). */
 export interface ReceiptImportResult {
   schema: number;
   receipt: Record<string, unknown>;

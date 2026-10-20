@@ -94,67 +94,6 @@ def _inner(command: str) -> list[str]:
     return shlex.split(shlex.split(command)[2])
 
 
-def test_list_returns_the_cluster_catalog(client_and_fake) -> None:
-    client, fake = client_and_fake
-    resp = client.get("/api/remotes/leonardo/wrappers")
-    assert resp.status_code == 200
-    assert resp.json()["wrappers"][0]["binary"]["status"] == "missing"
-    assert "crab wrappers list --json" in fake.calls[-1]
-
-
-def test_import_binary_sends_every_field_quoted(client_and_fake) -> None:
-    client, fake = client_and_fake
-    body = {
-        "id": "hpl",
-        "binary": "/opt/hpl dir/xhpl",
-        "pre_run": ["module load mpi/4"],
-        "launcher": "srun",
-    }
-    resp = client.post("/api/remotes/leonardo/receipts", json=body)
-    assert resp.status_code == 200
-    assert resp.json()["receipt"]["id"] == "hpl"
-    words = _inner(fake.calls[-1])
-    tail = words[words.index("crab") :]
-    assert tail == [
-        "crab",
-        "receipts",
-        "set",
-        "hpl",
-        "--binary",
-        "/opt/hpl dir/xhpl",
-        "--pre-run",
-        "module load mpi/4",
-        "--launcher",
-        "srun",
-        "--json",
-    ]
-
-
-def test_import_binary_expands_tilde_only_in_the_binary_path(client_and_fake) -> None:
-    client, fake = client_and_fake
-    body = {"id": "hpl", "binary": "~/bin/xhpl", "pre_run": ["~/env.sh"]}
-    assert client.post("/api/remotes/leonardo/receipts", json=body).status_code == 200
-    words = _inner(fake.calls[-1])
-    assert words[words.index("--binary") + 1] == "$HOME/bin/xhpl"
-    assert words[words.index("--pre-run") + 1] == "~/env.sh"
-
-
-@pytest.mark.parametrize(
-    "body",
-    [
-        {"id": "../evil", "binary": "/x"},
-        {"id": "hpl", "binary": ""},
-        {"id": "hpl", "binary": "/x", "launcher": "srun; rm -rf ~"},
-    ],
-)
-def test_bad_import_input_is_refused_before_reaching_the_cluster(client_and_fake, body) -> None:
-    client, fake = client_and_fake
-    before = len(fake.calls)
-    resp = client.post("/api/remotes/leonardo/receipts", json=body)
-    assert resp.status_code == 422
-    assert len(fake.calls) == before
-
-
 # --- /api/wrappers/{target}/...: `local` is this laptop, anything else a connected cluster ---
 
 _BODY = {"id": "hpl", "binary": "/opt/hpl dir/xhpl", "pre_run": ["module load mpi/4"]}
@@ -409,3 +348,15 @@ def test_each_route_has_its_own_timeout(client_and_fake) -> None:
         assert _send(client, "leonardo", route).status_code == 200
         seen[route] = fake.timeouts[-1]
     assert seen == {"list": 90.0, "show": 60.0, "status": 45.0, "pull": 180.0, "receipts": 30.0}
+
+
+def test_the_old_cluster_only_urls_are_gone(client_and_fake) -> None:
+    """No API route is left there: GET falls through to the SPA shell (HTML, not the catalog), POST
+    has no handler (405, the catch-all only takes GET). Neither reaches the cluster."""
+    client, fake = client_and_fake
+    before = len(fake.calls)
+    got = client.get("/api/remotes/leonardo/wrappers")
+    assert got.headers["content-type"].startswith("text/html")
+    posted = client.post("/api/remotes/leonardo/receipts", json=_BODY)
+    assert posted.status_code == 405
+    assert len(fake.calls) == before

@@ -1,45 +1,12 @@
-// Pure helpers for the Wrappers page: grouping, counts and labels for the cluster's
-// `crab wrappers list --json` catalog. No fetch/DOM, so the unit suite imports them directly.
+// Pure helpers for the Wrappers section: targets, the Library tree, drift and labels for a
+// target's `crab wrappers list --json` catalog. No fetch/DOM, so the unit suite imports them directly.
 
 import type { CloneStatus, RemoteListItem, WrapperEntry, WrapperTarget } from "@/api/types";
-
-export interface AppGroup {
-  app: string;
-  wrappers: WrapperEntry[];
-}
-
-/** Wrappers grouped by their top folder (the app), in the order the catalog lists them. */
-export function groupByApp(wrappers: WrapperEntry[]): AppGroup[] {
-  const groups = new Map<string, WrapperEntry[]>();
-  for (const w of wrappers) {
-    const app = w.relpath.includes("/") ? w.relpath.split("/")[0] : "(top level)";
-    if (!groups.has(app)) groups.set(app, []);
-    groups.get(app)!.push(w);
-  }
-  return [...groups.entries()].map(([app, list]) => ({ app, wrappers: list }));
-}
 
 /** What the binary helpers read: a list entry and a `wrappers show` summary both have it. */
 export type BinaryInfo = Pick<WrapperEntry, "loadable" | "benchmark_id" | "executable" | "binary">;
 
 const FOUND = new Set(["config", "receipt", "path"]);
-
-/** found: a binary is known; missing: none found; broken: cannot load or the lookup failed. */
-export function summarize(wrappers: WrapperEntry[]): {
-  found: number;
-  missing: number;
-  broken: number;
-} {
-  let found = 0;
-  let missing = 0;
-  let broken = 0;
-  for (const w of wrappers) {
-    if (!w.loadable || w.binary.status === "error") broken += 1;
-    else if (FOUND.has(w.binary.status)) found += 1;
-    else missing += 1;
-  }
-  return { found, missing, broken };
-}
 
 const LABELS: Record<string, string> = {
   config: "set in config",
