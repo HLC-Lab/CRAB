@@ -4,6 +4,7 @@
 // table shows that target's problems).
 import { computed } from "vue";
 import type { PullResult, WrapperTarget, WrappersError } from "@/api/types";
+import ModifiedFiles from "@/components/wrappers/ModifiedFiles.vue";
 import { attentionCount, drift, driftLines, relativeTime, shortSha } from "@/lib/wrappers";
 import { useRemotesStore } from "@/stores/remotes";
 import { useWrappersStore } from "@/stores/wrappers";
@@ -141,6 +142,7 @@ function select(t: WrapperTarget) {
                 >
                   {{ line }}
                 </div>
+                <ModifiedFiles :files="store.statuses[t.id].modified" />
               </td>
               <td class="nowrap">
                 <template v-if="store.lists[t.id]">

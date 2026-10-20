@@ -14,6 +14,7 @@ import {
   filterTree,
   hasProblem,
   missingReason,
+  modifiedPreview,
   needsAttention,
   relativeTime,
   shortSha,
@@ -323,6 +324,24 @@ describe("driftLines", () => {
       "behind GitHub",
       "1 modified file",
     ]);
+  });
+});
+
+describe("modifiedPreview", () => {
+  const names = (n: number) => Array.from({ length: n }, (_, i) => `a/f${i}.py`);
+
+  it("shows every file when there are fewer than the limit", () => {
+    expect(modifiedPreview(["a.py", "b.py"])).toEqual({ shown: ["a.py", "b.py"], more: 0 });
+    expect(modifiedPreview(names(10))).toEqual({ shown: names(10), more: 0 });
+  });
+
+  it("shows the first 10 and counts the rest", () => {
+    expect(modifiedPreview(names(13))).toEqual({ shown: names(10), more: 3 });
+    expect(modifiedPreview(names(5), 2)).toEqual({ shown: names(2), more: 3 });
+  });
+
+  it("is empty for no files", () => {
+    expect(modifiedPreview([])).toEqual({ shown: [], more: 0 });
   });
 });
 
