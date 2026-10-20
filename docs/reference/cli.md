@@ -124,7 +124,7 @@ use it instead of the dashboard.
 
 ## `crab info`
 
-Shows the installed version, the checkout root and the presets CRAB can use.
+Shows the installed version, the CRAB home, the install layout and the presets CRAB can use.
 
 ```bash
 crab info [--json]
@@ -134,11 +134,12 @@ crab info [--json]
 |------|---------|---------|
 | `--json` | Print JSON instead of text. | off |
 
-With `--json` the answer carries `schema`, `crab_version`, `crab_root` and `presets`. Each entry of
-`presets` has the preset's `name` and `description`, plus its `scheduler` (`"slurm"` or `"local"`),
-its `launcher` and its `hosts` (the host names; an empty list under Slurm). A preset that does not
-parse keeps its `name` and `description` and gets an `error` message in place of those three
-fields. `_common` and `example_preset` are not listed.
+With `--json` the answer carries `schema`, `crab_version`, `crab_root`, `layout` and `presets`.
+`layout` is `"checkout"` when CRAB runs from a git checkout and `"installed"` for a pip or pipx
+install. Each entry of `presets` has the preset's `name` and `description`, plus its `scheduler`
+(`"slurm"` or `"local"`), its `launcher` and its `hosts` (the host names; an empty list under
+Slurm). A preset that does not parse keeps its `name` and `description` and gets an `error`
+message in place of those three fields. `_common` and `example_preset` are not listed.
 
 ```bash
 crab info

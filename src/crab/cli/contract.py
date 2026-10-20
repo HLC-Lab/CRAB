@@ -72,7 +72,7 @@ def _error_text(error: Exception) -> str:
 
 
 def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
-    """Version handshake + available presets.
+    """Version handshake, install layout + available presets.
 
     Each preset carries `scheduler`, `launcher` and `hosts` (names; empty under Slurm). A preset
     that does not parse keeps its name and description and gets an `error` message instead.
@@ -104,6 +104,7 @@ def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
         "schema": CONTRACT_SCHEMA,
         "crab_version": _crab_version(),
         "crab_root": str(root),
+        "layout": paths.layout(),
         "presets": sorted(presets, key=lambda p: p["name"]),
     }
 

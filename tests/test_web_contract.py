@@ -50,6 +50,17 @@ def test_gather_info_parses_and_filters_presets(tmp_path: Path, monkeypatch: pyt
     assert names == ["alps", "leonardo"]  # sorted; _common/example excluded
 
 
+def test_gather_info_reports_the_install_layout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(paths, "shipped_presets", lambda: tmp_path / "absent.json")
+    for name in ("checkout", "installed"):
+        monkeypatch.setattr(paths, "layout", lambda name=name: name)
+        data = contract.gather_info(crab_root=tmp_path)
+
+        assert data["layout"] == name
+        assert data["schema"] == contract.CONTRACT_SCHEMA
+        assert data["crab_root"] == str(tmp_path)
+
+
 def test_gather_info_missing_presets_is_graceful(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(paths, "shipped_presets", lambda: tmp_path / "absent.json")
     data = contract.gather_info(crab_root=tmp_path)  # no shipped presets file
