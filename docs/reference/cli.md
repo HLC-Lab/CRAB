@@ -42,6 +42,35 @@ crab run examples/local/sequential_barrier.json -p local --only 01_sequential_ba
 
 See [Running an experiment](../using/running.md).
 
+## `crab validate`
+
+Runs the checks `crab run` makes before it submits, without submitting and without touching the
+scheduler: the config's `schema_version` and the engine's config checks (option values, allocation,
+ppn, launcher, wrapper paths). With `-p`, the config is also checked against what that preset can
+run (the scheduler, the launcher and the number of hosts).
+
+```bash
+crab validate [-p PRESET] [--json] <config.json>
+```
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `config.json` | Path to the [experiment config](configuration.md). Required. | none |
+| `-p`, `--preset` | Also check the config against this preset. | none: config-only checks |
+| `--json` | Print `{"ok": bool, "errors": [...], "warnings": [...]}` on stdout instead of text. The exit status is the same. | off |
+
+The output is `ok: <file>` followed by one line per warning, with exit status 0. When a check fails,
+the message goes to stderr and the exit status is 1. A missing file, a file that is not JSON and an
+unknown preset are one-line errors too.
+
+```bash
+crab validate examples/local/sequential_barrier.json
+crab validate -p local examples/local/sequential_barrier.json --json
+```
+
+The web dashboard runs the same config-only checks (no preset) when it saves a config. Their errors
+and warnings join the save's warnings, and a save is never rejected.
+
 ## `crab web`
 
 Starts the web dashboard on this machine and opens it in the browser. It needs the `web` extra;
