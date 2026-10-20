@@ -37,7 +37,7 @@ function makeWritable(store: ReturnType<typeof useSbatchmanStore>): void {
   g.preset = "crab_run";
   g.draft.numnodes = "2";
   const app = emptyApp();
-  app.path = "blink/alltoall_b.py";
+  app.path = "blink/alltoall/alltoall_b.py";
   g.draft.experiments[0].apps.push(app);
 }
 

@@ -174,7 +174,7 @@ script. Each line of the command does this:
 | `--env 'PATH=<install dir>/CRAB/.venv/bin:$PATH'` | Puts `crab` on the job's path. | Without it, the job only finds `crab` if you launched from an activated shell and your site forwards the submitting environment to jobs. |
 | `--env 'CRAB_ROOT=<install dir>/CRAB'` | Tells the worker where its install is. | Use the absolute path of the CRAB checkout: the root directory `crab info` printed in [step 2](#2-install-crab-and-sbatchman-on-the-cluster). |
 | `--env 'CRAB_SYSTEM=<cluster name>'` | Names the system the job runs on. | Use the cluster name from [step 4](#4-create-a-sbatchman-project). |
-| `--env 'CRAB_PATH_WRAPPERS=<install dir>/CRAB/wrappers'` | Where the worker resolves wrapper paths. | Lets it resolve paths like `blink/alltoall_b.py`. |
+| `--env 'CRAB_PATH_WRAPPERS=<install dir>/CRAB/wrappers'` | Where the worker resolves wrapper paths. | Lets it resolve paths like `blink/alltoall/alltoall_b.py`. |
 | `--env 'SBATCHMAN_JOB_DIR={EXP_DIR}'` | Points the worker at the job's own directory. | SbatchMan at the pinned commit already exports it. Keeping the line makes the preset work with builds that don't. |
 
 Use absolute paths, and keep the single quotes: SbatchMan writes each `--env` entry into the job
@@ -242,7 +242,7 @@ free ranks), not a CRAB error message.
 In the dashboard, open **SbatchMan** and build your campaign: give the group a tag, set its
 **SbatchMan preset** to the name you configured above (`crab_run` in the example), and add an
 app the same way you would in a normal CRAB experiment: for `blink`, pick a wrapper such as
-`blink/alltoall_b.py` from the picker and set its args. Sweep values go in variables and are used as
+`blink/alltoall/alltoall_b.py` from the picker and set its args. Sweep values go in variables and are used as
 `{name}` placeholders, including in numeric fields such as the node count or an allocation's
 stride.
 
@@ -378,8 +378,8 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `crab: command not found` in a job's `stderr.log` | The job's shell cannot see the CRAB environment | Add `--env 'PATH=<install dir>/CRAB/.venv/bin:$PATH'` to the preset ([step 5](#5-create-a-sbatchman-preset-for-crab)), re-run `configure` with `--overwrite`, relaunch |
 | `SbatchMan root not found. Please run 'sbatchman init'`, or a prompt offering to create a project | The command ran outside the project directory | `cd` into the directory where you ran `sbatchman init` ([step 4](#4-create-a-sbatchman-project)) |
 | `Cluster name not set. Please run 'sbatchman set-cluster-name'.` | No cluster name in SbatchMan's global settings | `sbatchman set-cluster-name <cluster name>` |
-| `Wrapper not found: blink/alltoall_b.py` (a relative path) in the job log | `CRAB_PATH_WRAPPERS` is not set in the job | Add it to the preset ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
-| `Wrapper not found: blink/alltoall_b.py`, and `<install dir>/CRAB/wrappers/` is empty or missing | CRAB was installed with `pip install -e .` alone, which does not fetch the shared wrappers | Run `make` (or `crab update`) in the CRAB checkout |
+| `Wrapper not found: blink/alltoall/alltoall_b.py` (a relative path) in the job log | `CRAB_PATH_WRAPPERS` is not set in the job | Add it to the preset ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
+| `Wrapper not found: blink/alltoall/alltoall_b.py`, and `<install dir>/CRAB/wrappers/` is empty or missing | CRAB was installed with `pip install -e .` alone, which does not fetch the shared wrappers | Run `make` (or `crab update`) in the CRAB checkout |
 | `Wrapper not found: <absolute path>` | The wrapper file is not in that CRAB checkout | Check the path, and that the cluster's CRAB is on the `sbatchman` branch and up to date (`crab update`) |
 | `No binary for ... Tried: ...` in the job log | No config `binary`, receipt, or program on `PATH` for that wrapper | Build it, load its module in the preset, or record it with `crab receipts set` ([step 3](#3-build-or-register-the-benchmarks)) |
 | `PARSE FAILED  app <n>: ...` in the job log, and the run counted as failed | The wrapper could not read the application's output (the reason follows) | Compare the output with what the wrapper expects; fix the wrapper and check it with `crab parse` |
