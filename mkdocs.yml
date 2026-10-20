@@ -71,6 +71,7 @@ nav:
       - Writing experiment configs: using/writing-configs.md
       - Reading results: using/results.md
       - Using CRAB with SbatchMan: using/sbatchman-integration.md
+      - Wrappers in the web dashboard: using/dashboard-wrappers.md
   - Extending CRAB:
       - Overview: extending/overview.md
       - Writing a wrapper: extending/wrappers.md

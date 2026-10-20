@@ -18,6 +18,10 @@ The wrapper is created in the shared wrappers folder (the first folder of `CRAB_
 git-ignored and meant for private or in-progress wrappers, or `--dir <folder>` for any other
 folder.
 
+The web dashboard lists the wrappers of this laptop and of each connected cluster, and its **New
+wrapper** button shows this command: see [Wrappers in the web
+dashboard](../using/dashboard-wrappers.md).
+
 ## Where the shared wrappers live
 
 The shared wrappers are in their own repository,

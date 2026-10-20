@@ -28,6 +28,9 @@ export default defineConfig({
       CRAB_WEB_DATA_DIR: join(scratch, "data"),
       // Local-scheduler job records live under $XDG_STATE_HOME/crab, never ~/.local/state.
       XDG_STATE_HOME: join(scratch, "state"),
+      // The Wrappers spec reads a fixed, offline wrappers folder instead of the developer's
+      // clone (whose status would ask GitHub).
+      CRAB_PATH_WRAPPERS: join(repoRoot, "tests/fixtures/wrappers"),
     },
   },
 });

@@ -13,7 +13,7 @@ import shlex
 import sys
 from typing import Any
 
-from crab.web.connections.transport import Transport
+from crab.web.connections.transport import CmdResult, Transport
 from crab.web.errors import ContractError, RemoteCommandError
 from crab.web.store.profiles import Profile
 
@@ -78,6 +78,15 @@ def build_crab_command(profile: Profile, args: list[str]) -> str:
     return f"bash -lc {shlex.quote(inner)}"
 
 
+def output_tail(result: CmdResult, limit: int = 2000) -> str:
+    """The last ``limit`` characters of a command's stderr, else stdout, stripped.
+
+    A command's own error comes last, after any login-shell or module noise, so the
+    tail is what keeps it.
+    """
+    return (result.stderr or result.stdout or "").strip()[-limit:]
+
+
 async def run_crab_json(
     transport: Transport, profile: Profile, args: list[str], timeout: float = 30.0
 ) -> Any:
@@ -88,7 +97,7 @@ async def run_crab_json(
     if not result.ok:
         raise RemoteCommandError(
             f"`crab {' '.join(args)}` failed on the cluster (exit {result.rc}).",
-            detail=(result.stderr or result.stdout or "").strip()[:2000],
+            detail=output_tail(result),
         )
 
     try:

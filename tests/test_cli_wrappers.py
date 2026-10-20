@@ -106,6 +106,64 @@ def test_list_sees_a_receipt(root, monkeypatch, capsys) -> None:
     assert entry["binary"] == {"status": "receipt", "path": "/opt/rb"}
 
 
+CHATTY = """from crab.wrappers.base import base
+
+print("HELLO FROM IMPORT")
+
+
+class app(base):
+    executable = "onpath"
+    metadata = [{"name": "t", "unit": "s", "conv": True}]
+
+    def __init__(self, id_num, collect_flag, args):
+        super().__init__(id_num, collect_flag, args)
+        print("HELLO FROM INIT")
+
+    def read_data(self):
+        return []
+"""
+
+
+def _chatty(root: Path, rel: str) -> Path:
+    path = root / "wrappers" / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(CHATTY)
+    return path
+
+
+def test_list_json_stays_clean_when_a_wrapper_prints(root, monkeypatch, capsys) -> None:
+    _chatty(root, "app/chatty.py")
+    _wrapper(root, "app/quiet.py")
+
+    code, out, err = _crab(monkeypatch, capsys, "wrappers", "list", "--json")
+    assert code == 0
+    by_rel = {w["relpath"]: w for w in json.loads(out)["wrappers"]}
+    assert by_rel["app/chatty.py"]["loadable"] is True
+    assert by_rel["app/quiet.py"]["loadable"] is True
+    assert "HELLO FROM IMPORT" in err and "HELLO FROM INIT" in err
+
+
+def test_show_json_stays_clean_when_a_wrapper_prints(root, monkeypatch, capsys) -> None:
+    _chatty(root, "app/chatty.py")
+
+    code, out, err = _crab(monkeypatch, capsys, "wrappers", "show", "app/chatty.py", "--json")
+    assert code == 0
+    assert json.loads(out)["loadable"] is True
+    assert "HELLO FROM IMPORT" in err and "HELLO FROM INIT" in err
+
+
+def test_list_json_stays_clean_when_a_wrapper_prints_then_fails(root, monkeypatch, capsys) -> None:
+    broken = root / "wrappers" / "app" / "broken.py"
+    broken.parent.mkdir(parents=True)
+    broken.write_text('print("HELLO BEFORE FAILING")\nraise ImportError("boom")\n')
+
+    code, out, err = _crab(monkeypatch, capsys, "wrappers", "list", "--json")
+    assert code == 0
+    entry = {w["relpath"]: w for w in json.loads(out)["wrappers"]}["app/broken.py"]
+    assert entry["loadable"] is False
+    assert "HELLO BEFORE FAILING" in err
+
+
 # ---- test ----------------------------------------------------------------------------------
 
 

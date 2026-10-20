@@ -183,6 +183,38 @@ async def test_run_crab_json_parses_and_maps_errors():
         await run_crab_json(FakeTransport(stdout="not json"), p, ["info", "--json"])
 
 
+_ARGPARSE_LINE = "crab wrappers: error: argument wrappers_command: invalid choice: 'show'"
+
+
+async def test_a_failed_command_keeps_the_end_of_stderr():
+    noise = "".join(f"login shell noise {i:02d} " + "x" * 60 + "\n" for i in range(40))
+    stderr = noise + _ARGPARSE_LINE + "\n"
+    with pytest.raises(RemoteCommandError) as exc:
+        await run_crab_json(FakeTransport(rc=2, stderr=stderr), _leonardo(), ["wrappers", "--json"])
+    detail = exc.value.detail
+    assert detail.endswith(_ARGPARSE_LINE)
+    assert len(detail) <= 2000
+
+
+async def test_a_short_stderr_is_kept_whole():
+    with pytest.raises(RemoteCommandError) as exc:
+        await run_crab_json(
+            FakeTransport(rc=1, stderr="  boom\nsecond line\n"), _leonardo(), ["info", "--json"]
+        )
+    assert exc.value.detail == "boom\nsecond line"
+
+
+async def test_empty_stderr_falls_back_to_the_end_of_stdout():
+    stdout = "".join(f"line {i:03d} " + "y" * 70 + "\n" for i in range(60)) + "last stdout line\n"
+    with pytest.raises(RemoteCommandError) as exc:
+        await run_crab_json(
+            FakeTransport(stdout=stdout, rc=1, stderr=""), _leonardo(), ["info", "--json"]
+        )
+    detail = exc.value.detail
+    assert detail.endswith("last stdout line")
+    assert len(detail) <= 2000
+
+
 # --------------------------------------------------------------------------- #
 # API
 # --------------------------------------------------------------------------- #

@@ -78,6 +78,15 @@ def test_list_benchmarks_walks_the_search_path_first_match_wins(root: Path) -> N
     }
 
 
+def test_list_benchmarks_skips_samples_and_caches(root: Path) -> None:
+    _touch(root / "wrappers/app/w.py")
+    _touch(root / "wrappers/app/samples/case1/helper.py")
+    _touch(root / "wrappers/app/__pycache__/w.cpython-312.py")
+    _touch(root / "wrappers/app/_common.py")
+    wrappers = contract.gather_benchmarks(env_dir=root / "none")["wrappers"]
+    assert [w["relpath"] for w in wrappers] == ["app/w.py"]
+
+
 def test_a_path_python_cannot_import_fails_naming_the_file(tmp_path: Path) -> None:
     """`importlib.util.spec_from_file_location` returns None for a file without a Python suffix;
     `load_module` used to crash on it with "'NoneType' object has no attribute 'loader'"."""

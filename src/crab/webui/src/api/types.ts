@@ -268,14 +268,14 @@ export interface WrapperEntry {
   binary: { status: BinaryStatus; path: string | null; detail?: string };
 }
 
-/** GET /api/remotes/{name}/wrappers */
+/** GET /api/wrappers/{target}/list */
 export interface WrappersResult {
   schema: number;
   search_path: string[];
   wrappers: WrapperEntry[];
 }
 
-/** POST /api/remotes/{name}/receipts body (mirrors web/api/wrappers.py ReceiptImport). */
+/** POST /api/wrappers/{target}/receipts body (mirrors web/api/wrappers.py ReceiptImport). */
 export interface ReceiptImport {
   id: string;
   binary: string;
@@ -283,8 +283,78 @@ export interface ReceiptImport {
   launcher: "" | "srun" | "mpirun";
 }
 
-/** POST /api/remotes/{name}/receipts response (`crab receipts set --json`). */
+/** POST /api/wrappers/{target}/receipts response (`crab receipts set --json`). */
 export interface ReceiptImportResult {
   schema: number;
   receipt: Record<string, unknown>;
+}
+
+// -- Wrappers section: per-target routes (/api/wrappers/{target}/...) ----
+// Hand-written: the backend returns the CLI's plain dicts, so generated.ts has no schemas for
+// them. Shapes follow `crab wrappers show|status|pull --json` (docs/reference/cli.md, section
+// "crab wrappers").
+
+/** Where wrappers are looked at: this laptop (`id` "local") or a cluster profile. */
+export interface WrapperTarget {
+  id: string;
+  label: string;
+  connected: boolean;
+  local: boolean;
+}
+
+/** One metric a wrapper parses; `conv` marks the convergence target. */
+export interface WrapperSummaryMetric {
+  name: string;
+  unit: string;
+  role: "check" | null;
+  conv: boolean;
+}
+
+/** GET /api/wrappers/{target}/show (`crab wrappers show --json`). */
+export interface WrapperSummary {
+  relpath: string;
+  path: string;
+  folder: string;
+  moved_from: string | null;
+  loadable: boolean;
+  error: string | null;
+  benchmark_id: string | null;
+  executable: string | null;
+  keys: string[];
+  description: { text: string; source: "docstring" | "readme" | null; path: string | null };
+  metrics: WrapperSummaryMetric[];
+  binary: { status: BinaryStatus; path: string | null; detail?: string };
+  source: { commit: string | null; url: string | null };
+}
+
+/** GET /api/wrappers/{target}/status (`crab wrappers status --json`). */
+export interface CloneStatus {
+  dir: string;
+  clone: boolean;
+  detail: string | null;
+  commit: string | null;
+  subject: string | null;
+  branch: string | null;
+  modified: string[];
+  upstream: { url: string | null; head: string | null; error: string | null };
+  behind: number | null;
+  ahead: number | null;
+  state: "up to date" | "behind" | "ahead" | "diverged" | "unknown";
+}
+
+/** POST /api/wrappers/{target}/pull (`crab wrappers pull --json`). */
+export interface PullResult {
+  schema: number;
+  dir: string;
+  action: "updated" | "up to date" | "cloned" | "skipped";
+  old: string | null;
+  new: string | null;
+  detail?: string;
+}
+
+/** An API error kept in a store: the envelope's code, message and detail. */
+export interface WrappersError {
+  code: string;
+  message: string;
+  detail?: string;
 }

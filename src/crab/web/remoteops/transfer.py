@@ -16,7 +16,7 @@ import re
 
 from crab.web.connections.transport import Transport
 from crab.web.errors import RemoteCommandError
-from crab.web.remoteops.crab_cli import crab_dir, remote_path_expr
+from crab.web.remoteops.crab_cli import crab_dir, output_tail, remote_path_expr
 from crab.web.settings import Settings, get_settings
 from crab.web.store.profiles import Profile
 
@@ -58,7 +58,7 @@ async def _resolve_staging_dir(
     if not result.ok:
         raise RemoteCommandError(
             f"Could not create the staging directory {remote_dir}.",
-            detail=(result.stderr or result.stdout or "").strip()[:2000],
+            detail=output_tail(result),
         )
     absolute_dir = result.stdout.strip()
     if not absolute_dir:

@@ -8,6 +8,7 @@
 // only carried through for the `remove-experiment` emit, `sourceCluster` is
 // shared with the caller (Basics reads it, this pane is where it gets picked).
 import { computed, ref } from "vue";
+import { RouterLink } from "vue-router";
 import { useRemotesStore } from "@/stores/remotes";
 import { useCatalogStore } from "@/stores/catalog";
 import type { Wrapper } from "@/api/types";
@@ -21,6 +22,7 @@ import {
   hasLocalOverrides,
 } from "@/lib/config";
 import { equalShares, sliceColor, sliceName } from "@/lib/slices";
+import { wrapperSummaryLink } from "@/lib/wrapperTree";
 import AllocationEditor from "@/components/AllocationEditor.vue";
 import OptionsFields from "@/components/OptionsFields.vue";
 import FlowChain from "@/components/FlowChain.vue";
@@ -182,6 +184,13 @@ function wrapperWarning(relpath: string): string {
   }
   return "";
 }
+function wrapperLink(relpath: string): string | null {
+  return wrapperSummaryLink(
+    relpath,
+    props.sourceCluster,
+    remoteWrappers.value.map((w) => w.relpath),
+  );
+}
 function chooseWrapper(relpath: string) {
   const e = sel.value;
   if (e && wrapperFor.value !== null && e.apps[wrapperFor.value]) {
@@ -275,7 +284,8 @@ function chooseWrapper(relpath: string) {
       >Wrappers from <b>{{ sourceCluster }}</b></span
     >
     <span v-else class="src-note muted"
-      >Connect a cluster in Remotes to browse wrappers. You can still type a path.</span
+      >Wrappers from This laptop. Connect a cluster in
+      <RouterLink to="/remotes">Remotes</RouterLink> to see its wrappers too.</span
     >
   </div>
 
@@ -290,6 +300,7 @@ function chooseWrapper(relpath: string) {
       :group-names="groupNames"
       :color-for-group="colorForGroup"
       :wrapper-warning="wrapperWarning"
+      :wrapper-link="wrapperLink"
       @remove="removeApp(i)"
       @open-wrapper-picker="openWrapperPicker(i)"
     />
@@ -406,6 +417,9 @@ select:focus {
 }
 .src-note.muted {
   color: var(--text3);
+}
+.src-note a {
+  color: var(--accent);
 }
 .src-note b {
   color: var(--text);
