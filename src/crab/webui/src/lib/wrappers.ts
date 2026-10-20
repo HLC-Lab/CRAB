@@ -153,20 +153,44 @@ export function filterTree(tree: WrapperFolder, query: string): WrapperFolder {
   return keep(tree, (w) => w.relpath.toLowerCase().includes(q));
 }
 
-/** The wrappers that need attention, split by what to do: import a binary (missing) or look at
- * the wrapper itself (broken). Catalog order. */
+/** The wrappers that need attention, split by what to do: look at the wrapper itself (broken:
+ * cannot load) or import a binary (missing). `lookupFailed` (the binary lookup itself errored,
+ * e.g. CRAB_SYSTEM unset) is informational: it is not counted as a problem. Catalog order. */
 export function needsAttention(wrappers: WrapperEntry[]): {
-  missing: WrapperEntry[];
   broken: WrapperEntry[];
+  missing: WrapperEntry[];
+  lookupFailed: WrapperEntry[];
 } {
-  const missing: WrapperEntry[] = [];
   const broken: WrapperEntry[] = [];
+  const missing: WrapperEntry[] = [];
+  const lookupFailed: WrapperEntry[] = [];
   for (const w of wrappers) {
-    if (!hasProblem(w)) continue;
-    if (!w.loadable || w.binary.status === "error") broken.push(w);
-    else missing.push(w);
+    if (!w.loadable) broken.push(w);
+    else if (w.binary.status === "missing") missing.push(w);
+    else if (w.binary.status === "error") lookupFailed.push(w);
   }
-  return { missing, broken };
+  return { broken, missing, lookupFailed };
+}
+
+/** How many wrappers need attention: those that cannot load plus those with no binary. */
+export function attentionCount(wrappers: WrapperEntry[]): number {
+  const { broken, missing } = needsAttention(wrappers);
+  return broken.length + missing.length;
+}
+
+/** Why a wrapper's binary is missing, naming what the lookup searched for. A wrapper with no
+ * receipt id cannot take an imported binary, so the reason says where to set it instead. */
+export function missingReason(w: WrapperEntry): string {
+  const base = "no receipt, config entry or PATH match";
+  const name = w.executable ?? w.benchmark_id;
+  const reason = name ? `${base} for ${name}` : base;
+  if (canImport(w)) return reason;
+  return `${reason}; no receipt id in this wrapper: set the app's binary in the experiment config`;
+}
+
+/** The first seven characters of a commit id ("" when there is none). */
+export function shortSha(sha: string | null): string {
+  return sha ? sha.slice(0, 7) : "";
 }
 
 // -- Drift (a clone against GitHub) ------------------------------------------------------
@@ -233,4 +257,21 @@ export function drift(status: CloneStatus): Drift {
         pullLabel: "Pull",
       };
   }
+}
+
+/** The GitHub column's lines: a clone that is behind and also has edits lists both. */
+export function driftLines(status: CloneStatus): string[] {
+  const main = drift(status).text;
+  if (status.modified.length > 0 && status.state === "behind") {
+    return [drift({ ...status, modified: [] }).text, main];
+  }
+  return [main];
+}
+
+/** "just now", "5 min ago", "2 h ago" for a gap in milliseconds. */
+export function relativeTime(elapsedMs: number): string {
+  const minutes = Math.floor(Math.max(elapsedMs, 0) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  return `${Math.floor(minutes / 60)} h ago`;
 }

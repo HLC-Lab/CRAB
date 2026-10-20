@@ -30,7 +30,18 @@ import type {
   WrapperSummary,
   WrappersResult,
 } from "@/api/types";
-import { buildTree, drift, filterTree, needsAttention, wrapperTargets } from "@/lib/wrappers";
+import {
+  attentionCount,
+  buildTree,
+  drift,
+  driftLines,
+  filterTree,
+  missingReason,
+  needsAttention,
+  relativeTime,
+  shortSha,
+  wrapperTargets,
+} from "@/lib/wrappers";
 import { useWrappersStore } from "@/stores/wrappers";
 
 function entry(relpath: string, status: string, extra: Partial<WrapperEntry> = {}): WrapperEntry {
@@ -293,17 +304,96 @@ describe("drift", () => {
 });
 
 describe("needsAttention", () => {
-  it("splits the problem wrappers into missing and broken, keeping catalog order", () => {
-    const out = needsAttention([
-      entry("a/1.py", "receipt"),
-      entry("a/2.py", "missing"),
-      entry("a/3.py", "unknown"),
-      entry("a/4.py", "error"),
-      entry("a/5.py", "missing"),
-      entry("a/6.py", "path"),
-    ]);
+  const wrappers = [
+    entry("a/1.py", "receipt"),
+    entry("a/2.py", "missing"),
+    entry("a/3.py", "unknown"),
+    entry("a/4.py", "error"),
+    entry("a/5.py", "missing"),
+    entry("a/6.py", "path"),
+  ];
+
+  it("splits the problem wrappers into broken, missing and lookup failed, in catalog order", () => {
+    const out = needsAttention(wrappers);
+    expect(out.broken.map((w) => w.relpath)).toEqual(["a/3.py"]);
     expect(out.missing.map((w) => w.relpath)).toEqual(["a/2.py", "a/5.py"]);
-    expect(out.broken.map((w) => w.relpath)).toEqual(["a/3.py", "a/4.py"]);
+    expect(out.lookupFailed.map((w) => w.relpath)).toEqual(["a/4.py"]);
+  });
+
+  it("counts only broken and missing wrappers, not failed lookups", () => {
+    expect(attentionCount(wrappers)).toBe(3);
+    expect(attentionCount([entry("a/4.py", "error"), entry("a/6.py", "path")])).toBe(0);
+    expect(attentionCount([])).toBe(0);
+  });
+});
+
+describe("missingReason", () => {
+  it("names the executable the lookup was for", () => {
+    expect(missingReason(entry("a/1.py", "missing", { executable: "amg" }))).toBe(
+      "no receipt, config entry or PATH match for amg",
+    );
+  });
+
+  it("falls back to the benchmark id when there is no executable", () => {
+    const noExe = entry("a/1.py", "missing", { executable: null, benchmark_id: "amg2" });
+    expect(missingReason(noExe)).toBe("no receipt, config entry or PATH match for amg2");
+  });
+
+  it("says how to fix a wrapper that has no receipt id (Import binary is not possible)", () => {
+    const fix = "no receipt id in this wrapper: set the app's binary in the experiment config";
+    const withExe = entry("a/1.py", "missing", { executable: "ib_send_lat", benchmark_id: null });
+    expect(missingReason(withExe)).toBe(
+      `no receipt, config entry or PATH match for ib_send_lat; ${fix}`,
+    );
+    const neither = entry("a/1.py", "missing", { executable: null, benchmark_id: null });
+    expect(missingReason(neither)).toBe(`no receipt, config entry or PATH match; ${fix}`);
+  });
+});
+
+describe("driftLines", () => {
+  it("is one line for most states", () => {
+    expect(driftLines(clone())).toEqual(["up to date"]);
+    expect(driftLines(clone({ modified: ["a.py"] }))).toEqual(["1 modified file"]);
+    expect(driftLines(clone({ state: "behind", behind: 2 }))).toEqual(["2 commits behind"]);
+  });
+
+  it("lists the commits behind above the modified files when both apply", () => {
+    expect(driftLines(clone({ state: "behind", behind: 2, modified: ["a", "b"] }))).toEqual([
+      "2 commits behind",
+      "2 modified files",
+    ]);
+    expect(driftLines(clone({ state: "behind", behind: null, modified: ["a"] }))).toEqual([
+      "behind GitHub",
+      "1 modified file",
+    ]);
+  });
+});
+
+describe("relativeTime", () => {
+  it("says just now under a minute", () => {
+    expect(relativeTime(0)).toBe("just now");
+    expect(relativeTime(59_999)).toBe("just now");
+  });
+
+  it("counts minutes, then hours", () => {
+    expect(relativeTime(60_000)).toBe("1 min ago");
+    expect(relativeTime(5 * 60_000 + 10_000)).toBe("5 min ago");
+    expect(relativeTime(60 * 60_000)).toBe("1 h ago");
+    expect(relativeTime(3 * 3_600_000 + 59 * 60_000)).toBe("3 h ago");
+  });
+
+  it("treats a negative gap (clock skew) as just now", () => {
+    expect(relativeTime(-5_000)).toBe("just now");
+  });
+});
+
+describe("shortSha", () => {
+  it("keeps the first seven characters", () => {
+    expect(shortSha("b173265b31616be54c4aee97d221b38294926e56")).toBe("b173265");
+  });
+
+  it("is empty without a commit", () => {
+    expect(shortSha(null)).toBe("");
   });
 });
 
