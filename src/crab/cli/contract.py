@@ -26,7 +26,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-from crab import __version__
+from crab import __version__, paths
 from crab.cli.presets import load_all_presets
 from crab.core.execution.scheduler.base import CancelResult, Scheduler
 from crab.core.execution.scheduler.local import LocalScheduler
@@ -40,8 +40,7 @@ from crab.log import CrabLogger
 CONTRACT_SCHEMA = 2
 
 # Resolve the framework root the same way the rest of the package does.
-# contract.py is at <root>/src/crab/cli/contract.py → parents[3] is <root>.
-_CRAB_ROOT = Path(__file__).resolve().parents[3]
+_CRAB_ROOT = paths.crab_home()
 
 
 def _crab_version() -> str:
@@ -289,7 +288,7 @@ def gather_benchmarks(
     env_dirs = (
         [Path(env_dir)]
         if env_dir
-        else [_CRAB_ROOT / "config" / "environments", _CRAB_ROOT / "local" / "receipts"]
+        else [_CRAB_ROOT / "config" / "environments", paths.local_path(_CRAB_ROOT, "receipts")]
     )
     if wrappers_dir:
         wdirs = [Path(wrappers_dir)]

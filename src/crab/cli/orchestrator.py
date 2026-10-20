@@ -16,8 +16,9 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-# Walk up: cli -> crab -> src -> CRAB_ROOT
-CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+from crab import paths  # noqa: E402 -- must follow the sys.path setup above
+
+CRAB_ROOT = str(paths.crab_home())
 
 import crab.setup.memory as memory  # noqa: E402 -- must follow the sys.path setup above
 

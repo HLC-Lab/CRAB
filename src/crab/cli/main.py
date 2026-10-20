@@ -13,9 +13,10 @@ def _preset_completer(prefix, parsed_args, **kwargs):
     """Dynamically parses presets.json for tab-autocompletion."""
     from pathlib import Path
 
+    from crab import paths
     from crab.cli.presets import load_all_presets
 
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    base_dir = paths.crab_home()
     try:
         all_presets = load_all_presets(Path(base_dir))
         valid_presets = [k for k in all_presets.keys() if k not in ["_common", "example_preset"]]
@@ -185,8 +186,11 @@ def _local_install_args(extra: str, root=None) -> list[str] | None:
     Never `pip install crab[...]`: `crab` on PyPI is an unrelated package.
     """
     if root is None:
-        # cli -> crab -> src -> checkout root
-        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        from crab import paths
+
+        root = paths.checkout_root()
+        if root is None:
+            return None
     if not os.path.isfile(os.path.join(root, "pyproject.toml")):
         return None
     return [sys.executable, "-m", "pip", "install", "-e", f"{root}[{extra}]"]
