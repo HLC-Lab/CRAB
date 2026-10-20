@@ -85,6 +85,13 @@ class ConflictError(CrabWebError):
     http_status = 409
 
 
+class CrabOutdatedError(CrabWebError):
+    """The target's crab is too old for this command."""
+
+    code = "crab_outdated"
+    http_status = 409
+
+
 def register_exception_handlers(app: Any) -> None:
     """Install handlers that turn errors into the stable envelope.
 

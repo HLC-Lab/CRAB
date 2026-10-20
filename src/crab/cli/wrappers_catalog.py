@@ -14,7 +14,10 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -60,21 +63,45 @@ def row_differences(got: list[dict[str, Any]], expected: list[dict[str, Any]]) -
     return lines
 
 
+def is_wrapper_relpath(rel: Path) -> bool:
+    """Whether a path relative to a wrappers folder is a wrapper: `.py`, not a `_`-prefixed
+    helper, not inside samples/ or __pycache__."""
+    return (
+        rel.suffix == ".py"
+        and not rel.name.startswith("_")
+        and "samples" not in rel.parts
+        and "__pycache__" not in rel.parts
+    )
+
+
 def _wrapper_files(folder: Path) -> list[Path]:
-    """Wrapper files under `folder`: not `_`-prefixed helpers, not inside samples/."""
-    return [
-        p
-        for p in sorted(folder.rglob("*.py"))
-        if not p.name.startswith("_")
-        and "samples" not in p.relative_to(folder).parts
-        and "__pycache__" not in p.parts
-    ]
+    """Wrapper files under `folder` (see is_wrapper_relpath)."""
+    return [p for p in sorted(folder.rglob("*.py")) if is_wrapper_relpath(p.relative_to(folder))]
 
 
 # ---- list -------------------------------------------------------------------------------------
 
 
-def _describe(path: Path, folder: Path) -> dict[str, Any]:
+@contextmanager
+def _crab_root_env() -> Iterator[None]:
+    """Give wrapper code the CRAB_ROOT a run has, and restore the environment after.
+
+    A run always has CRAB_ROOT (the presets' _common block sets it); older wrappers build binary
+    paths from it.
+    """
+    from crab.core import wrapper_paths
+
+    had_root = "CRAB_ROOT" in os.environ
+    os.environ.setdefault("CRAB_ROOT", wrapper_paths._CRAB_ROOT)
+    try:
+        yield
+    finally:
+        if not had_root:
+            del os.environ["CRAB_ROOT"]
+
+
+def _describe_app(path: Path, folder: Path) -> tuple[dict[str, Any], Any]:
+    """The list entry for one wrapper, and its loaded app (None when it cannot load)."""
     entry: dict[str, Any] = {
         "relpath": str(path.relative_to(folder)),
         "path": str(path),
@@ -87,43 +114,44 @@ def _describe(path: Path, folder: Path) -> dict[str, Any]:
         "metrics": [],
         "binary": {"status": "unknown", "path": None},
     }
-    try:
-        app = load_module(str(path)).app(0, False, "")
-    except Exception as exc:  # arbitrary user code: report it, never crash the listing
-        entry["error"] = f"{type(exc).__name__}: {exc}"
-        return entry
-    entry.update(
-        loadable=True,
-        benchmark_id=app.benchmark_id or None,
-        executable=app.executable or None,
-        keys=list(app.keys),
-        metrics=[m.get("name") for m in app.metadata],
-    )
-    try:
-        binary, source = app.find_binary()
-        entry["binary"] = {"status": source, "path": binary}
-    except Exception as exc:
-        entry["binary"] = {
-            "status": "error",
-            "path": None,
-            "detail": f"{type(exc).__name__}: {exc}",
-        }
-    return entry
+    # Wrapper code may print: stdout must stay clean JSON (the dashboard parses it), so use stderr.
+    with redirect_stdout(sys.stderr):
+        try:
+            app = load_module(str(path)).app(0, False, "")
+            entry.update(
+                loadable=True,
+                benchmark_id=app.benchmark_id or None,
+                executable=app.executable or None,
+                keys=list(app.keys),
+                metrics=[m.get("name") for m in app.metadata],
+            )
+        except Exception as exc:  # arbitrary user code: report it, never crash the listing
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+            return entry, None
+        try:
+            binary, source = app.find_binary()
+            entry["binary"] = {"status": source, "path": binary}
+        except Exception as exc:
+            entry["binary"] = {
+                "status": "error",
+                "path": None,
+                "detail": f"{type(exc).__name__}: {exc}",
+            }
+    return entry, app
+
+
+def _describe(path: Path, folder: Path) -> dict[str, Any]:
+    return _describe_app(path, folder)[0]
 
 
 def gather_wrappers() -> dict[str, Any]:
     """Every wrapper along the search path (the first file with a given relpath wins)."""
     from crab.cli.contract import CONTRACT_SCHEMA
-    from crab.core import wrapper_paths
 
     search = wrapper_search_path()
     seen: set[str] = set()
     wrappers = []
-    # A run always has CRAB_ROOT (the presets' _common block sets it); older wrappers build
-    # binary paths from it, so give the listing the same view and restore the environment after.
-    had_root = "CRAB_ROOT" in os.environ
-    os.environ.setdefault("CRAB_ROOT", wrapper_paths._CRAB_ROOT)
-    try:
+    with _crab_root_env():
         for folder_str in search:
             folder = Path(folder_str)
             if not folder.is_dir():
@@ -133,9 +161,6 @@ def gather_wrappers() -> dict[str, Any]:
                 if rel not in seen:
                     seen.add(rel)
                     wrappers.append(_describe(path, folder))
-    finally:
-        if not had_root:
-            del os.environ["CRAB_ROOT"]
     return {"schema": CONTRACT_SCHEMA, "search_path": search, "wrappers": wrappers}
 
 

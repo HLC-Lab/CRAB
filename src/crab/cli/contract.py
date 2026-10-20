@@ -302,13 +302,15 @@ def gather_benchmarks(
     by_id = {b["id"]: b for d in env_dirs if d.is_dir() for b in _gather_receipts(d)}
     benchmarks = [by_id[k] for k in sorted(by_id)]
 
+    from crab.cli.wrappers_catalog import is_wrapper_relpath
+
     wrappers: list[dict[str, Any]] = []
     seen: set[str] = set()
     for wdir in wdirs:
         if not wdir.is_dir():
             continue
         for py in sorted(wdir.rglob("*.py")):
-            if py.name.startswith("_"):  # __init__.py and dunder helpers
+            if not is_wrapper_relpath(py.relative_to(wdir)):  # helpers, samples/, __pycache__
                 continue
             rel = str(py.relative_to(wdir))
             if rel in seen:

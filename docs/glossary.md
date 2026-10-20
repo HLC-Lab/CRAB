@@ -16,6 +16,12 @@ A single executable CRAB launches within an [experiment](#experiment), described
 the config's `apps` block and adapted by a [wrapper](#wrapper). Multiple applications run
 concurrently in one experiment — that concurrency is the whole point of CRAB.
 
+### Behind / Modified { #behind-modified }
+
+How a [target](#target)'s crab-wrappers clone compares with GitHub. **Behind** means GitHub has
+commits the clone lacks (Pull fetches them). **Modified** means tracked files in the clone were
+edited, which blocks Pull until the edits are committed, stashed or moved to `local/wrappers`.
+
 ### Collection (`collect`)
 
 Whether CRAB parses an application's output and stores its metrics. Set per application with
@@ -139,6 +145,11 @@ An [allocation](reference/configuration.md#shared-nodes) with `mode: "shared"`, 
 the same hosts. Its `cores` key, `"disjoint"` (the default) or `"shared"`, says whether they run
 on separate cores or may compete for the same ones. Apps that run this way are said to
 **co-run**.
+
+### Target
+
+Where the dashboard looks at [wrappers](#wrapper): This laptop (the machine running `crab web`) or
+a connected cluster. Each target has its own crab-wrappers clone and [receipts](#receipt).
 
 ### Victim
 

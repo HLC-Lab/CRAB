@@ -286,3 +286,15 @@ def test_results_cache_rejects_a_symlink_that_leaves_the_root(tmp_path: Path):
     (settings.results_cache_dir / "leonardo").symlink_to(tmp_path / "elsewhere")
     with pytest.raises(NotFoundError):
         ResultsCache(settings).path_for("leonardo", "sys", "job")
+
+
+def test_local_is_reserved_for_this_laptop(tmp_path: Path):
+    _, client = _token_client(tmp_path)
+    with client:
+        resp = client.post("/api/remotes", json={**_PROFILE, "name": "local"})
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "input_error"
+        assert client.get("/api/remotes").json() == []
+        assert client.post("/api/remotes", json=_PROFILE).status_code == 201
+        renamed = client.put("/api/remotes/leonardo", json={**_PROFILE, "name": "local"})
+        assert renamed.status_code == 422
