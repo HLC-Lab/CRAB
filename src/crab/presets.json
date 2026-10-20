@@ -66,7 +66,7 @@
         },
         "env": {
             "UCX_IB_SL": "1",
-            "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:/leonardo/smcx_home/bench/software/lib/ucx/nvhpc-22.2_pgi_cuda/lib/",
+            "LD_LIBRARY_PATH": "${LD_LIBRARY_PATH}:YOUR_UCX_LIB_DIR",
             "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3",
             "NCCL_IB_SL": "${UCX_IB_SL}"
         },
@@ -146,7 +146,7 @@
         "launcher": "mpirun",
         "launchers": {
             "mpirun": {
-                "command": "/scratch/2/t2hx/dep/openmpi/bin/mpirun",
+                "command": "YOUR_OPENMPI_DIR/bin/mpirun",
                 "flags": [
                     "-mca",
                     "plm_rsh_no_tree_spawn",

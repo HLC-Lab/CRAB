@@ -76,8 +76,8 @@ where = ["src"]
 namespaces = false
 
 [tool.setuptools.package-data]
-# Ship the legacy export template and the built web UI assets inside the wheel.
-crab = ["crab_dashboard.html", "web/static/**/*"]
+# Ship the legacy export template, the shipped presets and the built web UI assets inside the wheel.
+crab = ["crab_dashboard.html", "presets.json", "web/static/**/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

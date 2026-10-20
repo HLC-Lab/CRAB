@@ -10,7 +10,7 @@ from argcomplete.completers import FilesCompleter
 
 
 def _preset_completer(prefix, parsed_args, **kwargs):
-    """Dynamically parses presets.json for tab-autocompletion."""
+    """Dynamically loads the merged presets for tab-autocompletion."""
     from pathlib import Path
 
     from crab import paths

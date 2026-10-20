@@ -14,6 +14,13 @@ because pytest's default "prepend" import mode puts ``tests/`` (no ``__init__.py
 The autouse ``_isolated_state_home`` fixture points ``XDG_STATE_HOME`` at a per-test temporary
 directory, so the local scheduler's job records (``$XDG_STATE_HOME/crab/jobs/``) never reach the
 real ``~/.local/state``. A test that wants its own location sets the variable again.
+
+The autouse ``_no_user_presets`` fixture makes the user presets file resolve to a path that does not
+exist (``CRAB_PATH_PRESETS`` unset, the user config dir under ``tmp_path``), so a developer's real user
+file never leaks into a test. ``CRAB_PATH_PRESETS`` is deleted rather than pointed at a missing file
+because the mpirun launcher exports every ``CRAB_*`` variable of the environment with ``-x``, which
+would change the launch lines the launcher tests expect. A test of the user layer writes a file and
+sets the variable itself.
 """
 
 from __future__ import annotations
@@ -61,3 +68,9 @@ def _signal_guard(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def _isolated_state_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg-state"))
+
+
+@pytest.fixture(autouse=True)
+def _no_user_presets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("CRAB_PATH_PRESETS", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-user-config"))

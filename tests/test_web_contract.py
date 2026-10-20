@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import pytest
 
+from crab import paths
 from crab.cli import contract
 from crab.core.execution.scheduler.local_state import (
     JobRecord,
@@ -27,10 +28,10 @@ from crab.core.execution.scheduler.local_state import (
 # --------------------------------------------------------------------------- #
 # info
 # --------------------------------------------------------------------------- #
-def test_gather_info_parses_and_filters_presets(tmp_path: Path):
-    cfg = tmp_path / "config"
-    cfg.mkdir()
-    (cfg / "presets.json").write_text(
+def test_gather_info_parses_and_filters_presets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    shipped = tmp_path / "shipped-presets.json"
+    monkeypatch.setattr(paths, "shipped_presets", lambda: shipped)
+    shipped.write_text(
         json.dumps(
             {
                 "_common": {"description": "shared"},
@@ -49,8 +50,9 @@ def test_gather_info_parses_and_filters_presets(tmp_path: Path):
     assert names == ["alps", "leonardo"]  # sorted; _common/example excluded
 
 
-def test_gather_info_missing_presets_is_graceful(tmp_path: Path):
-    data = contract.gather_info(crab_root=tmp_path)  # no config/presets.json
+def test_gather_info_missing_presets_is_graceful(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(paths, "shipped_presets", lambda: tmp_path / "absent.json")
+    data = contract.gather_info(crab_root=tmp_path)  # no shipped presets file
     assert data["presets"] == []
 
 
