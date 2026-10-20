@@ -179,6 +179,7 @@ crab update [--to-release] [--json]
 
 ```bash
 crab wrappers list [--json]
+crab wrappers show RELPATH [--json]
 crab wrappers test [APP ...] [--strict]
 crab wrappers new APP [--name NAME] [--local | --dir DIR]
 ```
@@ -186,6 +187,7 @@ crab wrappers new APP [--name NAME] [--local | --dir DIR]
 | Subcommand | What it does |
 |---|---|
 | `list` | Every wrapper on the search path, and where its binary comes from: `config`, `receipt`, `path`, `missing`, or `error` when the lookup itself failed. Wrappers that cannot be loaded are listed with the error. |
+| `show` | Describes one wrapper by its path under the wrappers folders (the first folder holding it wins; an old `suite/name.py` path resolves to the file's new group folder). Only files `list` shows qualify. Reports what it is (the module docstring, else the first paragraph of the nearest `README.md` below the wrappers folder, with its source), the declared metrics (name, unit, role), the executable and where its binary comes from, and, for a file committed in a git clone, that clone's commit and a GitHub URL to the file at it (null for the URL when `origin` is not on GitHub). It prints neither source text nor sample cases. Exits 2 for an unknown wrapper, an absolute path, or a path with `..`. |
 | `test` | Runs the sample cases (`<app>/samples/<case>/`) of the named apps, or of all apps, and compares each result with its `expected.json`. With `--strict`, a wrapper that no case covers fails unless `unverified.txt` in its folder lists it. Exits 1 on any failure. |
 | `new` | Creates `APP/NAME.py` (default name: the app), a README and a passing example sample, in the shared wrappers folder, in `local/wrappers/` with `--local`, or in `DIR`. |
 

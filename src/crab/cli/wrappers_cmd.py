@@ -1,4 +1,4 @@
-"""`crab parse`, `crab wrappers list|test|new` and `crab receipts set`.
+"""`crab parse`, `crab wrappers list|show|test|new` and `crab receipts set`.
 
 `crab parse` runs a wrapper's parser on saved output through the same checks a real run uses
 (core/data/parse.py), so a sample test, SbatchMan's parser and a CRAB run all read an output the
@@ -127,6 +127,44 @@ def handle_wrappers_list(args: argparse.Namespace) -> None:
     contract.emit(gather_wrappers(), args.json, human)
 
 
+def handle_wrappers_show(args: argparse.Namespace) -> None:
+    from crab.cli import contract
+    from crab.cli.wrappers_show import BadWrapperPath, show_wrapper
+
+    try:
+        data = show_wrapper(args.relpath)
+    except LookupError as exc:
+        _fail(str(exc))
+    except BadWrapperPath:
+        _fail(f"show takes a path relative to the wrappers folders, got {args.relpath}")
+
+    def human(data: dict[str, Any]) -> None:
+        print(data["relpath"])
+        print(f"  folder: {data['folder']}")
+        if data["moved_from"]:
+            print(f"  moved from: {data['moved_from']}")
+        if not data["loadable"]:
+            print(f"  cannot load: {data['error']}")
+        description = data["description"]
+        if description["text"]:
+            print(
+                f"  about ({description['source']}, {description['path']}): {description['text']}"
+            )
+        if data["metrics"]:
+            shown = ", ".join(
+                f"{m['name']} ({m['unit'] or '-'}{', ' + m['role'] if m['role'] else ''})"
+                for m in data["metrics"]
+            )
+            print(f"  metrics: {shown}")
+        binary = data["binary"]
+        where = f"{binary['status']}: {binary['path']}" if binary["path"] else binary["status"]
+        print(f"  executable: {data['executable'] or '-'}, binary {where}")
+        source = data["source"]
+        print(f"  source: {source['url'] or 'no GitHub URL'}")
+
+    contract.emit(data, args.json, human)
+
+
 def handle_wrappers_test(args: argparse.Namespace) -> None:
     from crab.cli.wrappers_catalog import run_samples
 
@@ -193,6 +231,14 @@ def register(subparsers: Any) -> None:
     )
     parser_list.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     parser_list.set_defaults(func=handle_wrappers_list)
+    parser_show = wrappers_sub.add_parser(
+        "show", help="Describe one wrapper: what it is, its metrics, its binary and source"
+    )
+    parser_show.add_argument(
+        "relpath", help="Wrapper path relative to the wrappers folders, e.g. blink/alltoall/a.py."
+    )
+    parser_show.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser_show.set_defaults(func=handle_wrappers_show)
     parser_test = wrappers_sub.add_parser("test", help="Run the sample cases of each app")
     parser_test.add_argument("apps", nargs="*", help="App folders to test (default: all).")
     parser_test.add_argument(
