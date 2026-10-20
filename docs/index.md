@@ -35,7 +35,7 @@ for analysis with pandas, R, or the bundled `crab_dashboard.html` viewer.
 | Interface | Command | Use it for |
 |-----------|---------|------------|
 | **CLI**   | `crab run …` | Automation, scripting, batch studies |
-| **TUI**   | `crab tui`   | Interactive, visual configuration and monitoring |
+| **Web dashboard** | `crab web` | Interactive, visual configuration, job monitoring and results |
 
 ## Where to go next
 

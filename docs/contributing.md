@@ -44,7 +44,6 @@ src/crab/
 │   ├── process/          # launching/terminating app processes
 │   └── execution/        # scheduler/ (job submission) and launcher/ (srun, mpirun, direct)
 ├── setup/        # `crab setup`: wizard, recipe registry, recipes/, receipt storage (memory.py)
-├── tui/          # Textual UI (optional dependency)
 ├── log/          # CrabLogger
 └── wrappers/base.py   # the wrapper base class
 

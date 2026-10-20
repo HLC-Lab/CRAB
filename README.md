@@ -25,7 +25,7 @@ CRAB orchestrates the rest.
 
 ## ✨ Key features
 
-* **Dual interface** — a **Command Line Interface** for automation and a **Textual UI** for interactive use.
+* **Dual interface** — a **Command Line Interface** for automation and a **web dashboard** (`crab web`) for interactive use.
 * **System-portable experiments** — the same experiment config runs on any cluster; per-system details live in a centralized **preset** system (`leonardo`, `lumi`, …).
 * **Complex application mixes** — run many applications at once, designating *victims* and *aggressors*.
 * **Automated, converged data collection** — gathers performance data and stops once statistical convergence is reached.
@@ -85,11 +85,10 @@ To add or reconfigure benchmarks later, run the setup wizard again:
 crab setup
 ```
 
-Run an experiment, or launch the interactive UI:
+Run an experiment:
 
 ```bash
 crab run <config.json> -p <preset>
-crab tui
 ```
 
 Results are written under `data/<system>/<name>_<timestamp>/`. Share them as a self-contained

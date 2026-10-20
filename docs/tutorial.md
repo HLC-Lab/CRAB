@@ -116,10 +116,8 @@ For more shapes (sequential sweeps, timed aggressors, multiple victims) see
 [Writing experiment configs](using/writing-configs.md).
 
 !!! tip "Don't want to hand-write JSON?"
-    You can build a config interactively instead of editing JSON. Launch `crab tui`, add your
-    applications and set the global options across the tabs, then press **`s`** to save it to a
-    `.json` file — or **`space`** to run it right away. See
-    [Running an experiment → TUI](using/running.md#tui).
+    The web dashboard (`crab web`) can build a config for you and run it. See
+    [Installation](using/installation.md) for how to start it.
 
 ## Step 3 — Run it
 

@@ -21,7 +21,7 @@ jobs:
       - name: Install Python package with all extras
         run: |
           python -m venv .venv
-          .venv/bin/pip install -e ".[web,tui,dev]"
+          .venv/bin/pip install -e ".[web,dev]"
       - name: Install frontend dependencies
         run: npm ci
         working-directory: src/crab/webui
@@ -49,7 +49,7 @@ jobs:
       - name: Install Python package with all extras (pytest imports every test module, even under -m mpi)
         run: |
           python -m venv .venv
-          .venv/bin/pip install -e ".[web,tui,dev]"
+          .venv/bin/pip install -e ".[web,dev]"
       - name: Run the real-MPI tests
         # Every binary is installed and listed below, so a skipped test means lost coverage: fail the job.
         run: |

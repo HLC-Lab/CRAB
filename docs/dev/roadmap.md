@@ -28,13 +28,12 @@ CRAB 1.0 is a mature, installable product, not a feature milestone:
 - Complete user documentation, including the web dashboard, an accurate CLI reference, and a
   statistical methodology page; a rewritten README; a LICENSE file.
 - CI runs the full verification gate (Python and frontend) on every push and pull request.
-- `feature/web-dashboard` is merged to master, the release is tagged, and the package is
+- `develop` is merged to master, the release is tagged, and the package is
   published to PyPI as `crab-hpc` (the name `crab` is taken; the import name stays `crab`).
 
 Interface direction at v1.0: the CLI and the web dashboard are the two supported interfaces.
-The Textual TUI is frozen now, marked deprecated at v1.0 with a pointer to `crab web`, and
-removed in a later release. The legacy `crab export` static viewer remains until the dashboard
-gains its own standalone export (1.2).
+The Textual TUI is removed in 1.0. The legacy `crab export` static viewer remains until the
+dashboard gains its own standalone export (1.2).
 
 ## Relationship with SbatchMan
 
@@ -115,11 +114,11 @@ codes that write files rather than print results.
 **M8 · Documentation and polish.** A `crab web` user guide, a rewritten README and install
 guide, a complete CLI reference, a statistical methodology page (convergence criterion, run
 counts, failure semantics), backend and launcher documentation, the public API reference, a
-first-run onboarding path and a version-skew warning in the dashboard, TUI deprecation notices,
+first-run onboarding path and a version-skew warning in the dashboard, TUI removed,
 remaining Italian comments translated, dead code removed, and CI running the full gate
 including the build-drift check and the browser test.
 
-**M9 · Release 1.0.** Merge `feature/web-dashboard` to master, switch the dashboard's guided
+**M9 · Release 1.0.** Merge `develop`, the product line, to master, switch the dashboard's guided
 install from cloning a branch to installing the published package, tag `v1.0.0`, publish
 `crab-hpc`, then merge master into `sbatchman` and tag `v1.0.0+sbatchman`.
 
@@ -141,11 +140,13 @@ Ordering after 1.1 is tentative and is revisited at each release.
   directory; a standalone HTML export, after which `crab export` is deprecated.
 - **1.3 · SbatchMan adapter**: the dashboard reads SbatchMan's job store; a documented combined
   workflow.
-- **2.0**: TUI removal; a genericity audit of cluster-specific names in tests and examples; the
+- **2.0**: a genericity audit of cluster-specific names in tests and examples; the
   general artifact pipeline, input-deck management and first-class multi-version apps; further
   schedulers (PBS, Flux) on the M2 interface; topology-aware placement; checkpointing,
   prolog/epilog hooks and live log streaming; per-experiment partition override and
   single-node reuse for sequential apps.
+- A terminal UI. The Textual TUI was removed in 1.0 (the web dashboard replaced it); bring one
+  back only if users ask for it.
 - The full intentionally-not-now list stays in [deferred.md](dashboard/deferred.md).
 
 ## Research track (parallel, does not gate v1.0)

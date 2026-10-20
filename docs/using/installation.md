@@ -72,7 +72,6 @@ git clone https://github.com/HLC-Lab/crab-wrappers wrappers   # the wrappers, ne
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .          # core framework
-pip install -e .[tui]     # optional: adds the Textual UI dependencies
 ```
 
 Run the `git clone` from the CRAB checkout, so that the folder is `wrappers/` there. A command that
@@ -81,9 +80,6 @@ needs a wrapper stops with `wrappers/ is missing: run crab update` when the fold
 
 For the web dashboard, which runs on your laptop and drives clusters over SSH, install the `web`
 extra (`pip install -e ".[web]"`) and start it with `crab web`.
-
-The TUI extra can also be installed on demand — `crab tui` will offer to install it the first time
-if it's missing.
 
 ## Set up benchmarks (`crab setup`)
 

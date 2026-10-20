@@ -67,18 +67,18 @@ def load_environment_config(preset_arg: str, crab_root: str | Path | None = None
     # Parsed before CRAB_SYSTEM is added, so a dropped key in `_common` is caught too.
     settings = from_preset({**target_preset, "env": final_env}, preset_arg)
 
-    # Assicuriamo che CRAB_SYSTEM sia impostato
+    # Make sure CRAB_SYSTEM is set
     if "CRAB_SYSTEM" not in final_env:
         final_env["CRAB_SYSTEM"] = preset_arg
 
     # 2. Merge SBATCH directives (List extend)
-    # L'ordine è: Common -> Preset. (Engine poi aggiungerà Experiment overrides)
+    # Order: Common -> Preset. (The engine then adds the experiment overrides.)
     final_sbatch = common_preset.get("sbatch", []) + target_preset.get("sbatch", [])
 
     # 3. Merge Header commands (List extend)
     final_header = common_preset.get("header", []) + target_preset.get("header", [])
 
-    # Restituiamo una struttura configurata completa
+    # Return the fully merged configuration
     return {
         "env": final_env,
         "sbatch": final_sbatch,

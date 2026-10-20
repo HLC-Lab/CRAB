@@ -625,7 +625,7 @@ export function fromConfig(config: CrabConfig): Draft {
   const str = (v: unknown, fallback = "") => (v == null ? fallback : String(v));
 
   // Legacy single-experiment form: a top-level `applications` block. The engine
-  // (engine.py:119-132) accepts two shapes: a TUI-style object that already holds
+  // (engine.py:119-132) accepts two shapes: an object that already holds
   // `apps` (+ maybe `local_options`), used as-is; or a flat `{0:{...},1:{...}}`
   // map, wrapped under `apps`. Either way it becomes the experiment `default_ex`.
   let experiments = config?.experiments;

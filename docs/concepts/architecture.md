@@ -9,7 +9,7 @@ else builds on these.
 
 | Layer | Location | Job |
 |-------|----------|-----|
-| **Entry point (CLI / TUI)** | `src/crab/cli/`, `src/crab/tui/` | Collect configuration, choose a preset, hand off to the engine. |
+| **Entry point (CLI)** | `src/crab/cli/` | Collect configuration, choose a preset, hand off to the engine. |
 | **Engine** | `src/crab/core/engine.py` | The control core. Runs in one of two modes (orchestrator or worker). |
 | **Experiment runner** | `src/crab/core/experiment/runner.py` | Drives a single experiment: load apps, allocate nodes, run, check convergence, save data. |
 | **Launcher** | `src/crab/core/execution/launcher/` | Translate "run this command on these nodes" into `srun` / `mpirun` invocations. |

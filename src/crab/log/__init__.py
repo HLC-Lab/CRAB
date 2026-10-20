@@ -19,7 +19,7 @@ Log level is controlled by the CRAB_LOG_LEVEL environment variable
 import os
 
 from .formatters import PlainFormatter, RichFormatter
-from .handlers import StreamHandler, TUIHandler
+from .handlers import StreamHandler
 from .logger import CrabLogger, LogLevel, LogRecord, LogSource
 
 __all__ = [
@@ -31,7 +31,6 @@ __all__ = [
     "RichFormatter",
     "PlainFormatter",
     "StreamHandler",
-    "TUIHandler",
 ]
 
 # Canonical level names accepted by CRAB_LOG_LEVEL

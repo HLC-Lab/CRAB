@@ -2,7 +2,7 @@
 
 Once CRAB is [installed](installation.md), your benchmarks are [set up](installation.md#set-up-benchmarks-crab-setup),
 and you have a [preset](presets.md) for your cluster, you can run experiments two ways: the CLI
-(for automation and scripting) or the TUI (for interactive configuration).
+(for automation and scripting) or the web dashboard (`crab web`, for interactive configuration).
 
 Both submit a job. With a Slurm preset, make sure you're on a system where `sbatch` is available
 and you have an allocation to draw from. With a local preset (`"scheduler": "local"`) the job runs
@@ -38,33 +38,3 @@ local job (id `local-<n>`) under a local preset. The job itself runs the
 `squeue` for the queue under Slurm, or `crab status <id>` for a Slurm or `local-<n>` job id. Stop
 a job with `crab cancel <id>`. The job's `slurm_output.log` / `slurm_error.log` plus the CRAB logs
 inside the run's output directory (see [Reading results](results.md)) hold its output.
-
-## TUI
-
-```bash
-crab tui
-```
-
-The Textual interface organizes a run into four tabs:
-
-| Tab | Purpose |
-|-----|---------|
-| **Applications** | Add and configure the applications to run (wrapper path, args, collect, start/end). |
-| **Options** | Global options (nodes, ppn, allocation, convergence, …). |
-| **Environment** | Select the preset / environment settings. |
-| **Log** | Live output once a run is launched. |
-
-Key bindings:
-
-| Key | Action |
-|-----|--------|
-| `s` | Save the current configuration to a JSON file |
-| `l` | Load a configuration from a JSON file |
-| `space` | Launch the benchmark |
-| `q` | Quit |
-
-The TUI requires the optional `textual` dependencies; if they're missing, `crab tui` offers to
-install them on first launch (see [Installation](installation.md#manual-install)).
-
-Configurations you build in the TUI are saved as ordinary config files — interchangeable with
-hand-written ones and runnable with `crab run`.

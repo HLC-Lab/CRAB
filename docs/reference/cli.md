@@ -122,17 +122,6 @@ A job that is already finished or does not exist, an id of any other shape, and 
 cannot be used all answer `cancelled: false` with a `detail` that says why, instead of failing.
 `scancel` is never run for an id that is not all digits.
 
-## `crab tui`
-
-Launches the Textual interface. Requires the optional `tui` dependencies; if missing, the command
-offers to install them.
-
-```bash
-crab tui
-```
-
-No arguments. See [Running an experiment → TUI](../using/running.md#tui).
-
 ## `crab export`
 
 Generates a **self-contained HTML dashboard** from a results directory — the CSV data is embedded
