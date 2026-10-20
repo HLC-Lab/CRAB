@@ -58,6 +58,16 @@ under one node allocation and schedule, repeated across [runs](#run) until
 [convergence](#convergence). A single config can define multiple experiments (the `experiments`
 block), executed one after another by the [worker](#worker).
 
+### Home
+
+Where a checkout or an install keeps the results (`data/`), benchmarks and wrappers it works
+with. For a git checkout it is the repo root; for a `pip` or `pipx` install it is
+`~/.local/share/crab`, or the folder named by `CRAB_HOME`. `CRAB_ROOT` and `__CWD__` hold it.
+Contrast with the install location of the package itself (`site-packages` for an install), which
+holds code and is never written to, and with the per-user config folder (`~/.config/crab`), which
+holds only the user's presets, receipts and private wrappers. See
+[ADR-038](dev/dashboard/decisions/adr-038-two-layouts.md).
+
 ### Host list
 
 The machines a [local](#scheduler) preset runs on, written in the preset's `hosts` field (or read
