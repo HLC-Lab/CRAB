@@ -91,6 +91,19 @@ removing one requires a schema bump.
 | `crab status [ids] --json` | job states via squeue → sacct → UNKNOWN |
 | `crab history --json` | parsed per-system `metadata.csv` |
 
+### The Wrappers section
+
+The Wrappers page uses the same seam: `crab wrappers list|show|status|pull --json` and
+`crab receipts set --json` are the only calls, and the engine decides everything they report (the
+clone's state against GitHub, which wrappers load, where each binary comes from, a wrapper's
+description and metrics). The backend's `/api/wrappers/{target}/...` routes run them on the
+target and return the JSON unchanged. `local` is a built-in target backed by `LocalTransport`: it
+is always present, needs no connection and runs the laptop's own `crab`, so one code path serves
+the laptop and every connected cluster (a cluster profile named `local` is refused). Three engine
+refusals get their own error codes: `crab_outdated` when the target's `crab` has no such
+subcommand, `not_found` when `show` names a wrapper the target does not have, and `conflict`
+when `pull` stops because tracked files have local edits.
+
 ## Frontend map — `src/crab/webui/`
 
 Vue 3 (`<script setup lang="ts">`, strict TS) + Vite + Pinia + vue-router. The top navigation
@@ -100,7 +113,7 @@ is Remotes · Author · Wrappers · Jobs · Results (`App.vue`); `/` redirects t
 |---|---|
 | `/remotes` | Cluster profiles and connections |
 | `/author` | Experiment authoring and library |
-| `/wrappers` | A cluster's wrappers and binary receipts |
+| `/wrappers` | Wrappers of This laptop and each connected cluster: Status (clone against GitHub, needs attention) and Library (tree, summary) |
 | `/jobs` · `/jobs/:recordId` · `/jobs/report/:configName` | Job list, one submission, use-case report |
 | `/results` · `/results/compare` · `/results/:cluster/:system/:jobBasename` | Fetched results, comparison, one job's results |
 
