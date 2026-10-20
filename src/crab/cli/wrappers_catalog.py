@@ -14,9 +14,10 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -113,27 +114,29 @@ def _describe_app(path: Path, folder: Path) -> tuple[dict[str, Any], Any]:
         "metrics": [],
         "binary": {"status": "unknown", "path": None},
     }
-    try:
-        app = load_module(str(path)).app(0, False, "")
-    except Exception as exc:  # arbitrary user code: report it, never crash the listing
-        entry["error"] = f"{type(exc).__name__}: {exc}"
-        return entry, None
-    entry.update(
-        loadable=True,
-        benchmark_id=app.benchmark_id or None,
-        executable=app.executable or None,
-        keys=list(app.keys),
-        metrics=[m.get("name") for m in app.metadata],
-    )
-    try:
-        binary, source = app.find_binary()
-        entry["binary"] = {"status": source, "path": binary}
-    except Exception as exc:
-        entry["binary"] = {
-            "status": "error",
-            "path": None,
-            "detail": f"{type(exc).__name__}: {exc}",
-        }
+    # Wrapper code may print: stdout must stay clean JSON (the dashboard parses it), so use stderr.
+    with redirect_stdout(sys.stderr):
+        try:
+            app = load_module(str(path)).app(0, False, "")
+            entry.update(
+                loadable=True,
+                benchmark_id=app.benchmark_id or None,
+                executable=app.executable or None,
+                keys=list(app.keys),
+                metrics=[m.get("name") for m in app.metadata],
+            )
+        except Exception as exc:  # arbitrary user code: report it, never crash the listing
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+            return entry, None
+        try:
+            binary, source = app.find_binary()
+            entry["binary"] = {"status": source, "path": binary}
+        except Exception as exc:
+            entry["binary"] = {
+                "status": "error",
+                "path": None,
+                "detail": f"{type(exc).__name__}: {exc}",
+            }
     return entry, app
 
 
