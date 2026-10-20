@@ -119,7 +119,8 @@ def missing_wrappers_hint() -> str:
         return ""
     if _is_usable_checkout(os.path.join(_CRAB_ROOT, "wrappers")):
         return ""
-    return f"wrappers/ is missing: run `crab update` to clone the wrappers ({_WRAPPERS_REPO})"
+    command = "crab update" if paths.is_checkout() else "crab wrappers pull"
+    return f"wrappers/ is missing: run `{command}` to clone the wrappers ({_WRAPPERS_REPO})"
 
 
 def load_module(path: str) -> ModuleType:
