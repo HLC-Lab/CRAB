@@ -1,39 +1,53 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "crab"
+name = "crab-hpc"
 dynamic = ["version"]
 description = "Co-Running Applications Benchmarking framework"
 readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "HLC-Lab"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Intended Audience :: Science/Research",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Benchmark",
+]
 dependencies = [
     "argcomplete>=3.3.0",
-    "linkify-it-py>=2.0.3",
-    "markdown-it-py>=3.0.0",
-    "mdit-py-plugins>=0.4.2",
-    "mdurl>=0.1.2",
     "numpy>=2.0.2",
     "pandas>=2.3.2",
     "platformdirs>=4.3.8",
-    "Pygments>=2.19.2",
-    "python-dateutil>=2.9.0.post0",
-    "pytz>=2025.2",
     "questionary>=2.0.1",
     "rich>=14.1.0",
-    "scipy>=1.13.1",
-    "six>=1.17.0",
-    "typing_extensions>=4.15.0",
-    "tzdata>=2025.2",
-    "uc-micro-py>=1.0.3"
+    "scipy>=1.13.1"
 ]
+
+[project.urls]
+Repository = "https://github.com/HLC-Lab/CRAB"
+Documentation = "https://hlc-crab.readthedocs.io/"
 
 [project.optional-dependencies]
 web = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-    "asyncssh>=2.18.0"
+    "asyncssh>=2.18.0",
+    "pydantic>=2"
+]
+# Everything an end user can opt into. The TUI is gone, so this equals `web`.
+all = [
+    "crab-hpc[web]"
 ]
 # Developer tooling (not needed by end users). Run everything via `make verify`.
 dev = [
@@ -46,7 +60,7 @@ dev = [
 ]
 # Back-compat alias for the old extra name.
 web-dev = [
-    "crab[dev]"
+    "crab-hpc[dev]"
 ]
 
 [project.scripts]
@@ -95,6 +109,7 @@ files = [
     "src/crab/cli/contract.py",
     "src/crab/cli/export.py",
     "src/crab/core/wrapper_paths.py",
+    "src/crab/paths.py",
     "src/crab/core/execution",
 ]
 python_version = "3.10"

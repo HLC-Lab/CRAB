@@ -7,7 +7,7 @@ from crab.cli import contract
 
 
 def test_installed_metadata_matches_the_source_version() -> None:
-    assert version("crab") == crab.__version__
+    assert version("crab-hpc") == crab.__version__
 
 
 def test_crab_info_reports_the_source_version() -> None:
