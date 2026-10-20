@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 from typing import Any
 
 _RECEIPT_ID = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")
@@ -181,8 +182,6 @@ def handle_wrappers_test(args: argparse.Namespace) -> None:
 
 
 def handle_wrappers_new(args: argparse.Namespace) -> None:
-    from pathlib import Path
-
     from crab.cli.wrappers_catalog import scaffold
     from crab.core.wrapper_paths import wrapper_search_path
 
@@ -194,6 +193,70 @@ def handle_wrappers_new(args: argparse.Namespace) -> None:
         _fail(str(exc))
     print(f"Created {wrapper}")
     print(f"Edit it, replace samples/ with real output, then run: crab wrappers test {args.app}")
+
+
+def _wrappers_folder() -> tuple[Path, Path]:
+    """The CRAB root and the shared wrappers folder, as `crab update` picks them."""
+    from crab.core import wrapper_paths
+
+    return Path(wrapper_paths._CRAB_ROOT), Path(wrapper_paths.wrapper_search_path()[1])
+
+
+def handle_wrappers_status(args: argparse.Namespace) -> None:
+    from crab.cli import contract
+    from crab.cli.contract import CONTRACT_SCHEMA
+    from crab.cli.wrappers_clone import clone_status
+
+    _, wrappers_dir = _wrappers_folder()
+
+    def human(data: dict[str, Any]) -> None:
+        if not data["clone"]:
+            print(f"{data['dir']}: {data['detail']}")
+            return
+        branch = f" on {data['branch']}" if data["branch"] else " (detached)"
+        counts = [f"{k} {data[k]}" for k in ("behind", "ahead") if data[k]]
+        print(
+            f"{data['commit'][:12]}{branch}: {data['state']}"
+            + (f" ({', '.join(counts)})" if counts else "")
+        )
+        if data["upstream"]["error"]:
+            print(f"  GitHub not reachable: {data['upstream']['error']}")
+        if data["modified"]:
+            print(f"  modified: {', '.join(data['modified'])}")
+
+    contract.emit({"schema": CONTRACT_SCHEMA, **clone_status(wrappers_dir)}, args.json, human)
+
+
+def handle_wrappers_pull(args: argparse.Namespace) -> None:
+    from crab.cli import contract, wrappers_clone
+    from crab.cli.contract import CONTRACT_SCHEMA
+    from crab.cli.gitops import GitError
+
+    root, wrappers_dir = _wrappers_folder()
+    try:
+        modified = wrappers_clone.modified_files(wrappers_dir)
+    except GitError as exc:
+        _fail(f"wrappers pull stopped: {exc}", 1)
+    if modified:
+        _fail(
+            f"wrappers pull stopped: {wrappers_dir} has local edits to tracked files: "
+            f"{', '.join(modified)}; commit, stash or move them to local/wrappers, then pull again",
+            1,
+        )
+    try:
+        entry = wrappers_clone.update_wrappers_clone(
+            root, wrappers_dir, wrappers_clone.WRAPPERS_REPO_URL
+        )
+    except GitError as exc:
+        _fail(f"wrappers pull stopped: {exc}", 1)
+
+    def human(data: dict[str, Any]) -> None:
+        detail = data.get("detail") or (
+            f"{data['old']} -> {data['new']}" if data["old"] else data["new"] or ""
+        )
+        print(f"wrappers: {data['action']}" + (f" ({detail})" if detail else ""))
+
+    contract.emit({"schema": CONTRACT_SCHEMA, **entry}, args.json, human)
 
 
 def register(subparsers: Any) -> None:
@@ -239,6 +302,17 @@ def register(subparsers: Any) -> None:
     )
     parser_show.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     parser_show.set_defaults(func=handle_wrappers_show)
+    parser_status = wrappers_sub.add_parser(
+        "status",
+        help="Show the shared wrappers clone's commit and whether it is behind GitHub",
+    )
+    parser_status.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser_status.set_defaults(func=handle_wrappers_status)
+    parser_pull = wrappers_sub.add_parser(
+        "pull", help="Fast-forward the shared wrappers clone, or clone it when missing"
+    )
+    parser_pull.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+    parser_pull.set_defaults(func=handle_wrappers_pull)
     parser_test = wrappers_sub.add_parser("test", help="Run the sample cases of each app")
     parser_test.add_argument("apps", nargs="*", help="App folders to test (default: all).")
     parser_test.add_argument(

@@ -180,6 +180,8 @@ crab update [--to-release] [--json]
 ```bash
 crab wrappers list [--json]
 crab wrappers show RELPATH [--json]
+crab wrappers status [--json]
+crab wrappers pull [--json]
 crab wrappers test [APP ...] [--strict]
 crab wrappers new APP [--name NAME] [--local | --dir DIR]
 ```
@@ -188,6 +190,8 @@ crab wrappers new APP [--name NAME] [--local | --dir DIR]
 |---|---|
 | `list` | Every wrapper on the search path, and where its binary comes from: `config`, `receipt`, `path`, `missing`, or `error` when the lookup itself failed. Wrappers that cannot be loaded are listed with the error. |
 | `show` | Describes one wrapper by its path under the wrappers folders (the first folder holding it wins; an old `suite/name.py` path resolves to the file's new group folder). Only files `list` shows qualify. Reports what it is (the module docstring, else the first paragraph of the nearest `README.md` below the wrappers folder, with its source), the declared metrics (name, unit, role), the executable and where its binary comes from, and, for a file committed in a git clone, that clone's commit and a GitHub URL to the file at it (null for the URL when `origin` is not on GitHub). It prints neither source text nor sample cases. Exits 2 for an unknown wrapper, an absolute path, or a path with `..`. |
+| `status` | Reports the shared wrappers clone (the folder `crab update` manages): its commit and branch, the tracked files with local edits (staged or not; untracked files are not listed), the commit GitHub's `origin` has for that branch (`git ls-remote`, 20 s timeout, never prompting for credentials), and `state`: `up to date`, `behind`, `ahead`, `diverged`, or `unknown` when the folder is not a clone, has no commits, or GitHub cannot be reached (`upstream.error` says why). It reads without writing and never fetches, so `behind` without counts means GitHub has commits this clone has not fetched; counts appear once the commit is local. `upstream.url` is the `origin` URL without any `user:password@` part. A detached HEAD is compared with `origin`'s HEAD. Exits 0 even when the folder is missing or GitHub is unreachable. |
+| `pull` | Fast-forwards the shared wrappers clone with `git pull --ff-only`, or clones it when the folder is missing (the same code as the wrappers part of `crab update`). Reports `action` (`updated`, `up to date`, `cloned`) with the old and new commit; for a folder that is not a clone it reports `action: "skipped"` with a `detail` and exits 0. Exits 1, changing nothing, when tracked files have local edits or the pull fails (for example a diverged clone, or a detached HEAD, which is not on a branch). |
 | `test` | Runs the sample cases (`<app>/samples/<case>/`) of the named apps, or of all apps, and compares each result with its `expected.json`. With `--strict`, a wrapper that no case covers fails unless `unverified.txt` in its folder lists it. Exits 1 on any failure. |
 | `new` | Creates `APP/NAME.py` (default name: the app), a README and a passing example sample, in the shared wrappers folder, in `local/wrappers/` with `--local`, or in `DIR`. |
 
