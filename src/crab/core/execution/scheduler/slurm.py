@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import sys
 from collections.abc import Callable
 from typing import Any
 
@@ -56,8 +57,9 @@ class SlurmScheduler:
 
     Args:
         logger: receives the submit messages and the header warnings.
-        crab_root: the checkout root; its `.venv/bin/activate`, when present, is sourced by the
-            job script.
+        crab_root: the CRAB home (kept for the scheduler interface; the job script no longer
+            reads it). The script sources `<sys.prefix>/bin/activate` when the running
+            interpreter is a venv's and that file exists.
         runner: runs the status, cancel and node-description commands (`squeue`, `sacct`,
             `scancel`, `sinfo`) and returns stdout; defaults to a real subprocess call.
     """
@@ -202,8 +204,8 @@ class SlurmScheduler:
             for line in sbatch_headers:
                 f.write(f"{line}\n")
 
-            venv = os.path.join(self.crab_root, ".venv", "bin", "activate")
-            if os.path.exists(venv):
+            venv = os.path.join(sys.prefix, "bin", "activate")
+            if sys.prefix != sys.base_prefix and os.path.exists(venv):
                 f.write(f"\nsource {venv}\n")
 
             # The setup lines passed by the orchestrator in the config
