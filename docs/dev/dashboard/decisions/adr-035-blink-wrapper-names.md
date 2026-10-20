@@ -1,7 +1,7 @@
 # ADR-035 · Blink wrappers are named after Blink's programs
 
 - **Date:** 2026-10-12
-- **Status:** accepted
+- **Status:** superseded by [ADR-037](adr-037-blink-wrapper-folders.md) (2026-10-20)
 
 ## Context
 
