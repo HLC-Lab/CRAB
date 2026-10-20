@@ -98,6 +98,7 @@ def test_status_up_to_date(setup, monkeypatch, capsys) -> None:
     assert data["clone"] is True
     assert data["dir"] == str(setup.clone)
     assert data["commit"] == setup.first
+    assert data["subject"] == "init"
     assert data["branch"] == "main"
     assert data["modified"] == []
     assert data["upstream"] == {"url": str(setup.bare), "head": setup.first, "error": None}
@@ -161,11 +162,21 @@ def test_status_unreachable_origin(setup, monkeypatch, capsys) -> None:
     assert data["modified"] == []
 
 
+def test_status_subject_is_the_head_commits_subject_line(setup, monkeypatch, capsys) -> None:
+    setup.make_clone()
+    (setup.clone / "more.py").write_text("m\n")
+    git(setup.clone, "add", "more.py")
+    git(setup.clone, "commit", "-q", "-m", "blink: new subject", "-m", "A body line.")
+    data = _status(monkeypatch, capsys)
+    assert data["subject"] == "blink: new subject"
+
+
 def test_status_folder_missing(setup, monkeypatch, capsys) -> None:
     data = _status(monkeypatch, capsys)
     assert data["clone"] is False
     assert "missing" in data["detail"]
     assert data["commit"] is None and data["branch"] is None
+    assert data["subject"] is None
     assert data["modified"] == []
     assert data["behind"] is None and data["ahead"] is None
     assert data["state"] == "unknown"
@@ -178,6 +189,7 @@ def test_status_plain_folder_is_not_a_clone(setup, monkeypatch, capsys) -> None:
     assert data["clone"] is False
     assert "not a git clone" in data["detail"]
     assert data["commit"] is None
+    assert data["subject"] is None
     assert data["state"] == "unknown"
 
 
@@ -187,6 +199,7 @@ def test_status_human_output(setup, monkeypatch, capsys) -> None:
     code, out, _ = _crab(monkeypatch, capsys, "wrappers", "status")
     assert code == 0
     assert setup.first[:12] in out
+    assert "init" in out.splitlines()[0]
     assert "up to date" in out
     assert "app.py" in out
     assert len(out.strip().splitlines()) <= 3
@@ -338,6 +351,7 @@ def test_status_of_a_repo_without_commits(setup, monkeypatch, capsys) -> None:
     assert data["clone"] is True
     assert data["detail"] == "no commits yet"
     assert data["commit"] is None
+    assert data["subject"] is None
     assert data["state"] == "unknown"
 
 

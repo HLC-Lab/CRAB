@@ -156,6 +156,8 @@ def _locate(relpath: str) -> tuple[Path, Path]:
 def show_wrapper(relpath: str) -> dict[str, Any]:
     """Describe the wrapper `relpath` names: what it is, its metrics, binary and source.
 
+    A metric's `conv` is True when the wrapper declares it a convergence target.
+
     Raises:
         BadWrapperPath: if `relpath` is absolute or has a `..` component.
         LookupError: if no wrapper along the search path has that path.
@@ -170,7 +172,12 @@ def show_wrapper(relpath: str) -> dict[str, Any]:
         entry, app = _describe_app(resolved, folder)
     entry.pop("metrics")
     metrics = [
-        {"name": m.get("name"), "unit": m.get("unit", ""), "role": m.get("role")}
+        {
+            "name": m.get("name"),
+            "unit": m.get("unit", ""),
+            "role": m.get("role"),
+            "conv": bool(m.get("conv")),
+        }
         for m in (app.metadata if app is not None else [])
     ]
     return {

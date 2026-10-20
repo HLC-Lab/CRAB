@@ -128,6 +128,16 @@ def handle_wrappers_list(args: argparse.Namespace) -> None:
     contract.emit(gather_wrappers(), args.json, human)
 
 
+def _metric_text(metric: dict[str, Any]) -> str:
+    """`name (unit, role, converges)`: the unit shows `-` when empty, role and flag when set."""
+    parts = [metric["unit"] or "-"]
+    if metric["role"]:
+        parts.append(metric["role"])
+    if metric["conv"]:
+        parts.append("converges")
+    return f"{metric['name']} ({', '.join(parts)})"
+
+
 def handle_wrappers_show(args: argparse.Namespace) -> None:
     from crab.cli import contract
     from crab.cli.wrappers_show import BadWrapperPath, show_wrapper
@@ -152,10 +162,7 @@ def handle_wrappers_show(args: argparse.Namespace) -> None:
                 f"  about ({description['source']}, {description['path']}): {description['text']}"
             )
         if data["metrics"]:
-            shown = ", ".join(
-                f"{m['name']} ({m['unit'] or '-'}{', ' + m['role'] if m['role'] else ''})"
-                for m in data["metrics"]
-            )
+            shown = ", ".join(_metric_text(m) for m in data["metrics"])
             print(f"  metrics: {shown}")
         binary = data["binary"]
         where = f"{binary['status']}: {binary['path']}" if binary["path"] else binary["status"]
@@ -215,8 +222,9 @@ def handle_wrappers_status(args: argparse.Namespace) -> None:
             return
         branch = f" on {data['branch']}" if data["branch"] else " (detached)"
         counts = [f"{k} {data[k]}" for k in ("behind", "ahead") if data[k]]
+        subject = f" {data['subject']}" if data["subject"] else ""
         print(
-            f"{data['commit'][:12]}{branch}: {data['state']}"
+            f"{data['commit'][:12]}{subject}{branch}: {data['state']}"
             + (f" ({', '.join(counts)})" if counts else "")
         )
         if data["upstream"]["error"]:

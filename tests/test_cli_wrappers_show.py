@@ -114,11 +114,18 @@ def test_show_reports_docstring_metrics_and_binary(root, monkeypatch, capsys) ->
         "path": "app/w.py",
     }
     assert data["metrics"] == [
-        {"name": "t", "unit": "s", "role": None},
-        {"name": "ok", "unit": "", "role": "check"},
+        {"name": "t", "unit": "s", "role": None, "conv": True},
+        {"name": "ok", "unit": "", "role": "check", "conv": False},
     ]
     assert data["executable"] == "onpath"
     assert data["binary"] == {"status": "path", "path": str(root / "bin" / "onpath")}
+
+
+def test_show_a_metric_without_a_conv_key_is_not_a_target(root, monkeypatch, capsys) -> None:
+    path = _wrapper(root, "app/w.py")
+    path.write_text(BODY.replace(', "conv": True', "").replace(', "conv": False', ""))
+    data = _show(monkeypatch, capsys, "app/w.py")
+    assert [m["conv"] for m in data["metrics"]] == [False, False]
 
 
 def test_show_falls_back_to_the_nearest_readme_paragraph(root, monkeypatch, capsys) -> None:
@@ -341,7 +348,8 @@ def test_show_human_output(root, monkeypatch, capsys) -> None:
     assert code == 0
     assert "app/w.py" in out
     assert "Measures t. Checked with app 1.2." in out
-    assert "t" in out and "ok" in out
+    assert "t (s, converges)" in out
+    assert "ok (-, check)" in out
     assert f"binary path: {root / 'bin' / 'onpath'}" in out
     with pytest.raises(json.JSONDecodeError):
         json.loads(out)

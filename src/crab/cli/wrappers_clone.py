@@ -167,6 +167,8 @@ def modified_files(wrappers_dir: Path) -> list[str]:
 def clone_status(wrappers_dir: Path) -> dict[str, Any]:
     """Describe the wrappers clone at `wrappers_dir` without changing anything.
 
+    `subject` is the first line of the HEAD commit's message (None when there is no commit).
+
     Never fetches: when GitHub's head is a commit the clone has not fetched, the state is
     "behind" and the counts are None. Tracked edits are listed, untracked files are not. The
     origin URL is reported without any user:password part.
@@ -176,6 +178,7 @@ def clone_status(wrappers_dir: Path) -> dict[str, Any]:
         "clone": False,
         "detail": None,
         "commit": None,
+        "subject": None,
         "branch": None,
         "modified": [],
         "upstream": {"url": None, "head": None, "error": None},
@@ -195,6 +198,10 @@ def clone_status(wrappers_dir: Path) -> dict[str, Any]:
     except GitError:
         status["detail"] = "no commits yet"
         return status
+    try:
+        status["subject"] = git(wrappers_dir, "log", "-1", "--format=%s")
+    except GitError:
+        status["subject"] = None  # the commit is still reported
     try:
         try:
             status["branch"] = git(wrappers_dir, "symbolic-ref", "--short", "-q", "HEAD")
