@@ -6,86 +6,27 @@
   product line, `vX.Y.Z+sbatchman` on the sbatchman line (ADR-030).
 - Local edits to tracked files stop the update before anything changes.
 - Dependencies are reinstalled only when pyproject.toml changed.
-- The wrappers checkout is pulled when it is its own git clone, cloned when it is missing or
-  holds only leftovers of the old tracked folder, and left alone when it holds anything else.
+- The wrappers checkout is handled by `crab.cli.wrappers_clone`: pulled when it is its own git
+  clone, cloned when it is missing or holds only leftovers of the old tracked folder, and left
+  alone when it holds anything else.
 """
 
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from crab.cli.gitops import GitError, git, is_repo_root
+from crab.cli.wrappers_clone import WRAPPERS_REPO_URL, update_wrappers_clone
+
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(\+sbatchman)?$")
-_GIT_TIMEOUT_S = 120
-# What a wrappers/ folder keeps after CRAB stopped tracking it: ignored caches only. Tool caches
-# go wholesale; a `__pycache__` counts only when it holds nothing but `*.pyc` files.
-_WRAPPERS_CACHE_DIRS = (".pytest_cache", ".ruff_cache")
 
-
-class UpdateError(Exception):
-    """The update could not run, or stopped before changing anything it could not finish."""
-
-
-def _git(repo: Path, *args: str) -> str:
-    try:
-        result = subprocess.run(
-            ["git", "-C", str(repo), *args],
-            capture_output=True,
-            text=True,
-            timeout=_GIT_TIMEOUT_S,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise UpdateError(f"git {' '.join(args)} failed in {repo}: {exc}") from exc
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout).strip()
-        raise UpdateError(f"git {' '.join(args)} failed in {repo}: {detail}")
-    return result.stdout.strip()
-
-
-def _is_repo_root(path: Path) -> bool:
-    return (path / ".git").exists()
-
-
-def _all_pyc(path: Path) -> bool:
-    """True for a `*.pyc` file, or a folder holding nothing else (recursively, no symlinks)."""
-    if path.is_symlink():
-        return False
-    if path.is_dir():
-        return all(_all_pyc(child) for child in path.iterdir())
-    return path.suffix == ".pyc"
-
-
-def _is_leftover(path: Path) -> bool:
-    if path.is_symlink():
-        return False
-    if path.is_dir():
-        if path.name in _WRAPPERS_CACHE_DIRS:
-            return True
-        if path.name == "__pycache__":
-            return _all_pyc(path)
-        return all(_is_leftover(child) for child in path.iterdir())
-    return path.suffix == ".pyc"
-
-
-def _clear_leftovers(directory: Path) -> bool:
-    """Empty `directory` when it holds only leftovers of the old tracked wrappers folder.
-
-    Removes the children and keeps the folder itself. Returns whether the folder is now empty.
-    Nothing is removed unless every entry is a leftover.
-    """
-    children = list(directory.iterdir())
-    if not all(_is_leftover(child) for child in children):
-        return False
-    for child in children:
-        if child.is_dir() and not child.is_symlink():
-            shutil.rmtree(child)
-        else:
-            child.unlink()
-    return True
+# One error type: a git failure and a refusal both stop the update, and `except UpdateError`
+# must catch git failures.
+UpdateError = GitError
 
 
 def _version(tag: str) -> tuple[int, int, int] | None:
@@ -94,15 +35,15 @@ def _version(tag: str) -> tuple[int, int, int] | None:
 
 
 def _newest_tag(repo: Path, sbatchman_line: bool) -> str | None:
-    tags = [t for t in _git(repo, "tag", "--list", "v*").splitlines() if _version(t)]
+    tags = [t for t in git(repo, "tag", "--list", "v*").splitlines() if _version(t)]
     line = [t for t in tags if t.endswith("+sbatchman") == sbatchman_line]
     return max(line, key=lambda t: _version(t) or (0, 0, 0)) if line else None
 
 
 def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> dict[str, Any]:
-    if not _is_repo_root(root):
+    if not is_repo_root(root):
         raise UpdateError(f"{root} is not a git checkout; reinstall CRAB with git to update it.")
-    edited = _git(root, "diff", "--name-only", "HEAD")
+    edited = git(root, "diff", "--name-only", "HEAD")
     if edited:
         files = ", ".join(edited.splitlines())
         raise UpdateError(
@@ -110,66 +51,38 @@ def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> d
             "changes to local/ (presets, receipts, wrappers), or commit or stash them, then retry."
         )
 
-    before = _git(root, "rev-parse", "HEAD")
-    branch = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    before = git(root, "rev-parse", "HEAD")
+    branch = git(root, "rev-parse", "--abbrev-ref", "HEAD")
     release = None
     if branch != "HEAD" and to_release:
         # A fresh install cloned from a branch: the branch name gives the release line.
-        _git(root, "fetch", "-q", "--tags", "origin")
+        git(root, "fetch", "-q", "--tags", "origin")
         release = _newest_tag(root, sbatchman_line=branch == "sbatchman")
     if release:
-        _git(root, "checkout", "-q", release)
+        git(root, "checkout", "-q", release)
         mode, old, new = "tag", branch, release
     elif branch != "HEAD":
-        _git(root, "pull", "--ff-only", "-q")
-        mode, old, new = "branch", before[:12], _git(root, "rev-parse", "HEAD")[:12]
+        git(root, "pull", "--ff-only", "-q")
+        mode, old, new = "branch", before[:12], git(root, "rev-parse", "HEAD")[:12]
     else:
         try:
-            current = _git(root, "describe", "--tags", "--exact-match")
+            current = git(root, "describe", "--tags", "--exact-match")
         except UpdateError:
-            current = _git(root, "describe", "--tags", "--abbrev=0")
-        _git(root, "fetch", "-q", "--tags", "origin")
+            current = git(root, "describe", "--tags", "--abbrev=0")
+        git(root, "fetch", "-q", "--tags", "origin")
         target = _newest_tag(root, sbatchman_line=current.endswith("+sbatchman")) or current
         if target != current:
-            _git(root, "checkout", "-q", target)
+            git(root, "checkout", "-q", target)
         mode, old, new = "tag", current, target
 
-    after = _git(root, "rev-parse", "HEAD")
+    after = git(root, "rev-parse", "HEAD")
     changed = after != before
     reinstall = changed and bool(
-        _git(root, "diff", "--name-only", before, after, "--", "pyproject.toml")
+        git(root, "diff", "--name-only", before, after, "--", "pyproject.toml")
     )
     if reinstall:
         pip(root)
     return {"mode": mode, "old": old, "new": new, "changed": changed, "reinstalled": reinstall}
-
-
-def _update_wrappers(root: Path, wrappers_dir: Path, url: str) -> dict[str, Any]:
-    entry: dict[str, Any] = {"dir": str(wrappers_dir), "action": "", "old": None, "new": None}
-    empty = False
-    if url and wrappers_dir.is_dir() and not wrappers_dir.is_symlink():
-        if not _is_repo_root(wrappers_dir):
-            try:
-                empty = _clear_leftovers(wrappers_dir)
-            except OSError as exc:
-                raise UpdateError(
-                    f"cannot clean the leftovers in {wrappers_dir}: {exc}; "
-                    "remove it by hand and run crab update again"
-                ) from exc
-    if empty or not wrappers_dir.exists():
-        if not url:
-            return {**entry, "action": "skipped", "detail": "no wrappers repository configured"}
-        _git(wrappers_dir.parent, "clone", "-q", url, str(wrappers_dir))
-        return {**entry, "action": "cloned", "new": _git(wrappers_dir, "rev-parse", "HEAD")[:12]}
-    if not _is_repo_root(wrappers_dir):
-        inside = root.resolve() in wrappers_dir.resolve().parents
-        why = "it is part of this CRAB checkout" if inside else "it is not a git clone"
-        return {**entry, "action": "skipped", "detail": f"{wrappers_dir}: {why}"}
-    old = _git(wrappers_dir, "rev-parse", "HEAD")
-    _git(wrappers_dir, "pull", "--ff-only", "-q")
-    new = _git(wrappers_dir, "rev-parse", "HEAD")
-    action = "updated" if new != old else "up to date"
-    return {**entry, "action": action, "old": old[:12], "new": new[:12]}
 
 
 def run_update(
@@ -190,13 +103,8 @@ def run_update(
     from crab.cli.contract import CONTRACT_SCHEMA
 
     crab = _update_crab(root, pip, to_release)
-    wrappers = _update_wrappers(root, wrappers_dir, wrappers_url)
+    wrappers = update_wrappers_clone(root, wrappers_dir, wrappers_url)
     return {"schema": CONTRACT_SCHEMA, "crab": crab, "wrappers": wrappers}
-
-
-# The shared wrappers repository. `wrappers/` is a separate git clone of it, ignored by CRAB's
-# own git; the wrapper contract is ADR-031.
-WRAPPERS_REPO_URL = "https://github.com/HLC-Lab/crab-wrappers.git"
 
 
 def _pip_install(root: Path) -> None:
