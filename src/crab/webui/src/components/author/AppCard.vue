@@ -7,6 +7,7 @@
 // AllocationEditor's `props.alloc` mutation).
 import { computed } from "vue";
 import type { AppDraft } from "@/lib/config";
+import { RouterLink } from "vue-router";
 import ConfirmButton from "@/components/ConfirmButton.vue";
 
 const props = defineProps<{
@@ -16,6 +17,8 @@ const props = defineProps<{
   groupNames: string[];
   colorForGroup: (name: string) => string;
   wrapperWarning: (relpath: string) => string;
+  /** The Wrappers page link for a wrapper's summary, null when there is none to show. */
+  wrapperLink: (relpath: string) => string | null;
 }>();
 const emit = defineEmits<{
   remove: [];
@@ -91,6 +94,9 @@ const reuseLabel = computed(() =>
         </button>
       </ConfirmButton>
     </div>
+    <RouterLink v-if="wrapperLink(app.path)" :to="wrapperLink(app.path) ?? ''" class="wrap-about"
+      >About this wrapper</RouterLink
+    >
     <input v-model="app.args" class="full" placeholder="args" />
     <div class="timing">
       <label
@@ -257,6 +263,17 @@ select:focus {
   color: var(--warn);
   font-size: 0.9rem;
   cursor: help;
+}
+.wrap-about {
+  align-self: flex-start;
+  color: var(--text3);
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  text-decoration: none;
+}
+.wrap-about:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 .reuse {
   padding-bottom: 0.35rem;

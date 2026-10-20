@@ -6,6 +6,7 @@ import {
   binaryLabel,
   buildTree,
   filterTree,
+  LOCAL_TARGET,
   missingReason,
   type WrapperFolder,
 } from "@/lib/wrappers";
@@ -115,4 +116,21 @@ export function firstWrapper(sections: LibrarySection[]): string {
     if (found) return found;
   }
   return "";
+}
+
+/** The Wrappers page's Library link for a wrapper picked in the experiment editor: the source
+ * cluster when its catalog has the wrapper, else This laptop. Null for an empty path. */
+export function wrapperSummaryLink(
+  relpath: string,
+  sourceCluster: string,
+  remoteRelpaths: string[],
+): string | null {
+  if (!relpath.trim()) return null;
+  const onCluster = sourceCluster !== "" && remoteRelpaths.includes(relpath);
+  const query = new URLSearchParams({
+    tab: "library",
+    target: onCluster ? sourceCluster : LOCAL_TARGET,
+    wrapper: relpath,
+  });
+  return `/wrappers?${query.toString()}`;
 }

@@ -38,6 +38,7 @@ import {
   summaryPath,
   summaryTitle,
   visibleFiles,
+  wrapperSummaryLink,
 } from "@/lib/wrapperTree";
 import {
   attentionCount,
@@ -778,6 +779,38 @@ describe("summary text helpers", () => {
     for (const l of lines) expect(l.text).not.toMatch(/[–—]/);
     const none = summary({ description: { text: "", source: null, path: null } });
     expect(descriptionNote(none)).not.toMatch(/[–—]/);
+  });
+});
+
+describe("wrapperSummaryLink", () => {
+  const rel = "blink/alltoall/alltoall_b.py";
+
+  it("opens the Library on the source cluster when its catalog has the wrapper", () => {
+    expect(wrapperSummaryLink(rel, "leo", [rel, "other.py"])).toBe(
+      "/wrappers?tab=library&target=leo&wrapper=blink%2Falltoall%2Falltoall_b.py",
+    );
+  });
+
+  it("falls back to This laptop with no source cluster", () => {
+    expect(wrapperSummaryLink(rel, "", [rel])).toBe(
+      "/wrappers?tab=library&target=local&wrapper=blink%2Falltoall%2Falltoall_b.py",
+    );
+  });
+
+  it("falls back to This laptop when the cluster's catalog lacks the wrapper", () => {
+    expect(wrapperSummaryLink(rel, "leo", ["other.py"])).toContain("target=local&");
+    expect(wrapperSummaryLink(rel, "leo", [])).toContain("target=local&");
+  });
+
+  it("encodes the target and the relpath", () => {
+    expect(wrapperSummaryLink("a b/c&d.py", "my cl", ["a b/c&d.py"])).toBe(
+      "/wrappers?tab=library&target=my+cl&wrapper=a+b%2Fc%26d.py",
+    );
+  });
+
+  it("has no link for an empty path", () => {
+    expect(wrapperSummaryLink("", "leo", [""])).toBeNull();
+    expect(wrapperSummaryLink("   ", "", [])).toBeNull();
   });
 });
 
