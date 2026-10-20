@@ -13,7 +13,7 @@ pytest.importorskip("fastapi", reason="web extra not installed")
 
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import RemoteCommandError  # noqa: E402
-from crab.web.remoteops.transfer import stage_config  # noqa: E402
+from crab.web.remoteops.transfer import stage_config, staging_dir  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.profiles import Profile  # noqa: E402
 
@@ -76,6 +76,27 @@ async def test_stage_config_ssh_resolves_tilde_to_absolute_before_writing():
     ]
     assert path == "/home/researcher/base/CRAB/.web_staging/my-run.json"
     assert json.loads(transport.written_files[path]) == config
+
+
+async def test_stage_config_crab_command_profile_stages_under_the_base_dir():
+    # A pipx install has no <base>/CRAB checkout: staging sits directly under the base dir.
+    transport = FakeTransport(resolved_dir="/home/researcher/base/.crab_web_staging")
+    profile = _ssh_profile()
+    profile.crab_command = "~/.local/bin/crab"
+
+    path = await stage_config(transport, profile, {}, "demo")
+
+    assert transport.run_calls == [
+        'mkdir -p "$HOME"/base/.crab_web_staging && cd "$HOME"/base/.crab_web_staging && pwd'
+    ]
+    assert path == "/home/researcher/base/.crab_web_staging/demo.json"
+
+
+def test_staging_dir_for_a_crab_command_profile_defaults_to_the_home_dir():
+    profile = Profile(name="p", host="h.example.org", crab_command="/opt/bin/crab")
+    assert staging_dir(profile) == "~/.crab_web_staging"
+    profile.remote_crab = "/scratch/me/"
+    assert staging_dir(profile) == "/scratch/me/.crab_web_staging"
 
 
 async def test_stage_config_local_uses_data_dir(tmp_path: Path):

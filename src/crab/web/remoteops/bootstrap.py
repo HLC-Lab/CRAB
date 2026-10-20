@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from crab.cli.contract import CONTRACT_SCHEMA
 from crab.web.connections.transport import Transport
-from crab.web.errors import ContractError, RemoteCommandError
+from crab.web.errors import ContractError, InputError, RemoteCommandError
 from crab.web.remoteops.crab_cli import crab_dir, remote_path_expr, run_crab_json
 from crab.web.store.profiles import Profile
 
@@ -85,6 +85,18 @@ def contract_skew(info: dict) -> str | None:
     )
 
 
+def ensure_installable(profile: Profile) -> None:
+    """Raise InputError for a profile that names its own crab command.
+
+    That install is the user's own (pipx), so the dashboard has nothing to clone or build.
+    """
+    if profile.crab_command is not None:
+        raise InputError(
+            f"{profile.name!r} runs {profile.crab_command!r}: you manage this install: "
+            "pipx install crab-hpc"
+        )
+
+
 def _clone_command(profile: Profile) -> str:
     # Clones into a `CRAB` subfolder of the profile's base dir (see crab_dir).
     return (
@@ -106,6 +118,7 @@ def _build_command(profile: Profile) -> str:
 def default_plan(profile: Profile) -> list[BootstrapStep]:
     """The install commands for ``profile``, as a readable preview (the actual
     run joins them into one shell, see :func:`build_install_command`)."""
+    ensure_installable(profile)
     return [
         BootstrapStep(id="clone", label="Clone the repository", command=_clone_command(profile)),
         BootstrapStep(id="build", label="Build and install", command=_build_command(profile)),
@@ -115,6 +128,7 @@ def default_plan(profile: Profile) -> list[BootstrapStep]:
 def build_install_command(profile: Profile, pre_commands: list[str]) -> str:
     """The single command that installs CRAB: optional pre-commands once, then
     the clone and build, all in one login shell so module loads carry over."""
+    ensure_installable(profile)
     pre = [c.strip() for c in pre_commands if c and c.strip()]
     parts = [*pre, _clone_command(profile), _build_command(profile)]
     inner = " && ".join(parts)
