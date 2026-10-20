@@ -3,6 +3,9 @@
 - **Date:** 2026-09-03
 - **Status:** accepted
 
+**Amendment (2026-10-20):** the branch-model part (a one-time fork that never merges back) is
+superseded by [ADR-028](adr-028-branch-model.md): generic work merges down into `sbatchman`.
+
 ## Context
 
 ADR-025 (plan 084) built the SbatchMan campaign generator as a `--sbatchman`-flag-gated mode
