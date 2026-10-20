@@ -52,9 +52,9 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
 
 ## Known debt (tracked, not forgotten)
 
-- The guided bootstrap currently clones the `feature/web-dashboard` branch (the JSON seam is
-  not on master yet); switch to the default branch at the v1 merge — a `TODO(pre-v1)` comment
-  in `src/crab/web/remoteops/bootstrap.py` marks the spot.
+- The guided bootstrap currently clones the `develop` branch (the product line until v1.0); after
+  the v1.0 release it should install the release (PyPI or `master`) instead: a `TODO(pre-v1)`
+  comment in `src/crab/web/remoteops/bootstrap.py` marks the spot.
 - `webui/src/api/types.ts`: generated types (`npm run gen:api`, landed with the
   config-validation work) are now the default for every backend-owned shape — most of the file
   is `type X = components["schemas"]["X"]` re-exports. Only cluster-contract passthrough shapes

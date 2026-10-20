@@ -30,10 +30,10 @@ from crab.web.store.profiles import Profile
 
 CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
 
-# TODO(pre-v1): the `--json` CLI seam this dashboard depends on only exists on
-# the feature branch, not master yet. Clone that branch for now. Once it is
-# merged, change this back to the default branch (master) and drop --branch.
-CRAB_REPO_BRANCH = "feature/web-dashboard"
+# TODO(pre-v1): clone `develop`, the product line, for now. After the v1.0
+# release the bootstrap should install the release (PyPI or `master`), not a
+# development branch: then drop --branch.
+CRAB_REPO_BRANCH = "develop"
 
 # Clone + build can be slow (network + pip). Generous ceiling; transport.run
 # still maps the timeout to a connection error so the UI never hangs forever.
