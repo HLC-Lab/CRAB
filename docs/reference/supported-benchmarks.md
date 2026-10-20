@@ -19,10 +19,15 @@ googletest), so all the programs end up in `build/bin/`. This is the suite most
 communication-interference studies build on.
 
 The wrappers for the individual programs are in the
-[crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) repository, under `blink/`, and each one
-is named after the program it launches: `blink/alltoall_comm_only.py` runs `alltoall_comm_only`,
-`blink/pingpong_b.py` runs `pingpong_b`. You reference them from an experiment config by that
-path.
+[crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) repository, under `blink/`, in the same
+folders Blink keeps their sources in (`src/alltoall/` → `blink/alltoall/`). Each one is named after
+the program it launches: `blink/alltoall/alltoall_comm_only.py` runs `alltoall_comm_only`,
+`blink/pingpong/pingpong_b.py` runs `pingpong_b`. You reference them from an experiment config by
+that path.
+
+A config that still uses a path from before the folders (`blink/alltoall_comm_only.py`) keeps
+working: CRAB finds the file in its folder and the run log has a warning with the new path, so you
+can update the config.
 
 Configs written for the older short names (such as `a2a_comm_only`) need renaming. The
 [rename table and a `sed` command](https://github.com/HLC-Lab/crab-wrappers/blob/main/blink/README.md)

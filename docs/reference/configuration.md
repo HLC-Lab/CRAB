@@ -139,8 +139,8 @@ So a victim with one rank per node can share its nodes with an aggressor that ru
 "experiments": {
   "pair": {
     "apps": {
-      "0": { "path": "blink/alltoall_comm_only.py", "collect": true },
-      "1": { "path": "blink/alltoall_comm_only.py", "end": "f", "ppn": "8" }
+      "0": { "path": "blink/alltoall/alltoall_comm_only.py", "collect": true },
+      "1": { "path": "blink/alltoall/alltoall_comm_only.py", "end": "f", "ppn": "8" }
     }
   }
 }
@@ -375,7 +375,7 @@ in `crab_run.json` with its launch.
 
 ```json
 "0": {
-  "path": "blink/alltoall_comm_only.py",
+  "path": "blink/alltoall/alltoall_comm_only.py",
   "collect": true,
   "cpus": "0-3",
   "env": { "OMP_NUM_THREADS": "1" }
@@ -398,7 +398,7 @@ UCX_NET_DEVICES both set the NIC; keep one`). An app chained with `start: "sN"` 
 
 ```json
 "0": {
-  "path": "blink/alltoall_comm_only.py",
+  "path": "blink/alltoall/alltoall_comm_only.py",
   "collect": true,
   "ppn": 4,
   "cpus": "0-3",
@@ -527,7 +527,7 @@ A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitt
       "description": "All-to-all victim against a Graph500 aggressor, interleaved nodes.",
       "apps": {
         "0": {
-          "path": "blink/alltoall_comm_only.py",
+          "path": "blink/alltoall/alltoall_comm_only.py",
           "args": "-msgsize 8192 -iter 1000",
           "collect": true,
           "start": "0",

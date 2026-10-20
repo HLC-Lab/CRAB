@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import glob
 import importlib.util
 import os
 import pathlib
@@ -31,23 +32,71 @@ def wrapper_search_path() -> list[str]:
     )
 
 
-def resolve_wrapper_path(path: str) -> str:
-    """The file a config's wrapper `path` names: the first match along the search path.
-
-    Absolute paths are returned unchanged. A relative path found nowhere resolves the way it
-    did before the search path existed (under the first CRAB_PATH_WRAPPERS folder, else
-    relative to the working directory), so old configs and error messages stay the same.
-    """
-    if os.path.isabs(path):
-        return path
+def _direct_hit(path: str) -> str | None:
+    """The first search-path folder's `<folder>/<path>` that exists, else None."""
     for folder in wrapper_search_path():
         candidate = os.path.join(folder, path)
         if os.path.exists(candidate):
             return candidate
+    return None
+
+
+def _moved_match(path: str) -> str | None:
+    """The one `<folder>/<suite>/*/<name>` a missed `<suite>/<name>` path moved to, else None.
+
+    Only a two-part relative path qualifies (the Blink wrappers moved one level down, into one
+    folder per upstream group). The first search-path folder with any match decides: when it
+    holds two or more, the path is ambiguous and nothing is returned.
+    """
+    parts = pathlib.PurePath(path).parts
+    if os.path.isabs(path) or len(parts) != 2:
+        return None
+    suite, name = parts
+    for folder in wrapper_search_path():
+        pattern = os.path.join(glob.escape(os.path.join(folder, suite)), "*", glob.escape(name))
+        matches = sorted(m for m in glob.glob(pattern) if os.path.isfile(m))
+        if matches:
+            return matches[0] if len(matches) == 1 else None
+    return None
+
+
+def resolve_wrapper_path(path: str) -> str:
+    """The file a config's wrapper `path` names: the first match along the search path.
+
+    Absolute paths are returned unchanged. A relative `<suite>/<name>.py` found nowhere but
+    present once in a subfolder (`<suite>/<group>/<name>.py`) resolves to that file: wrappers
+    moved into groups and old configs keep working (`moved_wrapper_note` says so). Any other
+    relative path found nowhere resolves the way it did before the search path existed (under
+    the first CRAB_PATH_WRAPPERS folder, else relative to the working directory), so old
+    configs and error messages stay the same.
+    """
+    if os.path.isabs(path):
+        return path
+    direct = _direct_hit(path)
+    if direct is not None:
+        return direct
+    moved = _moved_match(path)
+    if moved is not None:
+        return moved
     configured = os.environ.get("CRAB_PATH_WRAPPERS")
     if configured:
         return os.path.join(configured.split(os.pathsep)[0], path)
     return path
+
+
+def moved_wrapper_note(path: str) -> str | None:
+    """A message when `path` only resolves through a moved wrapper's new location, else None.
+
+    None for an absolute path, a direct hit, a miss, and an ambiguous move.
+    """
+    if os.path.isabs(path) or _direct_hit(path) is not None:
+        return None
+    moved = _moved_match(path)
+    if moved is None:
+        return None
+    suite, name = pathlib.PurePath(path).parts
+    group = pathlib.Path(moved).parent.name
+    return f"wrapper {path} moved to {suite}/{group}/{name}: update the config"
 
 
 def _is_usable_checkout(folder: str) -> bool:

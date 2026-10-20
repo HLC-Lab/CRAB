@@ -27,7 +27,7 @@
             "description": "AllReduce baseline: small messages (1KB). Latency-bound reference.",
             "apps": {
                 "0": {
-                    "path": "blink/allreduce_b.py",
+                    "path": "blink/allreduce/allreduce_b.py",
                     "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "start": "0",
@@ -40,7 +40,7 @@
             "description": "AllReduce baseline: large messages (1MB). Bandwidth-bound reference.",
             "apps": {
                 "0": {
-                    "path": "blink/allreduce_b.py",
+                    "path": "blink/allreduce/allreduce_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "start": "0",
@@ -53,7 +53,7 @@
             "description": "50/50 split: AllReduce victim (2 nodes) vs Incast aggressor (2 nodes).",
             "apps": {
                 "0": {
-                    "path": "blink/allreduce_b.py",
+                    "path": "blink/allreduce/allreduce_b.py",
                     "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -61,7 +61,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "blink/incast_b.py",
+                    "path": "blink/incast/incast_b.py",
                     "args": "-endl -msgsize 65536",
                     "collect": false,
                     "partition": "aggressor",
@@ -74,7 +74,7 @@
             "description": "Traffic pattern change: Non-blocking Ring on all nodes.",
             "apps": {
                 "0": {
-                    "path": "blink/ring_nb.py",
+                    "path": "blink/ring/ring_nb.py",
                     "args": "-msgsize 4096 -iter 500",
                     "collect": true,
                     "start": "0",
@@ -91,7 +91,7 @@
             "description": "Stress test: A2A victim vs Incast aggressor on a 50/50 split.",
             "apps": {
                 "0": {
-                    "path": "blink/alltoall_b.py",
+                    "path": "blink/alltoall/alltoall_b.py",
                     "args": "-msgsize 2048 -iter 200",
                     "collect": true,
                     "partition": "victim",
@@ -99,7 +99,7 @@
                     "end": ""
                 },
                 "1": {
-                    "path": "blink/incast_b.py",
+                    "path": "blink/incast/incast_b.py",
                     "args": "-endl -msgsize 2048",
                     "collect": false,
                     "partition": "aggressor",

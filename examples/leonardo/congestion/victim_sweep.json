@@ -21,87 +21,87 @@
         "01_a2a_baseline": {
             "description": "A2A 64B victim alone — reference.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "", "partition": "victim" }
             }
         },
         "02_a2a_vs_a2a_noise": {
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
         "03_a2a_vs_incast_noise": {
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",       "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",       "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/incast_nb.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/incast/incast_nb.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
         "04_a2a_vs_noise_delayed": {
             "description": "Aggressor joins 2 s after the victim, which runs 2000000 iterations. Blink keeps the last 1000 iterations, so the collected samples all come after the aggressor started: steady-state interference without the warm-up.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000000",
                        "collect": true,  "start": "0",  "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "2", "end": "f", "partition": "aggressor" }
             }
         },
         "05_a2a_vs_noise_timed": {
             "description": "Noise only during the first 3 s: the aggressor is stopped at 3 s while the victim (2000000 iterations) keeps running. Blink keeps the last 1000 iterations, so the collected samples are the victim after the noise ended.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000000",
                        "collect": true,  "start": "0", "end": "",   "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "3", "partition": "aggressor" }
             }
         },
         "06_incast_baseline": {
             "description": "Incast 64B victim alone — reference.",
             "apps": {
-                "0": { "path": "blink/incast_b.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/incast/incast_b.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "", "partition": "victim" }
             }
         },
         "07_incast_vs_a2a_noise": {
             "apps": {
-                "0": { "path": "blink/incast_b.py",            "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/incast/incast_b.py",            "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
         "08_incast_vs_incast_noise": {
             "apps": {
-                "0": { "path": "blink/incast_b.py",               "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/incast/incast_b.py",               "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/incast_nb.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/incast/incast_nb.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
         "09_agtr_baseline": {
             "description": "AllGather 512B victim alone — reference.",
             "apps": {
-                "0": { "path": "blink/allgather_comm_only.py", "args": "-msgsize 512 -iter 2000",
+                "0": { "path": "blink/allgather/allgather_comm_only.py", "args": "-msgsize 512 -iter 2000",
                        "collect": true, "start": "0", "end": "", "partition": "victim" }
             }
         },
         "10_agtr_vs_a2a_noise": {
             "apps": {
-                "0": { "path": "blink/allgather_comm_only.py",  "args": "-msgsize 512 -iter 2000",
+                "0": { "path": "blink/allgather/allgather_comm_only.py",  "args": "-msgsize 512 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py","args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py","args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
         "11_agtr_vs_incast_noise": {
             "apps": {
-                "0": { "path": "blink/allgather_comm_only.py",     "args": "-msgsize 512 -iter 2000",
+                "0": { "path": "blink/allgather/allgather_comm_only.py",     "args": "-msgsize 512 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/incast_nb.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/incast/incast_nb.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         }
