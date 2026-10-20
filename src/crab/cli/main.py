@@ -303,13 +303,19 @@ def handle_export(args):
     _handle_export(args)
 
 
+def handle_sbatchman_preset(args):
+    from crab.cli.sbatchman_preset import handle
+
+    handle(args)
+
+
 def cli_router():
     parser = argparse.ArgumentParser(prog="crab", description="CRAB Benchmarking Framework")
     # 'metavar' is used to hide the "worker" entry
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update}",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update,sbatchman-preset}",
     )
     subparsers.required = True
 
@@ -430,7 +436,38 @@ def cli_router():
 
     update.register(subparsers)
 
-    # 8. Worker Command (Hidden)
+    # 8. SbatchMan preset printer
+    parser_preset = subparsers.add_parser(
+        "sbatchman-preset",
+        help="Print the `sbatchman configure slurm` command for this CRAB install",
+    )
+    parser_preset.add_argument("--name", default="crab_run", help="Preset name.")
+    parser_preset.add_argument("--partition", default=None, help="Slurm partition.")
+    parser_preset.add_argument("--account", default=None, help="Slurm account.")
+    parser_preset.add_argument(
+        "--qos", default=None, help="Slurm QoS (the line is left out without it)."
+    )
+    parser_preset.add_argument("--time", default=None, help="Walltime of each job, hh:mm:ss.")
+    parser_preset.add_argument("--nodes", default=None, help="Nodes per job.")
+    parser_preset.add_argument(
+        "--tasks-per-node", dest="tasks_per_node", default=None, help="Ranks per node."
+    )
+    parser_preset.add_argument("--system", default=None, help="Cluster name (CRAB_SYSTEM).")
+    parser_preset.add_argument(
+        "--no-exclusive",
+        dest="exclusive",
+        action="store_false",
+        help="Leave out --exclusive.",
+    )
+    parser_preset.add_argument(
+        "--cpu-bind",
+        dest="cpu_bind",
+        default=None,
+        help="Add SLURM_CPU_BIND=<value> (for example cores) to the job environment.",
+    )
+    parser_preset.set_defaults(func=handle_sbatchman_preset)
+
+    # 9. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)

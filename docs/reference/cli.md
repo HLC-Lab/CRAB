@@ -221,6 +221,43 @@ crab receipts set ID --binary PATH [--pre-run CMD ...] [--launcher srun|mpirun] 
 Writes `local/receipts/ID.json`. `--launcher` sets this benchmark's launcher kind, `srun` or `mpirun`, which overrides the preset's `launcher` for this benchmark. Any other value is refused. Leave it out to use the preset's launcher. It refuses a `PATH` that does not exist unless
 `--allow-missing` is given. See [Receipts](../extending/receipts.md).
 
+## `crab sbatchman-preset`
+
+Prints the `sbatchman configure slurm` command for this CRAB install, ready to paste on the cluster.
+
+```bash
+crab sbatchman-preset [--name NAME] [--partition P] [--account A] [--qos Q] [--time T]
+                      [--nodes N] [--tasks-per-node N] [--system NAME]
+                      [--no-exclusive] [--cpu-bind MODE]
+```
+
+CRAB fills in what it knows: the `bin` directory of the Python environment running `crab` (on
+`PATH`), the checkout root (`CRAB_ROOT`) and the wrappers folder (`CRAB_PATH_WRAPPERS`, resolved as
+the worker resolves it, so a set `CRAB_PATH_WRAPPERS` is kept). The Slurm values it cannot know stay
+as `<placeholders>` until a flag gives them. The command goes to stdout and nothing else does, so
+`crab sbatchman-preset ... > preset.sh` works. CRAB does not run SbatchMan.
+
+| Flag | Description |
+|------|-------------|
+| `--name` | Preset name. Default `crab_run`. |
+| `--partition`, `--account`, `--time`, `--nodes`, `--tasks-per-node` | The Slurm values of the preset. Without a flag the command keeps `<partition>`, `<account>`, `<hh:mm:ss>`, `<nodes>` or `<tasks per node>`. |
+| `--qos` | Adds the `--qos` line. Without it the line is left out. |
+| `--system` | Cluster name for `CRAB_SYSTEM`. Default `<cluster name>`. |
+| `--no-exclusive` | Leaves out `--exclusive`. |
+| `--cpu-bind` | Adds a last `--env 'SLURM_CPU_BIND=MODE'` line, for example `cores`. |
+
+A value that is not one token of letters, digits and `. _ : , + / @ % = -`, or a path with a single
+quote, is an error: the command exits 2 with a one-line message and prints no command. When the
+wrappers folder is missing, the command still prints and a warning on stderr says how to get the
+wrappers.
+
+```bash
+crab sbatchman-preset --partition boost --account ACC --time 00:30:00 --nodes 2 \
+  --tasks-per-node 8 --system leo
+```
+
+See [SbatchMan integration](../using/sbatchman-integration.md).
+
 ## `crab worker` (internal)
 
 Hidden subcommand executed *by the generated Slurm job* on the compute nodes — the second phase of
