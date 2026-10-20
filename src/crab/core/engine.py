@@ -7,6 +7,7 @@ import re
 import time
 from typing import Any
 
+from crab import paths
 from crab.core.config_checks import check_config
 from crab.core.execution.job_geometry import job_tasks_per_node, needs_job_geometry
 from crab.core.execution.scheduler.select import scheduler_for
@@ -15,7 +16,7 @@ from crab.core.experiment import ExperimentRunner
 from crab.core.provenance import write_provenance
 from crab.log import CrabLogger
 
-CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+CRAB_ROOT = str(paths.crab_home())
 
 # Version of the config.json format this engine reads. A config without the field predates it
 # and is version 1. Bump only with a migration for the previous version.
