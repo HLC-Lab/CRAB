@@ -9,11 +9,11 @@ from __future__ import annotations
 import ast
 import os
 import re
-import subprocess
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from crab.cli.gitops import GitError, git
 from crab.cli.wrappers_catalog import _crab_root_env, _describe_app, is_wrapper_relpath
 from crab.core.wrapper_paths import (
     missing_wrappers_hint,
@@ -85,16 +85,9 @@ def _describe_text(path: Path, folder: Path) -> dict[str, Any]:
 def _git_out(folder: Path, *args: str) -> str | None:
     """Stdout of `git -C folder ...`, or None when git fails, times out or is missing."""
     try:
-        done = subprocess.run(
-            ["git", "-C", str(folder), *args],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=_GIT_TIMEOUT,
-        )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        return git(folder, *args, timeout=_GIT_TIMEOUT)
+    except GitError:
         return None
-    return done.stdout.strip()
 
 
 def _source_of(path: Path) -> dict[str, str | None]:

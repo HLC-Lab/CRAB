@@ -36,4 +36,5 @@ def git(repo: Path, *args: str, timeout: float = 120, env: dict[str, str] | None
 
 
 def is_repo_root(path: Path) -> bool:
+    """Whether `path` holds a `.git` entry (a clone's root, not a subfolder)."""
     return (path / ".git").exists()

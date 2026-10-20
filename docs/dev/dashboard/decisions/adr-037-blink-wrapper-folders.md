@@ -14,8 +14,9 @@ the fork (blink-clean) had kept, and ADR-035 still kept wrappers for them.
 ## Decision
 
 - A Blink wrapper sits at `blink/<group>/<name>.py`. `<group>` is the folder under upstream
-  `src/` that holds `<name>.c` or `<name>.cpp`, and `<name>` is the program it launches, as in
-  ADR-035. The binary lookup is unchanged: programs are still found by name in `build/bin/`.
+  `src/` that holds `<name>.c` or `<name>.cpp`, and `<name>` is the program it launches: the
+  wrapper file has the same name as the Blink program (`alltoall_nb.py` launches `alltoall_nb`).
+  The binary lookup is unchanged: programs are still found by name in `build/bin/`.
 - A test in the crab-wrappers repository checks that every wrapper sits in its program's upstream
   folder.
 - `bursty_noise_a2a` and `bursty_noise_incast` are removed. Upstream makes the same traffic with
