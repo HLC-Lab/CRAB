@@ -446,31 +446,50 @@ See [Receipts](../extending/receipts.md#registering-an-installed-binary-with-cra
 
 ## `crab update`
 
-Updates this install and its wrappers checkout.
+Updates this install and its wrappers checkout. By default it goes to the release; `--head`
+follows the branches instead.
 
 ```bash
-crab update [--to-release] [--json]
+crab update [--head | --to-release] [--json]
 ```
 
 | Flag | Meaning | Default |
 |------|---------|---------|
-| `--to-release` | On a branch checkout, switch to the newest release tag of that branch's line. | off |
-| `--json` | Print the result as JSON. | off |
+| `--head` | Follow the branch HEAD of both CRAB and the wrappers, not the release. For developers. | off |
+| `--to-release` | Same as the default, kept so older scripts keep working. Cannot be combined with `--head`. | on |
+| `--json` | Print the result as JSON. Both the `crab` and the `wrappers` block carry `ref`, `"release"` or `"head"`. | off |
 
-- A checkout on a branch is fast-forwarded (`git pull --ff-only`).
-- A checkout on a release tag moves to the newest tag of its line (`vX.Y.Z`, or
-  `vX.Y.Z+sbatchman` on the SbatchMan line).
-- `--to-release` switches a branch checkout to the newest release tag of that branch's line, and
-  stays on the branch if there is none. The dashboard's installer runs it after cloning.
-- Dependencies are reinstalled only when `pyproject.toml` changed.
-- It stops without changing anything if tracked files have local edits. Keep per-machine changes
-  in `local/`.
-- The wrappers folder is pulled if it is its own git clone, cloned if it is missing, and left
-  alone if it is part of the CRAB checkout.
+- **Release (the default).** A checkout moves to the newest release tag of its line (`vX.Y.Z`, or
+  `vX.Y.Z+sbatchman` on the SbatchMan line); with no tag at all it stays on its branch and
+  fast-forwards it. The wrappers clone moves to the tag `vX.Y.Z` of the CRAB version the update
+  ends on, so the two always match. The dashboard's installer runs `crab update --to-release`
+  after cloning.
+- **Wrappers tag missing.** If the wrappers repository has no tag `vX.Y.Z` yet, an existing
+  wrappers clone stays where it is, the command prints `no wrappers tag vX.Y.Z yet, left at
+  <commit>`, and it still succeeds (action `kept`). A wrappers clone made by this run reports
+  `cloned` with the same line in its detail and stays on the default branch.
+- **`--head`.** CRAB fast-forwards its branch (`git pull --ff-only`) and the wrappers clone runs
+  `git pull --ff-only` on its checked-out branch. A wrappers clone a release update left on a tag
+  goes back to the default branch first. A CRAB checkout left on a release tag by a release
+  update is refused, before anything changes: run `git checkout <branch>` in the checkout, then
+  `crab update --head`.
+- **Pip install.** When CRAB was installed with pip or pipx there is no git checkout to move, so
+  CRAB itself is left alone and the output says to run `pipx upgrade crab-hpc`. The wrappers
+  clone under the install's home is still cloned or moved, to the tag of the installed version
+  (or to the branch with `--head`). The `crab` block reads `"mode": "pip"` with a `hint`.
+- Dependencies are reinstalled only when `pyproject.toml` changed. An old `crab` distribution
+  (the name before `crab-hpc`) is uninstalled first.
+- It stops without changing anything if tracked files have local edits, in the CRAB checkout or
+  in the wrappers clone. Keep per-machine changes
+  in `local/`. If the edited file is `config/presets.json`, which moved to
+  `src/crab/presets.json`, the message gives the exact steps to migrate it.
+- The wrappers folder is cloned if it is missing, and left alone if it is part of the CRAB
+  checkout or holds files of its own.
 
 ```bash
 crab update
-crab update --to-release --json
+crab update --head
+crab update --json
 ```
 
 ## `crab worker` (internal)

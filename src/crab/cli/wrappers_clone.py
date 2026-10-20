@@ -70,13 +70,77 @@ def _clear_leftovers(directory: Path) -> bool:
     return True
 
 
-def update_wrappers_clone(root: Path, wrappers_dir: Path, url: str) -> dict[str, Any]:
-    """Clone or fast-forward the wrappers checkout at `wrappers_dir`.
+def _tag_commit(repo: Path, tag: str) -> str | None:
+    """The commit `tag` names in `repo`, or None when the tag does not exist."""
+    try:
+        return git(repo, "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}")
+    except GitError:
+        return None
+
+
+def _no_tag_line(tag: str, sha: str) -> str:
+    return f"no wrappers tag {tag} yet, left at {sha[:12]}"
+
+
+def _default_branch(repo: Path) -> str:
+    """The branch `origin` calls its default (`origin/HEAD`), asking origin when it is unset."""
+    try:
+        return git(repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD").removeprefix(
+            "origin/"
+        )
+    except GitError:
+        git(repo, "remote", "set-head", "origin", "--auto")
+        return git(repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD").removeprefix(
+            "origin/"
+        )
+
+
+def _leave_detached_head(repo: Path) -> None:
+    """Check out the default branch when `repo` is detached (release mode leaves it so)."""
+    try:
+        git(repo, "symbolic-ref", "-q", "HEAD")
+    except GitError:
+        git(repo, "checkout", "-q", _default_branch(repo))
+
+
+def _pin_to_tag(repo: Path, entry: dict[str, Any], tag: str, old: str) -> dict[str, Any]:
+    """Check out `tag` in the existing clone `repo`, or keep it in place when there is no such tag."""
+    git(repo, "fetch", "-q", "--tags", "origin")
+    target = _tag_commit(repo, tag)
+    if target is None:
+        kept = {"action": "kept", "old": old[:12], "new": old[:12]}
+        return {**entry, **kept, "detail": _no_tag_line(tag, old)}
+    if target != old:
+        git(repo, "checkout", "-q", tag)
+    action = "updated" if target != old else "up to date"
+    return {**entry, "action": action, "old": old[:12], "new": target[:12]}
+
+
+def update_wrappers_clone(
+    root: Path,
+    wrappers_dir: Path,
+    url: str,
+    tag: str | None = None,
+    rejoin_branch: bool = False,
+) -> dict[str, Any]:
+    """Clone or move the wrappers checkout at `wrappers_dir`.
+
+    Without `tag` it follows the branch: a fast-forward pull (a clone left detached by a release
+    update goes back to the default branch first when `rejoin_branch` is set; `crab wrappers
+    pull` leaves that to the owner and stops). With `tag` it moves to that tag, and keeps the
+    checkout where it is when the tag does not exist yet (`action` "kept", the reason in `detail`).
 
     Raises:
         GitError: when a git command fails or the leftovers cannot be cleaned.
     """
-    entry: dict[str, Any] = {"dir": str(wrappers_dir), "action": "", "old": None, "new": None}
+    ref = "release" if tag else "head"
+    entry: dict[str, Any] = {
+        "dir": str(wrappers_dir),
+        "action": "",
+        "old": None,
+        "new": None,
+        "ref": ref,
+    }
     empty = False
     if url and wrappers_dir.is_dir() and not wrappers_dir.is_symlink():
         if not is_repo_root(wrappers_dir):
@@ -91,12 +155,21 @@ def update_wrappers_clone(root: Path, wrappers_dir: Path, url: str) -> dict[str,
         if not url:
             return {**entry, "action": "skipped", "detail": "no wrappers repository configured"}
         git(wrappers_dir.parent, "clone", "-q", url, str(wrappers_dir))
-        return {**entry, "action": "cloned", "new": git(wrappers_dir, "rev-parse", "HEAD")[:12]}
+        cloned = {**entry, "action": "cloned"}
+        if tag and _tag_commit(wrappers_dir, tag):
+            git(wrappers_dir, "checkout", "-q", tag)
+        elif tag:
+            cloned["detail"] = _no_tag_line(tag, git(wrappers_dir, "rev-parse", "HEAD"))
+        return {**cloned, "new": git(wrappers_dir, "rev-parse", "HEAD")[:12]}
     if not is_repo_root(wrappers_dir):
         inside = root.resolve() in wrappers_dir.resolve().parents
         why = "it is part of this CRAB checkout" if inside else "it is not a git clone"
         return {**entry, "action": "skipped", "detail": f"{wrappers_dir}: {why}"}
     old = git(wrappers_dir, "rev-parse", "HEAD")
+    if tag:
+        return _pin_to_tag(wrappers_dir, entry, tag, old)
+    if rejoin_branch:
+        _leave_detached_head(wrappers_dir)
     git(wrappers_dir, "pull", "--ff-only", "-q")
     new = git(wrappers_dir, "rev-parse", "HEAD")
     action = "updated" if new != old else "up to date"

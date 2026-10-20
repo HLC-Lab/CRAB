@@ -391,3 +391,44 @@ def test_pull_on_a_detached_head_stops(setup, monkeypatch, capsys) -> None:
     assert code == 1
     assert out == ""
     assert err.startswith("crab: wrappers pull stopped:")
+
+
+# --- update_wrappers_clone: release tag and --head modes ---------------------------------------
+
+
+def _tag_origin(setup: Setup, tag: str) -> str:
+    git(setup.work, "tag", tag)
+    git(setup.work, "push", "-q", "origin", tag)
+    return git(setup.work, "rev-parse", f"{tag}^{{commit}}")
+
+
+def test_a_tag_moves_the_clone_to_it_and_reports_the_release_ref(setup, tmp_path) -> None:
+    tagged = _tag_origin(setup, "v1.0.0")
+    setup.push_new()
+    setup.make_clone()
+    result = wrappers_clone.update_wrappers_clone(tmp_path, setup.clone, str(setup.bare), "v1.0.0")
+    assert (result["action"], result["ref"]) == ("updated", "release")
+    assert git(setup.clone, "rev-parse", "HEAD") == tagged
+    again = wrappers_clone.update_wrappers_clone(tmp_path, setup.clone, str(setup.bare), "v1.0.0")
+    assert again["action"] == "up to date"
+
+
+def test_a_missing_tag_keeps_the_clone_where_it_is(setup, tmp_path) -> None:
+    setup.make_clone()
+    before = git(setup.clone, "rev-parse", "HEAD")
+    result = wrappers_clone.update_wrappers_clone(tmp_path, setup.clone, str(setup.bare), "v9.9.9")
+    assert result["action"] == "kept"
+    assert result["detail"] == f"no wrappers tag v9.9.9 yet, left at {before[:12]}"
+    assert git(setup.clone, "rev-parse", "HEAD") == before
+
+
+def test_rejoin_branch_returns_a_detached_clone_to_the_default_branch(setup, tmp_path) -> None:
+    setup.make_clone()
+    git(setup.clone, "checkout", "-q", "--detach")
+    newest = setup.push_new()
+    result = wrappers_clone.update_wrappers_clone(
+        tmp_path, setup.clone, str(setup.bare), rejoin_branch=True
+    )
+    assert (result["action"], result["ref"]) == ("updated", "head")
+    assert git(setup.clone, "symbolic-ref", "--short", "HEAD") == "main"
+    assert git(setup.clone, "rev-parse", "HEAD") == newest
