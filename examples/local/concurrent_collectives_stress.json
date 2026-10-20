@@ -18,28 +18,28 @@
             "description": "Concurrent A2A, Barrier, and Ring stress test on local nodes.",
             "apps": {
                 "0": {
-                    "path": "blink/alltoall_b.py",
+                    "path": "blink/alltoall/alltoall_b.py",
                     "args": "-msgsize 67108864 -iter 1000 -grty 1",
                     "collect": true,
                     "start": "0",
                     "end": ""
                 },
                 "1": {
-                    "path": "blink/alltoall_b.py",
+                    "path": "blink/alltoall/alltoall_b.py",
                     "args": "-msgsize 67108864 -iter 500 -grty 1",
                     "collect": true,
                     "start": "0",
                     "end": ""
                 },
                 "2": {
-                    "path": "blink/barrier_b.py",
+                    "path": "blink/barrier/barrier_b.py",
                     "args": "-iter 5000",
                     "collect": false,
                     "start": "0",
                     "end": "f"
                 },
                 "3": {
-                    "path": "blink/ring_nb.py",
+                    "path": "blink/ring/ring_nb.py",
                     "args": "-msgsize 33554432 -iter 1000",
                     "collect": true,
                     "start": "0",

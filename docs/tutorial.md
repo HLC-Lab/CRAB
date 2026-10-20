@@ -69,16 +69,16 @@ the comparison is apples-to-apples.
     "baseline": {
       "description": "All-to-all victim alone on half the nodes — the reference.",
       "apps": {
-        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                "collect": true, "start": "0", "end": "", "partition": "victim" }
       }
     },
     "with_noise": {
       "description": "Same victim, now with a bursty all-to-all aggressor on the other half.",
       "apps": {
-        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                "collect": true, "start": "0", "end": "", "partition": "victim" },
-        "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+        "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
       }
     }
@@ -105,7 +105,7 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
   metrics [converge](glossary.md#convergence).
 
 !!! note "`path` points to the wrapper, not the binary"
-    `blink/alltoall_comm_only.py` is the [wrapper](glossary.md#wrapper) **file**, given *relative*: CRAB
+    `blink/alltoall/alltoall_comm_only.py` is the [wrapper](glossary.md#wrapper) **file**, given *relative*: CRAB
     looks for it in `local/wrappers/` first, then in each folder of `CRAB_PATH_WRAPPERS`, or in
     `wrappers/` when that is unset. It is **not** an absolute path and not the benchmark executable. That's
     what keeps the config [system-independent](concepts/system-dependent-vs-independent.md): the
