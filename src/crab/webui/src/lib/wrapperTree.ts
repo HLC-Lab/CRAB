@@ -119,18 +119,19 @@ export function firstWrapper(sections: LibrarySection[]): string {
 }
 
 /** The Wrappers page's Library link for a wrapper picked in the experiment editor: the source
- * cluster when its catalog has the wrapper, else This laptop. Null for an empty path. */
+ * cluster when its catalog lists the wrapper, else This laptop when its catalog does. Null when
+ * the path is empty or no catalog lists it (a typed or absolute path). */
 export function wrapperSummaryLink(
   relpath: string,
   sourceCluster: string,
   remoteRelpaths: string[],
+  localRelpaths: string[],
 ): string | null {
   if (!relpath.trim()) return null;
-  const onCluster = sourceCluster !== "" && remoteRelpaths.includes(relpath);
-  const query = new URLSearchParams({
-    tab: "library",
-    target: onCluster ? sourceCluster : LOCAL_TARGET,
-    wrapper: relpath,
-  });
+  let target: string;
+  if (sourceCluster !== "" && remoteRelpaths.includes(relpath)) target = sourceCluster;
+  else if (localRelpaths.includes(relpath)) target = LOCAL_TARGET;
+  else return null;
+  const query = new URLSearchParams({ tab: "library", target, wrapper: relpath });
   return `/wrappers?${query.toString()}`;
 }

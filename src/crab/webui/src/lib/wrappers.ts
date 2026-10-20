@@ -238,6 +238,11 @@ export function driftLines(status: CloneStatus): string[] {
   return [main];
 }
 
+/** The first `limit` modified files, and how many more there are. */
+export function modifiedPreview(files: string[], limit = 10): { shown: string[]; more: number } {
+  return { shown: files.slice(0, limit), more: Math.max(files.length - limit, 0) };
+}
+
 /** "just now", "5 min ago", "2 h ago" for a gap in milliseconds. */
 export function relativeTime(elapsedMs: number): string {
   const minutes = Math.floor(Math.max(elapsedMs, 0) / 60_000);

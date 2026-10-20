@@ -131,8 +131,10 @@ experiments) and which milestone they belong to.
 
 Ordering after 1.1 is tentative and is revisited at each release.
 
-- **1.1 · Wrappers and recipes in the dashboard**: browse, author and sync wrapper sources;
-  install benchmarks from recipes with receipt validation before submit.
+- **1.1 · Recipes and receipt validation in the dashboard**: install benchmarks from recipes and
+  validate receipts before submit. Browsing and syncing wrappers already ships with the
+  dashboard's Wrappers section; writing a wrapper in the browser is not planned (it stays in
+  the user's editor).
 - **1.2 · Results and provenance**: per-run provenance (CRAB commit, wrapper hash, loaded
   modules, node list next to every result file); chart polish, series renaming and plot
   controls; a live view of running jobs; a dashboard mode that reads a plain local results
