@@ -3,6 +3,10 @@
 CRAB installs a single console script, `crab`. Activate the virtual
 environment first (`source .venv/bin/activate`); shell tab-completion is registered during install.
 
+The sections follow the order of `crab --help`. Every command takes `-h` and `--help`. The `--json`
+answers carry a `schema` field, the version of the `--json` contract, which is `2`. The [web
+dashboard](../using/dashboard.md) reads these answers on each cluster.
+
 ## `crab setup`
 
 Launches the interactive setup wizard to obtain/build benchmarks and write their
@@ -12,7 +16,7 @@ Launches the interactive setup wizard to obtain/build benchmarks and write their
 crab setup
 ```
 
-No arguments. See [Installation → benchmark setup](../using/installation.md#set-up-benchmarks-crab-setup).
+No arguments. See [Installation: benchmark setup](../using/installation.md#set-up-benchmarks-crab-setup).
 
 ## `crab run`
 
@@ -20,16 +24,74 @@ Runs an experiment: prepares the output directory and submits the job, to Slurm 
 scheduler, as the preset says.
 
 ```bash
-crab run <config.json> [-p PRESET] [--log-level LEVEL]
+crab run [-p PRESET] [--log-level LEVEL] [--json] [--only KEYS] <config.json>
 ```
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `config.json` | ✅ | Path to the [experiment config](configuration.md). Tab-completes `.json` files. |
-| `-p`, `--preset` | — | Preset name from `config/presets.json` or `local/presets.json`. Tab-completes known presets. See [resolution order](../using/presets.md#selecting-your-preset). |
-| `--log-level` | — | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL`. Default `INFO`. |
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `config.json` | Path to the [experiment config](configuration.md). Required. Tab-completes `.json` files. | none |
+| `-p`, `--preset` | Preset name from `config/presets.json` or `local/presets.json`. Tab-completes known presets. See [resolution order](../using/presets.md#selecting-your-preset). | the `CRAB_PRESET` environment variable; with neither, `crab run` stops with an error |
+| `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`. Any other value counts as `INFO`. | `INFO` |
+| `--json` | Print the submit result as JSON on stdout: `job_id`, `data_dir` and `system`. Logs go to stderr. | off |
+| `--only` | Comma-separated experiment keys of the config to run. The other experiments are skipped. A key the config does not have is an error. | the whole config |
+
+```bash
+crab run examples/local/sequential_barrier.json -p local
+crab run examples/local/sequential_barrier.json -p local --only 01_sequential_barrier_chain --json
+```
 
 See [Running an experiment](../using/running.md).
+
+## `crab web`
+
+Starts the web dashboard on this machine and opens it in the browser. It needs the `web` extra;
+when the extra is missing, `crab web` offers to install it and waits for a `y`.
+
+```bash
+crab web [--host HOST] [--port PORT] [--no-browser] [-v]
+```
+
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--host` | Address to bind. | `127.0.0.1` |
+| `--port` | Port to bind. | `8765`; the `CRAB_WEB_PORT` environment variable sets the default |
+| `--no-browser` | Do not open a browser on start. | opens one |
+| `-v`, `--verbose` | Log startup and every request. | warnings and errors only |
+
+```bash
+crab web
+crab web --port 8899 --no-browser
+```
+
+See [The web dashboard](../using/dashboard.md#start-it) for the session token, the cluster
+connections and what the dashboard does.
+
+## `crab export`
+
+Generates a **self-contained HTML dashboard** from a results directory. The CSV data is embedded
+into the file, so the result can be emailed, committed to a repo, or opened directly anywhere
+without any server or import step.
+
+```bash
+crab export [-o OUTPUT] <data_dir>
+```
+
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `data_dir` | Path to a results directory containing experiment CSVs. CRAB scans both flat (`<dir>/*.csv`) and nested (`<dir>/<exp>/data_app_*.csv`) layouts. Required. | none |
+| `-o`, `--output` | Output HTML path. | `crab_export.html` in the current directory |
+
+Example:
+
+```bash
+crab export data/leonardo/interference_2026-06-09_14-30-05-123456/ -o results.html
+```
+
+The exported file is a self-contained snapshot built from the dashboard template bundled in the
+package (`src/crab/crab_dashboard.html`) with the data pre-loaded and the "drop folder" UI hidden.
+The output file should not be committed to version control. See [Share results with `crab
+export`](../using/results.md#share-results-with-crab-export) for what the file holds and when to
+use it instead of the dashboard.
 
 ## `crab info`
 
@@ -39,12 +101,51 @@ Shows the installed version, the checkout root and the presets CRAB can use.
 crab info [--json]
 ```
 
-With `--json` the answer carries `schema` (the version of the `--json` contract, which is `2`),
-`crab_version`, `crab_root` and `presets`. Each entry of `presets` has the preset's `name` and
-`description`, plus its `scheduler` (`"slurm"` or `"local"`), its `launcher` and its `hosts` (the
-host names; an empty list under Slurm). A preset that does not parse keeps its `name` and
-`description` and gets an `error` message in place of those three fields. `_common` and
-`example_preset` are not listed.
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--json` | Print JSON instead of text. | off |
+
+With `--json` the answer carries `schema`, `crab_version`, `crab_root` and `presets`. Each entry of
+`presets` has the preset's `name` and `description`, plus its `scheduler` (`"slurm"` or `"local"`),
+its `launcher` and its `hosts` (the host names; an empty list under Slurm). A preset that does not
+parse keeps its `name` and `description` and gets an `error` message in place of those three
+fields. `_common` and `example_preset` are not listed.
+
+```bash
+crab info
+crab info --json
+```
+
+## `crab list-benchmarks`
+
+Lists the installed benchmarks and the wrappers CRAB can find.
+
+```bash
+crab list-benchmarks [--json]
+```
+
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--json` | Print JSON instead of text. | off |
+
+An installed benchmark is one with a [receipt](../extending/receipts.md), read from
+`config/environments/` and then `local/receipts/`; a local receipt wins over an older one with the
+same id. The wrappers are the `.py` files on the wrappers search path, and the first file with a
+given path wins. A wrapper that cannot be loaded is still listed, marked `(unloadable)` in the text.
+
+With `--json` the answer has two lists:
+
+| Field | Meaning |
+|-------|---------|
+| `benchmarks` | One entry per receipt, sorted by id: `id`, `type`, `target_arch`, `binary_path`, `launcher_override` and `hooks`. |
+| `wrappers` | One entry per wrapper: `file`, `relpath`, `path`, `group`, `loadable`, `benchmark_id`, `bench_name` and `metadata` (a list of `name`, `unit` and `conv` for each declared metric). A wrapper that failed to load has `loadable: false` and an `error`. |
+
+```bash
+crab list-benchmarks
+crab list-benchmarks --json
+```
+
+For a fuller description of one wrapper, use [`crab wrappers show`](#crab-wrappers).
 
 ## `crab nodes`
 
@@ -54,9 +155,10 @@ Shows what the cluster, or a preset, offers.
 crab nodes [-p PRESET] [--json]
 ```
 
-| Argument | Description |
-|----------|-------------|
-| `-p`, `--preset` | Show this preset's nodes. Without it, `crab nodes` asks Slurm. |
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `-p`, `--preset` | Show this preset's nodes (for a local preset, its hosts). | none: ask Slurm |
+| `--json` | Print JSON instead of text. | off |
 
 - Without `-p`, or with a Slurm preset, CRAB runs `sinfo` and lists the partitions and the node
   names. When `sinfo` is missing or fails, the answer is `available: false` with a `note`. With a
@@ -67,13 +169,23 @@ crab nodes [-p PRESET] [--json]
 - A preset that does not exist or does not parse is an error: the command exits 1, and `--json`
   gives `{"schema": 2, "error": "..."}`.
 
+```bash
+crab nodes
+crab nodes -p local --json
+```
+
 ## `crab status`
 
 Shows the state of jobs by id.
 
 ```bash
-crab status [JOB_ID ...] [--json]
+crab status [--json] [JOB_ID ...]
 ```
+
+| Argument | Meaning | Default |
+|----------|---------|---------|
+| `JOB_ID ...` | Job ids to query: `local-<n>` or all digits. | none |
+| `--json` | Print JSON instead of text. | off |
 
 A job id is `local-<n>` for a job of the [local scheduler](../using/running-without-slurm.md) or
 all digits for a Slurm job. Local ids are answered from this machine's state, so a local job can
@@ -105,45 +217,203 @@ An entry has:
 cannot be used, such as one written on another host or damaged (`source` is `local`). One bad id
 does not fail the rest. The text output does not show `error`.
 
+```bash
+crab status local-3 4711
+```
+
+## `crab history`
+
+Lists the past experiments recorded in the `metadata.csv` registries.
+
+```bash
+crab history [-s SYSTEM] [--json]
+```
+
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `-s`, `--system` | Read only this system's registry. | every system under `data/` |
+| `--json` | Print JSON instead of text. | off |
+
+It reads the registries under the `data/` folder of the CRAB checkout and does not read a custom
+`datapath`. A system with no registry adds nothing, and the command still exits 0. With `--json`
+the answer is `{"schema": 2, "experiments": [...]}`. Each experiment has the registry's columns
+(`job_name`, `experiment_name`, `timestamp`, `numnodes`, `ppn`, `apps_list`, `status`, `tags`,
+`relative_path`, `total_runs` and `failed_runs`) plus `system` and `absolute_path`, the
+experiment's folder.
+
+```text
+$ crab history
+1 experiment(s):
+  [COMPLETED] leonardo/interference/a2a_vs_g500  2026-06-09_14-30-05  apps=alltoall_b graph500
+```
+
+```bash
+crab history -s leonardo --json
+```
+
+See [Reading results](../using/results.md#read-from-the-command-line) for the registry and what to
+do with the folders it lists.
+
 ## `crab cancel`
 
 Cancels one job.
 
 ```bash
-crab cancel JOB_ID [--json]
+crab cancel [--json] JOB_ID
 ```
 
-`JOB_ID` is `local-<n>` or all digits, as for `crab status`. A Slurm job is cancelled with
-`scancel`. A local job is sent a termination signal, and its applications are stopped some
-seconds later (see [Checking and cancelling a job](../using/running-without-slurm.md#checking-and-cancelling-a-job)).
+| Argument | Meaning | Default |
+|----------|---------|---------|
+| `JOB_ID` | The job to cancel: `local-<n>` or all digits, as for `crab status`. Required. | none |
+| `--json` | Print JSON instead of text. | off |
+
+A Slurm job is cancelled with `scancel`. A local job is sent a termination signal, and its
+applications are stopped some seconds later (see [Checking and cancelling a
+job](../using/running-without-slurm.md#checking-and-cancelling-a-job)).
 
 With `--json` the answer is `{"schema": 2, "job_id": ..., "cancelled": true|false, "detail": ...}`.
 A job that is already finished or does not exist, an id of any other shape, and a local record that
 cannot be used all answer `cancelled: false` with a `detail` that says why, instead of failing.
 `scancel` is never run for an id that is not all digits.
 
-## `crab export`
-
-Generates a **self-contained HTML dashboard** from a results directory — the CSV data is embedded
-into the file, so the result can be emailed, committed to a repo, or opened directly anywhere
-without any server or import step.
-
 ```bash
-crab export <data_dir> [-o OUTPUT]
+crab cancel 4711
+crab cancel local-3 --json
 ```
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `data_dir` | ✅ | Path to a results directory containing experiment CSVs. CRAB scans both flat (`<dir>/*.csv`) and nested (`<dir>/<exp>/data_app_*.csv`) layouts. |
-| `-o`, `--output` | — | Output HTML path. Default: `crab_export.html` in the current directory. |
+## `crab logs`
 
-Example:
+Prints the end of a job's captured logs.
 
 ```bash
-crab export data/leonardo/interference_2026-06-09_14-30-05-123456/ -o results.html
+crab logs --data-dir DIR [--experiment NAME] [--json]
 ```
 
-The exported file is a self-contained snapshot built from the dashboard template bundled in the package (`src/crab/crab_dashboard.html`) with the data pre-loaded and the "drop folder" UI hidden. The output file should not be committed to version control. For browsing **fresh** results from the cluster without exporting, open the template directly — see [Reading results → The dashboard](../using/results.md#the-dashboard).
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--data-dir` | The job's data directory. Required. | none |
+| `--experiment` | Read this experiment's per-app error logs (`error_app_<i>.log`) instead of the job's Slurm logs. | the job's `slurm_output.log` and `slurm_error.log` |
+| `--json` | Print JSON instead of text. | off |
+
+Each file is cut to its last 200,000 bytes, and the text output marks a cut. A job log that is not
+written yet is reported as such, not as an error. With `--experiment`, an experiment folder with no
+`error_app_<i>.log` files prints that nothing failed, and a folder that does not exist under `DIR`
+is an error (exit 1).
+
+With `--json`:
+
+| Mode | Fields |
+|------|--------|
+| job logs | `data_dir`, and `stdout` and `stderr`, each with `path`, `exists`, `content` and `truncated`. |
+| `--experiment` | `data_dir` (the experiment's folder) and `files`, one entry per error log: `app_id`, `path`, `exists`, `content` and `truncated`. |
+
+```bash
+crab logs --data-dir data/leonardo/interference_2026-06-09_14-30-05-123456
+crab logs --data-dir data/leonardo/interference_2026-06-09_14-30-05-123456 --experiment a2a_vs_g500
+```
+
+See [Reading results](../using/results.md#read-from-the-command-line).
+
+## `crab parse`
+
+Runs a wrapper's parser on saved output, with the same checks a run uses.
+
+```bash
+crab parse [--stderr FILE] [--dir DIR] [--args ARGS] [--set KEY=VALUE ...] [--json | --check EXPECTED_JSON] WRAPPER OUTPUT
+```
+
+| Argument | Meaning | Default |
+|----------|---------|---------|
+| `WRAPPER` | The wrapper file. A relative path is looked up under the wrappers folder (`CRAB_PATH_WRAPPERS`). Required. | none |
+| `OUTPUT` | A file holding the application's stdout. Required. | none |
+| `--stderr` | A file holding its stderr. | none |
+| `--dir` | The folder holding files the application wrote. | the folder of `OUTPUT` |
+| `--args` | The app's `args` string from the config. | none |
+| `--set` | An extra app config key, as `KEY=VALUE`. Repeatable. | none |
+| `--json` | Print the rows as JSON. `--check` takes precedence. | CSV |
+| `--check` | Compare the rows with this JSON list and exit 1 on a difference. | no comparison |
+
+It prints the rows as CSV, or with `--json` as `{"rows": [...], "legacy_shape": false}`. With
+`--check` it prints `ok: N rows match FILE` for a match, and lists the differences on stderr and
+exits 1 otherwise. A parse error exits 2 with the reason.
+
+```bash
+crab parse myapp/myapp.py output.txt --args "-n 4" --json
+crab parse myapp/myapp.py samples/example/stdout.txt --check samples/example/expected.json
+```
+
+See [Writing a wrapper](../extending/wrappers.md).
+
+## `crab wrappers`
+
+Lists, inspects, updates, tests and creates wrappers.
+
+```bash
+crab wrappers list [--json]
+crab wrappers show [--json] RELPATH
+crab wrappers status [--json]
+crab wrappers pull [--json]
+crab wrappers test [--strict] [APP ...]
+crab wrappers new [--name NAME] [--local | --dir DIR] APP
+```
+
+| Subcommand | What it does |
+|---|---|
+| `list` | Every wrapper on the search path, and where its binary comes from: `config`, `receipt`, `path`, `missing`, or `error` when the lookup itself failed. Wrappers that cannot be loaded are listed with the error. |
+| `show` | Describes one wrapper by its path under the wrappers folders (the first folder holding it wins; an old `suite/name.py` path resolves to the file's new group folder). Only files `list` shows qualify. Reports what it is (the module docstring, else the first paragraph of the nearest `README.md` below the wrappers folder, with its source), the declared metrics (name, unit, role, convergence flag), the executable and where its binary comes from, and, for a file committed in a git clone, that clone's commit and a GitHub URL to the file at it (null for the URL when `origin` is not on GitHub). It prints neither source text nor sample cases. Exits 2 for an unknown wrapper, an absolute path, or a path with `..`. |
+| `status` | Reports the shared wrappers clone (the folder `crab update` manages): its commit (with the commit's subject line) and branch, the tracked files with local edits (staged or not; untracked files are not listed), the commit GitHub's `origin` has for that branch (`git ls-remote`, 20 s timeout, never prompting for credentials), and `state`: `up to date`, `behind`, `ahead`, `diverged`, or `unknown` when the folder is not a clone, has no commits, or GitHub cannot be reached (`upstream.error` says why). It reads without writing and never fetches, so `behind` without counts means GitHub has commits this clone has not fetched; counts appear once the commit is local. `upstream.url` is the `origin` URL without any `user:password@` part. A detached HEAD is compared with `origin`'s HEAD. Exits 0 even when the folder is missing or GitHub is unreachable. |
+| `pull` | Fast-forwards the shared wrappers clone with `git pull --ff-only`, or clones it when the folder is missing (the same code as the wrappers part of `crab update`). Reports `action` (`updated`, `up to date`, `cloned`) with the old and new commit; for a folder that is not a clone it reports `action: "skipped"` with a `detail` and exits 0. Exits 1, changing nothing, when tracked files have local edits or the pull fails (for example a diverged clone, or a detached HEAD, which is not on a branch). |
+| `test` | Runs the sample cases (`<app>/samples/<case>/`) of the named apps, or of all apps, and compares each result with its `expected.json`. With `--strict`, a wrapper that no case covers fails unless `unverified.txt` in its folder lists it. Exits 1 on any failure. |
+| `new` | Creates `APP/NAME.py` (default name: the app), a README and a passing example sample, in the shared wrappers folder, in `local/wrappers/` with `--local`, or in `DIR`. |
+
+| Flag | Subcommands | Meaning | Default |
+|------|-------------|---------|---------|
+| `--json` | `list`, `show`, `status`, `pull` | Print JSON instead of text. | off |
+| `--strict` | `test` | Fail on wrappers with no sample unless `unverified.txt` lists them. | off |
+| `--name` | `new` | The wrapper's file name. | the app name |
+| `--local` | `new` | Create it in `local/wrappers/` (private, untracked). | the shared wrappers folder |
+| `--dir` | `new` | Create it in this wrappers folder instead. | the shared wrappers folder |
+
+`RELPATH` is a wrapper path relative to the wrappers folders, such as `blink/alltoall/a.py`. `APP`
+is an app folder name, such as `hpl`; for `test`, name none to test every app.
+
+```bash
+crab wrappers list
+crab wrappers new myapp --local
+crab wrappers test myapp --strict
+```
+
+See [Writing a wrapper](../extending/wrappers.md).
+
+## `crab receipts`
+
+Manages benchmark [receipts](../extending/receipts.md). It has one subcommand, `set`.
+
+### `crab receipts set`
+
+Records where a benchmark's binary lives, without the interactive wizard.
+
+```bash
+crab receipts set --binary PATH [--pre-run CMD ...] [--launcher srun|mpirun] [--allow-missing] [--json] ID
+```
+
+| Argument | Meaning | Default |
+|----------|---------|---------|
+| `ID` | The wrapper's `benchmark_id`. Required. | none |
+| `--binary` | Path to the executable. Required. | none |
+| `--pre-run` | A command to run before each launch. Repeatable. | none |
+| `--launcher` | `srun` or `mpirun`. Sets this benchmark's launcher kind, which overrides the preset's `launcher` for this benchmark. Any other value is refused. | the preset's launcher |
+| `--allow-missing` | Record the path even if it does not exist here. Without it, a `PATH` that does not exist is refused. | off |
+| `--json` | Print the saved receipt as JSON. | off |
+
+It writes `local/receipts/ID.json`.
+
+```bash
+crab receipts set mybench --binary /scratch/me/mybench/bin/mybench
+crab receipts set mybench --binary /scratch/me/mybench/bin/mybench --launcher mpirun --json
+```
+
+See [Receipts](../extending/receipts.md#registering-an-installed-binary-with-crab-receipts-set).
 
 ## `crab update`
 
@@ -152,6 +422,11 @@ Updates this install and its wrappers checkout.
 ```bash
 crab update [--to-release] [--json]
 ```
+
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--to-release` | On a branch checkout, switch to the newest release tag of that branch's line. | off |
+| `--json` | Print the result as JSON. | off |
 
 - A checkout on a branch is fast-forwarded (`git pull --ff-only`).
 - A checkout on a release tag moves to the newest tag of its line (`vX.Y.Z`, or
@@ -164,61 +439,25 @@ crab update [--to-release] [--json]
 - The wrappers folder is pulled if it is its own git clone, cloned if it is missing, and left
   alone if it is part of the CRAB checkout.
 
-## `crab wrappers`
-
 ```bash
-crab wrappers list [--json]
-crab wrappers show RELPATH [--json]
-crab wrappers status [--json]
-crab wrappers pull [--json]
-crab wrappers test [APP ...] [--strict]
-crab wrappers new APP [--name NAME] [--local | --dir DIR]
+crab update
+crab update --to-release --json
 ```
-
-| Subcommand | What it does |
-|---|---|
-| `list` | Every wrapper on the search path, and where its binary comes from: `config`, `receipt`, `path`, `missing`, or `error` when the lookup itself failed. Wrappers that cannot be loaded are listed with the error. |
-| `show` | Describes one wrapper by its path under the wrappers folders (the first folder holding it wins; an old `suite/name.py` path resolves to the file's new group folder). Only files `list` shows qualify. Reports what it is (the module docstring, else the first paragraph of the nearest `README.md` below the wrappers folder, with its source), the declared metrics (name, unit, role, convergence flag), the executable and where its binary comes from, and, for a file committed in a git clone, that clone's commit and a GitHub URL to the file at it (null for the URL when `origin` is not on GitHub). It prints neither source text nor sample cases. Exits 2 for an unknown wrapper, an absolute path, or a path with `..`. |
-| `status` | Reports the shared wrappers clone (the folder `crab update` manages): its commit (with the commit's subject line) and branch, the tracked files with local edits (staged or not; untracked files are not listed), the commit GitHub's `origin` has for that branch (`git ls-remote`, 20 s timeout, never prompting for credentials), and `state`: `up to date`, `behind`, `ahead`, `diverged`, or `unknown` when the folder is not a clone, has no commits, or GitHub cannot be reached (`upstream.error` says why). It reads without writing and never fetches, so `behind` without counts means GitHub has commits this clone has not fetched; counts appear once the commit is local. `upstream.url` is the `origin` URL without any `user:password@` part. A detached HEAD is compared with `origin`'s HEAD. Exits 0 even when the folder is missing or GitHub is unreachable. |
-| `pull` | Fast-forwards the shared wrappers clone with `git pull --ff-only`, or clones it when the folder is missing (the same code as the wrappers part of `crab update`). Reports `action` (`updated`, `up to date`, `cloned`) with the old and new commit; for a folder that is not a clone it reports `action: "skipped"` with a `detail` and exits 0. Exits 1, changing nothing, when tracked files have local edits or the pull fails (for example a diverged clone, or a detached HEAD, which is not on a branch). |
-| `test` | Runs the sample cases (`<app>/samples/<case>/`) of the named apps, or of all apps, and compares each result with its `expected.json`. With `--strict`, a wrapper that no case covers fails unless `unverified.txt` in its folder lists it. Exits 1 on any failure. |
-| `new` | Creates `APP/NAME.py` (default name: the app), a README and a passing example sample, in the shared wrappers folder, in `local/wrappers/` with `--local`, or in `DIR`. |
-
-See [Writing a wrapper](../extending/wrappers.md).
-
-## `crab parse`
-
-Runs a wrapper's parser on saved output, with the same checks a run uses.
-
-```bash
-crab parse WRAPPER OUTPUT [--stderr FILE] [--dir DIR] [--args ARGS] [--set KEY=VALUE ...] [--json | --check EXPECTED_JSON]
-```
-
-Prints the rows as CSV, or as JSON with `--json`. `--dir` is the folder holding files the
-application wrote (default: the folder of `OUTPUT`); `--set` passes an extra app config key.
-With `--check`, it compares the rows with a JSON list and exits 1 on a difference. A parse error
-exits 2 with the reason.
-
-## `crab receipts set`
-
-Records where a benchmark's binary lives, without the interactive wizard.
-
-```bash
-crab receipts set ID --binary PATH [--pre-run CMD ...] [--launcher srun|mpirun] [--allow-missing] [--json]
-```
-
-Writes `local/receipts/ID.json`. `--launcher` sets this benchmark's launcher kind, `srun` or `mpirun`, which overrides the preset's `launcher` for this benchmark. Any other value is refused. Leave it out to use the preset's launcher. It refuses a `PATH` that does not exist unless
-`--allow-missing` is given. See [Receipts](../extending/receipts.md).
 
 ## `crab worker` (internal)
 
-Hidden subcommand executed *by the generated Slurm job* on the compute nodes — the second phase of
+Hidden subcommand executed *by the generated Slurm job* on the compute nodes: the second phase of
 the [two-phase model](../concepts/architecture.md#the-two-phase-execution-model). It reads the
 config the orchestrator wrote into the work directory and runs the experiments.
 
 ```bash
 crab worker --workdir <dir> [--log-level LEVEL]
 ```
+
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--workdir` | The prepared work directory. Required. | none |
+| `--log-level` | Log verbosity, as for `crab run`. | `INFO` |
 
 !!! danger "Do not run `crab worker` by hand"
     It is invoked automatically inside the batch job and expects a fully prepared work directory
