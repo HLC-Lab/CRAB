@@ -68,6 +68,11 @@ def build_crab_command(profile: Profile, args: list[str]) -> str:
         return f"{shlex.quote(sys.executable)} -m crab {crab_args}"
 
     parts: list[str] = list(profile.remote_setup)
+    if profile.crab_command is not None:
+        # An install the user manages (pipx): the command is self-contained, so no
+        # checkout to cd into and no venv to activate.
+        parts.append(f"{remote_path_expr(profile.crab_command)} {crab_args}")
+        return f"bash -lc {shlex.quote(' && '.join(parts))}"
     cdir = crab_dir(profile)
     venv = profile.venv_activate or f"{cdir}/.venv/bin/activate"
     parts.append(f"cd {remote_path_expr(cdir)}")

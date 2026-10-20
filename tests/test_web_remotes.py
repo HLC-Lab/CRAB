@@ -6,6 +6,7 @@ path against Leonardo is user-verified.
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ from crab.web.connections.transport import CmdResult, LocalTransport, Transport 
 from crab.web.errors import (  # noqa: E402
     ConflictError,
     ContractError,
+    InputError,
     NotFoundError,
     RemoteCommandError,
 )
@@ -28,7 +30,7 @@ from crab.web.remoteops.crab_cli import (  # noqa: E402
 )
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
-from crab.web.store.profiles import Profile, ProfileStore  # noqa: E402
+from crab.web.store.profiles import PROFILES_VERSION, Profile, ProfileStore  # noqa: E402
 
 _INFO_JSON = '{"schema":1,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"Leonardo @ CINECA"}]}'
 
@@ -169,6 +171,94 @@ def test_build_crab_command_preserves_tilde_in_args():
     )
     assert '"$HOME"/CRAB/.web_staging/demo.json' in cmd
     assert "'~/CRAB/.web_staging/demo.json'" not in cmd
+
+
+# A remote profile may name its own crab command (a pipx install): no cd, no activate.
+def test_build_crab_command_unset_is_byte_identical_to_the_checkout_form():
+    p = _leonardo()
+    p.remote_crab = "~/base"
+    p.remote_setup = ["module load python"]
+    assert p.crab_command is None
+    # Literal captured from the builder before the crab_command field existed.
+    assert build_crab_command(p, ["info", "--json"]) == (
+        'bash -lc \'module load python && cd "$HOME"/base/CRAB && '
+        '. "$HOME"/base/CRAB/.venv/bin/activate && crab info --json\''
+    )
+
+
+def test_build_crab_command_with_crab_command_skips_cd_and_activate():
+    p = _leonardo()
+    p.crab_command = "~/.local/bin/crab"
+    p.remote_setup = ["module load python", "export X=1"]
+    p.venv_activate = "/ignored/activate"
+    cmd = build_crab_command(p, ["run", RemotePath("~/stage/a b.json"), "--name", "it's", "--json"])
+    inner = (
+        "module load python && export X=1 && "
+        "\"$HOME\"/.local/bin/crab run \"$HOME\"/'stage/a b.json' --name 'it'\"'\"'s' --json"
+    )
+    assert cmd == "bash -lc " + shlex.quote(inner)
+    assert "cd " not in cmd
+    assert "activate" not in cmd
+    assert "/ignored" not in cmd
+
+
+def test_build_crab_command_with_absolute_crab_command_and_no_setup():
+    p = _leonardo()
+    p.crab_command = "/opt/pipx/bin/crab"
+    assert build_crab_command(p, ["info", "--json"]) == "bash -lc '/opt/pipx/bin/crab info --json'"
+
+
+@pytest.mark.parametrize("bad", ["", "   ", "crab --flag", "pipx run crab", " crab", "crab\t"])
+def test_profile_store_rejects_a_crab_command_that_is_not_one_executable(tmp_path: Path, bad: str):
+    store = ProfileStore(_settings(tmp_path))
+    p = _leonardo()
+    p.crab_command = bad
+    with pytest.raises(InputError, match="Crab command"):
+        store.add(p)
+    assert store.list() == []
+
+    store.add(_leonardo())
+    with pytest.raises(InputError, match="Crab command"):
+        store.update("leonardo", p)
+    assert store.get("leonardo").crab_command is None
+
+
+def test_profile_store_accepts_and_persists_a_crab_command(tmp_path: Path):
+    store = ProfileStore(_settings(tmp_path))
+    p = _leonardo()
+    p.crab_command = "~/.local/bin/crab"
+    store.add(p)
+    assert ProfileStore(_settings(tmp_path)).get("leonardo").crab_command == "~/.local/bin/crab"
+
+    p.crab_command = None
+    store.update("leonardo", p)
+    assert store.get("leonardo").crab_command is None
+
+
+def test_profiles_file_saved_before_the_field_existed_loads_with_none(tmp_path: Path):
+    settings = _settings(tmp_path)
+    settings.ensure_dirs()
+    settings.clusters_file.write_text(
+        '{"version": 1, "clusters": [{"name": "old", "host": "h.example.org", '
+        '"remote_crab": "~/x", "remote_setup": ["module load python"]}]}'
+    )
+    old = ProfileStore(settings).get("old")
+    assert old.crab_command is None
+    assert old.remote_crab == "~/x"
+    assert PROFILES_VERSION == 1
+
+
+def test_remotes_api_rejects_a_blank_crab_command(tmp_path: Path):
+    with _client(tmp_path) as client:
+        payload = {**_leonardo().model_dump(), "crab_command": "   "}
+        resp = client.post("/api/remotes", json=payload)
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "input_error"
+        ok = client.post("/api/remotes", json={**payload, "crab_command": "~/.local/bin/crab"})
+        assert ok.status_code == 201
+        assert ok.json()["crab_command"] == "~/.local/bin/crab"
+        bad = client.put("/api/remotes/leonardo", json={**payload, "crab_command": ""})
+        assert bad.status_code == 422
 
 
 async def test_run_crab_json_parses_and_maps_errors():
