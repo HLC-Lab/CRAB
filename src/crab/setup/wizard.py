@@ -17,11 +17,11 @@ from rich.text import Text
 
 import crab.core.process.manager as manager
 import crab.setup.memory as memory
+from crab import paths
 from crab.setup.registry import discover_recipes
 
 console = Console()
-_SETUP_DIR = os.path.dirname(os.path.abspath(__file__))
-CRAB_ROOT = os.path.abspath(os.path.join(_SETUP_DIR, "..", "..", ".."))
+CRAB_ROOT = str(paths.crab_home())
 BENCHMARKS_DIR = os.path.join(CRAB_ROOT, "benchmarks")
 
 

@@ -9,16 +9,15 @@ from typing import Any
 
 from rich.console import Console
 
+from crab import paths
+
 console = Console()
 
-# Calculate the absolute physical root of the CRAB framework
-_base_path = Path(__file__).resolve().parents[3]
-
-CRAB_ROOT = str(_base_path)
+CRAB_ROOT = str(paths.crab_home())
 CONFIG_DIR = os.path.join(CRAB_ROOT, "config")
 # Receipts are per-machine, so they live in the git-ignored local/ folder. Receipts written
 # before that folder existed stay readable from LEGACY_ENV_DIR; a local receipt wins.
-ENV_DIR = os.path.join(CRAB_ROOT, "local", "receipts")
+ENV_DIR = str(paths.local_path(Path(CRAB_ROOT), "receipts"))
 LEGACY_ENV_DIR = os.path.join(CONFIG_DIR, "environments")
 
 
