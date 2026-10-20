@@ -175,7 +175,7 @@ in the results path (`data/<CRAB_SYSTEM>/…`).
 ## Special tokens
 
 - **`__CWD__`** — replaced with the repository root (`CRAB_ROOT`) wherever it appears in an `env`
-  value. Used in `_common` for `CRAB_ROOT` and `CRAB_PATH_WRAPPERS`.
+  value. Used in `_common` for `CRAB_ROOT`.
 
 ## Recognized environment variables
 
@@ -185,7 +185,7 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 | Variable | Read by | Notes |
 |----------|---------|-------|
 | `CRAB_ROOT` | framework | Repository root. Set in `_common` via `__CWD__`. |
-| `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/`. Default: the checkout's `wrappers/`. |
+| `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/`. Default: the checkout's `wrappers/`. The shipped presets do not set it, so a value you export reaches the jobs; set it in a preset's `env` to override that. |
 | `CRAB_SYSTEM` | engine | System label for the output path. Defaults to the preset name. |
 | `CRAB_PRESET` | CLI | If set, selects the preset (overridden by `-p`). |
 | `CRAB_PATH_<ID>` | wrappers | Injected automatically from each receipt's `binary_path` at run time — not set by hand. |

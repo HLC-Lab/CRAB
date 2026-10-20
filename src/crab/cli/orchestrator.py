@@ -366,7 +366,9 @@ def execute_orchestrator(
             settings=preset_config["settings"],
         )
 
-        logger.info("Orchestration complete — job submitted to SLURM")
+        local = preset_config["settings"].scheduler == "local"
+        scheduler_name = "the local scheduler" if local else "Slurm"
+        logger.info(f"Orchestration complete: job submitted to {scheduler_name}")
 
         if as_json:
             print(json.dumps(result or {}, indent=2))

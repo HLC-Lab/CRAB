@@ -198,7 +198,7 @@ If none of these names a preset, `crab run` stops with an error. It never picks 
 to run without Slurm, ask for it explicitly with `-p local`.
 
 The `_common` block in `config/presets.json` is merged underneath every preset — put truly
-universal settings there (it already defines `CRAB_ROOT` and `CRAB_PATH_WRAPPERS`). It may hold
+universal settings there (it already defines `CRAB_ROOT`). It may hold
 only `description`, `env`, `sbatch` and `header`; `scheduler`, `launcher` and the other execution
 fields belong in each preset. The special
 token `__CWD__` is replaced with the repository root. If a preset doesn't set `CRAB_SYSTEM`, it

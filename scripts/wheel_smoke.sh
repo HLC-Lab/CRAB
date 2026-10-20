@@ -85,15 +85,12 @@ git_status > "$tmp/git.before"
 
 home="$tmp/home"
 mkdir -p "$home" "$tmp/cwd"
-# The preset repeats the wrappers path in its own env: the shipped `_common` env sets
-# CRAB_PATH_WRAPPERS=__CWD__/wrappers, and that value reaches the job instead of the variable.
 cat > "$tmp/p.json" << JSON
 {
     "smoke": {
         "description": "Wheel smoke test: local scheduler, direct launcher",
         "scheduler": "local",
-        "launcher": "direct",
-        "env": {"CRAB_PATH_WRAPPERS": "$repo/tests/fixtures/wrappers"}
+        "launcher": "direct"
     }
 }
 JSON
