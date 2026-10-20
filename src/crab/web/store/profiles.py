@@ -25,6 +25,8 @@ PROFILES_VERSION = 1
 # A profile name becomes a local folder name (results cache) and part of cache
 # keys, so it must stay a single plain path segment.
 _VALID_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+# `/api/wrappers/local/...` is the laptop, so no cluster profile may take the name.
+_LAPTOP_NAME = "local"
 
 
 def check_profile_name(name: str) -> None:
@@ -33,6 +35,10 @@ def check_profile_name(name: str) -> None:
     Only enforced when a name is chosen (add or rename): profiles saved before
     this rule existed keep loading and working under their old name.
     """
+    if name == _LAPTOP_NAME:
+        raise InputError(
+            f'"{_LAPTOP_NAME}" is reserved for this laptop in the dashboard; choose another name.'
+        )
     if not _VALID_NAME.match(name) or name in (".", ".."):
         raise InputError(
             f"Invalid profile name {name!r}. Use only letters, digits, '.', '_' and '-'."

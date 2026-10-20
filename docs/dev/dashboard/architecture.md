@@ -50,6 +50,7 @@ an `errors.py` class — the process must never crash on a remote or user error.
 | `POST /api/remotes/{name}/bootstrap/plan` · `/install` · `/verify` | Guided CRAB install on a bare cluster |
 | `GET /api/local/benchmarks` | Same catalog introspection for the CRAB checkout on this machine |
 | `GET /api/remotes/{name}/wrappers` · `POST /api/remotes/{name}/receipts` | Wrappers page: list a cluster's wrappers and where each binary comes from; record a binary location (`crab receipts set`) |
+| `GET /api/wrappers/{target}/list` · `/show?relpath=` · `/status`, `POST /api/wrappers/{target}/pull` · `/receipts` | Wrappers section: `local` = this laptop, else a connected cluster; each runs the target's `crab wrappers ...` / `crab receipts set` with `--json` |
 | `GET/POST /api/experiments`, `GET/PUT/DELETE /api/experiments/{id}`, `POST .../duplicate` | Local experiment library |
 | `POST /api/jobs/submit` · `GET /api/jobs/submissions/{id}` | Submit an authored config to a cluster; poll the submission |
 | `GET /api/jobs` · `POST /api/jobs/{id}/cancel` | Job list and cancel |
