@@ -6,11 +6,11 @@ Each handler owns a formatter that determines the visual style.
 """
 
 import sys
-from typing import Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
+    from .formatters import PlainFormatter, RichFormatter
     from .logger import LogRecord
-    from .formatters import RichFormatter, PlainFormatter
 
 
 class BaseHandler:
@@ -31,8 +31,7 @@ class StreamHandler(BaseHandler):
     here is equivalent to writing to the log file.
     """
 
-    def __init__(self, formatter: Union["RichFormatter", "PlainFormatter"],
-                 stream=None):
+    def __init__(self, formatter: Union["RichFormatter", "PlainFormatter"], stream=None):
         super().__init__(formatter)
         self.stream = stream or sys.stdout
 
@@ -82,9 +81,7 @@ class TUIHandler(BaseHandler):
 
         # Context breadcrumb
         if record.context_stack:
-            ctx = " [dim]|[/] ".join(
-                f"[dim]{c}[/]" for c in record.context_stack
-            )
+            ctx = " [dim]|[/] ".join(f"[dim]{c}[/]" for c in record.context_stack)
             ctx = f" [dim]|[/] {ctx}"
         else:
             ctx = ""
@@ -95,8 +92,4 @@ class TUIHandler(BaseHandler):
         else:
             msg = record.message
 
-        return (
-            f"[dim]\\[{record.timestamp}][/] "
-            f"[{style}]{label}[/] "
-            f"{source_markup}{ctx}  {msg}"
-        )
+        return f"[dim]\\[{record.timestamp}][/] [{style}]{label}[/] {source_markup}{ctx}  {msg}"

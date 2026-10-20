@@ -1,0 +1,713 @@
+"""Tests for the CLI `--json` contract seam (crab.cli.contract).
+
+Pure / injectable — no real cluster, no SSH, no Slurm. Subprocess-backed
+gatherers use a fake command runner.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import socket
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from crab.cli import contract
+from crab.core.execution.scheduler.local_state import (
+    JobRecord,
+    jobs_dir,
+    open_liveness_lock,
+    write_job_state,
+    write_record,
+)
+
+
+# --------------------------------------------------------------------------- #
+# info
+# --------------------------------------------------------------------------- #
+def test_gather_info_parses_and_filters_presets(tmp_path: Path):
+    cfg = tmp_path / "config"
+    cfg.mkdir()
+    (cfg / "presets.json").write_text(
+        json.dumps(
+            {
+                "_common": {"description": "shared"},
+                "example_preset": {"description": "skip me"},
+                "leonardo": {"description": "Leonardo @ CINECA"},
+                "alps": {"description": "ALPS"},
+            }
+        )
+    )
+    data = contract.gather_info(crab_root=tmp_path)
+
+    assert data["schema"] == contract.CONTRACT_SCHEMA
+    assert isinstance(data["crab_version"], str) and data["crab_version"]
+    assert data["crab_root"] == str(tmp_path)
+    names = [p["name"] for p in data["presets"]]
+    assert names == ["alps", "leonardo"]  # sorted; _common/example excluded
+
+
+def test_gather_info_missing_presets_is_graceful(tmp_path: Path):
+    data = contract.gather_info(crab_root=tmp_path)  # no config/presets.json
+    assert data["presets"] == []
+
+
+def test_the_contract_schema_is_2():
+    assert contract.CONTRACT_SCHEMA == 2
+
+
+def test_gather_info_gives_each_shipped_preset_its_execution_fields():
+    presets = {p["name"]: p for p in contract.gather_info()["presets"]}
+
+    assert presets["local"]["scheduler"] == "local"
+    assert presets["local"]["launcher"] == "mpirun"
+    assert presets["local"]["hosts"] == ["localhost"]
+    assert presets["leonardo"]["scheduler"] == "slurm"
+    assert presets["leonardo"]["launcher"] == "srun"
+    assert presets["leonardo"]["hosts"] == []
+    assert all("error" not in p for p in presets.values())
+
+
+def test_gather_info_lists_the_hosts_of_a_local_preset():
+    from crab.core.execution.settings import from_preset
+
+    settings = from_preset({"scheduler": "local", "hosts": ["ws1:32", "ws2:16"]}, "lab")
+    with patch(
+        "crab.cli.orchestrator.load_environment_config", return_value={"settings": settings}
+    ):
+        presets = contract.gather_info()["presets"]
+
+    assert next(p for p in presets if p["name"] == "local")["hosts"] == ["ws1", "ws2"]
+
+
+def test_gather_info_keeps_a_preset_that_does_not_parse_and_says_why():
+    from crab.core.execution.settings import SLURM_DEFAULT
+
+    def load(name: str, root: Path):
+        if name == "local":
+            raise ValueError("preset 'local': env.CRAB_WL_MANAGER is no longer read; use launcher")
+        return {"settings": SLURM_DEFAULT}
+
+    with patch("crab.cli.orchestrator.load_environment_config", side_effect=load):
+        data = contract.gather_info()
+
+    by_name = {p["name"]: p for p in data["presets"]}
+    assert by_name["local"]["error"] == (
+        "preset 'local': env.CRAB_WL_MANAGER is no longer read; use launcher"
+    )
+    assert by_name["local"]["description"] == "Local (no Slurm, dev/testing only)"
+    assert "scheduler" not in by_name["local"]
+    assert by_name["leonardo"]["scheduler"] == "slurm"
+    assert "error" not in by_name["leonardo"]
+
+
+def test_a_schema_1_cluster_is_older_than_the_dashboard():
+    pytest.importorskip("fastapi", reason="web extra not installed")
+    from crab.web.remoteops.bootstrap import contract_skew
+
+    assert "older than the dashboard" in (contract_skew({"schema": 1}) or "")
+
+
+# --------------------------------------------------------------------------- #
+# history
+# --------------------------------------------------------------------------- #
+def _write_registry(system_dir: Path, rows: list[dict]) -> None:
+    system_dir.mkdir(parents=True)
+    header = ",".join(contract._HISTORY_COLUMNS)
+    lines = [header]
+    for r in rows:
+        lines.append(",".join(str(r.get(c, "")) for c in contract._HISTORY_COLUMNS))
+    (system_dir / "metadata.csv").write_text("\n".join(lines) + "\n")
+
+
+def test_gather_history_scans_all_systems(tmp_path: Path):
+    _write_registry(
+        tmp_path / "leonardo",
+        [
+            {
+                "job_name": "j1",
+                "experiment_name": "e1",
+                "timestamp": "2026-01-01_00-00-00",
+                "status": "COMPLETED",
+                "apps_list": "blink",
+                "numnodes": "2",
+                "ppn": "4",
+            }
+        ],
+    )
+    _write_registry(
+        tmp_path / "local",
+        [
+            {
+                "job_name": "j2",
+                "experiment_name": "e2",
+                "timestamp": "2026-02-02_00-00-00",
+                "status": "FAILED",
+                "apps_list": "g500",
+            }
+        ],
+    )
+    data = contract.gather_history(data_root=tmp_path)
+    assert data["schema"] == contract.CONTRACT_SCHEMA
+    by_system = {e["system"]: e for e in data["experiments"]}
+    assert set(by_system) == {"leonardo", "local"}
+    assert by_system["leonardo"]["status"] == "COMPLETED"
+    assert by_system["leonardo"]["apps_list"] == "blink"
+
+
+def test_gather_history_system_filter_and_empty(tmp_path: Path):
+    _write_registry(tmp_path / "leonardo", [{"job_name": "j1", "experiment_name": "e1"}])
+    only = contract.gather_history(data_root=tmp_path, system="leonardo")
+    assert len(only["experiments"]) == 1
+    # Unknown system / no data dir → empty, no crash.
+    assert contract.gather_history(data_root=tmp_path, system="ghost")["experiments"] == []
+
+
+def test_gather_history_reports_absolute_path(tmp_path: Path):
+    # tmp_path stands in for a non-default `datapath` override: the resolved
+    # absolute_path must come from this argument, never a hardcoded crab_root guess.
+    _write_registry(
+        tmp_path / "leonardo",
+        [{"job_name": "j1", "experiment_name": "e1", "relative_path": "./j1/e1"}],
+    )
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["absolute_path"] == str((tmp_path / "leonardo" / "j1" / "e1").resolve())
+
+
+def test_gather_history_absolute_path_falls_back_when_relative_path_missing(tmp_path: Path):
+    _write_registry(
+        tmp_path / "leonardo",
+        [{"job_name": "j1", "experiment_name": "e1", "relative_path": ""}],
+    )
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["absolute_path"] == str((tmp_path / "leonardo").resolve())
+    assert contract.gather_history(data_root=tmp_path / "nope")["experiments"] == []
+
+
+def test_gather_history_reports_run_failure_counts(tmp_path: Path):
+    _write_registry(
+        tmp_path / "leonardo",
+        [
+            {
+                "job_name": "j1",
+                "experiment_name": "e1",
+                "status": "FAILED",
+                "total_runs": "10",
+                "failed_runs": "3",
+            }
+        ],
+    )
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["total_runs"] == "10"
+    assert entry["failed_runs"] == "3"
+
+
+def test_gather_history_missing_run_failure_columns_is_graceful(tmp_path: Path):
+    # A metadata.csv from before the failure-count fields (owner declined migrating existing
+    # files) -- the OLD 9-column header, no total_runs/failed_runs at all.
+    system_dir = tmp_path / "leonardo"
+    system_dir.mkdir(parents=True)
+    old_columns = contract._HISTORY_COLUMNS[:-2]
+    header = ",".join(old_columns)
+    row = ",".join(["j1", "e1", "", "", "", "", "COMPLETED", "", ""])
+    (system_dir / "metadata.csv").write_text(header + "\n" + row + "\n")
+
+    data = contract.gather_history(data_root=tmp_path)
+    entry = data["experiments"][0]
+    assert entry["total_runs"] == ""
+    assert entry["failed_runs"] == ""
+
+
+# --------------------------------------------------------------------------- #
+# benchmarks + wrappers
+# --------------------------------------------------------------------------- #
+_GOOD_WRAPPER = """
+class app:
+    metadata = [
+        {"name": "duration", "unit": "s", "conv": True},
+        {"name": "bw", "unit": "Gb/s", "conv": False},
+    ]
+    def __init__(self, id_num, collect_flag, args):
+        pass
+    @property
+    def benchmark_id(self):
+        return "demo"
+    def get_bench_name(self):
+        return "Demo Bench"
+"""
+
+_BROKEN_WRAPPER = "import a_module_that_does_not_exist_xyz\n"
+
+
+def test_gather_benchmarks_receipts_and_wrappers(tmp_path: Path):
+    env = tmp_path / "environments"
+    env.mkdir()
+    (env / "blink.json").write_text(
+        json.dumps(
+            {
+                "id": "blink",
+                "type": "source",
+                "binary_path": "/x/bin",
+                "launcher_override": "",
+                "hooks": {"pre_run": ["module load gcc"]},
+            }
+        )
+    )
+
+    wdir = tmp_path / "wrappers"
+    (wdir / "demo").mkdir(parents=True)
+    (wdir / "demo" / "good.py").write_text(_GOOD_WRAPPER)
+    (wdir / "demo" / "broken.py").write_text(_BROKEN_WRAPPER)
+    (wdir / "demo" / "__init__.py").write_text("")  # must be skipped
+
+    data = contract.gather_benchmarks(env_dir=env, wrappers_dir=wdir)
+
+    assert data["schema"] == contract.CONTRACT_SCHEMA
+    assert len(data["benchmarks"]) == 1
+    b = data["benchmarks"][0]
+    assert b["id"] == "blink" and b["type"] == "source"
+    assert b["target_arch"] is None
+    assert b["hooks"]["pre_run"] == ["module load gcc"]
+
+    wrappers = {w["file"]: w for w in data["wrappers"]}
+    assert "__init__.py" not in wrappers  # underscore files skipped
+    good = wrappers["good.py"]
+    assert good["loadable"] is True
+    assert good["group"] == "demo"
+    assert good["benchmark_id"] == "demo"
+    assert good["bench_name"] == "Demo Bench"
+    assert [m["name"] for m in good["metadata"]] == ["duration", "bw"]
+    assert good["metadata"][0]["conv"] is True
+
+    broken = wrappers["broken.py"]
+    assert broken["loadable"] is False
+    assert "error" in broken
+
+
+# --------------------------------------------------------------------------- #
+# nodes (fake sinfo)
+# --------------------------------------------------------------------------- #
+def test_gather_nodes_parses_sinfo():
+    def fake_runner(cmd: list[str]) -> str:
+        if "%R|%a|%D" in cmd:
+            return "boost_usr_prod|up|3456\nlrd_all_serial|up|1\nboost_usr_prod|up|3456\n"
+        if "%N" in cmd:
+            return "lrdn[0001-0026,0028-0038],gpu01\n"
+        raise AssertionError(f"unexpected cmd {cmd}")
+
+    data = contract.gather_nodes(runner=fake_runner)
+    assert data["available"] is True
+    names = [p["name"] for p in data["partitions"]]
+    assert names == ["boost_usr_prod", "lrd_all_serial"]  # deduped
+    assert data["partitions"][0]["nodes"] == 3456
+    assert data["nodes"] == ["lrdn[0001-0026]", "lrdn[0028-0038]", "gpu01"]
+
+
+def test_gather_nodes_no_sinfo_is_graceful():
+    def fake_runner(cmd: list[str]) -> str:
+        raise FileNotFoundError("sinfo")
+
+    data = contract.gather_nodes(runner=fake_runner)
+    assert data["available"] is False
+    assert data["partitions"] == [] and data["nodes"] == []
+    assert "note" in data
+
+
+# --------------------------------------------------------------------------- #
+# status (fake squeue/sacct)
+# --------------------------------------------------------------------------- #
+def test_gather_status_squeue_then_sacct():
+    def fake_runner(cmd: list[str]) -> str:
+        if cmd[0] == "squeue":
+            # only 123 is still queued/running
+            return "123|RUNNING\n"
+        if cmd[0] == "sacct":
+            jid = cmd[2]
+            if jid == "456":
+                return "456|COMPLETED|0:0\n456.batch|COMPLETED|0:0\n"
+            raise __import__("subprocess").CalledProcessError(1, cmd)
+        raise AssertionError(cmd)
+
+    data = contract.gather_status(["123", "456", "789"], runner=fake_runner)
+    states = {j["job_id"]: j for j in data["jobs"]}
+    assert states["123"]["state"] == "RUNNING" and states["123"]["source"] == "squeue"
+    assert states["456"]["state"] == "COMPLETED" and states["456"]["exit_code"] == "0:0"
+    assert states["789"]["state"] == "UNKNOWN"
+    # order preserved
+    assert [j["job_id"] for j in data["jobs"]] == ["123", "456", "789"]
+
+
+# --------------------------------------------------------------------------- #
+# cancel (fake scancel)
+# --------------------------------------------------------------------------- #
+def test_gather_cancel_success():
+    calls = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        calls.append(cmd)
+        return ""
+
+    data = contract.gather_cancel("123", runner=fake_runner)
+    assert calls == [["scancel", "123"]]
+    assert data == {
+        "schema": contract.CONTRACT_SCHEMA,
+        "job_id": "123",
+        "cancelled": True,
+        "detail": None,
+    }
+
+
+def test_gather_cancel_already_gone():
+    import subprocess
+
+    def fake_runner(cmd: list[str]) -> str:
+        raise subprocess.CalledProcessError(1, cmd, output="scancel: error: Invalid job id")
+
+    data = contract.gather_cancel("999", runner=fake_runner)
+    assert data["cancelled"] is False
+    assert data["job_id"] == "999"
+    assert data["detail"]  # a human-readable hint, not parsed by callers
+
+
+def test_gather_cancel_no_scancel_binary():
+    def fake_runner(cmd: list[str]) -> str:
+        raise FileNotFoundError("scancel")
+
+    data = contract.gather_cancel("123", runner=fake_runner)
+    assert data["cancelled"] is False
+    assert "scancel" in data["detail"]
+
+
+# --------------------------------------------------------------------------- #
+# status/cancel for local-scheduler jobs
+# --------------------------------------------------------------------------- #
+def _write_local_state(job_id: str, pid: int, data_dir: Path, host: str | None = None) -> None:
+    """Write a job record under the per-test XDG state dir (see conftest)."""
+    write_record(
+        jobs_dir(os.environ),
+        JobRecord(job_id, host or socket.gethostname(), str(data_dir), pid, "2026-10-08T00:00:00"),
+    )
+
+
+def test_gather_status_local_job_running(tmp_path: Path):
+    import subprocess
+
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    proc = subprocess.Popen(["sleep", "5"])
+    lock_fd = -1
+    try:
+        _write_local_state("local-1", proc.pid, data_dir)
+        write_job_state(data_dir, "RUNNING")
+        lock_fd = open_liveness_lock(jobs_dir(os.environ), "local-1")
+
+        data = contract.gather_status(["local-1"], crab_root=tmp_path)
+
+        job = data["jobs"][0]
+        assert job == {"job_id": "local-1", "state": "RUNNING", "source": "local"}
+    finally:
+        if lock_fd >= 0:
+            os.close(lock_fd)
+        proc.terminate()
+        proc.wait()
+
+
+def test_gather_status_one_corrupt_local_state_does_not_hide_the_other_jobs(tmp_path: Path):
+    """Local ids resolve one at a time: a corrupt `local_state.json` is that job's error only."""
+    fds = []
+    try:
+        for jid, text in (("local-1", "{not json"), ("local-2", None)):
+            data_dir = tmp_path / jid
+            data_dir.mkdir()
+            _write_local_state(jid, 424242, data_dir)
+            if text is None:
+                write_job_state(data_dir, "RUNNING")
+            else:
+                (data_dir / "local_state.json").write_text(text)
+            fds.append(open_liveness_lock(jobs_dir(os.environ), jid))
+
+        data = contract.gather_status(["local-1", "local-2"], crab_root=tmp_path)
+    finally:
+        for fd in fds:
+            os.close(fd)
+
+    broken, fine = data["jobs"]
+    assert broken["job_id"] == "local-1"
+    assert broken["source"] == "local"
+    assert broken["error"]
+    assert fine == {"job_id": "local-2", "state": "RUNNING", "source": "local"}
+
+
+def test_gather_status_local_job_completed(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("0\n")
+    _write_local_state("local-2", pid=999999, data_dir=data_dir)
+
+    data = contract.gather_status(["local-2"], crab_root=tmp_path)
+
+    job = data["jobs"][0]
+    assert job == {"job_id": "local-2", "state": "COMPLETED", "exit_code": "0", "source": "local"}
+
+
+def test_gather_status_local_job_failed(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("1\n")
+    _write_local_state("local-3", pid=999999, data_dir=data_dir)
+
+    data = contract.gather_status(["local-3"], crab_root=tmp_path)
+
+    job = data["jobs"][0]
+    assert job == {"job_id": "local-3", "state": "FAILED", "exit_code": "1", "source": "local"}
+
+
+def test_gather_status_mixes_local_and_slurm_job_ids():
+    """A local job id and a real Slurm job id in the same call must each resolve correctly and
+    preserve request order; the fake runner only ever sees the non-local id."""
+    import tempfile
+
+    def fake_runner(cmd: list[str]) -> str:
+        if cmd[0] == "squeue":
+            assert "local-4" not in ",".join(cmd)  # local id must never reach squeue
+            return "555|RUNNING\n"
+        raise AssertionError(cmd)
+
+    with tempfile.TemporaryDirectory() as crab_root_str:
+        crab_root = Path(crab_root_str)
+        data_dir = crab_root / "job_data"
+        data_dir.mkdir()
+        (data_dir / "local_exit_code").write_text("0\n")
+        _write_local_state("local-4", pid=999999, data_dir=data_dir)
+
+        data = contract.gather_status(["local-4", "555"], runner=fake_runner, crab_root=crab_root)
+
+    assert [j["job_id"] for j in data["jobs"]] == ["local-4", "555"]
+    states = {j["job_id"]: j for j in data["jobs"]}
+    assert states["local-4"]["source"] == "local"
+    assert states["555"]["source"] == "squeue"
+
+
+def test_gather_cancel_local_job_kills_the_process(tmp_path: Path):
+    import subprocess
+    import time
+
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    proc = subprocess.Popen(["sleep", "30"], start_new_session=True)
+    _write_local_state("local-5", proc.pid, data_dir)
+    lock_fd = open_liveness_lock(jobs_dir(os.environ), "local-5")
+
+    try:
+        data = contract.gather_cancel("local-5", crab_root=tmp_path)
+    finally:
+        os.close(lock_fd)
+
+    assert data == {
+        "schema": contract.CONTRACT_SCHEMA,
+        "job_id": "local-5",
+        "cancelled": True,
+        "detail": None,
+    }
+    for _ in range(50):
+        if proc.poll() is not None:
+            break
+        time.sleep(0.1)
+    assert proc.poll() is not None, "local cancel must actually terminate the process"
+
+
+def test_gather_cancel_local_job_already_gone(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    _write_local_state("local-6", pid=999999, data_dir=data_dir)
+
+    data = contract.gather_cancel("local-6", crab_root=tmp_path)
+
+    assert data["cancelled"] is False
+    assert data["job_id"] == "local-6"
+    assert data["detail"]
+
+
+def test_gather_cancel_falls_through_for_non_local_job_id(tmp_path: Path):
+    """A job id with no local state file must still go through the real scancel path."""
+    calls = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        calls.append(cmd)
+        return ""
+
+    data = contract.gather_cancel("123", runner=fake_runner, crab_root=tmp_path)
+    assert calls == [["scancel", "123"]]
+    assert data["cancelled"] is True
+
+
+def test_gather_status_routes_by_id_shape_and_survives_a_bad_id(tmp_path: Path):
+    data_dir = tmp_path / "job_data"
+    data_dir.mkdir()
+    (data_dir / "local_exit_code").write_text("0\n")
+    _write_local_state("local-1", pid=999999, data_dir=data_dir)
+    queries: list[list[str]] = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        queries.append(cmd)
+        if cmd[0] == "squeue":
+            return "4242|RUNNING\n"
+        raise AssertionError(cmd)
+
+    data = contract.gather_status(["local-1", "4242", "bogus!"], runner=fake_runner)
+
+    assert [j["job_id"] for j in data["jobs"]] == ["local-1", "4242", "bogus!"]
+    local, slurm, bad = data["jobs"]
+    assert local == {"job_id": "local-1", "state": "COMPLETED", "exit_code": "0", "source": "local"}
+    assert slurm["source"] == "squeue"
+    assert bad["job_id"] == "bogus!"
+    assert bad["state"] == "UNKNOWN"
+    assert bad["source"] == "invalid"
+    assert "bogus!" in bad["error"]
+    assert len(queries) == 1 and queries[0][0] == "squeue"
+    assert "4242" in ",".join(queries[0])
+    assert "bogus!" not in ",".join(queries[0])
+    assert "local-1" not in ",".join(queries[0])
+
+
+def test_gather_status_reports_a_foreign_host_record_without_failing_the_batch(tmp_path: Path):
+    _write_local_state("local-1", pid=999999, data_dir=tmp_path, host="some-other-host")
+
+    data = contract.gather_status(["local-1"], runner=lambda cmd: "")
+
+    [job] = data["jobs"]
+    assert job["job_id"] == "local-1"
+    assert job["state"] == "UNKNOWN"
+    assert job["source"] == "local"
+    assert "some-other-host" in job["error"]
+    assert socket.gethostname() in job["error"]
+
+
+def test_gather_status_unknown_well_formed_local_id_is_unknown_without_error(tmp_path: Path):
+    data = contract.gather_status(["local-9"], runner=lambda cmd: "")
+
+    assert data["jobs"] == [{"job_id": "local-9", "state": "UNKNOWN", "source": "local"}]
+
+
+def test_gather_cancel_bad_id_and_foreign_host_never_reach_scancel(tmp_path: Path):
+    _write_local_state("local-1", pid=999999, data_dir=tmp_path, host="some-other-host")
+    calls: list[list[str]] = []
+
+    def fake_runner(cmd: list[str]) -> str:
+        calls.append(cmd)
+        return ""
+
+    bad = contract.gather_cancel("bogus!", runner=fake_runner)
+    foreign = contract.gather_cancel("local-1", runner=fake_runner)
+
+    assert bad["cancelled"] is False and bad["job_id"] == "bogus!"
+    assert "bogus!" in bad["detail"]
+    assert foreign["cancelled"] is False and foreign["job_id"] == "local-1"
+    assert "some-other-host" in foreign["detail"]
+    assert calls == []
+
+
+def test_gather_cancel_unknown_well_formed_local_id_says_no_such_job(tmp_path: Path):
+    data = contract.gather_cancel("local-9", runner=lambda cmd: "")
+
+    assert data["cancelled"] is False
+    assert data["detail"] == "no such local job"
+
+
+# --------------------------------------------------------------------------- #
+# logs (slurm_output.log / slurm_error.log in a job's data_dir)
+# --------------------------------------------------------------------------- #
+def test_gather_logs_reads_both_files(tmp_path: Path):
+    (tmp_path / "slurm_output.log").write_text("stdout line 1\nstdout line 2\n")
+    (tmp_path / "slurm_error.log").write_text("stderr line 1\n")
+
+    data = contract.gather_logs(tmp_path)
+
+    assert data["schema"] == contract.CONTRACT_SCHEMA
+    assert data["stdout"]["exists"] is True
+    assert data["stdout"]["content"] == "stdout line 1\nstdout line 2\n"
+    assert data["stdout"]["truncated"] is False
+    assert data["stderr"]["exists"] is True
+    assert data["stderr"]["content"] == "stderr line 1\n"
+
+
+def test_gather_logs_missing_files_are_graceful(tmp_path: Path):
+    data = contract.gather_logs(tmp_path)
+
+    assert data["stdout"] == {
+        "path": str(tmp_path / "slurm_output.log"),
+        "exists": False,
+        "content": "",
+        "truncated": False,
+    }
+    assert data["stderr"]["exists"] is False
+
+
+def test_gather_logs_caps_to_last_max_bytes(tmp_path: Path):
+    (tmp_path / "slurm_output.log").write_text("a" * 50 + "b" * 50)
+    (tmp_path / "slurm_error.log").write_text("")
+
+    data = contract.gather_logs(tmp_path, max_bytes=50)
+
+    assert data["stdout"]["truncated"] is True
+    assert data["stdout"]["content"] == "b" * 50
+
+
+# --------------------------------------------------------------------------- #
+# experiment logs (error_app_<id>.log inside one experiment's directory,
+# written by ExperimentRunner.execute on a non-zero app exit — runner.py:344-350)
+# --------------------------------------------------------------------------- #
+def test_gather_experiment_logs_reads_error_app_files(tmp_path: Path):
+    exp_dir = tmp_path / "01_graph500_solo_baseline"
+    exp_dir.mkdir()
+    (exp_dir / "error_app_0.log").write_text("App 0 exit=1\n\n--- STDERR ---\nboom\n")
+    (exp_dir / "error_app_2.log").write_text("App 2 exit=137\n")
+
+    data = contract.gather_experiment_logs(tmp_path, "01_graph500_solo_baseline")
+
+    assert data["schema"] == contract.CONTRACT_SCHEMA
+    assert data["data_dir"] == str(exp_dir)
+    assert [f["app_id"] for f in data["files"]] == ["0", "2"]
+    assert data["files"][0]["content"] == "App 0 exit=1\n\n--- STDERR ---\nboom\n"
+    assert data["files"][0]["exists"] is True
+    assert data["files"][1]["content"] == "App 2 exit=137\n"
+
+
+def test_gather_experiment_logs_no_errors_is_empty_list(tmp_path: Path):
+    exp_dir = tmp_path / "02_qe_pwscf_solo_baseline"
+    exp_dir.mkdir()  # experiment ran, but nothing failed -> no error_app_*.log at all
+
+    data = contract.gather_experiment_logs(tmp_path, "02_qe_pwscf_solo_baseline")
+    assert data["files"] == []
+
+
+def test_gather_experiment_logs_caps_to_last_max_bytes(tmp_path: Path):
+    exp_dir = tmp_path / "e1"
+    exp_dir.mkdir()
+    (exp_dir / "error_app_0.log").write_text("a" * 50 + "b" * 50)
+
+    data = contract.gather_experiment_logs(tmp_path, "e1", max_bytes=50)
+    assert data["files"][0]["truncated"] is True
+    assert data["files"][0]["content"] == "b" * 50
+
+
+def test_gather_experiment_logs_unknown_experiment_raises(tmp_path: Path):
+    with pytest.raises(FileNotFoundError, match="does_not_exist"):
+        contract.gather_experiment_logs(tmp_path, "does_not_exist")
+
+
+# --------------------------------------------------------------------------- #
+# emit
+# --------------------------------------------------------------------------- #
+def test_emit_json_vs_human(capsys):
+    contract.emit({"a": 1}, as_json=True, human=lambda d: print("HUMAN"))
+    out = capsys.readouterr().out
+    assert json.loads(out) == {"a": 1}
+
+    contract.emit({"a": 1}, as_json=False, human=lambda d: print("HUMAN"))
+    assert "HUMAN" in capsys.readouterr().out

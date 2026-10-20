@@ -11,10 +11,13 @@ from .confirm_modal import ConfirmModal
 from .experiment_strip import ExperimentStrip
 from .local_options_form import LocalOptionsForm
 
-
 _EMPTY_APP: dict = {
-    "path": "", "args": "", "collect": False,
-    "start": "0", "end": "", "partition": "",
+    "path": "",
+    "args": "",
+    "collect": False,
+    "start": "0",
+    "end": "",
+    "partition": "",
 }
 
 
@@ -285,12 +288,14 @@ class ExperimentsPanel(Container):
             apps = {int(k): v for k, v in apps_raw.items()}
             if not apps:
                 apps = {0: _EMPTY_APP.copy()}
-            self.experiments.append({
-                "name": exp_name,
-                "description": exp_data.get("description", ""),
-                "local_options": exp_data.get("local_options", {}),
-                "apps": apps,
-            })
+            self.experiments.append(
+                {
+                    "name": exp_name,
+                    "description": exp_data.get("description", ""),
+                    "local_options": exp_data.get("local_options", {}),
+                    "apps": apps,
+                }
+            )
             await self._exp_strip.add_experiment(exp_name)
 
         if not self.experiments:

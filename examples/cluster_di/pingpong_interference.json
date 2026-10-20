@@ -1,11 +1,12 @@
 {
+    "schema_version": 2,
     "global_options": {
         "name": "pingpong_interference",
-        "numnodes": "8",
+        "numnodes": "4",
         "ppn": "1",
         "minruns": "5",
         "maxruns": "10",
-        "timeout": "3600.0",
+        "timeout": "1500.0",
         "convergeall": true,
         "outformat": "csv",
         "extrainfo": "pingpong_interference_study",
@@ -24,43 +25,45 @@
     },
     "experiments": {
         "01_baseline_pingpong_small": {
-            "description": "PingPong baseline: small messages (1KB). All nodes.",
+            "description": "PingPong baseline: small messages (1KB). The 2 victim nodes.",
             "apps": {
                 "0": {
-                    "path": "ping-pong_b.py",
+                    "path": "blink/pingpong/pingpong_b.py",
                     "args": "-msgsize 1024 -iter 1000",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 }
             }
         },
         "02_baseline_pingpong_large": {
-            "description": "PingPong baseline: large messages (1MB). Bandwidth-bound reference.",
+            "description": "PingPong baseline: large messages (1MB). Bandwidth-bound reference, 2 victim nodes.",
             "apps": {
                 "0": {
-                    "path": "ping-pong_b.py",
+                    "path": "blink/pingpong/pingpong_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "partition": "victim"
                 }
             }
         },
         "03_interference_incast": {
-            "description": "PingPong victim on half the nodes vs Incast aggressor on the other half. 50/50 split.",
+            "description": "PingPong victim on 2 nodes vs Incast aggressor on the other 2. 50/50 split.",
             "apps": {
                 "0": {
-                    "path": "ping-pong_b.py",
+                    "path": "blink/pingpong/pingpong_b.py",
                     "args": "-msgsize 1048576 -iter 100",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
-                    "path": "inc_b.py",
-                    "args": "-msgsize 65536 -iter 1000",
+                    "path": "blink/incast/incast_b.py",
+                    "args": "-endl -msgsize 65536",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",
@@ -69,14 +72,19 @@
             }
         },
         "04_topology_ring": {
-            "description": "Traffic pattern change: Ring benchmark on all nodes.",
+            "description": "Traffic pattern change: Ring benchmark on all 4 nodes.",
             "apps": {
                 "0": {
-                    "path": "ring_b.py",
+                    "path": "blink/ring/ring_bsnbr.py",
                     "args": "-msgsize 4096 -iter 500",
                     "collect": true,
                     "start": "0",
                     "end": ""
+                }
+            },
+            "local_options": {
+                "allocation": {
+                    "mode": "linear"
                 }
             }
         },
@@ -84,16 +92,16 @@
             "description": "Stress test: A2A victim vs Incast aggressor on a 50/50 split.",
             "apps": {
                 "0": {
-                    "path": "a2a_b.py",
+                    "path": "blink/alltoall/alltoall_b.py",
                     "args": "-msgsize 2048 -iter 200",
                     "collect": true,
                     "partition": "victim",
-                    "start": "0",
+                    "start": "3",
                     "end": ""
                 },
                 "1": {
-                    "path": "inc_b.py",
-                    "args": "-msgsize 2048 -iter 1000",
+                    "path": "blink/incast/incast_b.py",
+                    "args": "-endl -msgsize 2048",
                     "collect": false,
                     "partition": "aggressor",
                     "start": "0",

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "crab"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Co-Running Applications Benchmarking framework"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,6 +34,75 @@ tui = [
     "textual>=6.1.0",
     "textual-fspicker>=0.5.0"
 ]
+web = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "asyncssh>=2.18.0"
+]
+# Developer tooling (not needed by end users). Run everything via `make verify`.
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0"
+]
+# Back-compat alias for the old extra name.
+web-dev = [
+    "crab[dev]"
+]
 
 [project.scripts]
 crab = "crab.cli.main:cli_router"
+
+[tool.setuptools.dynamic]
+version = { attr = "crab.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# Ship the legacy export template and the built web UI assets inside the wheel.
+crab = ["crab_dashboard.html", "web/static/**/*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# Test this checkout's code even when the editable install points at another worktree.
+pythonpath = ["src"]
+markers = [
+    "mpi: launches real mpirun processes (needs an installed Open MPI or MPICH)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# E/F/W core, I import order, UP modernize, B bugbear, FA future-annotations
+# (catches bare `X | Y` used without `from __future__ import annotations`, which
+# crashes on import below Python 3.10 -- see commit d702342 and its follow-up fix).
+select = ["E", "F", "W", "I", "UP", "B", "FA"]
+ignore = [
+    "E501",  # long lines: the formatter handles code; prose/URLs in strings stay readable
+]
+
+[tool.mypy]
+# Scoped to the fully type-hinted web layer and its CLI seam; widen over time.
+files = [
+    "src/crab/web",
+    "src/crab/cli/contract.py",
+    "src/crab/cli/export.py",
+    "src/crab/core/wrapper_paths.py",
+    "src/crab/core/execution",
+]
+python_version = "3.10"
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["asyncssh", "asyncssh.*", "uvicorn", "uvicorn.*", "platformdirs"]
+ignore_missing_imports = true

@@ -1,0 +1,764 @@
+"""Tests for /api/results/{cluster}/{system}/{job_basename}/...
+
+Job identity is off the local registry: a registry-known job resolves its
+remote directory directly from the `JobsStore` record (fast path); a
+CLI-only job (never submitted through this dashboard) falls back to a live
+`crab history` call, matching by job_basename and reading the resolved
+`absolute_path`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import time
+from pathlib import Path
+
+import pytest
+
+pytest.importorskip("fastapi", reason="web extra not installed")
+
+from conftest import auth_client  # noqa: E402
+from crab.web.connections.manager import ConnectionManager  # noqa: E402
+from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
+from crab.web.errors import RemoteCommandError, RemoteConnectionError  # noqa: E402
+from crab.web.server import create_app  # noqa: E402
+from crab.web.settings import Settings  # noqa: E402
+from crab.web.store import cache as cache_module  # noqa: E402
+from crab.web.store.cache import LocalCache  # noqa: E402
+from crab.web.store.jobs import JobsStore  # noqa: E402
+from crab.web.store.results_cache import ResultsCache  # noqa: E402
+
+CLUSTER = "leonardo"
+SYSTEM = "leonardo"
+JOB_BASENAME = "demo_job"
+
+_INFO_JSON = json.dumps(
+    {
+        "schema": 1,
+        "crab_version": "0.1.0",
+        "crab_root": "/home/u/CRAB",
+        "presets": [{"name": "leonardo", "description": "Leonardo @ CINECA"}],
+    }
+)
+
+
+def _history_json(experiments: list[dict] | None = None) -> str:
+    return json.dumps({"schema": 1, "experiments": experiments or []})
+
+
+def _settings(tmp_path: Path) -> Settings:
+    return Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
+
+
+class FakeFetchTransport(Transport):
+    """Only supports what connect + a results fetch need: `crab info`/`history` and fetch_tree."""
+
+    def __init__(self, fail: Exception | None = None, history_json: str | None = None):
+        self._alive = True
+        self.calls: list[tuple[str, str]] = []
+        self._fail = fail
+        self._history_json = history_json if history_json is not None else _history_json()
+
+    @property
+    def alive(self) -> bool:
+        return self._alive
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if "crab info --json" in command:
+            return CmdResult(0, _INFO_JSON, "")
+        if "crab history" in command:
+            return CmdResult(0, self._history_json, "")
+        raise AssertionError(f"unexpected command: {command}")
+
+    async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
+        raise AssertionError("results fetch should never call write_file()")
+
+    async def fetch_tree(
+        self, remote_dir: str, local_dir: str, timeout: float | None = 30.0
+    ) -> None:
+        self.calls.append((remote_dir, local_dir))
+        if self._fail is not None:
+            raise self._fail
+
+    async def close(self) -> None:
+        self._alive = False
+
+
+def _client(tmp_path: Path, transport_factory=FakeFetchTransport):
+    async def connector(profile, password):
+        return transport_factory()
+
+    mgr = ConnectionManager(connector=connector)
+    app = create_app(_settings(tmp_path), manager=mgr)
+    return auth_client(app)
+
+
+def _seed_job(tmp_path: Path) -> str:
+    store = JobsStore(_settings(tmp_path))
+    rec = store.create(
+        cluster=CLUSTER,
+        job_id="1",
+        data_dir=f"/remote/data/{JOB_BASENAME}",
+        system=SYSTEM,
+        config_name="demo",
+        config_snapshot={},
+    )
+    return rec.id
+
+
+def _leonardo_profile() -> dict:
+    return {
+        "name": "leonardo",
+        "host": "login.cluster.example.org",
+        "user": "researcher",
+        "auth": "agent",
+        "hostkey_policy": "insecure",
+        "remote_crab": "~/base",
+    }
+
+
+def _fetch_url(
+    cluster: str = CLUSTER, system: str = SYSTEM, job_basename: str = JOB_BASENAME
+) -> str:
+    return f"/api/results/{cluster}/{system}/{job_basename}/fetch"
+
+
+def _poll(
+    client,
+    fetch_id: str,
+    cluster: str = CLUSTER,
+    system: str = SYSTEM,
+    job_basename: str = JOB_BASENAME,
+) -> dict:
+    url = f"/api/results/{cluster}/{system}/{job_basename}/fetch/{fetch_id}"
+    status = None
+    for _ in range(50):
+        status = client.get(url).json()
+        if status["status"] != "pending":
+            break
+        time.sleep(0.01)
+    assert status is not None
+    return status
+
+
+def test_fetch_results_returns_202_and_eventually_done(tmp_path: Path):
+    _seed_job(tmp_path)
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.post(_fetch_url())
+        assert resp.status_code == 202
+        fetch_id = resp.json()["fetch_id"]
+
+        status = _poll(client, fetch_id)
+        assert status["status"] == "done"
+
+        transport = client.app.state.manager.get("leonardo")
+        expected_local_dir = str(
+            ResultsCache(_settings(tmp_path)).path_for(CLUSTER, SYSTEM, JOB_BASENAME)
+        )
+        assert transport.calls == [(f"/remote/data/{JOB_BASENAME}", expected_local_dir)]
+
+        # Cleaned up once a terminal status has been fetched.
+        again = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/fetch/{fetch_id}")
+        assert again.status_code == 404
+
+
+def test_fetch_results_resolves_cli_only_job_via_history_absolute_path(tmp_path: Path):
+    # No JobsStore record at all -- this job was only ever run by hand on the cluster.
+    cli_job_basename = "cli_job_1"
+    history = _history_json(
+        [
+            {
+                "job_name": "cli_job_1",
+                "experiment_name": "e1",
+                "status": "COMPLETED",
+                "relative_path": f"./{cli_job_basename}/e1",
+                "absolute_path": f"/remote/data/{SYSTEM}/{cli_job_basename}/e1",
+            }
+        ]
+    )
+
+    def factory():
+        return FakeFetchTransport(history_json=history)
+
+    with _client(tmp_path, transport_factory=factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.post(_fetch_url(job_basename=cli_job_basename))
+        assert resp.status_code == 202
+        fetch_id = resp.json()["fetch_id"]
+
+        status = _poll(client, fetch_id, job_basename=cli_job_basename)
+        assert status["status"] == "done"
+
+        transport = client.app.state.manager.get("leonardo")
+        expected_local_dir = str(
+            ResultsCache(_settings(tmp_path)).path_for(CLUSTER, SYSTEM, cli_job_basename)
+        )
+        # The remote dir is the resolved absolute_path's parent (the job dir,
+        # sibling of each experiment dir), not the experiment dir itself.
+        assert transport.calls == [
+            (f"/remote/data/{SYSTEM}/{cli_job_basename}", expected_local_dir)
+        ]
+
+
+def test_fetch_results_error_preserves_message_and_detail(tmp_path: Path):
+    _seed_job(tmp_path)
+
+    def failing_factory():
+        return FakeFetchTransport(
+            fail=RemoteCommandError("Could not fetch results.", detail="boom")
+        )
+
+    with _client(tmp_path, transport_factory=failing_factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.post(_fetch_url())
+        fetch_id = resp.json()["fetch_id"]
+
+        status = _poll(client, fetch_id)
+        assert status["status"] == "error"
+        assert status["message"] == "Could not fetch results."
+        assert status["detail"] == "boom"
+
+
+def test_fetch_results_unknown_job_404(tmp_path: Path):
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        # No JobsStore record, and the (empty) live history has no matching row either.
+        resp = client.post(_fetch_url(job_basename="does-not-exist"))
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
+
+
+def test_get_fetch_status_unknown_fetch_id_404(tmp_path: Path):
+    _seed_job(tmp_path)
+    with _client(tmp_path) as client:
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/fetch/nope")
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
+
+
+def test_fetch_results_without_connection_fails(tmp_path: Path):
+    _seed_job(tmp_path)
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        # No connect() call — never plugged into the manager.
+
+        resp = client.post(_fetch_url())
+        assert resp.status_code == 502
+        assert resp.json()["code"] == "connection_error"
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/results/{cluster}/{system}/{job_basename}, GET/DELETE /api/results/cache
+# --------------------------------------------------------------------------- #
+def _cache_a_result_tree(tmp_path: Path) -> Path:
+    """Simulate a completed fetch by writing CSVs straight into the cache path
+    (the fetch itself is covered above; this seams past it to test the
+    get/cache routes). Nested under an experiment subfolder, matching what a
+    real fetch always produces (never CSVs directly at the job level) --
+    `ResultsCache.list_cached()` relies on that shape to tell a real job dir
+    apart from a stale old-layout leftover (see test_web_results_cache.py)."""
+    job_dir = ResultsCache(_settings(tmp_path)).path_for(CLUSTER, SYSTEM, JOB_BASENAME)
+    exp_dir = job_dir / "e1"
+    exp_dir.mkdir(parents=True)
+    (exp_dir / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    return job_dir
+
+
+def test_get_results_404_when_never_fetched(tmp_path: Path):
+    with _client(tmp_path) as client:
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}")
+        assert resp.status_code == 404
+        assert resp.json()["code"] == "not_found"
+
+
+def test_get_results_returns_parsed_data_after_a_fetch(tmp_path: Path):
+    _cache_a_result_tree(tmp_path)
+
+    with _client(tmp_path) as client:
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}")
+        assert resp.status_code == 200
+        assert resp.json() == {"experiments": {"e1": {"App 0": [{"x": 1}]}}}
+
+
+def test_results_cache_size_reflects_cached_bytes(tmp_path: Path):
+    with _client(tmp_path) as client:
+        assert client.get("/api/results/cache").json() == {"total_bytes": 0}
+
+        _cache_a_result_tree(tmp_path)
+
+        size = client.get("/api/results/cache").json()["total_bytes"]
+        assert size > 0
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/results — cross-cluster index
+# --------------------------------------------------------------------------- #
+def _history_row(
+    job_basename: str,
+    status: str,
+    system: str = SYSTEM,
+    experiment_name: str = "e1",
+    total_runs: str = "",
+    failed_runs: str = "",
+) -> dict:
+    return {
+        "job_name": job_basename,
+        "experiment_name": experiment_name,
+        "status": status,
+        "system": system,
+        "relative_path": f"./{job_basename}/{experiment_name}",
+        "absolute_path": f"/remote/data/{system}/{job_basename}/{experiment_name}",
+        "total_runs": total_runs,
+        "failed_runs": failed_runs,
+    }
+
+
+def _write_fetch_status(tmp_path: Path, cluster: str, system: str, job_basename: str, status: str):
+    LocalCache(_settings(tmp_path)).write(
+        "results_fetch_status", f"{cluster}:{system}:{job_basename}", {"status": status}
+    )
+
+
+def _entries_by_key(body: dict) -> dict[tuple[str, str, str], dict]:
+    return {(e["cluster"], e["system"], e["job_basename"]): e for e in body["jobs"]}
+
+
+def test_results_index_includes_registry_known_and_cli_only_jobs(tmp_path: Path):
+    _seed_job(tmp_path)
+    history = _history_json(
+        [_history_row(JOB_BASENAME, "COMPLETED"), _history_row("cli_job_1", "FAILED")]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/results")
+        assert resp.status_code == 200
+        by_key = _entries_by_key(resp.json())
+
+        registry_entry = by_key[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert registry_entry["record_id"] is not None
+        assert registry_entry["status"] == "COMPLETED"
+        assert registry_entry["connected"] is True
+
+        cli_entry = by_key[(CLUSTER, SYSTEM, "cli_job_1")]
+        assert cli_entry["record_id"] is None
+        assert cli_entry["status"] == "FAILED"
+
+
+def test_results_index_collapses_multiple_experiments_into_one_job_entry(tmp_path: Path):
+    """A job submission's experiments (crab experiment keys) must never
+    surface as their own top-level entries -- only genuinely no test fixture
+    exercised more than one experiment per job before this, which is exactly
+    the kind of gap that let a real grouping regression go unnoticed."""
+    history = _history_json(
+        [
+            _history_row(JOB_BASENAME, "COMPLETED", experiment_name="01_baseline_msgsize"),
+            _history_row(JOB_BASENAME, "FAILED", experiment_name="02_scaling_nodes"),
+            _history_row(JOB_BASENAME, "COMPLETED", experiment_name="03_scaling_nodes"),
+        ]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/results")
+        assert resp.status_code == 200
+        entries = _entries_by_key(resp.json())
+
+        # Exactly one entry for the whole job, not one per experiment.
+        assert list(entries.keys()) == [(CLUSTER, SYSTEM, JOB_BASENAME)]
+        # worst_status across the three experiments (COMPLETED/FAILED/COMPLETED).
+        assert entries[(CLUSTER, SYSTEM, JOB_BASENAME)]["status"] == "FAILED"
+
+
+def test_results_index_marks_never_fetched_as_stale(tmp_path: Path):
+    _seed_job(tmp_path)
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["cached"] is False
+        assert entry["cached_bytes"] is None
+        assert entry["possibly_stale"] is True
+
+
+def test_results_index_fetched_then_unchanged_is_not_stale(tmp_path: Path):
+    _seed_job(tmp_path)
+    _cache_a_result_tree(tmp_path)
+    _write_fetch_status(tmp_path, CLUSTER, SYSTEM, JOB_BASENAME, "COMPLETED")
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["cached"] is True
+        assert entry["cached_bytes"] is not None and entry["cached_bytes"] > 0
+        assert entry["possibly_stale"] is False
+
+
+def test_results_index_fetched_then_status_changed_is_stale(tmp_path: Path):
+    _seed_job(tmp_path)
+    _cache_a_result_tree(tmp_path)
+    _write_fetch_status(tmp_path, CLUSTER, SYSTEM, JOB_BASENAME, "COMPLETED")
+    history = _history_json([_history_row(JOB_BASENAME, "FAILED")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["status"] == "FAILED"
+        assert entry["possibly_stale"] is True
+
+
+def test_results_index_disconnected_cluster_with_prior_cache_still_lists_its_jobs(tmp_path: Path):
+    # No profile ever added or connected -- purely a leftover on-disk cache.
+    _cache_a_result_tree(tmp_path)
+
+    with _client(tmp_path) as client:
+        entry = _entries_by_key(client.get("/api/results").json())[(CLUSTER, SYSTEM, JOB_BASENAME)]
+        assert entry["connected"] is False
+        assert entry["possibly_stale"] is True
+        assert entry["cached"] is True
+        assert entry["status"] is None
+
+
+def test_results_index_queries_clusters_in_parallel_not_sequentially(tmp_path: Path):
+    """Two connected clusters, each slow to answer `crab history`,
+    must be queried concurrently. Checked by overlap, not wall time: each
+    `crab history` call waits for the other one to start, so a sequential
+    index never sees two calls in flight (and would stall until the timeout)."""
+    state = {"in_flight": 0, "peak": 0}
+    both_started: asyncio.Event | None = None
+
+    class SlowHistoryTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            nonlocal both_started
+            if "crab history" in command:
+                if both_started is None:
+                    both_started = asyncio.Event()
+                state["in_flight"] += 1
+                state["peak"] = max(state["peak"], state["in_flight"])
+                if state["in_flight"] >= 2:
+                    both_started.set()
+                try:
+                    await asyncio.wait_for(both_started.wait(), timeout=5.0)
+                except TimeoutError:
+                    pass
+                finally:
+                    state["in_flight"] -= 1
+            return await super().run(command, timeout)
+
+    async def connector(profile, password):
+        return SlowHistoryTransport()
+
+    mgr = ConnectionManager(connector=connector)
+    app = create_app(_settings(tmp_path), manager=mgr)
+    with auth_client(app) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes", json={**_leonardo_profile(), "name": "m100"})
+        client.post("/api/remotes/m100/connect")
+
+        resp = client.get("/api/results")
+
+    assert resp.status_code == 200
+    assert state["peak"] == 2
+
+
+@pytest.mark.parametrize("mode", ["connection", "command", "contract"])
+def test_results_index_one_failing_cluster_does_not_break_the_others(tmp_path: Path, mode: str):
+    """A cluster whose `crab history` drops, exits nonzero or prints non-JSON (with
+    nothing cached to fall back to) contributes only its on-disk cache; every other
+    cluster is listed as usual."""
+    failing_job = ResultsCache(_settings(tmp_path)).path_for("alps", "alps", "alps_job")
+    (failing_job / "e1").mkdir(parents=True)
+    (failing_job / "e1" / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+
+    class BrokenHistoryTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if "crab history" in command:
+                if mode == "connection":
+                    raise RemoteConnectionError("The SSH connection dropped.")
+                if mode == "command":
+                    return CmdResult(1, "", "boom")
+                return CmdResult(0, "not json", "")
+            return await super().run(command, timeout)
+
+    async def connector(profile, password):
+        if profile.name == "alps":
+            return BrokenHistoryTransport()
+        return FakeFetchTransport(history_json=history)
+
+    app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
+    with auth_client(app) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        client.post("/api/remotes", json={**_leonardo_profile(), "name": "alps"})
+        client.post("/api/remotes/alps/connect")
+
+        resp = client.get("/api/results")
+
+    assert resp.status_code == 200
+    by_key = _entries_by_key(resp.json())
+    assert by_key[(CLUSTER, SYSTEM, JOB_BASENAME)]["status"] == "COMPLETED"
+    failing = by_key[("alps", "alps", "alps_job")]
+    assert failing["cached"] is True
+    assert failing["possibly_stale"] is True
+    assert failing["status"] is None
+
+
+def test_results_index_reraises_an_unexpected_error_instead_of_swallowing_it(tmp_path: Path):
+    """A non-RemoteConnectionError failure from one cluster must still surface
+    as a real error, not be silently treated like an unreachable cluster."""
+
+    class BuggyTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if "crab history" in command:
+                raise ValueError("boom, not a RemoteConnectionError")
+            return await super().run(command, timeout)
+
+    async def connector(profile, password):
+        return BuggyTransport()
+
+    mgr = ConnectionManager(connector=connector)
+    app = create_app(_settings(tmp_path), manager=mgr)
+    # raise_server_exceptions=False so the handler (not the test client) responds.
+    with auth_client(app, raise_server_exceptions=False) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get("/api/results")
+
+    assert resp.status_code == 500
+    assert resp.json()["code"] == "internal_error"
+
+
+def test_clear_results_cache_removes_everything(tmp_path: Path):
+    _cache_a_result_tree(tmp_path)
+
+    with _client(tmp_path) as client:
+        resp = client.delete("/api/results/cache")
+        assert resp.status_code == 204
+
+        assert client.get("/api/results/cache").json() == {"total_bytes": 0}
+        again = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}")
+        assert again.status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# GET /api/results/{cluster}/{system}/{job_basename}/experiments
+# --------------------------------------------------------------------------- #
+def test_results_experiments_reports_run_failure_counts(tmp_path: Path):
+    history = _history_json(
+        [_history_row(JOB_BASENAME, "FAILED", total_runs="10", failed_runs="3")]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        experiments = resp.json()["experiments"]
+        assert len(experiments) == 1
+        assert experiments[0]["status"] == "FAILED"
+        assert experiments[0]["total_runs"] == "10"
+        assert experiments[0]["failed_runs"] == "3"
+
+
+def test_results_experiments_only_returns_rows_for_this_job(tmp_path: Path):
+    history = _history_json(
+        [
+            _history_row(JOB_BASENAME, "COMPLETED", experiment_name="e1"),
+            _history_row(JOB_BASENAME, "FAILED", experiment_name="e2", failed_runs="1"),
+            _history_row("some_other_job", "COMPLETED", experiment_name="e1"),
+        ]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        names = {e["experiment_name"] for e in resp.json()["experiments"]}
+        assert names == {"e1", "e2"}
+
+
+def test_results_experiments_works_for_a_cli_only_job(tmp_path: Path):
+    # No registry record seeded at all -- must still resolve via live history,
+    # matching full interoperability.
+    history = _history_json([_history_row("cli_job", "FAILED", failed_runs="2")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/cli_job/experiments")
+        assert resp.status_code == 200
+        experiments = resp.json()["experiments"]
+        assert len(experiments) == 1
+        assert experiments[0]["failed_runs"] == "2"
+
+
+def test_results_experiments_reuses_a_recent_index_fetch_instead_of_a_second_round_trip(
+    tmp_path: Path,
+):
+    """The picker (GET /api/results) and a job's own experiments query read the
+    same cluster's `crab history` moments apart in normal use -- the second
+    call should reuse the first's still-fresh result rather than a second
+    live SSH round-trip."""
+    history = _history_json([_history_row(JOB_BASENAME, "COMPLETED")])
+    history_calls = 0
+
+    class CountingTransport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            nonlocal history_calls
+            if "crab history" in command:
+                history_calls += 1
+            return await super().run(command, timeout)
+
+    with _client(
+        tmp_path, transport_factory=lambda: CountingTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        assert client.get("/api/results").status_code == 200
+        assert history_calls == 1
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        assert len(resp.json()["experiments"]) == 1
+        assert history_calls == 1  # reused, not a second round-trip
+
+
+def test_results_experiments_filters_by_system_even_when_reusing_unscoped_history(
+    tmp_path: Path,
+):
+    """The index's own `crab history` query is unscoped (no `-s system`) --
+    reusing its cached result for a system-scoped experiments query must not
+    leak another system's same-named job into the answer."""
+    history = _history_json(
+        [
+            _history_row(JOB_BASENAME, "COMPLETED", system=SYSTEM),
+            _history_row(JOB_BASENAME, "FAILED", system="other_system"),
+        ]
+    )
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        assert client.get("/api/results").status_code == 200
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        experiments = resp.json()["experiments"]
+        assert len(experiments) == 1
+        assert experiments[0]["status"] == "COMPLETED"
+
+
+class SystemScopedHistoryTransport(FakeFetchTransport):
+    """`crab history -s <system>` returns only that system's rows, like the real CLI."""
+
+    def __init__(self, rows: list[dict]):
+        super().__init__(history_json=_history_json(rows))
+        self._rows = rows
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if "crab history -s " in command:
+            system = command.split("crab history -s ", 1)[1].split()[0]
+            rows = [r for r in self._rows if r["system"] == system]
+            return CmdResult(0, _history_json(rows), "")
+        return await super().run(command, timeout)
+
+
+def test_a_system_scoped_experiments_fetch_does_not_shrink_the_picker(tmp_path: Path):
+    """A job's experiments query runs `crab history -s system`; the picker right
+    after it (within the reuse window) must still list every system's jobs."""
+    rows = [
+        _history_row(JOB_BASENAME, "COMPLETED", system=SYSTEM),
+        _history_row("other_job", "COMPLETED", system="other_system"),
+    ]
+
+    with _client(tmp_path, transport_factory=lambda: SystemScopedHistoryTransport(rows)) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert len(resp.json()["experiments"]) == 1
+
+        jobs = client.get("/api/results").json()["jobs"]
+        assert {(j["system"], j["job_basename"]) for j in jobs} == {
+            (SYSTEM, JOB_BASENAME),
+            ("other_system", "other_job"),
+        }
+
+
+def test_results_experiments_offline_falls_back_to_the_pickers_history(tmp_path: Path, monkeypatch):
+    history = _history_json([_history_row(JOB_BASENAME, "FAILED", failed_runs="1")])
+
+    with _client(
+        tmp_path, transport_factory=lambda: FakeFetchTransport(history_json=history)
+    ) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        # The picker's fetch happened long before, past the reuse window.
+        monkeypatch.setattr(cache_module, "_now", lambda: "2020-01-01T00:00:00+00:00")
+        assert client.get("/api/results").status_code == 200
+        monkeypatch.undo()
+        client.post("/api/remotes/leonardo/disconnect")
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert [e["status"] for e in resp.json()["experiments"]] == ["FAILED"]
+
+
+def test_results_experiments_disconnected_cluster_returns_empty(tmp_path: Path):
+    # Profile known (added), but never connected -- distinct from "no such
+    # cluster profile at all", which 404s per `_profiles().get()`'s contract.
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+
+        resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
+        assert resp.status_code == 200
+        assert resp.json()["experiments"] == []

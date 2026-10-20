@@ -1,10 +1,59 @@
-.PHONY: install setup clean venv _install_core _check_python
+.PHONY: install setup clean venv _install_core _wrappers _check_python \
+        verify verify-full fmt _verify_py _verify_fe _static_sync
 
 .DEFAULT_GOAL := install
 
 VENV_DIR = .venv
 PIP = $(VENV_DIR)/bin/pip
 CRAB_BIN = $(VENV_DIR)/bin/crab
+PY = $(VENV_DIR)/bin/python
+WEBUI = src/crab/webui
+WRAPPERS_URL ?= https://github.com/HLC-Lab/crab-wrappers.git
+
+# --- Developer verification gates ------------------------------------------
+# `make verify` after every change; `make verify-full` before finishing a task
+# or whenever frontend source changed. See docs/dev/dashboard/testing.md.
+
+verify: _verify_py _verify_fe
+	@echo "[verify] all green"
+
+_verify_py:
+	$(VENV_DIR)/bin/ruff check src tests
+	$(VENV_DIR)/bin/ruff format --check src tests
+	$(VENV_DIR)/bin/mypy
+	$(PY) -m pytest -q
+
+_verify_fe:
+	cd $(WEBUI) && npx prettier --check src tests
+	cd $(WEBUI) && npx eslint src tests/unit
+	cd $(WEBUI) && npm run --silent type-check
+	cd $(WEBUI) && npx vitest run --silent
+
+verify-full: verify
+	cd $(WEBUI) && npm run --silent build
+	$(MAKE) _static_sync
+	cd $(WEBUI) && npm run --silent gen:api
+	@git diff --quiet -- $(WEBUI)/src/api/generated.ts || \
+	(echo "[!] src/api/generated.ts is stale against the backend's OpenAPI schema."; \
+	 echo "    Commit the regenerated file (npm run gen:api) with the backend change."; exit 1)
+	@if [ -f $(WEBUI)/playwright.config.ts ]; then \
+	    cd $(WEBUI) && npx playwright test; \
+	else \
+	    echo "[verify-full] playwright not set up yet, skipping e2e"; \
+	fi
+	@echo "[verify-full] all green"
+
+# The built SPA in src/crab/web/static is committed and shipped in the wheel;
+# it must always match the frontend source (see ADR-004).
+_static_sync:
+	@git diff --quiet -- src/crab/web/static || \
+	(echo "[!] src/crab/web/static is out of sync with the committed build."; \
+	 echo "    Commit the rebuilt assets together with the source change."; exit 1)
+
+fmt:
+	$(VENV_DIR)/bin/ruff check --fix src tests
+	$(VENV_DIR)/bin/ruff format src tests
+	cd $(WEBUI) && npx prettier --write src tests
 
 # 0. The Guardrail (Fails instantly if Python is too old)
 _check_python:
@@ -37,6 +86,7 @@ install:
 	    echo ""; \
 	    echo "To completely reinstall, run \`make clean\` first."; \
 	    echo "============================================================"; \
+	    $(MAKE) --no-print-directory _wrappers; \
 	else \
 	    $(MAKE) _install_core; \
 	fi
@@ -44,9 +94,19 @@ install:
 # 3. The Actual Installation
 _install_core: venv
 	$(PIP) install -e .
+	@$(MAKE) --no-print-directory _wrappers
 	@echo "[✔] CRAB core installed in virtual environment."
 	@echo "Launching setup wizard to configure benchmarks..."
 	$(CRAB_BIN) setup
+
+# 4. The wrappers checkout (a separate repository, ignored by this one)
+_wrappers:
+	@if [ ! -d wrappers ]; then \
+	    echo "Cloning the wrappers into wrappers/..."; \
+	    git clone '$(WRAPPERS_URL)' wrappers || { echo "could not clone the wrappers from $(WRAPPERS_URL): run \`crab update\` once you are online" >&2; exit 1; }; \
+	else \
+	    echo "[=] wrappers/ already present"; \
+	fi
 
 setup:
 	$(CRAB_BIN) setup

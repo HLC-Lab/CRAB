@@ -12,7 +12,7 @@ else builds on these.
 | **Entry point (CLI / TUI)** | `src/crab/cli/`, `src/crab/tui/` | Collect configuration, choose a preset, hand off to the engine. |
 | **Engine** | `src/crab/core/engine.py` | The control core. Runs in one of two modes (orchestrator or worker). |
 | **Experiment runner** | `src/crab/core/experiment/runner.py` | Drives a single experiment: load apps, allocate nodes, run, check convergence, save data. |
-| **Workload manager** | `src/crab/core/wl_manager/` | Translate "run this command on these nodes" into `srun` / `mpirun` invocations. |
+| **Launcher** | `src/crab/core/execution/launcher/` | Translate "run this command on these nodes" into `srun` / `mpirun` invocations. |
 | **Wrappers** | `wrappers/` | Per-application adapters: how to launch and how to parse output. |
 | **Setup (recipes + receipts)** | `src/crab/setup/` | Build benchmarks and record where their binaries live. |
 
@@ -32,18 +32,26 @@ flowchart TD
     F -->|"results"| C
 ```
 
+The diagram shows the Slurm path; the local scheduler skips the queue, as step 4 below says.
+
 **Phase 1 — Orchestrator** (`Engine._run_orchestrator`, runs on the login node):
 
 1. Loads the selected **preset** and merges its environment, Slurm directives, and shell header.
 2. Loads all benchmark **receipts** (and injects each as a `CRAB_PATH_<ID>` environment variable).
-3. Creates a timestamped data directory and writes `config.json` + `environment.json` into it.
-4. Generates `crab_job.sh` with the computed `#SBATCH` headers.
-5. Submits it with `sbatch`. The job's payload is `crab worker --workdir <data_dir>`.
+3. Creates a timestamped data directory and writes `config.json`, `environment.json` and
+   `execution.json` (the preset's scheduler, launcher and hosts) into it.
+4. Under the `slurm` scheduler, generates `crab_job.sh` with the computed `#SBATCH` headers and
+   submits it with `sbatch`. Under the `local` scheduler there is no batch script: it starts a
+   detached supervisor process that runs the worker on this machine (see
+   [Running without Slurm](../using/running-without-slurm.md)).
+
+The job's payload is `crab worker --workdir <data_dir>` in both cases.
 
 **Phase 2 — Worker** (`Engine._run_worker`, runs on the allocated compute nodes):
 
 1. Reads `config.json` / `environment.json` back from the data directory.
-2. Injects the framework environment and expands `$SLURM_NODELIST` into a concrete node list.
+2. Injects the framework environment and takes the node list: under Slurm it expands
+   `$SLURM_NODELIST`, under the local scheduler it is the first `numnodes` hosts of the preset.
 3. Runs each experiment in turn through an `ExperimentRunner`.
 
 !!! info "The handoff is the filesystem"
@@ -52,10 +60,13 @@ flowchart TD
     the output location for results, which is why a CRAB run is fully reproducible from its folder.
 
 !!! warning "Slurm is on the critical path"
-    The orchestrator always submits via `sbatch`. The preset's `CRAB_WL_MANAGER` setting
-    (`slurm` vs `mpi`) only chooses how *individual applications* are launched **inside** the
-    worker — `srun` (`wl_manager/slurm.py`) or `mpirun` (`wl_manager/mpi.py`). It does not provide
-    an alternative to Slurm for submitting the job itself.
+    The preset's `scheduler` decides how the job is submitted: `slurm` submits it with `sbatch`
+    (`scheduler/slurm.py`), and `local` runs it as a detached process on this machine
+    (`scheduler/local.py`, for development and testing). The preset's `launcher` decides how
+    *individual applications* are started **inside** the worker: `srun`, `mpirun` or `direct`,
+    where `direct` runs the application command as is (`launcher/srun.py`, `launcher/mpirun.py`,
+    `launcher/direct.py`). The `srun` launcher needs the `slurm` scheduler. On a cluster, Slurm
+    stays on the critical path.
 
 ## The wrapper / recipe / receipt model
 
@@ -65,7 +76,7 @@ collaborate — keep them separate in your mind:
 ```mermaid
 flowchart LR
     R["Recipe<br/>src/crab/setup/recipes/*.py<br/><i>how to build</i>"]
-    -->|"crab setup<br/>downloads &amp; compiles"| T["Receipt<br/>config/environments/&lt;id&gt;.json<br/><i>where the binary is</i>"]
+    -->|"crab setup<br/>downloads &amp; compiles"| T["Receipt<br/>local/receipts/&lt;id&gt;.json<br/><i>where the binary is</i>"]
     T -->|"read at runtime"| W["Wrapper<br/>wrappers/*.py<br/><i>how to launch &amp; parse</i>"]
     W -->|"uniform metrics"| D["data_app_&lt;id&gt;.csv"]
 ```
@@ -93,21 +104,22 @@ by `setup/registry.py` and are used only by the `crab setup` wizard.
 
 ### Receipt
 
-A JSON file at `config/environments/<benchmark_id>.json`, managed by `setup/memory.py`. It is the
+A JSON file at `local/receipts/<benchmark_id>.json`, managed by `setup/memory.py`. It is the
 **output of building a recipe** and the **input the wrapper reads at runtime**, recording:
 
 - `binary_path` — where the built executable lives.
 - `hooks.pre_run` — shell commands to run before launching the application.
-- `launcher_override` — a launcher to use instead of the cluster default.
+- `launcher_override` — the launcher kind, `srun` or `mpirun`, to use instead of the preset's
+  launcher. Empty means use the preset's.
 - `target_arch` — e.g. `gpu`, used for a guardrail check against the requested partition.
 
-The `config/environments/` directory does not exist until `crab setup` creates it.
+The `local/receipts/` folder is created on first use; receipts in the older `config/environments/` folder are still read.
 
 ## Per-experiment lifecycle
 
 Inside the worker, `ExperimentRunner` manages one experiment at a time:
 
-1. **`setup()`** — load the wrappers, select the workload manager, allocate nodes
+1. **`setup()`** — load the wrappers, resolve each app's launcher, allocate nodes
    (`core/allocation/allocator.py`), and build a `DataContainer` per collected metric.
 2. **`execute()`** — repeat the experiment from `minruns` up to `maxruns`. Each run drives an
    event loop that starts/stops applications on schedule, polls their processes, and resolves
@@ -119,7 +131,8 @@ Inside the worker, `ExperimentRunner` manages one experiment at a time:
 
 A single application launch (`core/process/manager.py::run_job`) writes a per-app bash script
 under `<run_dir>/.wrappers/`, sources the cluster's module system, runs any `pre_run` hooks, and
-then executes the workload-manager-built launch command, draining stdout on a background thread.
+then executes the launch command built by the experiment's launcher (`srun`, `mpirun` or
+`direct`), draining stdout on a background thread.
 
 ### Node allocation strategies
 
@@ -130,6 +143,8 @@ field in `global_options` (or per-experiment `local_options`):
 - **`"interleaved"`** — nodes dealt round-robin; an optional `stride` controls how many
   consecutive nodes are assigned per turn.
 - **`"random"`** — node list shuffled (with optional `seed`) before splitting linearly.
+- **`"shared"`**: every application gets all the nodes and they run together on the same hosts;
+  see [Shared nodes](../reference/configuration.md#shared-nodes).
 - **Partitioned** — add a `partitions` dict to split nodes into named groups (e.g. `"victim"` /
   `"aggressor"`), each with a `share` percentage; each app declares which group it belongs to via
   its `partition` field. Independent mode and split can be applied within each partition.
@@ -138,9 +153,11 @@ field in `global_options` (or per-experiment `local_options`):
 
 Results are written under `data/<CRAB_SYSTEM>/<name>_<timestamp>/`:
 
-- Run-level provenance: `config.json`, `environment.json`, `crab_job.sh`, `slurm_output.log`,
-  `slurm_error.log`.
-- Per experiment: `<experiment>/data_app_<id>.csv` (or `.h5`), `error_app_<id>.log`, and per-run
+- Run-level provenance: `config.json`, `environment.json`, `execution.json`, `crab_run.json`,
+  `slurm_output.log` and `slurm_error.log` (both schedulers write these two names), and under
+  Slurm `crab_job.sh`.
+- Per experiment: `<experiment>/data_app_<id>.csv` (or `.h5`), `error_app_<id>.log`,
+  `bindings_app_<id>.log` for applications started with `mpirun` or `srun`, and per-run
   `run_<n>/.wrappers/` launch scripts.
 - A system-level `metadata.csv` registry, appended atomically with file locking so concurrent
   CRAB jobs on a shared filesystem don't corrupt it.

@@ -57,9 +57,12 @@ mkdocs serve        # → http://127.0.0.1:8000
 
 ## 🚀 Quick start
 
-**Prerequisites:** Python 3.10+, Git, and access to a **Slurm** cluster — CRAB submits every run
-with `sbatch`, so Slurm must be available (even the `local` preset, which only changes the
-per-application launcher to `mpirun`).
+**Prerequisites:** Python 3.10+, Git, and access to a **Slurm** cluster to run experiments.
+CRAB submits runs with `sbatch`. The `local` preset is the exception: it runs a single-node job
+on your own machine without Slurm, which is enough to try CRAB out.
+
+**Using CRAB with SbatchMan?** Install the `sbatchman` branch instead and follow its guide,
+[Using CRAB with SbatchMan](https://github.com/HLC-Lab/CRAB/blob/sbatchman/docs/using/sbatchman-integration.md).
 
 > 💡 Prefer a guided walkthrough? The **[end-to-end tutorial](https://hlc-crab.readthedocs.io/en/latest/tutorial/)**
 > runs a complete victim-vs-aggressor experiment step by step. The essentials:
@@ -67,11 +70,16 @@ per-application launcher to `mpirun`).
 ```bash
 git clone https://github.com/HLC-Lab/CRAB
 cd CRAB
-make                        # creates .venv, installs CRAB (editable), runs the setup wizard
+make                        # creates .venv, installs CRAB (editable), fetches the wrappers, runs the setup wizard
 source .venv/bin/activate   # activate before using `crab`
 ```
 
-Build or locate the benchmarks you want to run:
+`make` already ran `crab setup` once. Before `crab run` on a Slurm cluster, create
+`local/presets.json` (run `mkdir -p local` first) with your cluster's account: see
+[Configuring your cluster](https://hlc-crab.readthedocs.io/en/latest/using/presets/#keep-your-presets-out-of-git).
+The shipped presets carry the placeholder `YOUR_PROJECT_ACCOUNT`.
+
+To add or reconfigure benchmarks later, run the setup wizard again:
 
 ```bash
 crab setup
@@ -91,8 +99,20 @@ HTML dashboard:
 crab export data/<system>/<name>_<timestamp>/ -o results.html
 ```
 
+For the web dashboard, install the `web` extra and start it on your laptop:
+
+```bash
+pip install -e ".[web]"
+crab web
+```
+
+Keep an install current with `crab update`. It refuses to overwrite local edits to tracked files,
+so keep per-machine changes in the git-ignored `local/` folder (for example
+`local/presets.json` for your project accounts).
+
 See the [documentation](docs/using/installation.md) for configuring presets, writing experiment
-configs, and adding your own benchmarks.
+configs, and adding your own benchmarks (`crab wrappers new` scaffolds a wrapper with a sample
+test).
 
 ## 📜 License
 

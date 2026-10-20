@@ -1,0 +1,233 @@
+<script setup lang="ts">
+// Editor for the tunable option fields (convergence / output / advanced). Mutates
+// the passed OptionsDraft in place. Reused for global_options and, later, for an
+// experiment's local_options overrides. Blank/("default") fields are not emitted.
+import { computed } from "vue";
+import { LAUNCHER_KINDS, type OptionsDraft, type TriBool } from "@/lib/config";
+
+type Group = "convergence" | "output" | "advanced";
+const props = defineProps<{
+  options: OptionsDraft;
+  // Label for the "unset" choice on tri-state selects: "default" globally,
+  // "inherit" when overriding per-experiment.
+  unsetLabel?: string;
+  // Which field groups to render. Omit for all three (used by the overrides card);
+  // the rail panes pass a subset so "Convergence" and "Output & advanced" are separate.
+  groups?: Group[];
+}>();
+const o = computed(() => props.options);
+const unset = computed(() => props.unsetLabel ?? "default");
+const show = (g: Group) => !props.groups || props.groups.includes(g);
+// On the global pane, "unset" and "the engine's real default" are the same
+// runtime outcome, so the blank option's label states the default directly
+// (no separate value would ever need to distinguish itself from it, so the
+// explicit option matching the default is hidden entirely - see the template
+// below). On a per-experiment override (unsetLabel="inherit"), "inherit" is a
+// genuinely distinct third state, so all three options stay.
+const isGlobal = computed(() => unset.value === "default");
+// A single-group pane is titled by its <h2>, so drop the redundant section <h4>.
+const single = computed(() => props.groups?.length === 1);
+
+// Display-only normalization: on the global pane the explicit value matching
+// the field's real default has no corresponding <option> (it was removed so
+// the pane shows exactly 2 options), so without this the select would render
+// as blank for a config that saved that value explicitly. The getter never
+// writes to the draft; only the setter does, when the user actually picks
+// something, so an explicit false/csv/true keeps round-tripping unchanged.
+const convergeallDisplay = computed({
+  get: () => (isGlobal.value && o.value.convergeall === "false" ? "" : o.value.convergeall),
+  set: (v: TriBool) => {
+    o.value.convergeall = v;
+  },
+});
+const outformatDisplay = computed({
+  get: () => (isGlobal.value && o.value.outformat === "csv" ? "" : o.value.outformat),
+  set: (v: OptionsDraft["outformat"]) => {
+    o.value.outformat = v;
+  },
+});
+const retainFilesDisplay = computed({
+  get: () => (isGlobal.value && o.value.retainFiles === "true" ? "" : o.value.retainFiles),
+  set: (v: TriBool) => {
+    o.value.retainFiles = v;
+  },
+});
+
+// Launcher: a value the select has no option for (a typo or a {placeholder}) is shown as an
+// extra option so the draft value stays visible instead of looking unset.
+const launcherIsOther = computed(
+  () => o.value.launcher !== "" && !LAUNCHER_KINDS.includes(o.value.launcher),
+);
+// Flags the text field cannot hold are kept as loaded until the user touches either control.
+const flagsKept = computed(() => o.value.launcherFlagsRaw !== undefined);
+const replaceFlags = computed({
+  get: () => o.value.replaceLauncherFlags,
+  set: (v: boolean) => {
+    o.value.replaceLauncherFlags = v;
+    o.value.launcherFlagsRaw = undefined;
+  },
+});
+const flagsText = computed({
+  get: () => (flagsKept.value ? "" : o.value.launcherFlags),
+  set: (v: string) => {
+    o.value.launcherFlags = v;
+    o.value.launcherFlagsRaw = undefined;
+  },
+});
+</script>
+
+<template>
+  <div class="opts">
+    <section v-if="show('convergence')">
+      <h4 v-if="!single">Convergence</h4>
+      <div class="grid">
+        <label>Min runs <input v-model="o.minruns" placeholder="10" /></label>
+        <label>Max runs <input v-model="o.maxruns" placeholder="20" /></label>
+        <label>Timeout (s) <input v-model="o.timeout" placeholder="1200" /></label>
+        <label
+          >Converge all
+          <select v-model="convergeallDisplay">
+            <option value="">{{ isGlobal ? "no, only flagged metrics" : "(inherit)" }}</option>
+            <option value="true">yes, every metric</option>
+            <option v-if="!isGlobal" value="false">no, only flagged metrics</option>
+          </select>
+        </label>
+        <label
+          >Alpha <input v-model="o.alpha" placeholder="0.05" />
+          <small>Confidence-interval significance level.</small>
+        </label>
+        <label
+          >Beta <input v-model="o.beta" placeholder="0.05" />
+          <small>CI width must fall below beta times the mean.</small>
+        </label>
+      </div>
+    </section>
+
+    <section v-if="show('output')">
+      <h4 v-if="!single">Output</h4>
+      <div class="grid">
+        <label
+          >Format
+          <select v-model="outformatDisplay">
+            <option value="">{{ isGlobal ? "csv" : "(inherit)" }}</option>
+            <option v-if="!isGlobal" value="csv">csv</option>
+          </select>
+        </label>
+        <label
+          >Retain files
+          <select v-model="retainFilesDisplay">
+            <option value="">{{ isGlobal ? "yes" : "(inherit)" }}</option>
+            <option value="false">no, delete scratch files</option>
+            <option v-if="!isGlobal" value="true">yes</option>
+          </select>
+        </label>
+        <label class="wide">Tags <input v-model="o.tags" placeholder="none" /></label>
+      </div>
+    </section>
+
+    <section v-if="show('advanced')">
+      <h4 v-if="!single">Advanced</h4>
+      <div class="grid">
+        <label>Extra info <input v-model="o.extrainfo" placeholder="job" /></label>
+        <label>Walltime <input v-model="o.walltime" placeholder="00:10:00" /></label>
+        <label class="wide"
+          >Data path <input v-model="o.datapath" placeholder="<CRAB_ROOT>/data"
+        /></label>
+        <label
+          >Launcher
+          <select v-model="o.launcher">
+            <option value="">{{ isGlobal ? "(preset default)" : "(inherit)" }}</option>
+            <option v-for="k in LAUNCHER_KINDS" :key="k" :value="k">{{ k }}</option>
+            <option v-if="launcherIsOther" :value="o.launcher">{{ o.launcher }}</option>
+          </select>
+        </label>
+        <div class="wide flags">
+          <label class="check">
+            <input v-model="replaceFlags" type="checkbox" />
+            Replace the preset's flags
+          </label>
+          <input
+            v-model="flagsText"
+            :disabled="!replaceFlags"
+            :placeholder="flagsKept ? '(kept as loaded)' : 'none'"
+            aria-label="Launcher flags"
+          />
+          <small>Replaces the preset's flags for this launcher; leave empty for none.</small>
+        </div>
+      </div>
+    </section>
+  </div>
+</template>
+
+<style scoped>
+.opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+h4 {
+  font-family: var(--sans);
+  font-size: var(--t-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text3);
+  margin-bottom: 0.4rem;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--text2);
+  font-size: var(--t-sm);
+}
+label.wide,
+.wide {
+  grid-column: 1 / -1;
+}
+.flags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+small {
+  color: var(--text3);
+  font-size: var(--t-xs);
+  line-height: 1.3;
+}
+input,
+select {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--mono);
+  font-size: var(--t-md);
+}
+input[type="checkbox"] {
+  padding: 0;
+  accent-color: var(--accent);
+}
+input:disabled {
+  opacity: 0.55;
+}
+input::placeholder {
+  color: var(--text3);
+  opacity: 0.75;
+}
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+</style>

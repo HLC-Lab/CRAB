@@ -26,20 +26,20 @@ _DIM = "\033[2m"
 _BOLD = "\033[1m"
 
 _LEVEL_COLORS = {
-    10: "\033[36m",       # cyan for DEBUG
-    20: "\033[32m",       # green for INFO
-    30: "\033[33m",       # yellow for WARN
-    40: "\033[31m",       # red for ERROR
-    50: "\033[1;31m",     # bold red for FATAL
+    10: "\033[36m",  # cyan for DEBUG
+    20: "\033[32m",  # green for INFO
+    30: "\033[33m",  # yellow for WARN
+    40: "\033[31m",  # red for ERROR
+    50: "\033[1;31m",  # bold red for FATAL
 }
 
 _SOURCE_COLORS = {
-    "CRAB": "\033[34m",   # blue
-    "APP": "\033[35m",    # magenta
+    "CRAB": "\033[34m",  # blue
+    "APP": "\033[35m",  # magenta
 }
 
 # Tree-drawing characters
-_TREE_PIPE = "\033[2m\u2502\033[0m"   # dimmed |
+_TREE_PIPE = "\033[2m\u2502\033[0m"  # dimmed |
 _TREE_TEE = "\033[2m\u251c\u2500\033[0m"  # dimmed |-
 _TREE_INDENT = "   "
 
@@ -106,4 +106,6 @@ class PlainFormatter:
         else:
             context_str = ""
 
-        return f"[{record.timestamp}] [{level_label}] [{source_label}]{context_str} {record.message}"
+        return (
+            f"[{record.timestamp}] [{level_label}] [{source_label}]{context_str} {record.message}"
+        )

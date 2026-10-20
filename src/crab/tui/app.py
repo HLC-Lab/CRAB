@@ -1,18 +1,19 @@
-from textual.app import App, ComposeResult
-from textual.containers import Container, Vertical
-from textual.widgets import Button, Header, Footer, RichLog
-from textual import on, work
-from textual_fspicker import FileSave, FileOpen
 import json
 import os
 
-from .messages import SaveConfiguration, LoadConfiguration, RunBenchmark
-from .widgets.tab_selector import TabSelector
-from .widgets.experiments_panel import ExperimentsPanel
-from .widgets.benchmark_options import BenchmarkOptions
-from .widgets.environment_settings import EnvironmentSettings
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.containers import Container, Vertical
+from textual.widgets import Button, Footer, Header, RichLog
+from textual_fspicker import FileOpen, FileSave
 
 from .controller import TUIController
+from .messages import LoadConfiguration, RunBenchmark, SaveConfiguration
+from .widgets.benchmark_options import BenchmarkOptions
+from .widgets.environment_settings import EnvironmentSettings
+from .widgets.experiments_panel import ExperimentsPanel
+from .widgets.tab_selector import TabSelector
+
 
 class BenchmarkApp(App):
     CSS_PATH = "assets/tui.tcss"
@@ -30,7 +31,7 @@ class BenchmarkApp(App):
         self.env_container = EnvironmentSettings()
         self.log_container = Vertical(
             RichLog(id="runner-log", highlight=True, classes="runner-log-tall"),
-            id="log-view-container"
+            id="log-view-container",
         )
 
     def log_to_tui(self, message: str):
@@ -61,10 +62,10 @@ class BenchmarkApp(App):
 
     def show_tab(self, index: int):
         self.current_tab = index
-        self.experiments_container.display = (index == 0)
-        self.benchmark_container.display = (index == 1)
-        self.env_container.display = (index == 2)
-        self.log_container.display = (index == 3)
+        self.experiments_container.display = index == 0
+        self.benchmark_container.display = index == 1
+        self.env_container.display = index == 2
+        self.log_container.display = index == 3
         self._update_tab_buttons()
 
     def _update_tab_buttons(self):
@@ -120,7 +121,7 @@ class BenchmarkApp(App):
                 self.notify("Load cancelled.", severity="warning")
                 return
 
-            with open(str(file_path), "r") as f:
+            with open(str(file_path)) as f:
                 data = json.load(f)
 
             if "global_options" not in data:

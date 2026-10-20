@@ -1,7 +1,9 @@
+import asyncio
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Button
-import asyncio
+
 
 class BenchmarkTabSelector(Horizontal):
     def __init__(self, benchmark_count: int = 1):
@@ -16,9 +18,11 @@ class BenchmarkTabSelector(Horizontal):
 
     def add_benchmark(self):
         self.benchmark_count += 1
-        new_button = Button(f"Application {self.benchmark_count}",
-                          id=f"benchmark-{self.benchmark_count - 1}",
-                          classes="benchmark-tab")
+        new_button = Button(
+            f"Application {self.benchmark_count}",
+            id=f"benchmark-{self.benchmark_count - 1}",
+            classes="benchmark-tab",
+        )
         self.mount(new_button, before="#add-benchmark")
 
     def update_benchmark_tabs(self, current: int):

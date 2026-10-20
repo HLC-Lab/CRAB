@@ -1,35 +1,200 @@
 import argparse
+import importlib
+import importlib.util
+import os
+import subprocess
+import sys
+
 import argcomplete
 from argcomplete.completers import FilesCompleter
-import os
-import json
-import sys
-import subprocess
+
 
 def _preset_completer(prefix, parsed_args, **kwargs):
     """Dynamically parses presets.json for tab-autocompletion."""
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    presets_filename = os.path.join(base_dir, "config", "presets.json")
+    from pathlib import Path
+
+    from crab.cli.presets import load_all_presets
+
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     try:
-        with open(presets_filename, 'r') as f:
-            all_presets = json.load(f)
+        all_presets = load_all_presets(Path(base_dir))
         valid_presets = [k for k in all_presets.keys() if k not in ["_common", "example_preset"]]
         return [p for p in valid_presets if p.startswith(prefix)]
     except Exception:
         return []
 
+
 def handle_run(args):
     from crab.cli.orchestrator import execute_orchestrator
-    execute_orchestrator(args.app_config_file, args.preset, args.log_level)
+
+    only = args.only.split(",") if getattr(args, "only", None) else None
+    execute_orchestrator(
+        args.app_config_file,
+        args.preset,
+        args.log_level,
+        as_json=getattr(args, "json", False),
+        only=only,
+    )
+
+
+# --- Machine-readable introspection seam (consumed by the web dashboard) ---
+
+
+def handle_info(args):
+    from crab.cli import contract
+
+    data = contract.gather_info()
+
+    def human(d):
+        print(f"CRAB {d['crab_version']}  (contract schema v{d['schema']})")
+        print(f"root: {d['crab_root']}")
+        print("presets:")
+        for p in d["presets"]:
+            print(f"  {p['name']:<14} {p['description']}")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_list_benchmarks(args):
+    from crab.cli import contract
+
+    data = contract.gather_benchmarks()
+
+    def human(d):
+        print(f"Installed benchmarks ({len(d['benchmarks'])}):")
+        for b in d["benchmarks"]:
+            arch = f" [{b['target_arch']}]" if b.get("target_arch") else ""
+            print(f"  {b['id']}{arch}  ({b.get('type')})")
+        print(f"\nWrappers ({len(d['wrappers'])}):")
+        for w in d["wrappers"]:
+            tag = "" if w["loadable"] else "  (unloadable)"
+            print(f"  {w['relpath']}{tag}")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_nodes(args):
+    from crab.cli import contract
+
+    data = contract.gather_nodes(preset=args.preset)
+
+    def human(d):
+        if "error" in d:
+            return
+        if d.get("scheduler") == "local":
+            print("hosts:")
+            for h in d["hosts"]:
+                cores = "?" if h["cores"] is None else h["cores"]
+                print(f"  {h['name']:<18} cores={cores}")
+            return
+        if not d["available"]:
+            print(f"sinfo unavailable: {d.get('note', 'n/a')}")
+            return
+        print("partitions:")
+        for p in d["partitions"]:
+            print(f"  {p['name']:<18} avail={p.get('avail', '?')} nodes={p.get('nodes', '?')}")
+        print(f"node tokens: {len(d['nodes'])}")
+
+    contract.emit(data, args.json, human)
+    if "error" in data:
+        print(f"crab: {data['error']}", file=sys.stderr)
+        sys.exit(1)
+
+
+def handle_status(args):
+    from crab.cli import contract
+
+    data = contract.gather_status(args.job_ids)
+
+    def human(d):
+        for j in d["jobs"]:
+            print(f"  {j['job_id']:<12} {j['state']:<12} ({j.get('source', '')})")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_history(args):
+    from crab.cli import contract
+
+    data = contract.gather_history(system=args.system)
+
+    def human(d):
+        print(f"{len(d['experiments'])} experiment(s):")
+        for e in d["experiments"]:
+            print(
+                f"  [{e['status']:<9}] {e['system']}/{e['job_name']}/{e['experiment_name']}  "
+                f"{e['timestamp']}  apps={e['apps_list']}"
+            )
+
+    contract.emit(data, args.json, human)
+
+
+def handle_cancel(args):
+    from crab.cli import contract
+
+    data = contract.gather_cancel(args.job_id)
+
+    def human(d):
+        if d["cancelled"]:
+            print(f"Cancelled job {d['job_id']}.")
+        else:
+            print(f"Could not cancel job {d['job_id']}: {d['detail']}")
+
+    contract.emit(data, args.json, human)
+
+
+def handle_logs(args):
+    from crab.cli import contract
+
+    if args.experiment:
+        data = contract.gather_experiment_logs(args.data_dir, args.experiment)
+
+        def human(d):
+            if not d["files"]:
+                print("No per-app error logs (nothing failed in this experiment).")
+            for f in d["files"]:
+                note = " (truncated to last bytes)" if f["truncated"] else ""
+                print(f"[app {f['app_id']}] {f['path']}{note}:")
+                print(f["content"])
+
+    else:
+        data = contract.gather_logs(args.data_dir)
+
+        def human(d):
+            for stream in ("stdout", "stderr"):
+                s = d[stream]
+                if not s["exists"]:
+                    print(f"[{stream}] {s['path']}: not written yet")
+                    continue
+                note = " (truncated to last bytes)" if s["truncated"] else ""
+                print(f"[{stream}] {s['path']}{note}:")
+                print(s["content"])
+
+    contract.emit(data, args.json, human)
+
 
 def handle_setup(args):
     from crab.setup.wizard import run as run_wizard
+
     run_wizard()
+
+
+def _local_install_args(extra: str, root=None) -> list[str] | None:
+    """pip command installing this checkout with an optional extra, or None if there is none.
+
+    Never `pip install crab[...]`: `crab` on PyPI is an unrelated package.
+    """
+    if root is None:
+        # cli -> crab -> src -> checkout root
+        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    if not os.path.isfile(os.path.join(root, "pyproject.toml")):
+        return None
+    return [sys.executable, "-m", "pip", "install", "-e", f"{root}[{extra}]"]
 
 
 def handle_tui(args):
     """
-    Handles the TUI launch with lazy loading and auto-installation 
+    Handles the TUI launch with lazy loading and auto-installation
     of optional dependencies.
     """
     try:
@@ -38,28 +203,30 @@ def handle_tui(args):
     except ImportError:
         # Analyst Protocol: Diagnose missing optional dependencies
         print("[!] TUI dependencies (textual) are not installed.")
-        
+
         # Interactive prompt using standard input
         try:
-            confirm = input("Would you like to install the 'tui' optional dependencies now? (y/N): ").lower()
+            confirm = input(
+                "Would you like to install the 'tui' optional dependencies now? (y/N): "
+            ).lower()
         except EOFError:
             return
 
-        if confirm == 'y':
+        if confirm == "y":
             print(f"[*] Installing 'textual' and 'textual-fspicker' into {sys.prefix}...")
             try:
-                # We use sys.executable to ensure we install into the active .venv
-                # We call 'pip install' on the local package with the [tui] extra
-                subprocess.check_call([
-                    sys.executable, "-m", "pip", "install", "crab[tui]"
-                ])
+                # sys.executable installs into the active .venv, from this checkout
+                install_args = _local_install_args("tui")
+                if install_args is None:
+                    raise RuntimeError("no CRAB checkout found to install from")
+                subprocess.check_call(install_args)
                 print("[+] Installation successful. Launching TUI...")
-                
+
                 # Re-attempt the import now that the environment is populated
                 from crab.tui.app import BenchmarkApp
             except Exception as e:
                 print(f"[ERROR] Auto-installation failed: {e}")
-                print("Please run 'pip install -e .[tui]' manually to fix this.")
+                print("Please run 'pip install -e .[tui]' from your CRAB checkout to fix this.")
                 return
         else:
             print("Aborting. The TUI requires optional dependencies to run.")
@@ -69,18 +236,78 @@ def handle_tui(args):
     app = BenchmarkApp()
     app.run()
 
+
+_WEB_EXTRA_PACKAGES = ("fastapi", "uvicorn", "asyncssh")
+
+
+def _missing_web_packages() -> list[str]:
+    """Web-extra packages the dashboard needs at startup that are not importable."""
+    return [name for name in _WEB_EXTRA_PACKAGES if importlib.util.find_spec(name) is None]
+
+
+def handle_web(args):
+    """
+    Launch the web dashboard with lazy loading and auto-installation
+    of optional dependencies (mirrors the TUI launcher).
+    """
+    try:
+        if _missing_web_packages():
+            # crab.web.run imports uvicorn lazily, so importing it alone would not notice.
+            raise ImportError("web extra not installed")
+        # Delayed import to avoid the 'import tax' on every CLI invocation.
+        from crab.web.run import run_server
+    except ImportError:
+        print("[!] Web dashboard dependencies (fastapi, uvicorn, asyncssh) are not installed.")
+        try:
+            confirm = input(
+                "Would you like to install the 'web' optional dependencies now? (y/N): "
+            ).lower()
+        except EOFError:
+            return
+
+        if confirm == "y":
+            print(f"[*] Installing web dependencies into {sys.prefix}...")
+            try:
+                install_args = _local_install_args("web")
+                if install_args is None:
+                    raise RuntimeError("no CRAB checkout found to install from")
+                subprocess.check_call(install_args)
+                print("[+] Installation successful. Launching dashboard...")
+                importlib.invalidate_caches()
+                from crab.web.run import run_server
+            except Exception as e:
+                print(f"[ERROR] Auto-installation failed: {e}")
+                print("Please run 'pip install -e .[web]' from your CRAB checkout to fix this.")
+                return
+        else:
+            print("Aborting. The web dashboard requires optional dependencies to run.")
+            return
+
+    run_server(
+        host=args.host, port=args.port, open_browser=not args.no_browser, verbose=args.verbose
+    )
+
+
 def handle_worker(args):
     from crab.cli.orchestrator import execute_worker
+
     execute_worker(args.workdir, args.log_level)
+
 
 def handle_export(args):
     from crab.cli.export import handle_export as _handle_export
+
     _handle_export(args)
+
 
 def cli_router():
     parser = argparse.ArgumentParser(prog="crab", description="CRAB Benchmarking Framework")
     # 'metavar' is used to hide the "worker" entry
-    subparsers = parser.add_subparsers(title="commands", dest="command", metavar="{setup,run,tui,export}")
+    subparsers = parser.add_subparsers(
+        title="commands",
+        dest="command",
+        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update}",
+    )
     subparsers.required = True
 
     # 1. Setup Command
@@ -89,22 +316,118 @@ def cli_router():
 
     # 2. Run Command
     parser_run = subparsers.add_parser("run", help="Run a benchmark experiment")
-    parser_run.add_argument("app_config_file", help="Path to the JSON benchmark config.").completer = FilesCompleter(allowednames=('.json',))
-    parser_run.add_argument("-p", "--preset", help="Name of the preset to use.").completer = _preset_completer
+    parser_run.add_argument(
+        "app_config_file", help="Path to the JSON benchmark config."
+    ).completer = FilesCompleter(allowednames=(".json",))
+    parser_run.add_argument(
+        "-p", "--preset", help="Name of the preset to use."
+    ).completer = _preset_completer
     parser_run.add_argument("--log-level", dest="log_level", default=None, help="Log verbosity.")
+    parser_run.add_argument(
+        "--json", action="store_true", help="Print the submit result as JSON (logs go to stderr)."
+    )
+    parser_run.add_argument(
+        "--only",
+        default=None,
+        help="Comma-separated experiment key(s) to run, skipping the rest of the config.",
+    )
     parser_run.set_defaults(func=handle_run)
 
     # 3. TUI Command
     parser_tui = subparsers.add_parser("tui", help="Launch the Terminal User Interface")
     parser_tui.set_defaults(func=handle_tui)
 
-    # 4. Export Command
-    parser_export = subparsers.add_parser("export", help="Export results as a self-contained HTML dashboard")
-    parser_export.add_argument("data_dir", help="Path to the directory containing experiment results.").completer = FilesCompleter()
-    parser_export.add_argument("-o", "--output", default=None, help="Output HTML file (default: crab_export.html)")
+    # 4. Web Command
+    parser_web = subparsers.add_parser("web", help="Launch the local web dashboard")
+    parser_web.add_argument("--host", default=None, help="Bind host (default: 127.0.0.1).")
+    parser_web.add_argument("--port", type=int, default=None, help="Bind port (default: 8765).")
+    parser_web.add_argument(
+        "--no-browser", action="store_true", help="Do not open a browser on start."
+    )
+    parser_web.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose logging (startup + per-request access logs).",
+    )
+    parser_web.set_defaults(func=handle_web)
+
+    # 5. Introspection commands (machine-readable seam for the web dashboard)
+    def _add_json_flag(p):
+        p.add_argument(
+            "--json", action="store_true", help="Emit machine-readable JSON instead of text."
+        )
+        return p
+
+    parser_info = subparsers.add_parser("info", help="Show version, root, and available presets")
+    _add_json_flag(parser_info).set_defaults(func=handle_info)
+
+    parser_lb = subparsers.add_parser(
+        "list-benchmarks", help="List installed benchmarks and discovered wrappers"
+    )
+    _add_json_flag(parser_lb).set_defaults(func=handle_list_benchmarks)
+
+    parser_nodes = subparsers.add_parser(
+        "nodes", help="Show Slurm partitions and nodes (via sinfo), or a local preset's hosts"
+    )
+    parser_nodes.add_argument(
+        "-p", "--preset", default=None, help="Show this preset's nodes (local: its hosts)."
+    ).completer = _preset_completer
+    _add_json_flag(parser_nodes).set_defaults(func=handle_nodes)
+
+    parser_status = subparsers.add_parser(
+        "status", help="Show the state of local-<n> and Slurm job ids"
+    )
+    parser_status.add_argument(
+        "job_ids", nargs="*", help="Job ids to query: local-<n> (local) or digits (Slurm)."
+    )
+    _add_json_flag(parser_status).set_defaults(func=handle_status)
+
+    parser_history = subparsers.add_parser(
+        "history", help="List past experiments from metadata.csv"
+    )
+    parser_history.add_argument("-s", "--system", default=None, help="Limit to one system.")
+    _add_json_flag(parser_history).set_defaults(func=handle_history)
+
+    parser_cancel = subparsers.add_parser("cancel", help="Cancel a local-<n> or Slurm job")
+    parser_cancel.add_argument(
+        "job_id", help="Job id to cancel: local-<n> (local) or digits (Slurm)."
+    )
+    _add_json_flag(parser_cancel).set_defaults(func=handle_cancel)
+
+    parser_logs = subparsers.add_parser(
+        "logs", help="Read a job's captured stdout/stderr from its data directory"
+    )
+    parser_logs.add_argument("--data-dir", required=True, help="Job's data directory.")
+    parser_logs.add_argument(
+        "--experiment",
+        default=None,
+        help="Read this experiment's per-app error logs instead of the job's slurm logs.",
+    )
+    _add_json_flag(parser_logs).set_defaults(func=handle_logs)
+
+    # 6. Export Command
+    parser_export = subparsers.add_parser(
+        "export", help="Export results as a self-contained HTML dashboard"
+    )
+    parser_export.add_argument(
+        "data_dir", help="Path to the directory containing experiment results."
+    ).completer = FilesCompleter()
+    parser_export.add_argument(
+        "-o", "--output", default=None, help="Output HTML file (default: crab_export.html)"
+    )
     parser_export.set_defaults(func=handle_export)
 
-    # 5. Worker Command (Hidden)
+    # 7. Wrapper tooling: crab parse, crab wrappers, crab receipts
+    from crab.cli import wrappers_cmd
+
+    wrappers_cmd.register(subparsers)
+
+    from crab.cli import update
+
+    update.register(subparsers)
+
+    # 8. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)

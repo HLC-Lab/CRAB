@@ -18,9 +18,9 @@ Log level is controlled by the CRAB_LOG_LEVEL environment variable
 
 import os
 
-from .logger import CrabLogger, LogLevel, LogSource, LogRecord
-from .formatters import RichFormatter, PlainFormatter
+from .formatters import PlainFormatter, RichFormatter
 from .handlers import StreamHandler, TUIHandler
+from .logger import CrabLogger, LogLevel, LogRecord, LogSource
 
 __all__ = [
     "get_logger",

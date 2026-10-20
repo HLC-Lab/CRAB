@@ -1,19 +1,21 @@
+from __future__ import annotations
+
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from collections import deque
-from typing import Dict, Any, List, Optional
-
-from rich.console import Console, Group
-from rich.prompt import Prompt, Confirm
-from rich.panel import Panel
-from rich.text import Text
-from rich.live import Live
 
 import questionary
 from questionary import Choice
+from rich.console import Console, Group
+from rich.live import Live
+from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
+from rich.text import Text
 
+import crab.core.process.manager as manager
 import crab.setup.memory as memory
 from crab.setup.registry import discover_recipes
 
@@ -33,37 +35,75 @@ def print_header(total_recipes: int | None = None, title: str = "Welcome to the 
         console.print(f"Found [bold]{total_recipes}[/bold] supported benchmarks.\n")
 
 
-def capture_module_environment(module_cmd: str) -> Dict[str, str]:
-    """Evaluates module loads in an isolated shell to return precise path mutations."""
-    base_env = os.environ.copy()
+class ModuleCaptureError(Exception):
+    """The pre-build module line could not be applied in a non-interactive bash."""
+
+
+def _module_init_script() -> str | None:
+    """First existing module-system init script, or None (`module` may be an exported function)."""
+    # Same candidates the job launcher script tries (one list in the manager, read at call
+    # time); `$LMOD_PKG/init/bash` is appended here.
+    candidates = list(manager.MODULE_INIT_SCRIPTS)
+    lmod_pkg = os.environ.get("LMOD_PKG")
+    if lmod_pkg:
+        candidates.append(os.path.join(lmod_pkg, "init", "bash"))
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def capture_module_environment(module_cmd: str) -> dict[str, str]:
+    """Evaluate a module line in a non-interactive bash and return the resulting environment.
+
+    Args:
+        module_cmd: e.g. "module load gcc openmpi"; empty means "no modules".
+
+    Raises:
+        ModuleCaptureError: the line exited non-zero (or bash could not run); the message
+            holds the command and the shell's stderr.
+    """
     if not module_cmd:
-        return base_env
+        return os.environ.copy()
+    init_script = _module_init_script()
+    init_snippet = f". {shlex.quote(init_script)} && " if init_script else ""
+    # `env -0` (NUL separated) keeps values that contain newlines intact.
+    full_cmd = f"{init_snippet}{module_cmd} && env -0"
     try:
-        init_snippet = ". /etc/profile.d/modules.sh" if os.path.exists("/etc/profile.d/modules.sh") else "true"
-        full_cmd = f"{init_snippet} && {module_cmd} && env"
-        result = subprocess.run(["bash", "-c", full_cmd], capture_output=True, text=True, check=True)
-        parsed_env = {}
-        for line in result.stdout.splitlines():
-            if "=" in line:
-                k, v = line.split("=", 1)
-                parsed_env[k] = v
-        return parsed_env
-    except Exception as e:
-        console.print(f"[yellow]Warning: Environment module pre-evaluation limited: {e}[/yellow]")
-        return base_env
+        result = subprocess.run(["bash", "-c", full_cmd], capture_output=True, text=True)
+    except OSError as e:
+        raise ModuleCaptureError(f"{module_cmd!r} failed: {e}") from e
+    if result.returncode != 0:
+        detail = result.stderr.strip() or f"exit code {result.returncode}"
+        raise ModuleCaptureError(f"{module_cmd!r} failed: {detail}")
+    parsed_env = {}
+    for entry in result.stdout.split("\0"):
+        if "=" in entry:
+            k, v = entry.split("=", 1)
+            parsed_env[k] = v
+    return parsed_env
 
 
-def run_deep_search(binary_name: str) -> Optional[str]:
-    console.print(f"[dim]Running deep search for '{binary_name}' in ~/... This might take a minute.[/dim]")
+def run_deep_search(recipe) -> str | None:
+    """Search ~ for the recipe's executable; return the directory holding it, or None.
+
+    A 'binary' receipt stores that directory (the wrappers join the executable onto it), so
+    a hit only counts when the recipe accepts the directory.
+    """
+    binary_name = recipe.module_executable or recipe.benchmark_id.lower()
+    console.print(
+        f"[dim]Running deep search for '{binary_name}' in ~/... This might take a minute.[/dim]"
+    )
     try:
         home_dir = os.path.expanduser("~")
         result = subprocess.run(
             ["find", home_dir, "-name", binary_name, "-type", "f", "-executable"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
-        paths = [p for p in result.stdout.strip().split("\n") if p]
-        if paths:
-            return paths[0]
+        for path in result.stdout.strip().split("\n"):
+            if path and recipe.verify_existing(os.path.dirname(path)):
+                return os.path.dirname(path)
     except Exception as e:
         console.print(f"[red]Deep search failed: {e}[/red]")
     return None
@@ -76,13 +116,54 @@ def handle_cleanup(benchmark_id: str):
         if old_path.startswith(BENCHMARKS_DIR):
             target_cleanup = os.path.join(BENCHMARKS_DIR, benchmark_id)
             if os.path.exists(target_cleanup):
-                if Confirm.ask(f"[yellow]Found old build path at {target_cleanup}. Clear layout directory?[/yellow]", default=True):
+                if Confirm.ask(
+                    f"[yellow]Found old build path at {target_cleanup}. Clear layout directory?[/yellow]",
+                    default=True,
+                ):
                     shutil.rmtree(target_cleanup)
                     console.print(f"[green]Cleaned up: {target_cleanup}[/green]")
 
 
-def _group_recipes_by_suite(recipes) -> Dict[str, List]:
-    groups: Dict[str, List] = {}
+def _clear_leftover_build(benchmark_id: str, name: str) -> bool:
+    """Offer to remove a leftover `benchmarks/<id>` folder; True when the build may go on.
+
+    A failed build leaves the folder behind without a receipt, and `git clone` into a
+    non-empty folder fails. A folder a `source` receipt points at is `handle_cleanup`'s, so
+    it is left alone here. Only a real folder inside BENCHMARKS_DIR is ever removed: a
+    symlink or a plain file is never touched.
+    """
+    target = os.path.join(BENCHMARKS_DIR, benchmark_id)
+    if not os.path.lexists(target):
+        return True
+
+    receipt = memory.get_receipt(benchmark_id)
+    if receipt and receipt.get("type") == "source":
+        if receipt.get("binary_path", "").startswith(BENCHMARKS_DIR):
+            return True
+
+    skip_message = (
+        f"[yellow]Skipping {name}: remove {target} or answer yes to build again.[/yellow]"
+    )
+    if os.path.islink(target) or not os.path.isdir(target):
+        console.print(skip_message)
+        return False
+    if os.path.dirname(os.path.realpath(target)) != os.path.realpath(BENCHMARKS_DIR):
+        console.print(skip_message)
+        return False
+
+    if not Confirm.ask(
+        f"[yellow]Found a leftover build at {target}. Remove it and start again?[/yellow]",
+        default=True,
+    ):
+        console.print(skip_message)
+        return False
+    shutil.rmtree(target)
+    console.print(f"[green]Cleaned up: {target}[/green]")
+    return True
+
+
+def _group_recipes_by_suite(recipes) -> dict[str, list]:
+    groups: dict[str, list] = {}
     for recipe in recipes:
         suite = getattr(recipe, "suite", recipe.name)
         groups.setdefault(suite, []).append(recipe)
@@ -95,7 +176,7 @@ def _shorten_path(path: str, max_len: int = 48) -> str:
         return path
     if max_len <= 1:
         return "…"
-    return "…" + path[-(max_len - 1):]
+    return "…" + path[-(max_len - 1) :]
 
 
 # ── Custom benchmark wizard ───────────────────────────────────────────────────
@@ -109,7 +190,23 @@ def _derive_benchmark_id(name: str) -> str:
     return sanitized.strip("_")
 
 
-def _collect_pre_run_hooks() -> List[str]:
+def _ask_module_executable(recipe) -> str:
+    """The command the module provides: the recipe's own when it declares one, else asked for.
+
+    The recipe id is not a command, so it is never offered; an empty answer is asked again.
+    """
+    if recipe.module_executable:
+        return Prompt.ask(
+            "Enter the executable the module provides", default=recipe.module_executable
+        )
+    while True:
+        answer = Prompt.ask("Enter the executable the module provides").strip()
+        if answer:
+            return answer
+        console.print("[red]An executable name is required.[/red]")
+
+
+def _collect_pre_run_hooks() -> list[str]:
     """Interactively collects pre-run shell commands until the user submits a blank line."""
     hooks = []
     console.print("\n[bold]Pre-run commands[/bold]")
@@ -130,10 +227,12 @@ def _collect_pre_run_hooks() -> List[str]:
     return hooks
 
 
-def _run_custom_benchmark_wizard(existing_receipt_ids: List[str], known_recipe_ids: List[str]) -> None:
+def _run_custom_benchmark_wizard(
+    existing_receipt_ids: list[str], known_recipe_ids: list[str]
+) -> None:
     """
     Guides the user through registering an already-installed benchmark that has no recipe.
-    Produces a 'binary' receipt in config/environments/.
+    Produces a 'binary' receipt in local/receipts/.
     """
     taken_receipt_ids = set(existing_receipt_ids)
 
@@ -183,9 +282,10 @@ def _run_custom_benchmark_wizard(existing_receipt_ids: List[str], known_recipe_i
     launcher_choice = questionary.select(
         "How should this benchmark be launched?",
         choices=[
-            Choice("mpirun  (OpenMPI / MPICH default)",     value="mpirun"),
-            Choice("srun    (SLURM native launcher)",        value="srun"),
-            Choice("none    (run directly, no MPI prefix)",  value=""),
+            Choice("mpirun  (OpenMPI / MPICH default)", value="mpirun"),
+            Choice("srun    (SLURM native launcher)", value="srun"),
+            # "" means no override: the experiment uses the preset's launcher.
+            Choice("preset  (use the preset's launcher, no override)", value=""),
         ],
         style=questionary.Style([("highlighted", "fg:cyan bold")]),
     ).ask()
@@ -230,7 +330,7 @@ def _run_custom_benchmark_wizard(existing_receipt_ids: List[str], known_recipe_i
 # ── Supported-recipes wizard ──────────────────────────────────────────────────
 
 
-def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[str]) -> None:
+def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[str]) -> None:
     """Handles the install/configure flow for all known benchmark recipes."""
     print_header(len(recipes))
     console.print("[bold]Select the benchmarks you want to install or configure:[/bold]")
@@ -257,10 +357,12 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
         "Benchmarks:",
         choices=suite_choices,
         qmark="🦀",
-        style=questionary.Style([
-            ("highlighted", "fg:cyan bold"),
-            ("selected", "fg:green"),
-        ]),
+        style=questionary.Style(
+            [
+                ("highlighted", "fg:cyan bold"),
+                ("selected", "fg:green"),
+            ]
+        ),
     ).ask()
 
     if not selected_suite_names:
@@ -274,7 +376,9 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
         if len(suite_recipes) == 1:
             selected_recipes.extend(suite_recipes)
         else:
-            console.print(f"\n[bold]{suite_name}[/bold] has multiple versions. Select which to install:\n")
+            console.print(
+                f"\n[bold]{suite_name}[/bold] has multiple versions. Select which to install:\n"
+            )
             version_choices = []
             for recipe in suite_recipes:
                 receipt = memory.get_receipt(recipe.benchmark_id)
@@ -291,10 +395,12 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
                 f"{suite_name} versions:",
                 choices=version_choices,
                 qmark="🦀",
-                style=questionary.Style([
-                    ("highlighted", "fg:cyan bold"),
-                    ("selected", "fg:green"),
-                ]),
+                style=questionary.Style(
+                    [
+                        ("highlighted", "fg:cyan bold"),
+                        ("selected", "fg:green"),
+                    ]
+                ),
             ).ask()
             if chosen:
                 selected_recipes.extend(chosen)
@@ -313,7 +419,9 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
         if receipt:
             console.print(f"✅ [bold green]{recipe.name}[/bold green] is already configured.")
             console.print(f"   Binary Path: [dim]{receipt.get('binary_path')}[/dim]\n")
-            if not Confirm.ask(f"Do you want to completely reconfigure {recipe.name}?", default=False):
+            if not Confirm.ask(
+                f"Do you want to completely reconfigure {recipe.name}?", default=False
+            ):
                 continue
         else:
             console.print(f"❌ [bold yellow]{recipe.name}[/bold yellow] is not configured.\n")
@@ -334,23 +442,32 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
         if choice == "1":
             final_path = recipe.fast_search(BENCHMARKS_DIR)
             if not final_path:
-                if Confirm.ask("[yellow]Fast search skipped. Trigger deep home directory search?[/yellow]", default=False):
-                    final_path = run_deep_search(recipe.benchmark_id.lower())
+                if Confirm.ask(
+                    "[yellow]Fast search skipped. Trigger deep home directory search?[/yellow]",
+                    default=False,
+                ):
+                    final_path = run_deep_search(recipe)
 
         elif choice == "2":
             while True:
-                user_path = Prompt.ask("Enter the absolute path to executable/directory (or 'q' to exit)")
+                user_path = Prompt.ask(
+                    "Enter the absolute path to executable/directory (or 'q' to exit)"
+                )
                 if user_path.lower() == "q":
                     break
                 if recipe.verify_existing(user_path):
                     final_path = user_path
                     break
-                console.print("[red]Invalid path configuration or target file properties. Retry.[/red]")
+                console.print(
+                    "[red]Invalid path configuration or target file properties. Retry.[/red]"
+                )
 
         elif choice == "3":
             receipt_type = "module"
-            module_cmd = Prompt.ask("Enter exact module command (e.g., 'module load quantum-espresso/7.4.1')")
-            binary_name = Prompt.ask("Enter target executable binary name (e.g., 'pw.x')", default=recipe.benchmark_id)
+            module_cmd = Prompt.ask(
+                "Enter exact module command (e.g., 'module load quantum-espresso/7.4.1')"
+            )
+            binary_name = _ask_module_executable(recipe)
             pre_run_hooks.insert(0, module_cmd)
             final_path = binary_name
 
@@ -360,18 +477,30 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
             target_env = os.environ.copy()
 
             if manifest.requires_modules:
+                # No default: Rich returns "" on Enter, which means "no modules".
                 mod_cmd = Prompt.ask(
-                    "Enter necessary pre-build cluster module loads",
-                    default="module load gcc openmpi",
-                )
-                target_env = capture_module_environment(mod_cmd)
+                    "Enter necessary pre-build cluster module loads "
+                    "(e.g. 'module load gcc openmpi'; leave blank for none)"
+                ).strip()
                 if mod_cmd:
+                    try:
+                        target_env = capture_module_environment(mod_cmd)
+                    except ModuleCaptureError as e:
+                        console.print(f"\n[bold red]Could not load the modules:[/bold red] {e}")
+                        console.print(
+                            f"[dim]Check the line works in a non-interactive bash: "
+                            f"bash -c {shlex.quote(mod_cmd)}[/dim]"
+                        )
+                        console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                        continue
                     pre_run_hooks.append(mod_cmd)
 
             user_params = {}
             for param in manifest.parameters:
                 if param.choices:
-                    val = Prompt.ask(param.description, choices=param.choices, default=param.default)
+                    val = Prompt.ask(
+                        param.description, choices=param.choices, default=param.default
+                    )
                 else:
                     val = Prompt.ask(param.description, default=param.default)
                 user_params[param.name] = val
@@ -383,29 +512,31 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
                 continue
 
             handle_cleanup(recipe.benchmark_id)
+            if not _clear_leftover_build(recipe.benchmark_id, recipe.name):
+                console.input("\n[dim]Press [Enter] to continue...[/dim]")
+                continue
             target_dir = os.path.join(BENCHMARKS_DIR, recipe.benchmark_id)
 
             current_step = "Initializing workspace environments..."
             recent_logs = deque(maxlen=6)
 
             def render_build_ui() -> Panel:
-                step_text = Text(f"🟢 {current_step}", style="bold yellow")
-                log_text = Text.from_markup(
-                    "\n".join(f"> [dim]{log}[/dim]" for log in recent_logs)
-                )
+                step_text = Text(f"🟢 {current_step}", style="bold yellow")  # noqa: B023 -- late binding intentional (mutated via nonlocal below)
+                log_text = Text.from_markup("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))  # noqa: B023 -- late binding intentional
                 return Panel(
                     Group(step_text, Text(""), log_text),
-                    title=f"[cyan]Compiling {recipe.name}[/cyan]",
+                    title=f"[cyan]Compiling {recipe.name}[/cyan]",  # noqa: B023 -- recipe is stable for this Live block
                     border_style="cyan",
                 )
 
             with Live(render_build_ui(), console=console, refresh_per_second=15) as live:
+
                 def live_callback(msg_type: str, msg: str):
                     nonlocal current_step
                     if msg_type == "step":
                         current_step = msg
                     elif msg_type == "log":
-                        recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)
+                        recent_logs.append(msg[:120] + "..." if len(msg) > 120 else msg)  # noqa: B023 -- late binding intentional
                     live.update(render_build_ui())
 
                 success, build_result, err_msg = recipe.download_and_build(
@@ -430,9 +561,13 @@ def _run_recipe_wizard(recipes: List, groups: Dict[str, List], recipe_ids: List[
             }
             new_receipt.update(runtime_meta)
             memory.save_receipt(recipe.benchmark_id, new_receipt)
-            console.print(f"\n[bold green]=== {recipe.name} receipt generated successfully ===[/bold green]\n")
+            console.print(
+                f"\n[bold green]=== {recipe.name} receipt generated successfully ===[/bold green]\n"
+            )
         else:
-            console.print(f"\n[yellow]⚠️  {recipe.name} action skipped or path mapping incomplete.[/yellow]\n")
+            console.print(
+                f"\n[yellow]⚠️  {recipe.name} action skipped or path mapping incomplete.[/yellow]\n"
+            )
 
         console.input("\n[dim]Press [Enter] to continue...[/dim]")
 
@@ -458,9 +593,9 @@ def run():
     action = questionary.select(
         "Choose an action:",
         choices=[
-            Choice("Install or configure a supported benchmark",      value="recipes"),
-            Choice("Register a custom already-installed benchmark",   value="custom"),
-            Choice("Exit",                                             value="exit"),
+            Choice("Install or configure a supported benchmark", value="recipes"),
+            Choice("Register a custom already-installed benchmark", value="custom"),
+            Choice("Exit", value="exit"),
         ],
         style=questionary.Style([("highlighted", "fg:cyan bold")]),
         qmark="🦀",
@@ -477,10 +612,12 @@ def run():
         _run_custom_benchmark_wizard(current_receipt_ids, recipe_ids)
 
     print_header(title="Setup Complete")
-    console.print(Panel.fit(
-        "[bold green]All receipt setups have been synchronised successfully.[/bold green]",
-        border_style="green",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold green]All receipt setups have been synchronised successfully.[/bold green]",
+            border_style="green",
+        )
+    )
 
 
 if __name__ == "__main__":

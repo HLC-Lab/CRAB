@@ -19,7 +19,7 @@ before introducing interference.
   "experiments": {
     "a2a_alone": {
       "apps": {
-        "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "start": "0", "end": "" }
       }
     }
@@ -49,7 +49,7 @@ the victim finishes.
   "experiments": {
     "a2a_vs_g500": {
       "apps": {
-        "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "start": "0", "end": "", "partition": "victim" },
         "1": { "path": "graph500/g500_wrapper.py", "args": "",
                "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
@@ -69,14 +69,20 @@ applications in sequence within one experiment.
 
 ```json
 "apps": {
-  "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8 -iter 1000",    "collect": true, "start": "0",  "end": "" },
-  "1": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 1024 -iter 1000", "collect": true, "start": "s0", "end": "" },
-  "2": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 65536 -iter 1000","collect": true, "start": "s1", "end": "" }
+  "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8 -iter 1000",    "collect": true, "start": "0",  "end": "" },
+  "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 1024 -iter 1000", "collect": true, "start": "s0", "end": "" },
+  "2": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 65536 -iter 1000","collect": true, "start": "s1", "end": "" }
 }
 ```
 
 Here app 1 starts when app 0 ends, and app 2 when app 1 ends — a message-size sweep run one after
 another. (This is the shape used in `examples/lorenzo/cong_analysis.json`.)
+
+All three run on the same nodes: a chained app reuses the nodes of the app it waits for, so only
+app 0 takes a share of the allocation. To start an app when another one ends but on **other**
+nodes, give it a different `partition`. Two apps cannot both start after the same app on its
+nodes (they would share them at the same time); CRAB reports that before submitting. Details:
+[Scheduling](../reference/configuration.md#scheduling-start-and-end).
 
 ## Pattern 4 — timed termination
 
@@ -97,7 +103,7 @@ experiment.
 
 ```json
 "experiments": {
-  "baseline":     { "description": "victim alone",        "apps": { "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true, "start": "0", "end": "" } } },
+  "baseline":     { "description": "victim alone",        "apps": { "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true, "start": "0", "end": "" } } },
   "with_aggressor": {
     "description": "victim + aggressor",
     "local_options": {
@@ -107,12 +113,100 @@ experiment.
       }
     },
     "apps": {
-      "0": { "path": "blink/a2a_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+      "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": "victim" },
       "1": { "path": "graph500/g500_wrapper.py",   "args": "",               "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
     }
   }
 }
 ```
+
+## Pattern 6 — apps sharing nodes, with different ranks per node
+
+Set `allocation.mode` to `"shared"` and every app runs on all the nodes at the same time, so they
+compete inside each node. Each app can have its own `ppn`: here the victim runs one rank per node
+and the aggressor eight, on cores of their own.
+
+```json
+{
+  "global_options": {
+    "name": "intra_node",
+    "numnodes": "2", "ppn": "1",
+    "allocation": { "mode": "shared", "cores": "disjoint" },
+    "sbatch_directives": ["--exclusive"]
+  },
+  "experiments": {
+    "a2a_vs_a2a": {
+      "apps": {
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+               "collect": true, "end": "" },
+        "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+               "end": "f", "ppn": "8" }
+      }
+    }
+  }
+}
+```
+
+The batch job asks Slurm for 9 tasks per node (1 + 8), and under `srun` each app is started with
+flags that keep it on its own cores; see
+[Shared nodes under `srun`](../reference/configuration.md#shared-nodes-under-srun).
+
+## One network interface per app
+
+To make each app use a different network card, set the interface in the app's `env` and pin the
+app to cores close to that card. With Open MPI or any other UCX-based MPI, `UCX_NET_DEVICES`
+takes `<hca>:<port>`:
+
+```json
+"apps": {
+  "0": { "path": "blink/alltoall/alltoall_comm_only.py", "collect": true, "end": "",
+         "cpus": "0-3",   "env": { "UCX_NET_DEVICES": "mlx5_0:1" } },
+  "1": { "path": "blink/alltoall/alltoall_comm_only.py", "end": "f",
+         "cpus": "16-19", "env": { "UCX_NET_DEVICES": "mlx5_1:1" } }
+}
+```
+
+Choose `cpus` from the cores that sit on the same NUMA node as the card:
+
+- the list is in `/sys/class/infiniband/<hca>/device/local_cpulist` (for example
+  `cat /sys/class/infiniband/mlx5_0/device/local_cpulist`);
+- `lstopo` shows the same layout as a diagram, and on GPU nodes `nvidia-smi topo -m` shows which
+  cores are close to which GPU and card.
+
+Under Slurm, `cpus` needs `--exclusive` among the `sbatch_directives`. The `env` of each app is
+recorded in the job's `crab_run.json` next to its launch, so the results show which interface
+each app used. A complete config is `examples/leonardo/congestion/corun_nics.json`.
+
+## One network interface per rank
+
+To spread the ranks of one app over several cards, list the cards in the app's `nics` instead of
+setting `UCX_NET_DEVICES` in `env`. Rank `i` on a node uses `nics[i % len(nics)]`. For an app with
+4 ranks per node on a node with 4 cards, where cores 0-3 sit next to `mlx5_0`, 4-7 next to
+`mlx5_1`, and so on, bind one core per rank:
+
+```json
+"0": {
+  "path": "blink/alltoall/alltoall_comm_only.py", "collect": true, "end": "",
+  "ppn": 4,
+  "cpus": "0,4,8,12",
+  "nics": ["mlx5_0:1", "mlx5_1:1", "mlx5_2:1", "mlx5_3:1"]
+}
+```
+
+Both lists are in rank order, so rank 0 runs on core 0 and uses `mlx5_0:1`, rank 1 on core 4 with
+`mlx5_1:1`, and so on. Pick each core from the cards' `local_cpulist`, as above. Under Slurm,
+`cpus` needs `--exclusive` among the `sbatch_directives`.
+
+To check the result, open `bindings_app_<id>.log` in the experiment directory. Next to the
+launcher's binding report, it has one line per rank:
+
+```text
+crab: node01 local rank 0 -> UCX_NET_DEVICES=mlx5_0:1
+crab: node01 local rank 1 -> UCX_NET_DEVICES=mlx5_1:1
+```
+
+`nics` and `env.UCX_NET_DEVICES` on the same app are refused. The data directory must be on a
+shared filesystem; see [NICs per rank](../reference/configuration.md#nics-per-rank-nics).
 
 ## Choosing an allocation mode
 
@@ -144,8 +238,8 @@ The `examples/` directory has working configs per system (`examples/leonardo/`, 
 `examples/cluster_di/`, `examples/lorenzo/`) covering baselines, interleaved tests, sequential
 sweeps, and aggressor mixes — a good starting point to copy and adapt. Representative examples:
 
-- `examples/leonardo/congestion/noise_heatmap.json` — victim-vs-aggressor sweep across collective
-  types and message sizes (partitioned allocation).
+- `examples/leonardo/congestion/noise_heatmap.json` — A2A victim-vs-aggressor sweep across message
+  sizes and noise intensities (partitioned allocation).
 - `examples/leonardo/congestion/layout_effect.json` — same workload with four different placement
   strategies (`local_options.allocation` replaced per experiment).
 - `examples/leonardo/congestion/co_scheduling.json` — flat interleaved co-runs without partitions.

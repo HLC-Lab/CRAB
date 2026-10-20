@@ -2,10 +2,68 @@ name: CI
 
 on:
   push:
-    branches: [master, develop]
   pull_request:
 
 jobs:
+  verify:
+    name: make verify (Python + frontend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/crab/webui/package-lock.json
+      - name: Install Python package with all extras
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -e ".[web,tui,dev]"
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: src/crab/webui
+      - name: Clone the wrappers (tests marked requires_wrappers_checkout use them)
+        run: git clone --depth 1 https://github.com/HLC-Lab/crab-wrappers.git wrappers
+      - run: make verify
+
+  mpi:
+    name: Real MPI launches (Open MPI, MPICH)
+    # Not ubuntu-latest: ubuntu-26.04's Open MPI 5.0.10 package cannot print --version (missing help file), so the tests skip.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Open MPI and MPICH
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openmpi-bin mpich
+      - name: Show the installed MPI versions
+        run: |
+          mpirun.openmpi --version
+          mpirun.mpich --version
+      - name: Install Python package with all extras (pytest imports every test module, even under -m mpi)
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -e ".[web,tui,dev]"
+      - name: Run the real-MPI tests
+        # Every binary is installed and listed below, so a skipped test means lost coverage: fail the job.
+        run: |
+          set -o pipefail
+          .venv/bin/python -m pytest -q -m mpi -rs | tee "$RUNNER_TEMP/pytest-mpi.txt"
+          if grep -Eq '^SKIPPED|[0-9]+ skipped' "$RUNNER_TEMP/pytest-mpi.txt"; then
+            echo "::error::A real-MPI test was skipped, so an MPI dialect lost coverage (see the SKIPPED lines above)"
+            exit 1
+          fi
+        env:
+          CRAB_TEST_MPIRUNS: /usr/bin/mpirun.openmpi:/usr/bin/mpirun.mpich
+          # Open MPI 4.1.6 + hwloc 2.10 on Ubuntu 24.04: orted segfaults in hwloc_shmem_topology_write on the fake-host test (seen in a container; may be container-only).
+          OMPI_MCA_rtc_hwloc_vmhole: none
+
   docs:
     name: Build docs (strict)
     runs-on: ubuntu-latest

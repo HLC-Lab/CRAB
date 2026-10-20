@@ -1,10 +1,10 @@
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Horizontal
 from textual.widgets import Button
-from textual import on
 
-from ..messages import SaveConfiguration, LoadConfiguration, RunBenchmark
 from ..constants import SECTIONS
+from ..messages import LoadConfiguration, RunBenchmark, SaveConfiguration
+
 
 class TabSelector(Horizontal):
     def __init__(self, id, app_ref):
@@ -19,7 +19,6 @@ class TabSelector(Horizontal):
             yield Button("Save", id="save-form", variant="primary", classes="save-btn")
             yield Button("Load", id="load-form", variant="primary", classes="load-btn")
             yield Button("Run Benchmark", id="run-benchmark", variant="success", classes="run-btn")
-
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """

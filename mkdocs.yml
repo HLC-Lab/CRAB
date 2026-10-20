@@ -66,9 +66,11 @@ nav:
   - Using CRAB:
       - Installation & benchmark setup: using/installation.md
       - Configuring your cluster: using/presets.md
+      - Running without Slurm: using/running-without-slurm.md
       - Running an experiment: using/running.md
       - Writing experiment configs: using/writing-configs.md
       - Reading results: using/results.md
+      - Wrappers in the web dashboard: using/dashboard-wrappers.md
   - Extending CRAB:
       - Overview: extending/overview.md
       - Writing a wrapper: extending/wrappers.md
@@ -81,4 +83,12 @@ nav:
       - Supported benchmarks: reference/supported-benchmarks.md
       - Wrapper & Recipe API: reference/api.md
   - Contributing: contributing.md
+  - Development:
+      - Web dashboard architecture: dev/dashboard/architecture.md
+      - Testing & verification: dev/dashboard/testing.md
+      - Roadmap: dev/roadmap.md
+      - Roadmap, July 2026 edition: dev/roadmap-2026-07-streams.md
+      - Web dashboard milestones: dev/dashboard/roadmap.md
+      - Deferred work: dev/dashboard/deferred.md
+      - Decision records: dev/dashboard/decisions/index.md
   - Glossary: glossary.md

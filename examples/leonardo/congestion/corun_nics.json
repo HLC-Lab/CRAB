@@ -1,0 +1,47 @@
+{
+    "schema_version": 2,
+    "global_options": {
+        "name": "corun_nics",
+        "numnodes": "2",
+        "ppn": "1",
+        "allocation": { "mode": "shared" },
+        "minruns": "3",
+        "maxruns": "5",
+        "timeout": "300.0",
+        "outformat": "csv",
+        "walltime": "00:10:00",
+        "sbatch_directives": ["--exclusive", "--job-name=crab_corun_nics"]
+    },
+    "experiments": {
+        "01_victim_alone": {
+            "description": "Ping-pong 8B alone on NIC mlx5_0, core 0. Reference for the co-runs.",
+            "apps": {
+                "0": { "path": "blink/pingpong/pingpong_b.py", "args": "-msgsize 8 -iter 1000000",
+                       "collect": true, "start": "0", "end": "",
+                       "ppn": 1, "cpus": "0", "env": { "UCX_NET_DEVICES": "mlx5_0:1" } }
+            }
+        },
+        "02_corun_separate_nics": {
+            "description": "Same nodes, same time. Victim on mlx5_0 and core 0 (1 rank per node), aggressor on mlx5_1 and cores 16-19 (4 ranks per node). Interference is not through the NIC.",
+            "apps": {
+                "0": { "path": "blink/pingpong/pingpong_b.py", "args": "-msgsize 8 -iter 1000000",
+                       "collect": true, "start": "3", "end": "",
+                       "ppn": 1, "cpus": "0", "env": { "UCX_NET_DEVICES": "mlx5_0:1" } },
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                       "collect": false, "start": "0", "end": "f",
+                       "ppn": 4, "cpus": "16-19", "env": { "UCX_NET_DEVICES": "mlx5_1:1" } }
+            }
+        },
+        "03_corun_same_nic": {
+            "description": "As experiment 02, but the aggressor also uses mlx5_0. Compare with 02 to see the cost of sharing the NIC.",
+            "apps": {
+                "0": { "path": "blink/pingpong/pingpong_b.py", "args": "-msgsize 8 -iter 1000000",
+                       "collect": true, "start": "3", "end": "",
+                       "ppn": 1, "cpus": "0", "env": { "UCX_NET_DEVICES": "mlx5_0:1" } },
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                       "collect": false, "start": "0", "end": "f",
+                       "ppn": 4, "cpus": "16-19", "env": { "UCX_NET_DEVICES": "mlx5_0:1" } }
+            }
+        }
+    }
+}

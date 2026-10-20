@@ -10,11 +10,26 @@ git clone https://github.com/HLC-Lab/CRAB
 cd CRAB
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[tui]        # editable install, including the TUI extra
+pip install -e .[web,dev]    # editable install with the web dashboard + dev tools
 ```
 
 Requires **Python 3.10+**. The package is installed in editable mode, so changes to `src/crab/` take
-effect without reinstalling.
+effect without reinstalling. Frontend work additionally needs node: `cd src/crab/webui && npm install`.
+
+## Verification
+
+Before considering any change done (and before every commit), run from the repo root:
+
+```bash
+make verify        # lint + format check + type check + all unit tests
+make verify-full   # verify + frontend build/sync check + end-to-end tests
+```
+
+Use `make verify-full` whenever you touched `src/crab/webui/`. `make fmt` auto-formats both
+languages. What each gate runs, and how to write tests, is documented in
+[Testing & verification](dev/dashboard/testing.md); the dashboard's design is in
+[Web dashboard architecture](dev/dashboard/architecture.md), and the reasoning behind
+non-obvious choices in the [decision records](dev/dashboard/decisions/index.md).
 
 ## Project layout
 
@@ -27,14 +42,15 @@ src/crab/
 │   ├── allocation/       # node-to-app mapping strategies
 │   ├── data/             # DataContainer, convergence (check_CI), CSV/HDF output
 │   ├── process/          # launching/terminating app processes
-│   └── wl_manager/       # srun (slurm.py) / mpirun (mpi.py) bindings + template
+│   └── execution/        # scheduler/ (job submission) and launcher/ (srun, mpirun, direct)
 ├── setup/        # `crab setup`: wizard, recipe registry, recipes/, receipt storage (memory.py)
 ├── tui/          # Textual UI (optional dependency)
 ├── log/          # CrabLogger
 └── wrappers/base.py   # the wrapper base class
 
-wrappers/         # application wrappers (blink/, others/) — referenced from configs
-config/           # presets.json (+ environments/ receipts, generated)
+wrappers/         # application wrappers: a separate git-ignored clone of HLC-Lab/crab-wrappers
+local/            # git-ignored, per machine: presets.json, receipts/, wrappers/
+config/           # presets.json (the shipped presets)
 examples/         # sample experiment configs per system
 crab_dashboard.html  # standalone results viewer
 ```
@@ -47,7 +63,7 @@ worker execution model** and the **wrapper / recipe / receipt** separation — b
 
 | To add… | Put it in… | Mechanism |
 |---------|-----------|-----------|
-| Support for a new application | `wrappers/` (+ optionally a recipe) | Loaded by file path; see [Extending CRAB](extending/overview.md). |
+| Support for a new application | the crab-wrappers repository, or `local/wrappers/` while in progress (+ optionally a recipe) | Loaded by file path; see [Extending CRAB](extending/overview.md). |
 | A buildable benchmark | `src/crab/setup/recipes/` | Auto-discovered subclass of `BenchmarkRecipe`. |
 | A new cluster environment | `config/presets.json` | See [Configuring your cluster](using/presets.md). |
-| A new launch mechanism | `src/crab/core/wl_manager/` | A module exposing a `wl_manager` class; selected by `CRAB_WL_MANAGER`. |
+| A new launch mechanism | `src/crab/core/execution/launcher/` | A class with a `prefix(placement)` method (the `Launcher` protocol in `base.py`), plus a kind in `LAUNCHER_KINDS` (`settings.py`) and a branch in `select.py`. |

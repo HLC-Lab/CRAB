@@ -1,20 +1,10 @@
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, Container
-from textual.widgets import (
-    Button, Input, Label, Checkbox, RichLog
-)
+import os
 
 from textual import on, work
-from textual.message import Message
-
+from textual.app import ComposeResult
+from textual.containers import Container, Horizontal, Vertical
+from textual.widgets import Button, Checkbox, Input, Label
 from textual_fspicker import FileOpen
-
-from .environment_settings import EnvironmentSettings
-
-import os
-import json
-import threading
-import subprocess
 
 
 class ApplicationForm(Vertical):
@@ -51,7 +41,11 @@ class ApplicationForm(Vertical):
                 yield Input(placeholder="f", id="end", value=self.form_data["end"])
 
         yield Label("Partition (optional):")
-        yield Input(placeholder='named partition, e.g. "victim" or "aggressor"', id="partition", value=self.form_data["partition"])
+        yield Input(
+            placeholder='named partition, e.g. "victim" or "aggressor"',
+            id="partition",
+            value=self.form_data["partition"],
+        )
 
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id in self.form_data:
@@ -90,4 +84,3 @@ class ApplicationForm(Vertical):
             return
 
         self.query_one("#path", Label).update(os.path.relpath(str(file_path)))
-
