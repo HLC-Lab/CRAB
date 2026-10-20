@@ -41,7 +41,8 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "httpx>=0.27.0",
     "ruff>=0.8.0",
-    "mypy>=1.13.0"
+    "mypy>=1.13.0",
+    "build>=1.2"
 ]
 # Back-compat alias for the old extra name.
 web-dev = [
@@ -56,6 +57,9 @@ version = { attr = "crab.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+# Only directories with an __init__.py are packages (no namespace discovery, so
+# crab/webui/node_modules and similar trees never reach the wheel).
+namespaces = false
 
 [tool.setuptools.package-data]
 # Ship the legacy export template and the built web UI assets inside the wheel.
