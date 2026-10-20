@@ -1,5 +1,5 @@
-// SbatchMan campaign state. One campaign = shared settings (remote CRAB root,
-// environment) plus a list of job groups. Each group owns its OWN small `Draft` (from lib/config,
+// SbatchMan campaign state. One campaign = shared sweep variables plus a list of
+// job groups. Each group owns its OWN small `Draft` (from lib/config,
 // exactly one experiment inside) so ExperimentPane/AllocationEditor can be
 // mounted independently per group with no shared state between them — no
 // Pinia store per group is needed, a plain reactive object is enough.
@@ -38,11 +38,6 @@ export const CAMPAIGN_SPEC_VERSION = 1;
 /** A saved campaign in a format newer than this dashboard understands. */
 export class CampaignVersionError extends Error {}
 
-export interface EnvPair {
-  key: string;
-  value: string;
-}
-
 export interface GroupState {
   tag: string;
   preset: string;
@@ -63,15 +58,13 @@ function emptyGroup(name: string): GroupState {
  * dict backend-side (`store/campaign_library.py`). */
 export interface CampaignSpec {
   version: number;
-  crabRoot: string;
-  system: string;
-  env: EnvPair[];
   variables: SbatchmanVar[];
   groups: GroupState[];
 }
 
 // A saved spec is opaque to the backend and may predate fields added later:
-// fill every missing piece from the current empty shapes.
+// fill every missing piece from the current empty shapes. Keys this dashboard no
+// longer knows (the old crabRoot, system and env) are dropped silently.
 /* eslint-disable @typescript-eslint/no-explicit-any -- walking untyped saved JSON */
 function normalizeDraft(raw: any): Draft {
   const d = raw && typeof raw === "object" ? raw : {};
@@ -106,9 +99,6 @@ function normalizeSpec(raw: unknown): CampaignSpec {
   const str = (v: unknown): string => (typeof v === "string" ? v : "");
   return {
     version: CAMPAIGN_SPEC_VERSION,
-    crabRoot: str(s.crabRoot),
-    system: str(s.system),
-    env: list(s.env).map((p) => ({ key: str(p?.key), value: str(p?.value) })),
     variables: list(s.variables).map((v) => ({ name: str(v?.name), values: list(v?.values) })),
     groups: list(s.groups).map((g) => ({
       tag: str(g?.tag),
@@ -122,9 +112,6 @@ function normalizeSpec(raw: unknown): CampaignSpec {
 
 export const useSbatchmanStore = defineStore("sbatchman", () => {
   const name = ref("campaign");
-  const crabRoot = ref("");
-  const system = ref("");
-  const env = reactive<EnvPair[]>([{ key: "", value: "" }]);
   const variables = reactive<SbatchmanVar[]>([]);
   const groups = reactive<GroupState[]>([emptyGroup("run")]);
   const selected = ref(0);
@@ -147,9 +134,6 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   const spec = computed<CampaignSpec>(() => ({
     version: CAMPAIGN_SPEC_VERSION,
-    crabRoot: crabRoot.value,
-    system: system.value,
-    env: env.map((p) => ({ ...p })),
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
@@ -180,16 +164,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     selected.value = Math.min(selected.value, groups.length - 1);
   }
 
-  const envRecord = computed<Record<string, string>>(() => {
-    const out: Record<string, string> = {};
-    for (const p of env) if (p.key.trim()) out[p.key.trim()] = p.value;
-    return out;
-  });
-
   const campaign = computed<SbatchmanCampaign>(() => ({
-    crabRoot: crabRoot.value.trim(),
-    system: system.value.trim(),
-    env: envRecord.value,
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
@@ -250,10 +225,6 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   }
 
   function _load(s: CampaignSpec) {
-    crabRoot.value = s.crabRoot;
-    system.value = s.system;
-    env.splice(0, env.length, ...s.env.map((p) => ({ ...p })));
-    if (!env.length) env.push({ key: "", value: "" });
     variables.splice(0, variables.length, ...s.variables.map((v) => ({ ...v })));
     groups.splice(
       0,
@@ -283,9 +254,6 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     name.value = "campaign";
     _load({
       version: CAMPAIGN_SPEC_VERSION,
-      crabRoot: "",
-      system: "",
-      env: [],
       variables: [],
       groups: [],
     });
@@ -391,9 +359,6 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   return {
     name,
-    crabRoot,
-    system,
-    env,
     variables,
     groups,
     selected,

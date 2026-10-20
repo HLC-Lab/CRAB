@@ -20,9 +20,6 @@ import {
 
 function campaign(): SbatchmanCampaign {
   return {
-    crabRoot: "/leonardo/home/user/CRAB",
-    system: "leonardo",
-    env: {},
     variables: [
       { name: "scale", values: [20, 24] },
       { name: "ef", values: [8, 16] },
@@ -129,6 +126,62 @@ describe("composeCampaignYaml", () => {
     expect(doc.jobs[0].tag).toBe("g500_baseline_{scale}_{ef}_{nodes}");
     expect(doc.jobs[0].variables.nodes).toEqual([8, 16, 32]);
     expect(doc.jobs[0].command).toBe('crab worker --workdir "$SBATCHMAN_JOB_DIR"');
+  });
+
+  it("pins the exact YAML bytes for the fixture campaign", () => {
+    const expected = [
+      "variables:",
+      "  scale:",
+      "    - 20",
+      "    - 24",
+      "  ef:",
+      "    - 8",
+      "    - 16",
+      "jobs:",
+      "  - config: '{nodes}_nodes'",
+      "    tag: g500_baseline_{scale}_{ef}_{nodes}",
+      "    variables:",
+      "      nodes:",
+      "        - 8",
+      "        - 16",
+      "        - 32",
+      "    preprocess: |",
+      '      mkdir -p "$SBATCHMAN_JOB_DIR"',
+      "      cat > \"$SBATCHMAN_JOB_DIR/config.json\" <<'JSON'",
+      "      {",
+      '        "global_options": {',
+      '          "numnodes": "{nodes}",',
+      '          "name": "g500_baseline_{scale}_{ef}_{nodes}"',
+      "        },",
+      '        "experiments": {',
+      '          "g500_baseline_{scale}_{ef}_{nodes}": {',
+      '            "apps": {',
+      '              "0": {',
+      '                "path": "graph500/g500.py",',
+      '                "args": "-scale {scale} -ef {ef}",',
+      '                "collect": true,',
+      '                "start": "0",',
+      '                "end": ""',
+      "              }",
+      "            }",
+      "          }",
+      "        }",
+      "      }",
+      "      JSON",
+      '    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"',
+      "",
+    ].join("\n");
+    expect(composeCampaignYaml(campaign())).toBe(expected);
+  });
+
+  it("ignores the dropped reference fields on an object that still carries them", () => {
+    const stale = {
+      ...campaign(),
+      crabRoot: "/leonardo/home/user/CRAB",
+      system: "leonardo",
+      env: { NCCL_DEBUG: "INFO" },
+    };
+    expect(composeCampaignYaml(stale)).toBe(composeCampaignYaml(campaign()));
   });
 
   it("never writes `configs:`, even for an object that still carries a configsPath", () => {

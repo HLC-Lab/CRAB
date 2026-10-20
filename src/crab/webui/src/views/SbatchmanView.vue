@@ -110,15 +110,9 @@ function confirmRemoveGroup(): void {
         <SectionCard
           v-if="view.kind === 'campaign'"
           title="Campaign settings"
-          subtitle="Reference values for your SbatchMan preset, not written to the YAML"
+          subtitle="Where the job environment comes from"
         >
-          <CampaignBar
-            :crab-root="store.crabRoot"
-            :system="store.system"
-            :env="store.env"
-            @update:crab-root="store.crabRoot = $event"
-            @update:system="store.system = $event"
-          />
+          <CampaignBar />
         </SectionCard>
 
         <template v-else-if="group">

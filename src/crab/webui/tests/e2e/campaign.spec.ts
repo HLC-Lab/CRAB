@@ -105,7 +105,10 @@ test("variables card edits both scopes, and Campaign settings lives in the rail"
   await campaignEntry.getByRole("button").click();
   await expect(campaignEntry).toHaveClass(/on/);
   await expect(groupEntry).not.toHaveClass(/on/);
-  await expect(page.getByPlaceholder("e.g. /home/user/CRAB")).toBeVisible();
+  await expect(
+    page.getByText(/Jobs take their environment from the SbatchMan preset/),
+  ).toBeVisible();
+  await expect(page.getByPlaceholder("e.g. /home/user/CRAB")).toHaveCount(0);
   await expect(page.getByRole("group", { name: "Campaign-wide variables" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Campaign settings", exact: true })).toHaveCount(0);
   await groupEntry.click();

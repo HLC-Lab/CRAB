@@ -53,9 +53,6 @@ function group(tag: string): GroupState {
 
 function entry(overrides: Partial<CampaignEntry> = {}): CampaignEntry {
   const spec: CampaignSpec = {
-    crabRoot: "",
-    system: "leonardo",
-    env: [],
     variables: [{ name: "nodes", values: ["4", "8"] }],
     groups: [group("baseline-{nodes}")],
   };
@@ -102,7 +99,6 @@ describe("sbatchman store: campaign library", () => {
 
     expect(store.entryId).toBe("a2a-baseline");
     expect(store.name).toBe("a2a baseline");
-    expect(store.system).toBe("leonardo");
     expect(store.variables).toEqual([{ name: "nodes", values: ["4", "8"] }]);
     expect(store.groups).toHaveLength(1);
     expect(store.groups[0].tag).toBe("baseline-{nodes}");
@@ -180,10 +176,10 @@ describe("sbatchman store: campaign library", () => {
     await store.open("a2a-baseline");
     expect(store.isDirty).toBe(false);
 
-    store.system = "lumi";
+    store.variables.push({ name: "extra", values: ["1"] });
     expect(store.isDirty).toBe(true);
 
-    updateMock.mockResolvedValueOnce(entry({ spec: { ...entry().spec, system: "lumi" } }));
+    updateMock.mockResolvedValueOnce(entry());
     listMock.mockResolvedValueOnce([]);
     await store.save();
     expect(store.isDirty).toBe(false);
@@ -264,7 +260,6 @@ describe("sbatchman store: older saved specs and stale write results", () => {
     await store.open("old");
 
     expect(store.error).toBeNull();
-    expect(store.env).toEqual([{ key: "", value: "" }]);
     expect(store.variables).toEqual([]);
     const g = store.groups[0];
     expect(g.preset).toBe("");
@@ -347,11 +342,46 @@ describe("sbatchman store: campaign format version", () => {
   it("a campaign saved by a newer dashboard is refused, not half-loaded", async () => {
     const newer = entry();
     (newer.spec as Record<string, unknown>).version = 2;
-    (newer.spec as Record<string, unknown>).system = "from-the-future";
+    (newer.spec as Record<string, unknown>).variables = [
+      { name: "from_the_future", values: ["1"] },
+    ];
     getMock.mockResolvedValueOnce(newer);
     const store = useSbatchmanStore();
     await store.open("a2a-baseline");
     expect(store.error).toMatch(/newer.*crab update/);
-    expect(store.system).not.toBe("from-the-future");
+    expect(store.variables).not.toEqual([{ name: "from_the_future", values: ["1"] }]);
+  });
+
+  it("a campaign saved with the dropped reference fields still loads, and they are ignored", async () => {
+    // Campaigns saved before the dashboard dropped the CRAB root, CRAB_SYSTEM and
+    // env fields still carry them. They feed nothing, so loading drops them silently.
+    const old = entry();
+    Object.assign(old.spec, {
+      crabRoot: "/leonardo/home/user/CRAB",
+      system: "leonardo",
+      env: [{ key: "NCCL_DEBUG", value: "INFO" }],
+    });
+    getMock.mockResolvedValueOnce(old);
+    getMock.mockResolvedValueOnce(entry());
+    const withKeys = useSbatchmanStore();
+    await withKeys.open("a2a-baseline");
+    expect(withKeys.error).toBeNull();
+    const yamlWithKeys = withKeys.yaml;
+
+    // The same campaign without the keys generates the same YAML.
+    setActivePinia(createPinia());
+    const without = useSbatchmanStore();
+    await without.open("a2a-baseline");
+    expect(yamlWithKeys).toBe(without.yaml);
+
+    // Saving writes a spec that no longer holds them.
+    updateMock.mockResolvedValueOnce(entry());
+    listMock.mockResolvedValueOnce([entry()]);
+    expect(await withKeys.save()).toBe(true);
+    const sent = updateMock.mock.calls[0][2] as Record<string, unknown>;
+    expect(sent).not.toHaveProperty("crabRoot");
+    expect(sent).not.toHaveProperty("system");
+    expect(sent).not.toHaveProperty("env");
+    expect(Object.keys(sent).sort()).toEqual(["groups", "variables", "version"]);
   });
 });

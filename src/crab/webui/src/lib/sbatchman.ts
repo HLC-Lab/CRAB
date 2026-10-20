@@ -45,15 +45,6 @@ export interface SbatchmanGroup {
 }
 
 export interface SbatchmanCampaign {
-  /** Remote CRAB checkout dir. Reference only (ADR-027): not written to any generated
-   * file -- put it in the SbatchMan preset's `--env CRAB_ROOT=...` instead. */
-  crabRoot: string;
-  /** CRAB_SYSTEM. Reference only (ADR-027): put it in the SbatchMan preset's
-   * `--env CRAB_SYSTEM=...` instead. */
-  system: string;
-  /** Extra environment entries. Reference only (ADR-027): put these in the SbatchMan
-   * preset's `--env` list instead -- nothing here is written to a generated file. */
-  env: Record<string, string>;
   /** Campaign-global variables (merged into every group). */
   variables: SbatchmanVar[];
   groups: SbatchmanGroup[];
