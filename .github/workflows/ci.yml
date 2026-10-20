@@ -90,3 +90,29 @@ jobs:
         run: python -m compileall -q src/
       - name: Smoke-test the CLI entry point
         run: crab --help
+
+  wheel:
+    name: Wheel smoke test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install build
+      - name: Build the wheel and the sdist
+        run: python -m build
+      - name: Install the wheel in a clean venv and run CRAB from it
+        # USE_PIP: this job tests what a pip user gets, even where uv is installed.
+        run: scripts/wheel_smoke.sh dist/*.whl
+        env:
+          USE_PIP: "1"
+      - name: Check the sdist carries no node_modules
+        run: |
+          count="$(tar tzf dist/*.tar.gz | grep -c node_modules || true)"
+          echo "node_modules entries in the sdist: $count"
+          test "$count" -eq 0
