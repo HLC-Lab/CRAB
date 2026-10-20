@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // Wrappers page: Status (every target's crab-wrappers clone and what needs attention) and
-// Library. The tab lives in the route query (?tab=library) so links can open it.
+// Library. The route query holds the tab and the Library's pick, so links can open them:
+// ?tab=library&target=<target>&wrapper=<relpath>.
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { type LocationQueryRaw, useRoute, useRouter } from "vue-router";
 import WrappersAttention from "@/components/wrappers/WrappersAttention.vue";
-import WrappersCatalogList from "@/components/wrappers/WrappersCatalogList.vue";
+import NewWrapperPopover from "@/components/wrappers/NewWrapperPopover.vue";
+import WrappersLibrary from "@/components/wrappers/WrappersLibrary.vue";
 import WrappersStatus from "@/components/wrappers/WrappersStatus.vue";
 import { attentionCount, LOCAL_TARGET, wrapperTargets } from "@/lib/wrappers";
 import { useRemotesStore } from "@/stores/remotes";
@@ -37,6 +39,27 @@ function pick(id: string) {
 const selectedTarget = computed(
   () => targets.value.find((t) => t.id === selected.value) ?? targets.value[0],
 );
+
+// The Library's target: the link's, else the one Status has selected, else this laptop.
+const libraryTarget = computed(() => {
+  const asked = route.query.target;
+  const named = connectedTargets.value.find((t) => t.id === asked);
+  return named ?? connectedTargets.value.find((t) => t.id === selected.value) ?? targets.value[0];
+});
+const libraryWrapper = computed(() =>
+  typeof route.query.wrapper === "string" ? route.query.wrapper : "",
+);
+function openWrapper(id: string, relpath: string) {
+  const query: LocationQueryRaw = { ...route.query, tab: "library", target: id };
+  if (relpath) query.wrapper = relpath;
+  else delete query.wrapper;
+  router.replace({ query });
+}
+/** Another target keeps the shown wrapper when it has it too, so the two can be compared. */
+function pickLibraryTarget(id: string) {
+  const has = store.lists[id]?.wrappers.some((w) => w.relpath === libraryWrapper.value);
+  openWrapper(id, has ? libraryWrapper.value : "");
+}
 
 function attentionOn(id: string): number {
   return attentionCount(store.lists[id]?.wrappers ?? []);
@@ -100,6 +123,19 @@ onUnmounted(() => clearInterval(ticker));
           Library
         </button>
       </div>
+      <div v-if="ready && tab === 'library'" class="right">
+        <label class="showing"
+          >Showing
+          <select
+            :value="libraryTarget.id"
+            aria-label="Target"
+            @change="pickLibraryTarget(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="t in connectedTargets" :key="t.id" :value="t.id">{{ t.label }}</option>
+          </select>
+        </label>
+        <NewWrapperPopover />
+      </div>
     </header>
 
     <template v-if="ready">
@@ -121,7 +157,12 @@ onUnmounted(() => clearInterval(ticker));
           :error="store.listError[selectedTarget.id]"
         />
       </template>
-      <WrappersCatalogList v-else />
+      <WrappersLibrary
+        v-else
+        :target="libraryTarget"
+        :wrapper="libraryWrapper"
+        @select="openWrapper(libraryTarget.id, $event)"
+      />
     </template>
   </section>
 </template>
@@ -166,5 +207,30 @@ h1 {
 .count {
   color: var(--warn);
   margin-left: 0.35rem;
+}
+.right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.showing {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--text3);
+}
+select {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.3rem 0.5rem;
+  font-family: inherit;
+  font-size: inherit;
+}
+select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 </style>

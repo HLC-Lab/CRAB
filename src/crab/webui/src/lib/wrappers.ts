@@ -19,6 +19,9 @@ export function groupByApp(wrappers: WrapperEntry[]): AppGroup[] {
   return [...groups.entries()].map(([app, list]) => ({ app, wrappers: list }));
 }
 
+/** What the binary helpers read: a list entry and a `wrappers show` summary both have it. */
+export type BinaryInfo = Pick<WrapperEntry, "loadable" | "benchmark_id" | "executable" | "binary">;
+
 const FOUND = new Set(["config", "receipt", "path"]);
 
 /** found: a binary is known; missing: none found; broken: cannot load or the lookup failed. */
@@ -46,7 +49,7 @@ const LABELS: Record<string, string> = {
   error: "lookup failed",
 };
 
-export function binaryLabel(w: WrapperEntry): string {
+export function binaryLabel(w: BinaryInfo): string {
   if (!w.loadable) return "cannot load";
   return LABELS[w.binary.status] ?? w.binary.status;
 }
@@ -54,7 +57,7 @@ export function binaryLabel(w: WrapperEntry): string {
 /** An import writes a receipt, so it needs a loadable wrapper with a receipt id and no binary
  * found. A failed lookup ("error") is a bug in the wrapper: a receipt would not fix it, and it
  * could overwrite a receipt the app's other wrappers share. */
-export function canImport(w: WrapperEntry): boolean {
+export function canImport(w: BinaryInfo): boolean {
   return w.loadable && !!w.benchmark_id && w.binary.status === "missing";
 }
 
@@ -180,7 +183,7 @@ export function attentionCount(wrappers: WrapperEntry[]): number {
 
 /** Why a wrapper's binary is missing, naming what the lookup searched for. A wrapper with no
  * receipt id cannot take an imported binary, so the reason says where to set it instead. */
-export function missingReason(w: WrapperEntry): string {
+export function missingReason(w: BinaryInfo): string {
   const base = "no receipt, config entry or PATH match";
   const name = w.executable ?? w.benchmark_id;
   const reason = name ? `${base} for ${name}` : base;
