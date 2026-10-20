@@ -183,7 +183,7 @@ def test_three_node_layout(three_node: dict[str, dict[str, Any]]) -> None:
     assert all(v == ["n1", "n3"] for k, v in placed.items() if k != aggressor_key)
     assert placed[aggressor_key] == ["n2"]
     aggressor = app_list(p2, vs)[-1]
-    assert aggressor["path"] == "blink/pairwise_nb.py"
+    assert aggressor["path"] == "blink/pairwise/pairwise_nb.py"
     assert aggressor["args"] == "-mode rot -offset 4 -msgsize 2097152 -endl"
     assert aggressor["env"]["UCX_TLS"] == "rc,self"
     victim = app_list(p2, vs)[0]
@@ -210,7 +210,7 @@ def test_chains_and_start_values(four_node: dict[str, dict[str, Any]]) -> None:
     assert aggressor["partition"] == "aggressor"
     assert aggressor["start"] == "0" and aggressor["end"] == "f"
     assert aggressor["collect"] is False
-    assert aggressor["path"] == "blink/alltoall_nb.py"
+    assert aggressor["path"] == "blink/alltoall/alltoall_nb.py"
     assert aggressor["args"] == "-msgsize 2097152 -endl"
     alone = app_list(config, "p2_ag_alone_C0_P4")
     assert len(alone) == len(MD_SIZES)
@@ -220,24 +220,24 @@ def test_chains_and_start_values(four_node: dict[str, dict[str, Any]]) -> None:
     burst = app_list(config, "p2_ag_vs_burst-0.01-0.0001_C0_P4")[-1]
     assert burst["args"] == "-msgsize 2097152 -endl -blength 0.01 -bpause 0.0001"
     incast = app_list(config, "p2_ag_vs_incast_C0_P4")[-1]
-    assert incast["path"] == "blink/incast_nb.py"
+    assert incast["path"] == "blink/incast/incast_nb.py"
     assert incast["args"] == "-msgsize 2097152 -endl"
 
 
 def test_victim_programs_and_offsets(four_node: dict[str, dict[str, Any]]) -> None:
     perm = app_list(four_node["md_p2_perm_C0_P1.json"], "p2_perm_alone_C0_P1")[0]
-    assert perm["path"] == "blink/pairwise_nb.py"
+    assert perm["path"] == "blink/pairwise/pairwise_nb.py"
     assert perm["args"].startswith("-mode rot -offset 8 -msgsize 1 -iter 1000")
     a2a = app_list(four_node["md_p2_a2a_C0_P1.json"], "p2_a2a_alone_C0_P1")[0]
-    assert a2a["path"] == "blink/alltoall_nb.py"
+    assert a2a["path"] == "blink/alltoall/alltoall_nb.py"
     ag = app_list(four_node["md_p2_ag_C0_P1.json"], "p2_ag_alone_C0_P1")[0]
-    assert ag["path"] == "blink/allgather_nb.py"
+    assert ag["path"] == "blink/allgather/allgather_nb.py"
     p1 = four_node["md_p1_C0_P1.json"]
     assert app_list(p1, "p1_perm_C0_P1")[0]["args"].startswith("-mode rot -offset 16 -msgsize 1 ")
     assert [a["path"] for a in (app_list(p1, e)[0] for e in p1["experiments"])] == [
-        "blink/pairwise_nb.py",
-        "blink/alltoall_nb.py",
-        "blink/allgather_nb.py",
+        "blink/pairwise/pairwise_nb.py",
+        "blink/alltoall/alltoall_nb.py",
+        "blink/allgather/allgather_nb.py",
     ]
     for exp in p1["experiments"]:
         chain = app_list(p1, exp)
@@ -253,7 +253,7 @@ def test_phase_0(four_node: dict[str, dict[str, Any]]) -> None:
         apps = app_list(config, exp)
         assert sizes_of(apps) == MD_SIZES
         for app in apps:
-            assert app["path"] == "blink/pingpong_b.py"
+            assert app["path"] == "blink/pingpong/pingpong_b.py"
             assert app["ppn"] == 1
             assert app["nics"] == ["mlx5_0:1"]
             assert app.get("cpus") == (None if app["start"].startswith("s") else "0")
@@ -376,9 +376,9 @@ def test_run_flags_override(tmp_path: Path) -> None:
 
 def test_colleague_set(four_node: dict[str, dict[str, Any]]) -> None:
     programs = {
-        "a2a": "blink/alltoall_comm_only.py",
-        "agtr": "blink/allgather_comm_only.py",
-        "ardc": "blink/allreduce_nb.py",
+        "a2a": "blink/alltoall/alltoall_comm_only.py",
+        "agtr": "blink/allgather/allgather_comm_only.py",
+        "ardc": "blink/allreduce/allreduce_nb.py",
     }
     for stem, program in programs.items():
         config = four_node[f"col_{stem}_C2_P4.json"]
@@ -398,7 +398,7 @@ def test_colleague_set(four_node: dict[str, dict[str, Any]]) -> None:
             assert all(a["path"] == program and iter_of(a) == 1000 for a in chain)
             assert chain[0]["start"] == "0" and chain[0]["partition"] == "victim"
             assert [a["start"] for a in chain[1:]] == [f"s{k}" for k in range(7)]
-            assert aggressor["path"] == "blink/alltoall_man.py"
+            assert aggressor["path"] == "blink/alltoall/alltoall_man.py"
             assert aggressor["args"] == f"-endl -msgsize 2097152 -blength {b} -bpause {p}"
             assert aggressor["partition"] == "aggressor"
             assert aggressor["start"] == "0" and aggressor["end"] == "f"
@@ -925,7 +925,7 @@ def test_pingpong_variants(pp_four: dict[str, Any]) -> None:
     experiments = pp_four["pp_n1n3_C2_P1.json"]["experiments"]
     for variant in ("md", "default", "dual"):
         apps = app_list(pp_four["pp_n1n3_C2_P1.json"], f"pp_n1n3-{variant}_C2_P1")
-        assert {a["path"] for a in apps} == {"blink/pingpong_b.py"}
+        assert {a["path"] for a in apps} == {"blink/pingpong/pingpong_b.py"}
         assert {a["ppn"] for a in apps} == {1}
         assert [a["start"] for a in apps] == ["0"] + [f"s{k}" for k in range(10)]
         head = apps[0]
@@ -954,7 +954,7 @@ def test_pingpong_variants(pp_four: dict[str, Any]) -> None:
 
 def test_pingpong_program_and_sweep(pp_four: dict[str, Any], tmp_path: Path) -> None:
     pw8 = app_list(pp_four["pp_n1n3_pw8_C2_P1.json"], "pp_n1n3-pw8_C2_P1")
-    assert {a["path"] for a in pw8} == {"blink/pairwise_nb.py"}
+    assert {a["path"] for a in pw8} == {"blink/pairwise/pairwise_nb.py"}
     assert all(a["args"].startswith("-mode rot -offset 8 -msgsize ") for a in pw8)
     assert {a["ppn"] for a in pw8} == {8}
     assert pw8[0]["cpus"] == "0,4,8,12,16,20,24,28"

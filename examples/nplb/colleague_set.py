@@ -17,9 +17,9 @@ MIB = 1 << 20
 COLLEAGUE_NETS = ("C0", "C2")
 COLLEAGUE_SIZES = [8, 64, 512, 4096, 32768, 262144, 2 * MIB, 16 * MIB]
 COLLEAGUE = {
-    "a2a": "blink/alltoall_comm_only.py",
-    "agtr": "blink/allgather_comm_only.py",
-    "ardc": "blink/allreduce_nb.py",
+    "a2a": "blink/alltoall/alltoall_comm_only.py",
+    "agtr": "blink/allgather/allgather_comm_only.py",
+    "ardc": "blink/allreduce/allreduce_nb.py",
 }
 COLLEAGUE_WHAT = {
     "a2a": "all-to-all",
@@ -38,7 +38,7 @@ def build_colleague(cfg: Settings, stem: str, net: str, paths: int, key: str) ->
         )
         args = f"-endl -msgsize {cfg.aggressor_size} -blength {length} -bpause {pause}"
         apps[str(len(apps))] = cfg.app(
-            "blink/alltoall_man.py",
+            "blink/alltoall/alltoall_man.py",
             args,
             where,
             paths,

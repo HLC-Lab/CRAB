@@ -130,7 +130,7 @@ def file_fields(file_name: str) -> tuple[str, bool, str | None]:
 
 
 def is_pingpong(program: str) -> bool:
-    """Whether an app is a ping-pong, judged by its program path (`blink/pingpong_b.py`)."""
+    """Whether an app is a ping-pong, judged by its program path (`blink/pingpong/pingpong_b.py`)."""
     return "pingpong" in program
 
 

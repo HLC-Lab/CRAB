@@ -30,7 +30,7 @@
       "description": "Victim (a2a) over a size sweep on the victim nodes, alone: the reference for the runs with an aggressor.",
       "apps": {
         "0": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 1 -iter 1000 -grty 100",
           "collect": true,
           "start": "0",
@@ -62,7 +62,7 @@
           }
         },
         "1": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 8 -iter 1000 -grty 100",
           "collect": true,
           "start": "s0",
@@ -92,7 +92,7 @@
           }
         },
         "2": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 64 -iter 1000 -grty 100",
           "collect": true,
           "start": "s1",
@@ -122,7 +122,7 @@
           }
         },
         "3": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 512 -iter 1000 -grty 100",
           "collect": true,
           "start": "s2",
@@ -152,7 +152,7 @@
           }
         },
         "4": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 4096 -iter 1000 -grty 100",
           "collect": true,
           "start": "s3",
@@ -182,7 +182,7 @@
           }
         },
         "5": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 32768 -iter 1000 -grty 64",
           "collect": true,
           "start": "s4",
@@ -212,7 +212,7 @@
           }
         },
         "6": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 262144 -iter 1000 -grty 8",
           "collect": true,
           "start": "s5",
@@ -242,7 +242,7 @@
           }
         },
         "7": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 2097152 -iter 1000 -grty 1",
           "collect": true,
           "start": "s6",
@@ -272,7 +272,7 @@
           }
         },
         "8": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 16777216 -iter 1000 -grty 1",
           "collect": true,
           "start": "s7",
@@ -302,7 +302,7 @@
           }
         },
         "9": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 134217728 -iter 100 -grty 1",
           "collect": true,
           "start": "s8",
@@ -332,7 +332,7 @@
           }
         },
         "10": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 536870912 -iter 25 -grty 1",
           "collect": true,
           "start": "s9",
@@ -367,7 +367,7 @@
       "description": "Victim (a2a) over a size sweep on the victim nodes, while a continuous all-to-all runs on the aggressor nodes (it starts first and stops at the end).",
       "apps": {
         "0": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 1 -iter 1000 -grty 100",
           "collect": true,
           "start": "3",
@@ -399,7 +399,7 @@
           }
         },
         "1": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 8 -iter 1000 -grty 100",
           "collect": true,
           "start": "s0",
@@ -429,7 +429,7 @@
           }
         },
         "2": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 64 -iter 1000 -grty 100",
           "collect": true,
           "start": "s1",
@@ -459,7 +459,7 @@
           }
         },
         "3": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 512 -iter 1000 -grty 100",
           "collect": true,
           "start": "s2",
@@ -489,7 +489,7 @@
           }
         },
         "4": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 4096 -iter 1000 -grty 100",
           "collect": true,
           "start": "s3",
@@ -519,7 +519,7 @@
           }
         },
         "5": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 32768 -iter 1000 -grty 64",
           "collect": true,
           "start": "s4",
@@ -549,7 +549,7 @@
           }
         },
         "6": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 262144 -iter 1000 -grty 8",
           "collect": true,
           "start": "s5",
@@ -579,7 +579,7 @@
           }
         },
         "7": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 2097152 -iter 1000 -grty 1",
           "collect": true,
           "start": "s6",
@@ -609,7 +609,7 @@
           }
         },
         "8": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 16777216 -iter 1000 -grty 1",
           "collect": true,
           "start": "s7",
@@ -639,7 +639,7 @@
           }
         },
         "9": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 134217728 -iter 100 -grty 1",
           "collect": true,
           "start": "s8",
@@ -669,7 +669,7 @@
           }
         },
         "10": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 536870912 -iter 25 -grty 1",
           "collect": true,
           "start": "s9",
@@ -699,7 +699,7 @@
           }
         },
         "11": {
-          "path": "blink/alltoall_nb.py",
+          "path": "blink/alltoall/alltoall_nb.py",
           "args": "-msgsize 2097152 -endl",
           "collect": false,
           "start": "0",

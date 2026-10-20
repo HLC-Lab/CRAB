@@ -17,9 +17,9 @@ MIB = 1 << 20
 MD_SIZES = [1, 8, 64, 512, 4096, 32768, 262144, 2 * MIB, 16 * MIB, 128 * MIB, 512 * MIB]
 VICTIM_LEAD = "3"  # the aggressor starts about 3 s before the victim chain
 VICTIM_PROGRAMS = {  # key -> (wrapper, memory kind)
-    "perm": ("blink/pairwise_nb.py", "pp"),
-    "a2a": ("blink/alltoall_nb.py", "a2a"),
-    "ag": ("blink/allgather_nb.py", "ag"),
+    "perm": ("blink/pairwise/pairwise_nb.py", "pp"),
+    "a2a": ("blink/alltoall/alltoall_nb.py", "a2a"),
+    "ag": ("blink/allgather/allgather_nb.py", "ag"),
 }
 AGGRESSOR_KINDS = ("a2a", "burst", "incast", "pw")  # --aggressors; every burst-grid key is "burst"
 P0_ASSUMPTION = (
@@ -47,7 +47,7 @@ def build_p0(cfg: Settings, stem: str, net: str, paths: int) -> Built:
     )
     for test, allocation, what in cases:
         apps, skipped = cfg.chain(
-            "blink/pingpong_b.py",
+            "blink/pingpong/pingpong_b.py",
             "",
             cfg.sizes(MD_SIZES),
             where,
@@ -133,27 +133,27 @@ def all_aggressors(cfg: Settings) -> list[tuple[str, str, str, str, dict[str, st
         return [
             (
                 "pw",
-                "blink/pairwise_nb.py",
+                "blink/pairwise/pairwise_nb.py",
                 f"-mode rot -offset {offset} -msgsize {size} -endl",
                 "a pairwise permutation inside its single node",
                 {"UCX_TLS": "rc,self"},
             )
         ]
     found = [
-        ("a2a", "blink/alltoall_nb.py", f"-msgsize {size} -endl", "a continuous all-to-all", {})
+        ("a2a", "blink/alltoall/alltoall_nb.py", f"-msgsize {size} -endl", "a continuous all-to-all", {})
     ]
     for length, pause in cfg.burst_grid():
         found.append(
             (
                 f"burst-{length}-{pause}",
-                "blink/alltoall_nb.py",
+                "blink/alltoall/alltoall_nb.py",
                 f"-msgsize {size} -endl -blength {length} -bpause {pause}",
                 f"a bursty all-to-all (bursts of {length} s, {pause} s apart)",
                 {},
             )
         )
     found.append(
-        ("incast", "blink/incast_nb.py", f"-msgsize {size} -endl", "a continuous incast", {})
+        ("incast", "blink/incast/incast_nb.py", f"-msgsize {size} -endl", "a continuous incast", {})
     )
     return found
 

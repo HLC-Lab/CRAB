@@ -28,8 +28,8 @@ from naming import experiment_name
 if TYPE_CHECKING:
     from make_configs import Built, Placement, Settings
 
-PINGPONG = "blink/pingpong_b.py"
-PAIRWISE = "blink/pairwise_nb.py"
+PINGPONG = "blink/pingpong/pingpong_b.py"
+PAIRWISE = "blink/pairwise/pairwise_nb.py"
 PARTNERS = 3  # the first node against the second, third and fourth
 PW_PARTNER = 3  # the node total runs on the first and third node (the second when only 2)
 _FUNCTION = re.compile(r"^(?P<card>.+)\.(?P<function>\d+)$")

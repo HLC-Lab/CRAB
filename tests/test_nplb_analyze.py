@@ -141,7 +141,7 @@ def test_metrics_of_one_experiment(tmp_path: Path, configs: dict[str, dict[str, 
         "C0",
         1,
     )
-    assert r["smoke"] and r["app"] == 1 and r["program"] == "blink/pairwise_nb.py"
+    assert r["smoke"] and r["app"] == 1 and r["program"] == "blink/pairwise/pairwise_nb.py"
     assert r["aggressor"] != r["aggressor"]  # NaN: alone has none
     assert (r["n_runs"], r["n_iters"], r["grty"]) == (2, 8, 64)
     assert r["t_med"] == pytest.approx(T_MED)
@@ -155,7 +155,7 @@ def test_metrics_of_one_experiment(tmp_path: Path, configs: dict[str, dict[str, 
     assert r["slowdown_med"] == pytest.approx(1.0)  # an alone row against itself
 
 
-PINGPONG = "blink/pingpong_b.py"
+PINGPONG = "blink/pingpong/pingpong_b.py"
 
 
 def pingpong_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -288,7 +288,7 @@ def test_colleague_set_has_no_baseline(tmp_path: Path, configs: dict[str, dict[s
     r = row(df, exp, 8)
     assert (r["set"], r["phase"], r["victim"]) == ("col", "cong", "a2a")
     assert r["aggressor"] == "burst-0.01-0.0001"
-    assert r["program"] == "blink/alltoall_comm_only.py"
+    assert r["program"] == "blink/alltoall/alltoall_comm_only.py"
     assert math.isnan(r["slowdown_med"]) and math.isnan(r["slowdown_p99"])
     assert "no alone baseline in this set" in md
 
@@ -409,7 +409,7 @@ def pp_config(
     """A config of the ping-pong set: one experiment per test, one collected app per size."""
     experiments = {}
     for test in tests:
-        path = "blink/pairwise_nb.py" if "-pw" in test else PINGPONG
+        path = "blink/pairwise/pairwise_nb.py" if "-pw" in test else PINGPONG
         apps = {str(i): pp_app(path, size, **app) for i, size in enumerate(sizes)}
         experiments[f"pp_{test}_C2_P1"] = {"apps": apps}
     return {"global_options": {"name": stem, "ppn": global_ppn}, "experiments": experiments}
@@ -485,7 +485,7 @@ def test_slow_iterations_of_a_non_pingpong_use_the_max_column(
 def test_node_total_scales_the_per_rank_bandwidth(pp_dirs: list[Path], tmp_path: Path) -> None:
     df, _, _ = summarize(tmp_path, *pp_dirs)
     total = row(df, "pp_n1n3-pw8_C2_P1", 8)
-    assert total["program"] == "blink/pairwise_nb.py"
+    assert total["program"] == "blink/pairwise/pairwise_nb.py"
     # Median column run medians 5 8 9 -> 8 us; the config's ppn is 4.
     assert total["bw_runs_med"] == pytest.approx(8 * PP_GRTY * 8 / (8 * US) / 1e9)
     assert total["node_gbps"] == pytest.approx(4 * total["bw_runs_med"])
