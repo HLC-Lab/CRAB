@@ -212,31 +212,39 @@ describe("wrapperSummaryLink", () => {
   const rel = "blink/alltoall/alltoall_b.py";
 
   it("opens the Library on the source cluster when its catalog has the wrapper", () => {
-    expect(wrapperSummaryLink(rel, "leo", [rel, "other.py"])).toBe(
+    expect(wrapperSummaryLink(rel, "leo", [rel, "other.py"], [])).toBe(
       "/wrappers?tab=library&target=leo&wrapper=blink%2Falltoall%2Falltoall_b.py",
     );
   });
 
-  it("falls back to This laptop with no source cluster", () => {
-    expect(wrapperSummaryLink(rel, "", [rel])).toBe(
-      "/wrappers?tab=library&target=local&wrapper=blink%2Falltoall%2Falltoall_b.py",
-    );
+  it("prefers the cluster over This laptop when both list the wrapper", () => {
+    expect(wrapperSummaryLink(rel, "leo", [rel], [rel])).toContain("target=leo&");
   });
 
-  it("falls back to This laptop when the cluster's catalog lacks the wrapper", () => {
-    expect(wrapperSummaryLink(rel, "leo", ["other.py"])).toContain("target=local&");
-    expect(wrapperSummaryLink(rel, "leo", [])).toContain("target=local&");
+  it("falls back to This laptop when only its catalog lists the wrapper", () => {
+    const expected = "/wrappers?tab=library&target=local&wrapper=blink%2Falltoall%2Falltoall_b.py";
+    expect(wrapperSummaryLink(rel, "", [], [rel])).toBe(expected);
+    expect(wrapperSummaryLink(rel, "", [rel], [rel])).toBe(expected);
+    expect(wrapperSummaryLink(rel, "leo", ["other.py"], [rel])).toBe(expected);
+    expect(wrapperSummaryLink(rel, "leo", [], [rel])).toBe(expected);
+  });
+
+  it("has no link for a path no catalog lists", () => {
+    expect(wrapperSummaryLink("nope/x.py", "leo", [rel], [rel])).toBeNull();
+    expect(wrapperSummaryLink("nope/x.py", "", [], [])).toBeNull();
+    expect(wrapperSummaryLink("/abs/path/w.py", "leo", [rel], [rel])).toBeNull();
+    expect(wrapperSummaryLink(rel, "", [rel], [])).toBeNull();
   });
 
   it("encodes the target and the relpath", () => {
-    expect(wrapperSummaryLink("a b/c&d.py", "my cl", ["a b/c&d.py"])).toBe(
+    expect(wrapperSummaryLink("a b/c&d.py", "my cl", ["a b/c&d.py"], [])).toBe(
       "/wrappers?tab=library&target=my+cl&wrapper=a+b%2Fc%26d.py",
     );
   });
 
   it("has no link for an empty path", () => {
-    expect(wrapperSummaryLink("", "leo", [""])).toBeNull();
-    expect(wrapperSummaryLink("   ", "", [])).toBeNull();
+    expect(wrapperSummaryLink("", "leo", [""], [""])).toBeNull();
+    expect(wrapperSummaryLink("   ", "", [], ["   "])).toBeNull();
   });
 });
 

@@ -4,7 +4,7 @@
 // apps editor. `expIndex` is the only piece of shared selection state passed
 // in (owned by AuthorView); `sourceCluster` is also shared (Basics reads it,
 // this pane is where it gets picked), everything else is local or store-direct.
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
@@ -136,15 +136,31 @@ const wrapperFor = ref<number | null>(null);
 type WrapperOrigin = "host" | "remote" | "both";
 type TaggedWrapper = Wrapper & { origin: WrapperOrigin };
 
+// The host catalog always loads (no connection needed); the remote catalog
+// needs a connected cluster. The store caches a loaded catalog, the busy flags
+// stop a second request while one is in flight.
+function ensureCatalogs() {
+  if (!catalog.localBusy) catalog.loadLocalBenchmarks();
+  const cluster = props.sourceCluster;
+  if (cluster && !catalog.busy[cluster]) catalog.loadBenchmarks(cluster);
+}
 function openWrapperPicker(appIndex: number) {
   wrapperFor.value = appIndex;
   showWrapper.value = true;
-  // The host catalog always loads (no connection needed); the remote catalog
-  // needs a connected cluster, without one the picker still opens so the
-  // user can force a free path via "+ Add" or pick a host-only wrapper.
-  catalog.loadLocalBenchmarks();
-  if (props.sourceCluster) catalog.loadBenchmarks(props.sourceCluster);
+  // Without a connected cluster the picker still opens so the user can force
+  // a free path via "+ Add" or pick a host-only wrapper.
+  ensureCatalogs();
 }
+// "About this wrapper" needs the catalogs too, so a reopened experiment with a
+// wrapper path loads them without waiting for the picker.
+const hasWrapperPath = computed(() => !!sel.value?.apps.some((a) => a.path.trim()));
+watch(
+  [hasWrapperPath, () => props.sourceCluster],
+  () => {
+    if (hasWrapperPath.value) ensureCatalogs();
+  },
+  { immediate: true },
+);
 const localWrappers = computed(() => catalog.localBenchmarks?.wrappers ?? []);
 const remoteWrappers = computed(() => catalog.benchmarks[props.sourceCluster]?.wrappers ?? []);
 const wrapperCatalogBusy = computed(
@@ -178,6 +194,7 @@ function wrapperLink(relpath: string): string | null {
     relpath,
     props.sourceCluster,
     remoteWrappers.value.map((w) => w.relpath),
+    localWrappers.value.map((w) => w.relpath),
   );
 }
 function chooseWrapper(relpath: string) {
