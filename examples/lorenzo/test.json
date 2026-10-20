@@ -31,7 +31,7 @@
             "description": "A2A 16 MiB victim (35 %) vs A2A 16 MiB aggressor (65 %), alternating nodes",
             "apps": {
                 "0": {
-                    "path": "blink/alltoall_comm_only.py",
+                    "path": "blink/alltoall/alltoall_comm_only.py",
                     "args": "-msgsize 16777216 -iter 1000",
                     "collect": true,
                     "start": "3",
@@ -39,7 +39,7 @@
                     "partition": "victim"
                 },
                 "1": {
-                    "path": "blink/alltoall_comm_only.py",
+                    "path": "blink/alltoall/alltoall_comm_only.py",
                     "args": "-msgsize 16777216 -endl",
                     "collect": false,
                     "start": "0",

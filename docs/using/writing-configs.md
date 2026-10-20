@@ -19,7 +19,7 @@ before introducing interference.
   "experiments": {
     "a2a_alone": {
       "apps": {
-        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "start": "0", "end": "" }
       }
     }
@@ -49,7 +49,7 @@ the victim finishes.
   "experiments": {
     "a2a_vs_g500": {
       "apps": {
-        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "start": "0", "end": "", "partition": "victim" },
         "1": { "path": "graph500/g500_wrapper.py", "args": "",
                "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
@@ -69,9 +69,9 @@ applications in sequence within one experiment.
 
 ```json
 "apps": {
-  "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8 -iter 1000",    "collect": true, "start": "0",  "end": "" },
-  "1": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 1024 -iter 1000", "collect": true, "start": "s0", "end": "" },
-  "2": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 65536 -iter 1000","collect": true, "start": "s1", "end": "" }
+  "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8 -iter 1000",    "collect": true, "start": "0",  "end": "" },
+  "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 1024 -iter 1000", "collect": true, "start": "s0", "end": "" },
+  "2": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 65536 -iter 1000","collect": true, "start": "s1", "end": "" }
 }
 ```
 
@@ -103,7 +103,7 @@ experiment.
 
 ```json
 "experiments": {
-  "baseline":     { "description": "victim alone",        "apps": { "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true, "start": "0", "end": "" } } },
+  "baseline":     { "description": "victim alone",        "apps": { "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true, "start": "0", "end": "" } } },
   "with_aggressor": {
     "description": "victim + aggressor",
     "local_options": {
@@ -113,7 +113,7 @@ experiment.
       }
     },
     "apps": {
-      "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": "victim" },
+      "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000", "collect": true,  "start": "0", "end": "",  "partition": "victim" },
       "1": { "path": "graph500/g500_wrapper.py",   "args": "",               "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
     }
   }
@@ -137,9 +137,9 @@ and the aggressor eight, on cores of their own.
   "experiments": {
     "a2a_vs_a2a": {
       "apps": {
-        "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "collect": true, "end": "" },
-        "1": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
+        "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 8192 -iter 1000",
                "end": "f", "ppn": "8" }
       }
     }
@@ -159,9 +159,9 @@ takes `<hca>:<port>`:
 
 ```json
 "apps": {
-  "0": { "path": "blink/alltoall_comm_only.py", "collect": true, "end": "",
+  "0": { "path": "blink/alltoall/alltoall_comm_only.py", "collect": true, "end": "",
          "cpus": "0-3",   "env": { "UCX_NET_DEVICES": "mlx5_0:1" } },
-  "1": { "path": "blink/alltoall_comm_only.py", "end": "f",
+  "1": { "path": "blink/alltoall/alltoall_comm_only.py", "end": "f",
          "cpus": "16-19", "env": { "UCX_NET_DEVICES": "mlx5_1:1" } }
 }
 ```
@@ -186,7 +186,7 @@ setting `UCX_NET_DEVICES` in `env`. Rank `i` on a node uses `nics[i % len(nics)]
 
 ```json
 "0": {
-  "path": "blink/alltoall_comm_only.py", "collect": true, "end": "",
+  "path": "blink/alltoall/alltoall_comm_only.py", "collect": true, "end": "",
   "ppn": 4,
   "cpus": "0,4,8,12",
   "nics": ["mlx5_0:1", "mlx5_1:1", "mlx5_2:1", "mlx5_3:1"]

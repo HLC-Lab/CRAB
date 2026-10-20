@@ -28,7 +28,7 @@ in-progress wrappers go in `local/wrappers/`.
 
 ## Where CRAB looks for wrappers
 
-A config names a wrapper by `path`, for example `blink/alltoall_b.py`. A relative path is looked up in
+A config names a wrapper by `path`, for example `blink/alltoall/alltoall_b.py`. A relative path is looked up in
 these folders, and the first match wins:
 
 1. `local/wrappers/` in the CRAB checkout;

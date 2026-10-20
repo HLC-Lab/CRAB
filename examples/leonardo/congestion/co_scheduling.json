@@ -21,7 +21,7 @@
                 "allocation": { "mode": "linear" }
             },
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" }
             }
         },
@@ -37,52 +37,52 @@
                 }
             },
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "", "partition": "victim" }
             }
         },
         "03_a2a_vs_a2a_64B": {
             "description": "Two symmetric A2A 64B, both collected. Interleaved layout, each gets 4 nodes.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" },
-                "1": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" }
             }
         },
         "04_a2a_vs_a2a_1MB": {
             "description": "Two symmetric A2A 1MB, both collected. Tests large-message co-scheduling.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 1048576 -iter 50",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 1048576 -iter 50",
                        "collect": true, "start": "0", "end": "" },
-                "1": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 1048576 -iter 50",
+                "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 1048576 -iter 50",
                        "collect": true, "start": "0", "end": "" }
             }
         },
         "05_a2a_vs_a2a_asymmetric": {
             "description": "A2A 64B vs A2A 1MB. Both collected to compare how size asymmetry affects each job.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" },
-                "1": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 1048576 -iter 50",
+                "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 1048576 -iter 50",
                        "collect": true, "start": "0", "end": "" }
             }
         },
         "06_a2a_vs_incast": {
             "description": "A2A 64B vs Incast 64B co-scheduled. Tests cross-collective interference.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" },
-                "1": { "path": "blink/incast_b.py",         "args": "-msgsize 64 -iter 2000",
+                "1": { "path": "blink/incast/incast_b.py",         "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" }
             }
         },
         "07_a2a_vs_agtr": {
             "description": "A2A 64B vs AllGather 64B co-scheduled. Both collected.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",  "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",  "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" },
-                "1": { "path": "blink/allgather_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "1": { "path": "blink/allgather/allgather_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" }
             }
         },
@@ -92,9 +92,9 @@
                 "allocation": { "mode": "random", "seed": 7, "split": [50, 50] }
             },
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" },
-                "1": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "1": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "" }
             }
         }

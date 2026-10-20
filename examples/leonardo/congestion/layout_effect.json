@@ -21,16 +21,16 @@
         "01_victim_alone": {
             "description": "A2A 64B on the 4 victim nodes (0-3), no noise. Reference for 02 (linear); the other layouts place the victim on other nodes.",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py", "args": "-msgsize 64 -iter 2000",
                        "collect": true, "start": "0", "end": "", "partition": "victim" }
             }
         },
         "02_linear_layout": {
             "description": "Victim on nodes 0-3, aggressor on nodes 4-7 (contiguous blocks).",
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -47,9 +47,9 @@
                 }
             },
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -66,9 +66,9 @@
                 }
             },
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         },
@@ -85,9 +85,9 @@
                 }
             },
             "apps": {
-                "0": { "path": "blink/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
+                "0": { "path": "blink/alltoall/alltoall_comm_only.py",    "args": "-msgsize 64 -iter 2000",
                        "collect": true,  "start": "3", "end": "",  "partition": "victim" },
-                "1": { "path": "blink/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
+                "1": { "path": "blink/alltoall/alltoall_man.py", "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.001",
                        "collect": false, "start": "0", "end": "f", "partition": "aggressor" }
             }
         }
