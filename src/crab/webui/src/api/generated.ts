@@ -969,6 +969,11 @@ export interface components {
        * @description Commands run before activation (e.g. 'module load python').
        */
       remote_setup?: string[];
+      /**
+       * Crab Command
+       * @description One executable that runs crab on the remote (e.g. ~/.local/bin/crab for a pipx install). Set: no cd into <remote_crab>/CRAB and no venv activation; remote_setup still runs first. Unset: the CRAB checkout in <remote_crab>/CRAB.
+       */
+      crab_command?: string | null;
       /** Preset */
       preset?: string | null;
     };
@@ -1041,6 +1046,11 @@ export interface components {
        * @description Commands run before activation (e.g. 'module load python').
        */
       remote_setup?: string[];
+      /**
+       * Crab Command
+       * @description One executable that runs crab on the remote (e.g. ~/.local/bin/crab for a pipx install). Set: no cd into <remote_crab>/CRAB and no venv activation; remote_setup still runs first. Unset: the CRAB checkout in <remote_crab>/CRAB.
+       */
+      crab_command?: string | null;
       /** Preset */
       preset?: string | null;
       /**

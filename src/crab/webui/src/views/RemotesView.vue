@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { useRemotesStore } from "@/stores/remotes";
+import { crabCommandNote, crabCommandView, crabDir } from "@/lib/remoteCrab";
 import type { Profile, StepResult } from "@/api/types";
 
 const store = useRemotesStore();
@@ -28,11 +29,6 @@ function stepText(res: StepResult): string {
   return [`exit ${res.rc}`, res.stdout, res.stderr].filter(Boolean).join("\n");
 }
 
-// CRAB lives in a CRAB subfolder of the profile's base dir (matches the backend).
-function crabDir(base: string | undefined): string {
-  return `${(base || "~").replace(/\/+$/, "")}/CRAB`;
-}
-
 const blank = (): Partial<Profile> => ({
   name: "",
   transport: "ssh",
@@ -43,9 +39,12 @@ const blank = (): Partial<Profile> => ({
   key_path: null,
   hostkey_policy: "strict",
   remote_crab: "~",
+  crab_command: null,
   preset: "",
 });
 const form = reactive<Partial<Profile>>(blank());
+// Hint, install-panel switch and save payload for the "Crab command" field.
+const crabView = computed(() => crabCommandView(form.crab_command, form.remote_crab));
 
 onMounted(() => store.refresh());
 
@@ -70,6 +69,8 @@ function closeForm() {
 async function submit() {
   const payload: Partial<Profile> = { ...form };
   if (!payload.host) delete payload.host;
+  // Blank means "use the checkout": send null, the backend rejects "".
+  payload.crab_command = crabView.value.payload;
   const ok = editingName.value
     ? await store.update(editingName.value, payload)
     : await store.add(payload);
@@ -137,12 +138,22 @@ function confirmRemove(name: string) {
           <label
             >Install dir
             <input v-model="form.remote_crab" placeholder="~" />
-            <small class="field-hint">CRAB goes in {{ crabDir(form.remote_crab) }}</small>
+            <small v-if="crabView.showInstall" class="field-hint"
+              >CRAB goes in {{ crabDir(form.remote_crab) }}</small
+            >
+          </label>
+          <label
+            >Crab command (optional)
+            <input v-model="form.crab_command" placeholder="~/.local/bin/crab" />
+            <small v-if="crabView.error" class="field-hint field-error">{{ crabView.error }}</small>
+            <small v-else class="field-hint">{{ crabView.hint }}</small>
           </label>
         </template>
         <label>Preset <input v-model="form.preset" placeholder="cluster preset" /></label>
       </div>
-      <button class="btn primary" type="submit">{{ editingName ? "Save changes" : "Save" }}</button>
+      <button class="btn primary" type="submit" :disabled="!!crabView.error">
+        {{ editingName ? "Save changes" : "Save" }}
+      </button>
     </form>
 
     <!-- List -->
@@ -220,7 +231,17 @@ function confirmRemove(name: string) {
         <p v-if="store.skew[r.name]" class="banner warn small">{{ store.skew[r.name] }}</p>
 
         <!-- Connected, but CRAB isn't installed there. Offer a guided install. -->
-        <div v-if="r.connected && store.crabMissing[r.name]" class="setup">
+        <div
+          v-if="
+            r.connected &&
+            store.crabMissing[r.name] &&
+            !crabCommandView(r.crab_command, r.remote_crab).showInstall
+          "
+          class="setup"
+        >
+          <p class="notice">{{ crabCommandNote((r.crab_command ?? "").trim()) }}</p>
+        </div>
+        <div v-else-if="r.connected && store.crabMissing[r.name]" class="setup">
           <p class="notice">
             CRAB is not installed on this cluster (looked in
             <code>{{ crabDir(r.remote_crab) }}</code
@@ -357,6 +378,9 @@ h1 {
 .field-hint {
   color: var(--text3);
   font-size: 0.72rem;
+}
+.field-error {
+  color: var(--danger);
 }
 .card {
   background: var(--bg1);
