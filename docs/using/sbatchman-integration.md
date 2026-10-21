@@ -366,9 +366,16 @@ repository.
 ## Keeping CRAB up to date
 
 Run `crab update` in the activated environment on the cluster, and in your laptop's CRAB checkout.
-It moves to the newest version of the `sbatchman` line, reinstalls dependencies only when they
-changed, and refuses to run over local edits to tracked files (keep yours in `local/`). When the
-laptop and a cluster run versions that no longer understand each other, the dashboard's
+By default it moves CRAB to the newest `+sbatchman` release tag (`vX.Y.Z+sbatchman`) and the
+shared wrappers clone to the tag `vX.Y.Z` of the CRAB version it ends on, so the two match. It
+reinstalls dependencies only when they changed, and refuses to run over local edits to tracked
+files (keep yours in `local/`). `crab update --to-release` does the same as plain `crab update`.
+
+To follow the `sbatchman` branch between releases, run `crab update --head`: CRAB and the wrappers
+both fast-forward to their branch HEAD. A checkout that a plain `crab update` left on a release
+tag has to return to the branch first: run `git checkout sbatchman`, then `crab update --head`.
+
+When the laptop and a cluster run versions that no longer understand each other, the dashboard's
 **Remotes** page says which side to update.
 
 ## Troubleshooting
@@ -387,6 +394,9 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `PARSE FAILED  app <n>: ...` in the job log, and the run counted as failed | The wrapper could not read the application's output (the reason follows) | Compare the output with what the wrapper expects; fix the wrapper and check it with `crab parse` |
 | `This config has schema_version <n>, but this CRAB reads up to <m>` | The campaign was written by a newer dashboard than the cluster's CRAB | `crab update` on the cluster |
 | `crab update` stops with `Local edits to tracked files would be overwritten` | A tracked file in the checkout was changed by hand | Move the change to `local/` (presets, receipts, wrappers), or commit or stash it, then retry |
+| `crab update` stops with `config/presets.json moved to src/crab/presets.json in this version: copy your edits to local/presets.json, run `git checkout config/presets.json`, then `crab update` again` | The checkout has edits to the old `config/presets.json`, which now lives inside the package | Do what the message says: copy your edits to `local/presets.json`, run `git checkout config/presets.json`, then run `crab update` again |
+| `crab update --head` stops with `CRAB is on release <tag>, not a branch: run `git checkout <branch>` in <dir>, then `crab update --head`` | A plain `crab update` left the checkout on a release tag, and `--head` needs a branch to follow | Run `git checkout sbatchman` in the CRAB checkout, then `crab update --head` |
+| `crab update` stops with `The wrappers clone <dir> has local edits (<files>): commit or stash them (or keep private wrappers in local/wrappers), then run crab update again.` | A tracked file in the `wrappers/` clone was edited by hand | Commit or stash the edits, or move private wrappers to `local/wrappers/` ([Writing a wrapper](#writing-a-wrapper-for-your-own-application)), then run `crab update` again |
 | `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job: SbatchMan is the PyPI release, or the preset lacks the entry | Install SbatchMan from GitHub at the pinned commit ([step 2](#2-install-crab-and-sbatchman-on-the-cluster)) and keep the `SBATCHMAN_JOB_DIR={EXP_DIR}` entry that `crab sbatchman-preset` prints |
 | `worker environment: CRAB_... is no longer read; use ...` in the job log | The preset still exports an old `CRAB_*` launch variable | Regenerate the preset with `crab sbatchman-preset`, append ` --overwrite` to the last line of the file, and run it ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
