@@ -5,8 +5,9 @@ All notable changes to CRAB are listed here, newest first. The format follows
 [semantic versioning](https://semver.org/), as defined in
 [ADR-039](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-039-public-surface-1-0/).
 
-Each release `vX.Y.Z` also has a `vX.Y.Z+sbatchman` tag for the SbatchMan partner line. This file
-lists the product line only.
+Each product-line release is listed here. The SbatchMan partner line is tagged `vX.Y.Z+sbatchman`,
+usually alongside the product release. A SbatchMan-only release has only the `+sbatchman` tag, and
+its notes live in the tag and the GitHub release.
 
 ## [1.1.0] - 2026-10-21
 
