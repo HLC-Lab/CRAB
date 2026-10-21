@@ -85,9 +85,9 @@ That has two effects a careful reader should weigh:
 - Iterations inside one run share their nodes, placement and the traffic of that moment, so they
   are correlated. The interval then understates the uncertainty of the mean across runs, which is
   what a comparison between experiments depends on.
-- With many iterations per run, `n` is large after a few runs, the interval is narrow, and the
-  check can pass as soon as `minruns` is reached. The number of runs is then `minruns`, not a
-  number chosen by the data. Raise `minruns` when you want more repetitions.
+- `n` counts iterations, not runs, and the interval narrows as `n` grows (step 3). With many
+  iterations per run, `n` is large after a few runs. Raise `minruns` when you want more
+  repetitions.
 
 CRAB does not yet compute run-level statistics (a summary per run, a confidence interval over run
 summaries, run-to-run variation), and convergence does not use them. The raw CSV keeps `run_id` on
@@ -99,14 +99,14 @@ statistic over the groups. [Reading results](../using/results.md#read-the-files)
 All apps of an experiment belong to the same run and are launched by that run's event loop
 (`src/crab/core/experiment/schedule.py`).
 
-**Start.** The `start` of each app is a delay in seconds from the start of the run, `"0"` by
+Start. The `start` of each app is a delay in seconds from the start of the run, `"0"` by
 default. Apps with the same delay are launched in the same pass of the loop, in app order, each
 launch starting without waiting for the previous one to come up. There is no barrier between apps,
 so the moment the ranks of two apps actually begin to run differs by the launchers' own start-up
 time. `"sN"` starts an app only after app N has finished, which turns a run into a
 sequence. See [Scheduling](../reference/configuration.md#scheduling-start-and-end).
 
-**End.** The `end` of an app decides how it stops, and the run lasts as long as the apps that do
+End. The `end` of an app decides how it stops, and the run lasts as long as the apps that do
 not have `end: "f"`:
 
 | `end` | The app |
@@ -121,7 +121,7 @@ that is stopped this way normally exits non-zero, and CRAB does not parse the ou
 exited non-zero, so a collected app with a timed or `f` end produces no samples. CRAB warns about that
 combination before the run starts.
 
-**Placement and sharing.** CRAB gives each app a list of nodes before the job starts, from the
+Placement and sharing. CRAB gives each app a list of nodes before the job starts, from the
 `allocation` block: contiguous blocks (`linear`), round-robin (`interleaved`), a shuffled list
 (`random`, reproducible only with a `seed`), named partitions, or `shared`, where every app gets
 all the nodes and the apps compete inside each node. An app with `start: "sN"` runs on the nodes
@@ -143,20 +143,20 @@ A run fails when any of these happens:
 
 What a failure leaves behind:
 
-- **Samples.** An app that exited non-zero, or whose output could not be parsed, adds no rows for
+- Samples. An app that exited non-zero, or whose output could not be parsed, adds no rows for
   that run, so its `run_id` is missing from that app's CSV. The other apps of the run still add
   theirs. A row whose check was false is written, and kept out of convergence.
-- **Logs.** An app that exits non-zero gets `error_app_<i>.log` in the experiment folder, with
+- Logs. An app that exits non-zero gets `error_app_<i>.log` in the experiment folder, with
   its exit code, stdout and stderr. Parse and check failures are logged as `PARSE FAILED` and
   `CHECK FAILED` lines in the job's log.
-- **The registry.** Each experiment adds a row to `metadata.csv` with `status`, `total_runs` and
+- The registry. Each experiment adds a row to `metadata.csv` with `status`, `total_runs` and
   `failed_runs`. `status` is `COMPLETED`, `FAILED` or `TIMEOUT`. It becomes `FAILED` when a
   run fails, and later successful runs do not reset it, so read `failed_runs` against
   `total_runs` to see how much data there is. `TIMEOUT` is set when the experiment's `timeout`
   hits in the middle of a run: CRAB stops the apps, the run is counted in `total_runs` but not
   in `failed_runs`, and the apps it stopped add no rows. When `timeout` passes between two runs,
   the experiment just ends with the status it had, usually `COMPLETED`.
-- **The job.** A failed run does not stop the experiment, and an experiment whose runs failed does
+- The job. A failed run does not stop the experiment, and an experiment whose runs failed does
   not by itself fail the job. An exception that escapes a run (for example the launcher cannot start) stops
   that experiment with status `FAILED`; CRAB writes the CSV of the runs finished so far, and the
   next experiment still runs. The job then ends failed, listing the experiments that stopped.
@@ -182,22 +182,22 @@ lines. To rerun a study, keep the job folder or its `config.json`.
 
 ## Known limits
 
-- **Convergence pools iterations**, as described above. It is a stopping rule for the number of
+- Convergence pools iterations, as described above. It is a stopping rule for the number of
   runs, not a statement about the confidence interval of the run-level mean.
-- **The interval assumes independent, roughly normal samples.** CRAB does not test either.
+- The interval assumes independent, roughly normal samples. CRAB does not test either.
   Heavy-tailed latencies break the second assumption.
-- **`msg_size` comes only from `-msgsize` in the app's `args`.** CRAB takes the integer after that
+- `msg_size` comes only from `-msgsize` in the app's `args`. CRAB takes the integer after that
   token, or writes `0` when there is none, and the value is the same on every row of the file.
   An application that takes its message size another way shows `0`. For a sweep, declare `keys`
   in the wrapper: the sizes then go in key columns.
-- **A collected app that CRAB stops gives no data.** A timed `end` or `"f"` stops the app with
+- A collected app that CRAB stops gives no data. A timed `end` or `"f"` stops the app with
   `SIGTERM`, and an app that writes its results only on another signal, or at its normal end,
   writes nothing. CRAB skips such an app without marking the run as failed.
-- **No application-side record.** `crab_run.json` identifies CRAB and the wrapper files. It does
+- No application-side record. `crab_run.json` identifies CRAB and the wrapper files. It does
   not store the application's binary checksum or build, the loaded modules (under Slurm they are
   in `crab_job.sh`), or what other jobs sent over the network during the run.
-- **Placement varies between jobs.** Slurm decides which nodes a job gets, and `random` allocation
+- Placement varies between jobs. Slurm decides which nodes a job gets, and `random` allocation
   is not reproducible without a `seed`. Compare experiments of the same job when you can, because
   they share one allocation.
-- **Experiments are sequential.** Differences between experiments include any drift of the system
+- Experiments are sequential. Differences between experiments include any drift of the system
   over the job's duration.

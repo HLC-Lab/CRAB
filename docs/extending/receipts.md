@@ -1,6 +1,6 @@
 # From recipe to receipt
 
-A **receipt** is the small JSON file that records where a benchmark's binary lives on this machine,
+A receipt is the small JSON file that records where a benchmark's binary lives on this machine,
 plus how to launch it. It is the bridge between building a benchmark and running it: a
 [recipe](recipes.md) (or you, by hand) writes it; a [wrapper](wrappers.md) reads it.
 
@@ -50,7 +50,7 @@ On success the wizard writes the receipt and prints a confirmation. See
 | Field | Meaning |
 |-------|---------|
 | `id` | The `benchmark_id`. |
-| `type` | `binary` / `module` / `source` — how it was configured. |
+| `type` | `binary` / `module` / `source`: how it was configured. |
 | `binary_path` | Where the executable (or its directory) lives. What the wrapper reads. |
 | `launcher_override` | `""` (use the preset's launcher), `"srun"` or `"mpirun"` (e.g. `mpirun` for QE). Any other value makes the experiment fail at setup with an error naming the app. |
 | `hooks.pre_run` | Shell commands run before each launch (e.g. module loads). |
@@ -66,7 +66,7 @@ A wrapper with a matching `benchmark_id` reads the receipt through helper method
 - `get_launcher_override()` → `launcher_override`.
 
 In addition, at run time the [orchestrator](../glossary.md#orchestrator) exports every receipt's
-binary path as an environment variable **`CRAB_PATH_<ID>`** (uppercased id). Older wrappers read
+binary path as an environment variable `CRAB_PATH_<ID>` (uppercased id). Older wrappers read
 that variable directly instead of calling `get_receipt()`; both work.
 
 ## Registering an installed binary with `crab receipts set`
@@ -85,14 +85,14 @@ command refuses a binary path that does not exist unless you pass `--allow-missi
 
 ## Registering a custom binary with `crab setup`
 
-For any binary that CRAB doesn't have a recipe for — something you built yourself, or an
-application already installed on the cluster — run:
+For any binary that CRAB doesn't have a recipe for (something you built yourself, or an
+application already installed on the cluster), run:
 
 ```bash
 crab setup
 ```
 
-and choose **"Register a custom already-installed benchmark"**. The wizard prompts you for the
+and choose "Register a custom already-installed benchmark". The wizard prompts you for the
 `benchmark_id`, the path to the binary, any pre-run module loads, and an optional launcher
 override, then writes the receipt for you. This is the recommended path: no JSON editing required.
 

@@ -217,9 +217,9 @@ Click an experiment in the rail. It has:
   its own, and `Use global allocation` goes back. The badge says `inherited` or `override`.
 - **Override run settings.** Change convergence, output and advanced settings for this experiment
   only. A field left on `inherit` or blank uses the global value.
-- The **flow diagram**: apps that start together sit in a column, and an arrow runs from an app to
+- The flow diagram: apps that start together sit in a column, and an arrow runs from an app to
   each app that starts after it. Colors are node groups.
-- The **apps**, one card each. `+ Add app` adds a card. The bin icon removes one.
+- The apps, one card each. `+ Add app` adds a card. The bin icon removes one.
 
 ### Pick a wrapper
 

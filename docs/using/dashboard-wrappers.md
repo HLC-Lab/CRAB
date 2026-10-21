@@ -10,7 +10,7 @@ the dashboard shows what a run there would see. The equivalent commands are list
 
 ## Targets
 
-A **target** is a place the dashboard looks at wrappers (see the [glossary](../glossary.md#target)):
+A target is a place the dashboard looks at wrappers (see the [glossary](../glossary.md#target)):
 
 - **This laptop** is the machine running `crab web`. It is always listed and needs no connection.
 - Each cluster profile from the **Remotes** page is a target too. A cluster is listed before you
@@ -91,12 +91,12 @@ wrapper that needs attention is marked `cannot load` or `no binary`.
 On the right, the summary of the selected wrapper. It is named after its file, without `.py`, and
 shows:
 
-- **The path**, and where the file came from: `view on GitHub at <commit>` links to the file at
+- The path, and where the file came from: `view on GitHub at <commit>` links to the file at
   the clone's commit. A wrapper in `local/wrappers` says `only in this checkout`, and any other
   wrapper without a GitHub link (for example one in a folder that is not a clone of a GitHub
   repository) says `not on GitHub`.
 - **Cannot load**, with the full error, when the wrapper does not import.
-- **The description.** It is the wrapper file's docstring. When there is none, it is the first
+- The description. It is the wrapper file's docstring. When there is none, it is the first
   paragraph of the nearest `README.md` below the wrappers folder, with a line saying so. When
   there is neither, a line says there is no description.
 - **What it measures.** The metrics the wrapper declares, with their unit. `convergence target`

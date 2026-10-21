@@ -1,25 +1,25 @@
 # Glossary
 
-CRAB reuses a few everyday words with precise, framework-specific meanings — and a couple of them
+CRAB reuses a few everyday words with precise, framework-specific meanings, and a couple of them
 collide with Slurm terminology. This page is the authoritative reference for what each term means
 here.
 
 ### Aggressor
 
-An application whose purpose is to **generate interference** rather than be measured. In a config,
-an aggressor is marked with `end: "f"` — CRAB force-terminates it as soon as all the
+An application whose purpose is to generate interference rather than be measured. In a config,
+an aggressor is marked with `end: "f"`: CRAB force-terminates it as soon as all the
 [victims](#victim) have finished. Contrast with [victim](#victim).
 
 ### Application (app) { #application }
 
 A single executable CRAB launches within an [experiment](#experiment), described by one entry in
 the config's `apps` block and adapted by a [wrapper](#wrapper). Multiple applications run
-concurrently in one experiment — that concurrency is the whole point of CRAB.
+concurrently in one experiment. That concurrency is the whole point of CRAB.
 
 ### Behind / Modified { #behind-modified }
 
-How a [target](#target)'s crab-wrappers clone compares with GitHub. **Behind** means GitHub has
-commits the clone lacks (Pull fetches them). **Modified** means tracked files in the clone were
+How a [target](#target)'s crab-wrappers clone compares with GitHub. Behind means GitHub has
+commits the clone lacks (Pull fetches them). Modified means tracked files in the clone were
 edited, which blocks Pull until the edits are committed, stashed or moved to `local/wrappers`.
 
 ### Collection (`collect`)
@@ -37,14 +37,14 @@ convergence-target metric has tightened below `beta × mean`; once all targets c
 
 ### Engine
 
-The control core (`src/crab/core/engine.py`) that runs in one of two modes —
+The control core (`src/crab/core/engine.py`) that runs in one of two modes:
 [orchestrator](#orchestrator) or [worker](#worker).
 
 ### Environment
 
 Overloaded; two senses:
 
-1. The **preset's `env` block** — environment variables exported for a run (e.g. `LD_LIBRARY_PATH`,
+1. The preset's `env` block: environment variables exported for a run (e.g. `LD_LIBRARY_PATH`,
    `UCX_*`). This is [system-dependent](concepts/system-dependent-vs-independent.md).
 2. The serialized `environment.json` the [orchestrator](#orchestrator) writes into the data
    directory and the [worker](#worker) reads back.
@@ -77,7 +77,7 @@ order. Under Slurm there is no host list: Slurm picks the nodes. See
 
 ### Job
 
-The top-level container: a single `crab run` invocation — one config file, submitted as one
+The top-level container: a single `crab run` invocation: one config file, submitted as one
 job (a Slurm job on a cluster), producing one output directory under `data/<system>/<name>_<timestamp>/`. Named by
 `global_options.name` (recorded as `job_name` in the registry). A job contains one or more
 [experiments](#experiment).
@@ -94,16 +94,16 @@ different launcher than the preset's.
 
 The first execution phase (`Engine._run_orchestrator`), running on the login node. It prepares the
 data directory, generates the Slurm batch script, and submits it (with `sbatch` under the `slurm` scheduler). It does **not** run
-benchmarks itself — it hands off to the [worker](#worker). See [Architecture](concepts/architecture.md#the-two-phase-execution-model).
+benchmarks itself. It hands off to the [worker](#worker). See [Architecture](concepts/architecture.md#the-two-phase-execution-model).
 
 ### Partition
 
-⚠️ **Two unrelated meanings — do not confuse them:**
+**Two unrelated meanings.** Do not confuse them:
 
-1. **CRAB allocation partition** — a named group of nodes defined in `allocation.partitions`, typically
+1. CRAB allocation partition: a named group of nodes defined in `allocation.partitions`, typically
    `"victim"` and `"aggressor"`. Each app references its partition by name via the `partition` field
    (→ `partition_id`).
-2. **Slurm partition** — a queue/resource pool on the cluster, requested via an `sbatch` directive
+2. Slurm partition: a queue/resource pool on the cluster, requested via an `sbatch` directive
    like `--partition=boost_usr_prod`.
 
 When this documentation says "partition" unqualified in a CRAB allocation context, it means the
@@ -111,7 +111,7 @@ first. In `sbatch_directives` or preset Slurm flags, it means the second.
 
 ### ppn
 
-**Ranks per node.** Combined with the node count to compute an app's total task count for the
+Ranks per node. Combined with the node count to compute an app's total task count for the
 launcher (`-n`/`-np`). Each app's `ppn` is its own, else its experiment's `local_options.ppn`,
 else `global_options.ppn`; see [Ranks per node](reference/configuration.md#ranks-per-node-ppn).
 
@@ -132,7 +132,7 @@ A JSON file in `local/receipts/<benchmark_id>.json`, produced by `crab setup` bu
 ### Recipe
 
 A Python class (`src/crab/setup/recipes/*.py`, subclassing `BenchmarkRecipe`) describing how to
-**download and build** a benchmark. Used only by `crab setup`, which turns a recipe into a
+download and build a benchmark. Used only by `crab setup`, which turns a recipe into a
 [receipt](#receipt). Distinct from a [wrapper](#wrapper).
 
 ### Run
@@ -154,7 +154,7 @@ An [allocation](reference/configuration.md#shared-nodes) with `mode: "shared"`, 
 [application](#application) of a scope gets all of its nodes, so the apps run at the same time on
 the same hosts. Its `cores` key, `"disjoint"` (the default) or `"shared"`, says whether they run
 on separate cores or may compete for the same ones. Apps that run this way are said to
-**co-run**.
+co-run.
 
 ### Target
 
@@ -163,14 +163,14 @@ a connected cluster. Each target has its own crab-wrappers clone and [receipts](
 
 ### Victim
 
-An application that **is being measured**. Marked with `end: ""` — CRAB waits for it to finish
+An application that is being measured. Marked with `end: ""`: CRAB waits for it to finish
 naturally. The metrics of interest come from victims; [aggressors](#aggressor) exist only to
 perturb them.
 
 ### Wrapper
 
 A Python module in `wrappers/` with a class named `app` (subclassing `base`) that teaches CRAB how
-to **launch** a specific application and **parse** its output into metrics. The
+to launch a specific application and parse its output into metrics. The
 [system-independent](concepts/system-dependent-vs-independent.md) counterpart to a
 [recipe](#recipe). See [Extending CRAB](extending/wrappers.md).
 
@@ -178,4 +178,4 @@ to **launch** a specific application and **parse** its output into metrics. The
 
 The second execution phase (`Engine._run_worker`), running on the allocated compute nodes inside
 the Slurm job (under the local scheduler, as a background process on this machine). It reads
-back the config the [orchestrator](#orchestrator) wrote and runs each experiment. Invoked as the hidden `crab worker` subcommand — never called by hand.
+back the config the [orchestrator](#orchestrator) wrote and runs each experiment. Invoked as the hidden `crab worker` subcommand, never called by hand.

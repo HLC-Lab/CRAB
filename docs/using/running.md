@@ -31,14 +31,14 @@ To check a config without submitting it, run `crab validate <config.json> -p <pr
 [examples](https://github.com/HLC-Lab/CRAB/tree/master/examples) hold configs you can run as they
 are or adapt, starting with one that runs on a laptop.
 
-**What happens:** the [orchestrator](../glossary.md#orchestrator) prepares a timestamped output
+What happens: the [orchestrator](../glossary.md#orchestrator) prepares a timestamped output
 directory, writes the resolved `config.json` and `environment.json` into it, generates a
 `crab_job.sh` batch script, and submits it: with `sbatch` under a Slurm preset, or as a detached
 local job (id `local-<n>`) under a local preset. The job itself runs the
 [worker](../glossary.md#worker), which executes your experiments on the allocated nodes. See
 [Architecture](../concepts/architecture.md#the-two-phase-execution-model) for the full flow.
 
-**Monitoring a run:** the work happens inside a job, so track it with the usual tools:
+Monitoring a run: the work happens inside a job, so track it with the usual tools:
 `squeue` for the queue under Slurm, or `crab status <id>` for a Slurm or `local-<n>` job id. Stop
 a job with `crab cancel <id>`. The job's `slurm_output.log` / `slurm_error.log` plus the CRAB logs
 inside the run's output directory (see [Reading results](results.md)) hold its output.

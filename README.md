@@ -73,8 +73,9 @@ crab history                # past experiments
 crab logs --data-dir data/local/<name>_<timestamp>   # the job's captured stdout and stderr
 ```
 
-Results are written to `data/local/<name>_<timestamp>/`. For an experiment with a victim and an
-aggressor on a Slurm cluster, follow the [tutorial](docs/tutorial.md).
+Results are written to `data/local/<name>_<timestamp>/`. The [examples guide](examples/README.md)
+says which example to start with and how to adapt one to your cluster. For an experiment with a
+victim and an aggressor on a Slurm cluster, follow the [tutorial](docs/tutorial.md).
 
 To start the dashboard, install the `web` extra and run:
 
@@ -95,8 +96,9 @@ pages are in `docs/` in this repository.
   [writing experiment configs](docs/using/writing-configs.md),
   [reading results](docs/using/results.md),
   [the web dashboard](docs/using/dashboard.md).
-- Concepts: [system-dependent and system-independent parts](docs/concepts/system-dependent-vs-independent.md)
-  and [architecture](docs/concepts/architecture.md).
+- Concepts: [system-dependent and system-independent parts](docs/concepts/system-dependent-vs-independent.md),
+  [architecture](docs/concepts/architecture.md) and [methodology](docs/concepts/methodology.md)
+  (what a run measures and how convergence is decided).
 - Extending CRAB: [writing a wrapper](docs/extending/wrappers.md) and
   [adding a build recipe](docs/extending/recipes.md).
 - Reference: [CLI commands](docs/reference/cli.md),

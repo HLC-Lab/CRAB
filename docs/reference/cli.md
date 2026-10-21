@@ -97,7 +97,7 @@ connections and what the dashboard does.
 
 ## `crab export`
 
-Generates a **self-contained HTML dashboard** from a results directory. The CSV data is embedded
+Generates a self-contained HTML dashboard from a results directory. The CSV data is embedded
 into the file, so the result can be emailed, committed to a repo, or opened directly anywhere
 without any server or import step.
 
@@ -460,21 +460,21 @@ crab update [--head | --to-release] [--json]
 | `--to-release` | Same as the default, kept so older scripts keep working. Cannot be combined with `--head`. | on |
 | `--json` | Print the result as JSON. Both the `crab` and the `wrappers` block carry `ref`, `"release"` or `"head"`. | off |
 
-- **Release (the default).** A checkout moves to the newest release tag of its line (`vX.Y.Z`, or
+- Release (the default). A checkout moves to the newest release tag of its line (`vX.Y.Z`, or
   `vX.Y.Z+sbatchman` on the SbatchMan line); with no tag at all it stays on its branch and
   fast-forwards it. The wrappers clone moves to the tag `vX.Y.Z` of the CRAB version the update
   ends on, so the two always match. The dashboard's installer runs `crab update --to-release`
   after cloning.
-- **Wrappers tag missing.** If the wrappers repository has no tag `vX.Y.Z` yet, an existing
+- Wrappers tag missing. If the wrappers repository has no tag `vX.Y.Z` yet, an existing
   wrappers clone stays where it is, the command prints `no wrappers tag vX.Y.Z yet, left at
   <commit>`, and it still succeeds (action `kept`). A wrappers clone made by this run reports
   `cloned` with the same line in its detail and stays on the default branch.
-- **`--head`.** CRAB fast-forwards its branch (`git pull --ff-only`) and the wrappers clone runs
+- `--head`. CRAB fast-forwards its branch (`git pull --ff-only`) and the wrappers clone runs
   `git pull --ff-only` on its checked-out branch. A wrappers clone a release update left on a tag
   goes back to the default branch first. A CRAB checkout left on a release tag by a release
   update is refused, before anything changes: run `git checkout <branch>` in the checkout, then
   `crab update --head`.
-- **Pip install.** When CRAB was installed with pip or pipx there is no git checkout to move, so
+- Pip install. When CRAB was installed with pip or pipx there is no git checkout to move, so
   CRAB itself is left alone and the output says to run `pipx upgrade crab-hpc`. The wrappers
   clone under the install's home is still cloned or moved, to the tag of the installed version
   (or to the branch with `--head`). The `crab` block reads `"mode": "pip"` with a `hint`.

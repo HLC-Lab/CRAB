@@ -250,7 +250,7 @@ reference](../reference/cli.md#crab-parse).
 
 ## Read in the web dashboard
 
-The **Results** page of the [web dashboard](dashboard.md) lists every job a connected cluster's
+The Results page of the [web dashboard](dashboard.md) lists every job a connected cluster's
 `crab history` reports, fetches a job's folder to your laptop when you ask, and shows an app's data
 as a chart or a table. The `Compare` tab puts apps from different jobs, on different clusters, on
 one chart. See [Read results](dashboard.md#read-results) for the controls.

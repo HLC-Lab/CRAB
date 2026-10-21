@@ -21,14 +21,17 @@ output, so any program can take part.
 ## Where to go next
 
 - To try CRAB, [install it](using/installation.md), then follow the [tutorial](tutorial.md) or
-  [run without Slurm](using/running-without-slurm.md).
+  [run without Slurm](using/running-without-slurm.md). The
+  [examples guide](https://github.com/HLC-Lab/CRAB/blob/master/examples/README.md) says which
+  example to start with.
 - To run experiments on a cluster, [configure your cluster](using/presets.md),
   [write a config](using/writing-configs.md), [run it](using/running.md) and
   [read the results](using/results.md). The [web dashboard](using/dashboard.md) does the same
   from a browser.
 - To understand the model, read
-  [System-dependent vs system-independent](concepts/system-dependent-vs-independent.md) and the
-  [architecture](concepts/architecture.md).
+  [System-dependent vs system-independent](concepts/system-dependent-vs-independent.md), the
+  [architecture](concepts/architecture.md) and the [methodology](concepts/methodology.md), which
+  explains what a run measures and how convergence is decided.
 - To support a new application, see [Extending CRAB](extending/overview.md): a
   [wrapper](extending/wrappers.md) and, optionally, a [build recipe](extending/recipes.md). The
   stock wrappers live in [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers).

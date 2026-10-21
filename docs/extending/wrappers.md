@@ -18,8 +18,8 @@ The wrapper is created in the shared wrappers folder (the first folder of `CRAB_
 git-ignored and meant for private or in-progress wrappers, or `--dir <folder>` for any other
 folder.
 
-The web dashboard lists the wrappers of this laptop and of each connected cluster, and its **New
-wrapper** button shows this command: see [Wrappers in the web
+The web dashboard lists the wrappers of this laptop and of each connected cluster, and its New
+wrapper button shows this command: see [Wrappers in the web
 dashboard](../using/dashboard-wrappers.md).
 
 ## Where the shared wrappers live
@@ -44,7 +44,7 @@ found on it.
 
 ## The contract
 
-Define a class named **`app`** that subclasses `base`:
+Define a class named `app` that subclasses `base`:
 
 ```python
 from crab.wrappers.base import base
@@ -76,7 +76,7 @@ class app(base):
 | `benchmark_id` | Name of the [receipt](receipts.md) that records where the binary lives. |
 | `get_extra_artifacts()` | Optional: paths or glob patterns, relative to `self.run_dir`, of files to keep with the results. |
 
-**When the output is not what you expect, raise an exception.** CRAB checks every result against
+When the output is not what you expect, raise an exception. CRAB checks every result against
 `keys` and `metadata`. A result that raises, misses a field, has an undeclared field or holds a
 value of the wrong type fails that run, with the reason in the log. Nothing is recorded for it, and
 the experiment goes on with the next run. Never return zeros or placeholders: they would look like

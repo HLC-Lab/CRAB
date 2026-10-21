@@ -13,7 +13,7 @@ source .venv/bin/activate
 pip install -e .[web,dev]    # editable install with the web dashboard + dev tools
 ```
 
-Requires **Python 3.10+**. The package is installed in editable mode, so changes to `src/crab/` take
+Requires Python 3.10+. The package is installed in editable mode, so changes to `src/crab/` take
 effect without reinstalling. Frontend work additionally needs node: `cd src/crab/webui && npm install`.
 
 ## Verification
@@ -66,8 +66,8 @@ local/            # git-ignored, per machine: presets.json, receipts/, wrappers/
 examples/         # sample experiment configs per system, each folder with a README
 ```
 
-The most important thing to understand before changing the core is the **two-phase orchestrator /
-worker execution model** and the **wrapper / recipe / receipt** separation — both covered in
+The most important thing to understand before changing the core is the two-phase orchestrator /
+worker execution model and the wrapper / recipe / receipt separation. Both are covered in
 [Architecture](concepts/architecture.md).
 
 ## Where things go

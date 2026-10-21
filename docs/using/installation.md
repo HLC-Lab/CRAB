@@ -5,14 +5,14 @@ benchmarks you want available on this machine.
 
 ## Prerequisites
 
-- **Python 3.10+** (the installer hard-fails below this; on a cluster you may need `module load python` first).
-- **Git**.
-- **A Slurm cluster** to run experiments. `crab run` submits the job with `sbatch`; see the note
+- Python 3.10+ (the installer hard-fails below this; on a cluster you may need `module load python` first).
+- Git.
+- A Slurm cluster to run experiments. `crab run` submits the job with `sbatch`; see the note
   below for the one exception.
-- **Network access.** `make` downloads Python packages from PyPI and clones the wrappers from
+- Network access. `make` downloads Python packages from PyPI and clones the wrappers from
   github.com. `crab setup` clones the benchmark sources from github.com when you build from source.
   A cluster login node usually has this; a compute node may not.
-- **Build tools** if you intend to *build* benchmarks from source with the setup wizard. Blink
+- Build tools if you intend to *build* benchmarks from source with the setup wizard. Blink
   needs CMake 3.16 or newer, a C and a C++ compiler, and the MPI compiler wrappers `mpicc` and
   `mpicxx`. On a cluster these usually come from modules (see the build step below).
 
@@ -36,7 +36,7 @@ make
 [HLC-Lab/crab-wrappers](https://github.com/HLC-Lab/crab-wrappers), and CRAB does not ship them in
 its own tree.
 
-`make` is idempotent — if CRAB is already installed it tells you so. Use `make clean` to remove
+`make` is idempotent: if CRAB is already installed it tells you so. Use `make clean` to remove
 the virtual environment and build artifacts, and `make setup` to re-run just the wizard.
 `make clean` leaves `wrappers/` alone.
 
@@ -56,7 +56,7 @@ Before the first `crab run` on a cluster that needs a Slurm account, create
 `--account=YOUR_PROJECT_ACCOUNT`, which `sbatch` refuses. The
 [presets page](presets.md#keep-your-presets-out-of-git) has a complete example.
 
-Once installed, **activate the environment** before using the `crab` command (this also enables
+Once installed, activate the environment before using the `crab` command (this also enables
 shell tab-completion, registered during install):
 
 ```bash
@@ -132,9 +132,9 @@ To drive a cluster that has CRAB installed this way from the dashboard, fill the
 
 ## Set up benchmarks (`crab setup`)
 
-CRAB ships with **recipes** that know how to obtain and build a set of supported benchmarks. The
-wizard turns a recipe into a **receipt** — a record of where the built binary lives on this
-machine — so wrappers can find it at run time.
+CRAB ships with recipes that know how to obtain and build a set of supported benchmarks. The
+wizard turns a recipe into a receipt, a record of where the built binary lives on this
+machine, so wrappers can find it at run time.
 
 ```bash
 crab setup
@@ -145,18 +145,18 @@ or reconfigure benchmarks later.
 
 The wizard walks through:
 
-1. **Select suites.** Choose which benchmark suites to install
+1. Select suites. Choose which benchmark suites to install
    (see [Supported benchmarks](../reference/supported-benchmarks.md)).
-2. **Select versions.** For suites with multiple versions (Quantum ESPRESSO offers v6 and v7),
+2. Select versions. For suites with multiple versions (Quantum ESPRESSO offers v6 and v7),
    pick which to build.
-3. **Choose a strategy** per benchmark:
+3. Choose a strategy per benchmark:
 
     | Strategy | What it does |
     |----------|--------------|
-    | **Auto-detect** | Looks for an existing build under `benchmarks/`, optionally doing a deep search of your home directory. For Blink it only finds a build that `crab setup` made (`benchmarks/blink/build/bin`). |
-    | **Manual path** | You supply the absolute path to an existing executable/directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
-    | **Environment module** | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
-    | **Build from source** | Asks for a module line (default `module load gcc openmpi`), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE), streaming the build log live. |
+    | Auto-detect | Looks for an existing build under `benchmarks/`, optionally doing a deep search of your home directory. For Blink it only finds a build that `crab setup` made (`benchmarks/blink/build/bin`). |
+    | Manual path | You supply the absolute path to an existing executable/directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
+    | Environment module | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
+    | Build from source | Asks for a module line (default `module load gcc openmpi`), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE), streaming the build log live. |
 
 For a source build, the module line is run in a non-interactive `bash`, so it must work there. If
 CMake is a module on your cluster, add it to the line (for example
@@ -166,18 +166,18 @@ that benchmark without building anything.
 
 #### Example: build Blink from source
 
-1. Run `crab setup` and choose **Install or configure a supported benchmark**.
+1. Run `crab setup` and choose "Install or configure a supported benchmark".
 2. The suite list pre-selects every suite that is not configured yet. Press Space to untick the
-   ones you do not want, so that only **Blink Suite** is ticked, then press Enter.
-3. At **Select Configuration Strategy**, type `4` (Download and compile from source layout).
-4. At **Enter necessary pre-build cluster module loads**, press Enter to accept
+   ones you do not want, so that only Blink Suite is ticked, then press Enter.
+3. At "Select Configuration Strategy", type `4` (Download and compile from source layout).
+4. At "Enter necessary pre-build cluster module loads", press Enter to accept
    `module load gcc openmpi`, or type your own line (add CMake if it is a module).
 5. A build panel shows the steps (clone, configure with CMake, compile) with the last lines of the
    log. Blink is built under `benchmarks/blink/`.
 6. When it ends, the wizard saves the receipt `local/receipts/blink.json`.
 
 If an earlier build failed, it left a `benchmarks/blink` folder behind. The wizard then asks
-**Found a leftover build at ... Remove it and start again?** Answer yes to remove the folder and
+"Found a leftover build at ... Remove it and start again?" Answer yes to remove the folder and
 build again. If you answer no, Blink is skipped.
 
 On success the wizard writes a receipt to `local/receipts/<benchmark_id>.json` (receipts written
@@ -222,13 +222,13 @@ upgrade CRAB itself.
 
 Two cases need a little more:
 
-- **It stops with "Local edits to tracked files would be overwritten".** The message lists the
+- It stops with "Local edits to tracked files would be overwritten". The message lists the
   files. Move per-machine changes to `local/`, or commit or stash them. One old case has its own
   message: the shipped presets used to be `config/presets.json`, and if you put your account
   there, the update tells you to copy your edits to `local/presets.json` (see
   [Configuring your cluster](presets.md#keep-your-presets-out-of-git)), run
   `git checkout config/presets.json`, and run `crab update` again.
-- **You come from v0.4.0 or older.** Run `crab update` twice. The first run still executes the old
+- You come from v0.4.0 or older. Run `crab update` twice. The first run still executes the old
   update code, which does not know how to fetch the wrappers. The second run uses the new code and
   clones them.
 

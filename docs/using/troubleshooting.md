@@ -100,11 +100,16 @@ note that it declares none). Fix one of them:
 
 ### A receipt that cannot be read
 
-A receipt is `local/receipts/<id>.json` (`~/.config/crab/receipts/<id>.json` on a pip install). If
-the file is not valid JSON, CRAB reports it with a message that names the receipt file. Open
-that file and fix it, or delete it and record the binary again with `crab receipts set` or
-`crab setup`. Until the receipt is readable, the app has no receipt, and you can also see the
-missing-binary message above.
+```text
+crab: receipt <file> is not valid JSON (<parser error>). Fix or delete the file, or register the binary again.
+crab: cannot read receipt <file>: <reason>
+crab: receipt <file> must hold a JSON object, got <type>
+```
+
+A receipt is `local/receipts/<id>.json` (`~/.config/crab/receipts/<id>.json` on a pip install).
+When CRAB finds the file but cannot read it, the command stops with exit status 1 and one of these
+messages, and it leaves the file as it is. The message names the file. Repair that file, or delete
+it, then record the binary again with `crab receipts set` or `crab setup`.
 
 ## Presets and configs
 

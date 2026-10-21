@@ -1,7 +1,7 @@
 # Configuring your cluster
 
-A **preset** is the [system-dependent](../concepts/system-dependent-vs-independent.md) half of a
-run: it tells CRAB how *this* machine runs work — which scheduler, which launcher and
+A preset is the [system-dependent](../concepts/system-dependent-vs-independent.md) half of a
+run: it tells CRAB how *this* machine runs work: which scheduler, which launcher and
 flags, CPU pinning, modules to load, and the Slurm directives every job needs. CRAB ships with
 presets for several systems; this page is about adding one for a cluster it doesn't know yet.
 
@@ -13,11 +13,11 @@ exhaustive field/merge reference, see
 
 ## Start by copying an existing preset
 
-Don't start from `example_preset` — it's an empty schema skeleton (and is deliberately hidden from
-`-p` tab-completion), so a run with it would fail. Copy a **complete, real** preset and adapt it:
+Don't start from `example_preset`: it's an empty schema skeleton (and is deliberately hidden from
+`-p` tab-completion), so a run with it would fail. Copy a complete, real preset and adapt it:
 
-- **Slurm cluster (launcher `srun`)** → copy **`leonardo`**.
-- **Slurm cluster where you launch with `mpirun`** → copy **`slimfly`**.
+- Slurm cluster (launcher `srun`) → copy `leonardo`.
+- Slurm cluster where you launch with `mpirun` → copy `slimfly`.
 
 The `local` preset is different: it runs a single-node job on your own machine without Slurm, for
 trying CRAB out (see [Running without Slurm](#running-without-slurm)). Don't use it as a template
@@ -25,7 +25,7 @@ for a cluster.
 
 ## Anatomy of a working Slurm preset
 
-Here is `leonardo`, annotated — it's the recommended starting point for a Slurm system:
+Here is `leonardo`, annotated. It's the recommended starting point for a Slurm system:
 
 ```json
 "leonardo": {
@@ -51,19 +51,19 @@ Here is `leonardo`, annotated — it's the recommended starting point for a Slur
 
 To adapt it to your cluster, change the values you already know for your system:
 
-- **`sbatch`** — your Slurm `--account` and `--partition` (plus any site requirements; some sites
+- `sbatch`: your Slurm `--account` and `--partition` (plus any site requirements; some sites
   also want `--exclusive` to guarantee whole-node allocations for interference measurements).
-- **`launchers.srun.flags`** — your preferred binding (`--cpu-bind=socket`, `--cpu-bind=core`, a
+- `launchers.srun.flags`: your preferred binding (`--cpu-bind=socket`, `--cpu-bind=core`, a
   `map_cpu` list, etc.).
   For apps that share nodes or set `cpus`, CRAB binds the ranks itself and drops a `--cpu-bind`
   from these flags; see [The srun launcher](../reference/presets.md#the-srun-launcher).
-- **`header`** — the `module load` lines your benchmarks need at run time.
-- **`env`** — any environment variables your system or libraries require. They reach the
+- `header`: the `module load` lines your benchmarks need at run time.
+- `env`: any environment variables your system or libraries require. They reach the
   applications; launch settings do not belong here.
 
 !!! note
     This guide assumes you already know your cluster's account, partition, and the right CPU
-    pinning for your hardware — those are site-specific values your HPC support or local
+    pinning for your hardware. Those are site-specific values your HPC support or local
     documentation provides.
 
 ## A minimal preset for a new cluster
@@ -167,14 +167,14 @@ logging out are on the page [Running without Slurm](running-without-slurm.md).
 
 Three places can load modules or set variables, and they run at different moments:
 
-1. **The preset's `header`.** Under Slurm its lines are written once, at the top of the batch
+1. The preset's `header`. Under Slurm its lines are written once, at the top of the batch
    script `crab_job.sh`, after the `#SBATCH` directives. They run before `crab worker` starts, so
    the worker and every application it starts inherit what they set.
-2. **The receipt's `pre_run` hooks.** CRAB writes a small script for each application launch,
+2. The receipt's `pre_run` hooks. CRAB writes a small script for each application launch,
    `<run dir>/.wrappers/app_<id>.sh`. It sources `/etc/profile.d/modules.sh` when that file exists,
    runs the receipt's `pre_run` hooks, then exports the application's own
    [`env`](../reference/configuration.md#the-apps-block) variables.
-3. **The launcher.** The last line of that script is the launch line, which starts the application
+3. The launcher. The last line of that script is the launch line, which starts the application
    with `srun`, `mpirun` or as is.
 
 With `mpirun` on several hosts, the remote ranks are started by `mpirun` over `ssh` and do not run
@@ -229,9 +229,9 @@ $EDITOR local/presets.json
 
 The merge rules apply to every layer:
 
-- A preset in your file **replaces** the earlier preset of the same name as a whole, so copy the
+- A preset in your file replaces the earlier preset of the same name as a whole, so copy the
   entire block before changing it.
-- A preset that exists only in your file is simply added.
+- A preset that exists only in your file is added.
 - For `_common`, the `env` entries are merged key by key (yours win); any other `_common` key
   you set replaces the earlier one.
 
