@@ -31,6 +31,18 @@ languages. What each gate runs, and how to write tests, is documented in
 [Web dashboard architecture](dev/dashboard/architecture.md), and the reasoning behind
 non-obvious choices in the [decision records](dev/dashboard/decisions/index.md).
 
+## Commits and branches
+
+Commits are one line with an area prefix (`web:` `core:` `cli:` `fix:` `test:` `docs:` `chore:`
+`examples:`), one concern each: a refactor, a behavior change and a formatting pass are separate
+commits.
+
+Work lands on `develop`, the product branch, and `master` gets the releases. `sbatchman` and `nplb`
+are partner branches that merge down from `develop` (a merge, never a rebase) and carry only
+campaign-specific commits ([ADR-028](dev/dashboard/decisions/adr-028-branch-model.md)). The short
+version of this page is
+[CONTRIBUTING.md](https://github.com/HLC-Lab/CRAB/blob/develop/CONTRIBUTING.md) in the repository.
+
 ## Project layout
 
 ```
@@ -45,13 +57,13 @@ src/crab/
 │   └── execution/        # scheduler/ (job submission) and launcher/ (srun, mpirun, direct)
 ├── setup/        # `crab setup`: wizard, recipe registry, recipes/, receipt storage (memory.py)
 ├── log/          # CrabLogger
-└── wrappers/base.py   # the wrapper base class
+├── wrappers/base.py   # the wrapper base class
+├── presets.json  # the shipped presets (they ship inside the package)
+└── crab_dashboard.html  # standalone results viewer
 
 wrappers/         # application wrappers: a separate git-ignored clone of HLC-Lab/crab-wrappers
 local/            # git-ignored, per machine: presets.json, receipts/, wrappers/
-config/           # presets.json (the shipped presets)
 examples/         # sample experiment configs per system
-crab_dashboard.html  # standalone results viewer
 ```
 
 The most important thing to understand before changing the core is the **two-phase orchestrator /

@@ -84,6 +84,7 @@ nav:
       - Supported benchmarks: reference/supported-benchmarks.md
       - Wrapper & Recipe API: reference/api.md
   - Contributing: contributing.md
+  - Changelog: changelog.md
   - Development:
       - Web dashboard architecture: dev/dashboard/architecture.md
       - Testing & verification: dev/dashboard/testing.md

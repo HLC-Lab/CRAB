@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/HLC-Lab/CRAB/security/advisories/new
+    about: Report it privately here, not in a public issue.
+  - name: Request or fix an application wrapper
+    url: https://github.com/HLC-Lab/crab-wrappers/issues/new
+    about: Wrappers for applications live in the crab-wrappers repository.
+  - name: Documentation
+    url: https://hlc-crab.readthedocs.io/
+    about: Installation, configuration and how-to guides.
