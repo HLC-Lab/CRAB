@@ -197,7 +197,7 @@ command (and each key of the configs file) does this:
 | `--partition <partition>` | `#SBATCH --partition`: the queue the jobs go to. | Most sites require one. Use a partition your account may submit to. |
 | `--account <account>` | `#SBATCH --account`: the project the hours are charged to. | Required where the site accounts for usage. |
 | `--qos <qos>` | `#SBATCH --qos`: the quality of service. | Printed only when you pass `--qos`. Some sites use it to select short debug queues. |
-| `--time <hh:mm:ss>` | `#SBATCH --time`: the walltime limit of each job. | Slurm kills a job that runs past it, and many sites require it or default to a short limit. Set it above your longest job. |
+| `--time <hh:mm:ss>` | `#SBATCH --time`: the walltime limit of each job. | Slurm kills a job that runs past it, and many sites require it or default to a short limit. Set it above your longest job. A job that holds several experiments needs time for all of them, one after another ([step 6](#6-write-a-campaign)). |
 | `--nodes <nodes>` | `#SBATCH --nodes`: how many nodes each job gets. | Match the experiment's `numnodes` (see [Sizing the allocation for co-runs](#sizing-the-allocation-for-co-runs)). |
 | `--tasks-per-node <tasks per node>` | `#SBATCH --ntasks-per-node`: how many ranks each node can run. | The allocation must hold the ranks of all apps at once. For a co-run, size it as in [Sizing the allocation for co-runs](#sizing-the-allocation-for-co-runs). |
 | `--exclusive` | `#SBATCH --exclusive`: the job gets its nodes to itself. | Without it, the jobs of one campaign can run at the same time on the same nodes and skew each other's network timings. Pass `--no-exclusive` to `crab sbatchman-preset` only if the site forbids it, or if you measure nothing network-sensitive. |
@@ -289,6 +289,15 @@ jobs:
     command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
 ```
 
+One job can hold several experiments. Under `"experiments"` you can list as many as you like: CRAB
+runs them one after another, in sorted name order, inside the single Slurm allocation the job got,
+so they all run on the same nodes. This is how a baseline and a noise run share nodes: they are
+experiments of the same job, not two jobs. Name the experiments so that the order you want is the
+sorted order (`r1_baseline`, `r1_noise`, `r2_baseline`, ... run in exactly that order). A failing
+experiment does not stop the ones after it. The job's walltime (`--time` in the preset of
+[step 5](#5-create-the-sbatchman-presets)) must cover all of its experiments together, and CRAB
+gives each experiment 1200 seconds by default, so a job of six experiments can use two hours.
+
 The quickest start is to copy a ready-made campaign from `examples/sbatchman/` in the CRAB
 checkout, next to your `configs.yaml`:
 
@@ -298,9 +307,16 @@ cp <install dir>/CRAB/examples/sbatchman/*.yaml .
 ```
 
 The folder has `smoke.yaml` (one all-to-all on 2 nodes, small enough for a debug queue),
-`a2a-vs-incast.yaml` and `a2a-vs-a2a.yaml` (a baseline and a noise job at 4, 8 and 16 nodes). Its
+`a2a-vs-incast.yaml` and `a2a-vs-a2a.yaml`. The last two measure how much an incast aggressor (or
+an all-to-all aggressor) slows an all-to-all. Each one has `nodes` (4, 8 and 16) and `msgsize` (1024,
+65536, 1048576 and 4194304 bytes) as variables, so SbatchMan launches 12 jobs per file, one for
+every pair. Every job runs six experiments in one allocation: `r1_baseline`, `r1_noise`,
+`r2_baseline`, `r2_noise`, `r3_baseline` and `r3_noise`. The baseline experiments run only the
+victim, `blink/alltoall/alltoall_b.py` with `-msgsize {msgsize} -iter 100`. The noise experiments
+run the same victim next to the aggressor. Its
 [README](https://github.com/HLC-Lab/CRAB/blob/sbatchman/examples/sbatchman/README.md) explains each
-file and what it measures. Edit the `args` of an app, the `variables`, or the experiment, or write
+file and what it measures, and it lists the cost of one job per `(nodes, msgsize)` pair: more
+queue waits, and a different allocation for each message size. Edit the `args` of an app, the `variables`, or the experiment, or write
 your own file in the same shape. The `"experiments"` object is a normal CRAB config: see the
 [configuration reference](../reference/configuration.md).
 
@@ -322,7 +338,9 @@ squeue --me
 
 `--dry-run` shows what SbatchMan would submit and changes nothing. `squeue --me` lists your Slurm
 jobs. Launch the small `smoke.yaml` first: when it finishes cleanly, your project, presets and
-CRAB's worker work together. Then launch the real campaign the same way.
+CRAB's worker work together. Then launch the real campaign the same way. Each of the two campaign
+files submits 12 jobs, and each job runs six experiments, so size the `--time` of the largest
+preset for all six.
 
 ### 8. Monitor
 
@@ -347,35 +365,52 @@ SbatchMan gives each job a directory:
 directory SbatchMan exports as `SBATCHMAN_JOB_DIR`; `sbatchman status` also lists it. In it:
 
 - `metadata.yaml` is SbatchMan's record of the job: its tag, config, job id and state.
-- `config.json` is the experiment the job wrote and ran, and `stdout.log` and `stderr.log` are
-  the job's output.
+- `config.json` is the config the job wrote and ran, with all of its experiments, and
+  `stdout.log` and `stderr.log` are the job's output.
 - `crab_run.json`, next to `config.json`, records which CRAB version and which wrapper files (with
   their hashes) produced the job.
-- `run/` is the experiment's folder, named after the experiment's key under `experiments` (`run`
-  in the examples). A run that collects metrics produces `run/data_app_<index>.csv` there, one
-  file per app that has `"collect": true`, so `run/data_app_0.csv` for the first app.
-  `run/bindings_app_<index>.log` holds the launcher's report of how it bound the ranks.
-- Inside the experiment folder, each run's working files are in `run_<n>/app_<index>/`, and files
+- One folder per experiment, named after the experiment's key under `experiments`: `r1_baseline/`,
+  `r1_noise/`, `r2_baseline/`, `r2_noise/`, `r3_baseline/` and `r3_noise/` in the examples (a
+  single-experiment job such as `smoke.yaml` has just `run/`). An experiment that collects
+  metrics produces `data_app_<index>.csv` there, one file per app that has `"collect": true`, so
+  `data_app_0.csv` for the first app. In the examples only the victim (app 0) is collected, so
+  the noise experiments have the victim's CSV and none for the aggressor.
+  `bindings_app_<index>.log` holds the launcher's report of how it bound the ranks.
+- Inside an experiment folder, each run's working files are in `run_<n>/app_<index>/`, and files
   a wrapper asks to keep are copied to `artifacts/run_<n>/`.
+
+Each `data_app_<index>.csv` has one row per sample of one run. The columns are `run_id`,
+`msg_size`, and the metric columns, named `<app index>_<metric>_<unit>`. CRAB fills `msg_size`
+from the app's `-msgsize` argument: if the app's `args` have no `-msgsize`, the column is 0. Always
+pass `-msgsize` (as the examples do) so the column tells the sizes apart.
 
 Not every app produces a CSV: a benchmark that collects no metrics (`blink`'s `null_dummy`, for
 instance, an isolation sanity check with nothing to measure) never writes one, by design.
 
-**Compare a baseline with noise.** Pair the jobs by node count, for example `a2a-baseline-8`
-against `a2a-incast-noise-8`, and open the two `run/data_app_0.csv` files. Each row is one sample
-of one run (`run_id`) at one message size (`msg_size`). The metric columns are prefixed with the
-app index and end with the unit, so for the victim (app 0) the columns are `0_Avg-Duration_s`,
-`0_Min-Duration_s`, `0_Max-Duration_s`, `0_Median-Duration_s` and `0_MainRank-Duration_s`, in
-seconds. Compare `0_Avg-Duration_s` of the two files for each `msg_size`: the ratio of the noise
-job's mean to the baseline's is the slowdown.
+**Compare a baseline with noise.** Work inside one job, for example the one tagged
+`a2a-incast-8n-65536B` (8 nodes, 64 KiB messages). For the victim (app 0) the metric columns are
+`0_Avg-Duration_s`, `0_Min-Duration_s`, `0_Max-Duration_s`, `0_Median-Duration_s` and
+`0_MainRank-Duration_s`, in seconds. Use `0_Avg-Duration_s`:
 
-The comparison is only fair when the baseline and the noise job get the same allocation and the
-same placement of the victim: both jobs allocate the same number of nodes, split between a victim
-partition and an aggressor partition in the same way, and only the aggressor differs. The
-examples are built that way (see the
+1. Pool the rows of `0_Avg-Duration_s` from `r1_baseline/data_app_0.csv`,
+   `r2_baseline/data_app_0.csv` and `r3_baseline/data_app_0.csv`.
+2. Pool the rows from the three `r*_noise` experiments.
+3. The slowdown is the ratio of the means: `mean(noise) / mean(baseline)`.
+
+Repeat this for each job, which is one message size at one node count, then put the slowdowns side
+by side: along `nodes` to see how the effect changes with the allocation size, along `msgsize` to
+see which messages suffer. Each slowdown comes from one allocation, so a difference between two
+jobs may include a difference between their nodes as well as in the noise.
+
+The comparison is only fair when the baseline and the noise run get the same allocation and the
+same placement of the victim: the same job. Baseline and noise are experiments of one job, so
+they run on the same nodes, split between a victim partition and an aggressor partition in the
+same way, and only the aggressor differs. The examples are built that way (see the
 [README's fairness rule](https://github.com/HLC-Lab/CRAB/blob/sbatchman/examples/sbatchman/README.md#the-fairness-rule)).
-A baseline that allocated fewer nodes would change which switches the victim's nodes sit behind,
-and the result would mix that change with the noise.
+Two separate jobs would land on different nodes, and a baseline that allocated fewer nodes would
+change which switches the victim's nodes sit behind, so either way the result would mix that
+change with the noise. Running them in turns (baseline, noise, baseline, noise, ...) also spreads
+any slow drift of the network over both sides.
 
 Reading the CSV is up to you: a spreadsheet, a notebook, or `sbatchman visualize`'s own parser
 script (its `--parser` option, `./parser.py` by default). To parse a saved output again with a
