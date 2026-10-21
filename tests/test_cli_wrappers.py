@@ -100,10 +100,13 @@ def test_list_sees_a_receipt(root, monkeypatch, capsys) -> None:
             'executable = "not_installed"', 'executable = "not_installed"\n    benchmark_id = "rb"'
         )
     )
-    _crab(monkeypatch, capsys, "receipts", "set", "rb", "--binary", "/opt/rb", "--allow-missing")
+    binary = root / "opt" / "rb"
+    binary.parent.mkdir()
+    binary.write_text("#!/bin/sh\n")
+    _crab(monkeypatch, capsys, "receipts", "set", "rb", "--binary", str(binary), "--allow-missing")
     code, out, _ = _crab(monkeypatch, capsys, "wrappers", "list", "--json")
     entry = {w["relpath"]: w for w in json.loads(out)["wrappers"]}["app/r.py"]
-    assert entry["binary"] == {"status": "receipt", "path": "/opt/rb"}
+    assert entry["binary"] == {"status": "receipt", "path": str(binary)}
 
 
 CHATTY = """from crab.wrappers.base import base
@@ -329,6 +332,7 @@ def test_list_sees_crab_root_like_a_run_does(root, monkeypatch, capsys) -> None:
         "    def get_binary_path(self):\n"
         "        return os.environ['CRAB_ROOT'] + '/bin/x'\n"
     )
+    (root / "bin" / "x").write_text("#!/bin/sh\n")
     code, out, _ = _crab(monkeypatch, capsys, "wrappers", "list", "--json")
     entry = {w["relpath"]: w for w in json.loads(out)["wrappers"]}["old/envpath.py"]
     assert entry["binary"] == {"status": "receipt", "path": f"{root}/bin/x"}
