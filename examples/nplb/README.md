@@ -9,9 +9,14 @@ campaign.
 |------|--------------|
 | `preflight.sh` | Checks over ssh that every node sees the CRAB checkout, the Blink programs and the same MPI, so ranks can start there. |
 | `sr_state.sh` | Reads the Selective Repeat setting of every active NIC on every node (read only). |
+| `sr_set.sh` | Sets the Selective Repeat setting of every active NIC on the given nodes and reads it back; see [below](#read-the-nic-side-of-the-network-configuration). |
 | `probe.py` | Reads each node's RDMA NICs (ports, PCI address, speed, NUMA node, netdev, memory, GPU layout) and writes a cluster profile with the `nics` and `cpus` lists to use. |
 | `nic_check.sh` | Runs Blink in several placements on 2 nodes and shows per-rank bandwidth and the bytes each NIC sent, to confirm every rank uses its own NIC. |
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
+| `topology.sh` | Reports each RDMA port of every node over ssh and listens for LLDP to name the leaf switch behind it (round 2, run by `bringup.sh topo`). |
+| `topology_summary.py` | Turns the TSV of `topology.sh` into a one-screen grid and verdict, as `topology.sh` does at its end. |
+| `pingpong_set.py` | Builds the ping-pong ceiling configs for `make_configs.py --set pingpong` (see [round 2](#round-2-topology-and-ping-pong-ceilings)). |
+| `diagnose.sh` | Tries mpirun binding flags and `nic_check.sh` on NIC subsets and node pairs to find where the per-node bandwidth cap comes from; see [below](#diagnose-binding-and-the-bandwidth-cap). |
 | `analyze.py` | Reads CRAB data directories and writes `summary.csv` and `summary.md`. |
 | `plot.py` | Draws PNG charts from `summary.csv` (needs matplotlib). |
 
@@ -175,6 +180,18 @@ For every active device of every node it reads the `ROCE_ACCL` register with `ml
 Selective Repeat (`SR`) and adaptive routing (`AR`). It exits 0 only when every device was read
 and all SR values agree. It never changes them. Record the result in the run log; the switch side
 (NPLB on or off) has to be read on the switches.
+
+`sr_set.sh` changes the setting:
+
+```bash
+examples/nplb/sr_set.sh 1 <node1> <node2> <node3> <node4>    # 1 turns SR on, 0 turns it off
+```
+
+On each node it writes the selective repeat field of `ROCE_ACCL` on every device with an active
+port, reads it back and prints `OK` or `FAIL` per device. It exits 0 only when every device reads
+back the value. Use it to put the NICs in the state a network configuration needs (C2 has SR on,
+C0 and C3 have it off). The change is lost at reboot, so run `sr_state.sh` afterwards and again
+before a campaign.
 
 The probe cannot see which leaf each NIC is cabled to. Get the NIC-to-leaf wiring from the
 network team and record it; the 3-node layout and `p0_local` depend on it.
@@ -374,6 +391,21 @@ the same with `d` for the run with no UCX variable. The lines stay within 120 co
 `bringup.sh check` marks the `dual` experiments `CHECK`: they select the NICs through
 `UCX_NET_DEVICES` instead of the per-rank shim, so there are no "local rank -> UCX_NET_DEVICES"
 lines to count. That is expected.
+
+## Diagnose binding and the bandwidth cap
+
+```bash
+examples/nplb/diagnose.sh
+```
+
+One command, no arguments, for the H100 cluster. Part A finds which `mpirun` flags pin rank i to
+the i-th core of the profile's cpu list (8 ranks on one node, `--report-bindings`). Part B finds
+where the per-node bandwidth cap comes from: it runs `nic_check.sh` on subsets of the NICs and on
+two node pairs. Every step runs in its own `salloc`, is echoed first, and a failing step is
+recorded as `FAILED` while the script goes on. The full output goes to `$WORK/diagnose_<time>.log`,
+and a summary of at most 20 lines to `$WORK/diagnose_<time>_summary.txt`. It needs `profile8.json`
+and `profile16.json` in `PROFILE_DIR` and at least 3 nodes in `PARTITION`. It exits 0 when every
+step ran, 1 when a step failed and 2 when the setup is missing.
 
 ## Smoke test on another cluster
 
