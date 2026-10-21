@@ -1,0 +1,113 @@
+# All-to-all baseline versus the same all-to-all next to an all-to-all aggressor.
+#
+# Setup, once, from your SbatchMan project directory (the folder you launch from):
+#   sbatchman set-cluster-name <cluster name>
+#   crab sbatchman-preset --configs-file --nodes 4,8,16 --system <cluster name> \
+#       --partition <partition> --account <account> --time <hh:mm:ss> --tasks-per-node 4 > configs.yaml
+# Copy this file next to configs.yaml, then check and launch:
+#   sbatchman launch -f a2a-vs-a2a.yaml --dry-run
+#   sbatchman launch -f a2a-vs-a2a.yaml
+# `configs.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>.
+# The `--nodes` list must hold every value of `nodes` below.
+#
+# Measures: how much all-to-all noise slows an all-to-all (Blink alltoall_b, the victim).
+# `nodes` is the TOTAL allocation, 2N: 4, 8 and 16 give the victim 2, 4 and 8 nodes.
+# Both jobs allocate the same 2N nodes and split them 50/50, interleaved: the victim gets nodes
+# 0, 2, 4, ... and the aggressor partition gets the rest. The baseline job runs only the victim
+# (the aggressor nodes stay idle). The noise job adds the aggressor on those nodes. The victim
+# therefore has the same node count and the same node placement in both jobs, and the only
+# difference is the traffic.
+# The aggressor sends 2 MiB messages in bursts of 1 s with a 1 s pause, until the victim ends.
+# The victim's args are empty, so Blink uses its defaults. Add flags such as -msgsize <bytes> or
+# -iter <n> to its "args" in BOTH jobs to change the message size or the iterations.
+configs: configs.yaml
+variables:
+  nodes:
+    - 4
+    - 8
+    - 16
+jobs:
+  - config: crab_run_{nodes}
+    tag: a2a-baseline-{nodes}
+    preprocess: |
+      mkdir -p "$SBATCHMAN_JOB_DIR"
+      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
+      {
+        "schema_version": 2,
+        "global_options": {
+          "numnodes": "{nodes}",
+          "ppn": "4",
+          "name": "a2a-baseline-{nodes}"
+        },
+        "experiments": {
+          "run": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              }
+            }
+          }
+        }
+      }
+      JSON
+    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
+  - config: crab_run_{nodes}
+    tag: a2a-a2a-noise-{nodes}
+    preprocess: |
+      mkdir -p "$SBATCHMAN_JOB_DIR"
+      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
+      {
+        "schema_version": 2,
+        "global_options": {
+          "numnodes": "{nodes}",
+          "ppn": "4",
+          "name": "a2a-a2a-noise-{nodes}"
+        },
+        "experiments": {
+          "run": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              },
+              "1": {
+                "path": "blink/alltoall/alltoall_nb.py",
+                "args": "-msgsize 2097152 -endl -blength 1 -bpause 1",
+                "collect": false,
+                "start": "0",
+                "end": "f",
+                "partition": "aggressor"
+              }
+            }
+          }
+        }
+      }
+      JSON
+    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"

@@ -12,7 +12,7 @@ git clone https://github.com/HLC-Lab/CRAB
 
 ## Reading order
 
-Start on your laptop, then run one application on a cluster, then co-run applications, then scale up.
+Start on your laptop, then run one application on a cluster, then co-run applications, then scale up, and last launch ready-made studies through SbatchMan.
 
 | Step | Folder | What you learn | Runs where |
 |---|---|---|---|
@@ -22,6 +22,7 @@ Start on your laptop, then run one application on a cluster, then co-run applica
 | 4 | [`leonardo/congestion/`](leonardo/congestion/README.md) | A victim next to an aggressor: noise intensity, placement, network cards, co-scheduling. | A Slurm cluster, 2 to 8 nodes. Template. |
 | 5 | [`leonardo/scale/`](leonardo/scale/README.md) | The same studies on 64 and 256 nodes. | A large Slurm cluster. Template. |
 | 6 | [`blink-congestion-analysis/`](blink-congestion-analysis/README.md) | Two large congestion studies and a plotting script, from a research campaign. | A Slurm cluster, 8 to 16 nodes. Template. |
+| 7 | [`sbatchman/`](sbatchman/README.md) | Ready-to-launch SbatchMan campaigns: a smoke test, and an all-to-all baseline against incast noise and against all-to-all noise. | A Slurm cluster with SbatchMan, 2 to 16 nodes. Ready to launch after `crab sbatchman-preset`. |
 
 [`leonardo/`](leonardo/README.md) describes the three Leonardo folders together.
 

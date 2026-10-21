@@ -1,0 +1,49 @@
+# Smoke test: an all-to-all alone on 2 nodes (4 ranks per node).
+#
+# Setup, once, from your SbatchMan project directory (the folder you launch from):
+#   sbatchman set-cluster-name <cluster name>
+#   crab sbatchman-preset --configs-file --nodes 2 --system <cluster name> \
+#       --partition <partition> --account <account> --time <hh:mm:ss> --tasks-per-node 4 > configs.yaml
+# Copy this file next to configs.yaml, then check and launch:
+#   sbatchman launch -f smoke.yaml --dry-run
+#   sbatchman launch -f smoke.yaml
+# `configs.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>.
+# The `--nodes` list must hold every value of `nodes` below.
+#
+# Measures: the all-to-all (Blink alltoall_b) with no other traffic. Run it first: it is small
+# enough for a debug queue and shows that the project, the config file and CRAB's worker all work.
+# The victim's args are empty, so Blink uses its defaults. Add flags such as -msgsize <bytes> or
+# -iter <n> to "args" to change the message size or the iterations.
+configs: configs.yaml
+variables:
+  nodes:
+    - 2
+jobs:
+  - config: crab_run_{nodes}
+    tag: a2a-smoke-{nodes}
+    preprocess: |
+      mkdir -p "$SBATCHMAN_JOB_DIR"
+      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
+      {
+        "schema_version": 2,
+        "global_options": {
+          "numnodes": "{nodes}",
+          "ppn": "4",
+          "name": "a2a-smoke-{nodes}"
+        },
+        "experiments": {
+          "run": {
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "",
+                "collect": true,
+                "start": "0",
+                "end": ""
+              }
+            }
+          }
+        }
+      }
+      JSON
+    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
