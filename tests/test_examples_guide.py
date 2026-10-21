@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -38,17 +39,37 @@ _EXPECTED_WARNINGS: dict[str, list[str]] = {
 }
 
 
+def _tracked_example_files() -> list[Path]:
+    """Files under `examples/`, from git when REPO is a checkout, else from the filesystem.
+
+    Untracked leftovers (caches, scratch folders) must not decide whether the suite passes.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "examples"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):  # no git, or an sdist without .git
+        return [
+            f
+            for f in EXAMPLES.rglob("*")
+            if f.is_file() and "__pycache__" not in f.relative_to(EXAMPLES).parts
+        ]
+    return [REPO / name for name in out.split("\0") if name]
+
+
 def _readme_dirs() -> list[Path]:
-    """The examples root and every folder under it."""
-    dirs = sorted(d for d in EXAMPLES.rglob("*") if d.is_dir() and d.name != "__pycache__")
-    return [EXAMPLES, *dirs]
+    """The examples root and every folder that holds an example file."""
+    dirs = {p for f in _tracked_example_files() for p in f.parents if EXAMPLES in p.parents}
+    return [EXAMPLES, *sorted(dirs)]
 
 
 def _example_files() -> list[Path]:
     return sorted(
-        f
-        for f in EXAMPLES.rglob("*")
-        if f.is_file() and f.name != "README.md" and not f.name.startswith(".")
+        f for f in _tracked_example_files() if f.name != "README.md" and not f.name.startswith(".")
     )
 
 
