@@ -24,7 +24,7 @@
 
 import yaml from "js-yaml";
 import type { CrabConfig } from "@/api/types";
-import { fromConfig, validateDraft } from "@/lib/config";
+import { fromConfig, validateDraft, type WrapperCatalog } from "@/lib/config";
 
 /** A sweep variable: a name and the list of values SbatchMan will expand. */
 export interface SbatchmanVar {
@@ -233,10 +233,28 @@ function varIssues(vars: SbatchmanVar[], where: string): string[] {
   return issues;
 }
 
+/** The catalog as validateDraft should see it for one group: a wrapper path written with a
+ * {var} placeholder is resolved by SbatchMan at launch, so its first-combination form must not
+ * be flagged (validateDraft only skips paths that still hold a placeholder). */
+function catalogForGroup(
+  group: SbatchmanGroup,
+  combo: Record<string, string>,
+  catalog: WrapperCatalog | undefined,
+): WrapperCatalog | undefined {
+  if (!catalog) return undefined;
+  const wrappers = new Set(catalog.wrappers);
+  for (const exp of Object.values(group.config.experiments ?? {}))
+    for (const app of Object.values(exp.apps ?? {}))
+      if (typeof app.path === "string" && app.path.includes("{"))
+        wrappers.add(substitute(app.path, combo).trim());
+  return { cluster: catalog.cluster, wrappers };
+}
+
 /** Everything that would make the generated YAML fail at `sbatchman launch` or give the
  * CRAB worker a bad config. Each group's experiment is checked the way the engine gets
- * it: config.json with the first variable combination substituted, then validateDraft. */
-export function validateCampaign(campaign: SbatchmanCampaign): string[] {
+ * it: config.json with the first variable combination substituted, then validateDraft.
+ * With a catalog (the write target's wrappers) a wrapper path the cluster lacks is a problem too. */
+export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperCatalog): string[] {
   const issues = varIssues(campaign.variables, "Campaign variables");
   campaign.groups.forEach((group, i) => {
     const where = group.tag.trim() ? `Group "${group.tag.trim()}"` : `Group #${i + 1}`;
@@ -258,8 +276,17 @@ export function validateCampaign(campaign: SbatchmanCampaign): string[] {
       );
       return;
     }
-    for (const issue of validateDraft(fromConfig(config as CrabConfig)))
+    for (const issue of validateDraft(
+      fromConfig(config as CrabConfig),
+      catalogForGroup(group, combo, catalog),
+    ))
       issues.push(`${where}: ${issue}`);
   });
   return issues;
 }
+
+/** The "SbatchMan preset" field's placeholder and hint: what name goes there and where it
+ * comes from (docs/using/sbatchman-integration.md, step 5). */
+export const PRESET_PLACEHOLDER = "crab_run";
+export const PRESET_HINT =
+  "The SbatchMan preset this group runs with: the name you gave `crab sbatchman-preset --name` (default crab_run), or crab_run_{nodes} when the presets come from its configs file. See the guide, step 5.";

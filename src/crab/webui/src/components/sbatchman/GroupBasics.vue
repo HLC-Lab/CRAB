@@ -7,6 +7,7 @@
 // expands `{var}` at launch time, long after this editor is done with it.
 import { computed } from "vue";
 import type { Draft } from "@/lib/config";
+import { PRESET_HINT, PRESET_PLACEHOLDER } from "@/lib/sbatchman";
 
 const props = defineProps<{
   tag: string;
@@ -37,8 +38,8 @@ const d = computed(() => props.draft);
       <small>Identifies this group's jobs to SbatchMan. Can use {var} placeholders.</small>
     </label>
     <label
-      >SbatchMan preset <input v-model="presetModel" placeholder="e.g. {nodes}_nodes" />
-      <small>The name of a preset you created with `sbatchman configure`.</small>
+      >SbatchMan preset <input v-model="presetModel" :placeholder="PRESET_PLACEHOLDER" />
+      <small>{{ PRESET_HINT }}</small>
     </label>
     <label
       >Nodes <input v-model="d.numnodes" placeholder="e.g. {nodes}" />

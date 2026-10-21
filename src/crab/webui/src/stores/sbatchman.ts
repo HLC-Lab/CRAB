@@ -6,6 +6,7 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref, watch } from "vue";
 import { api, ApiError } from "@/api/client";
+import { useCatalogStore } from "@/stores/catalog";
 import type { CampaignEntry, SbatchmanWriteResult } from "@/api/types";
 import {
   type Draft,
@@ -174,11 +175,35 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     })),
   }));
 
+  // The write target's wrapper catalog, once loaded: the same set the Author view checks
+  // against. Without a chosen cluster or a loaded list there is nothing to check.
+  const catalog = useCatalogStore();
+  const wrapperCatalog = computed(() => {
+    const cluster = destination.value;
+    const list = cluster ? catalog.benchmarks[cluster]?.wrappers : undefined;
+    if (!list) return undefined;
+    return { cluster, wrappers: new Set(list.map((w) => w.relpath)) };
+  });
+  // Load it only when there is a wrapper path to check. The catalog store caches it, so this
+  // is one request per cluster.
+  const anyWrapperPath = computed(() =>
+    groups.some((g) => g.draft.experiments.some((e) => e.apps.some((a) => a.path.trim()))),
+  );
+  watch(
+    [anyWrapperPath, destination],
+    () => {
+      const cluster = destination.value;
+      if (anyWrapperPath.value && cluster && !catalog.busy[cluster])
+        catalog.loadBenchmarks(cluster);
+    },
+    { immediate: true },
+  );
+
   const yaml = computed(() => composeCampaignYaml(campaign.value));
   const totalJobs = computed(() => campaignJobCount(campaign.value));
   // Problems that would break `sbatchman launch` or the CRAB worker; write() refuses
   // while any exist.
-  const issues = computed(() => validateCampaign(campaign.value));
+  const issues = computed(() => validateCampaign(campaign.value, wrapperCatalog.value));
 
   // Why Write files is unavailable, if it is. Problems come first: the user can
   // act on them even with a cluster connected.

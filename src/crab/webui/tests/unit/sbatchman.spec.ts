@@ -14,6 +14,8 @@ import {
   composeCampaignYaml,
   groupJobCount,
   sampleTags,
+  PRESET_HINT,
+  PRESET_PLACEHOLDER,
   type SbatchmanCampaign,
   validateCampaign,
 } from "@/lib/sbatchman";
@@ -364,5 +366,44 @@ describe("validateCampaign", () => {
     c.groups[0].tag = "";
     c.groups[0].preset = "";
     expect(validateCampaign(c)).toContain("Group #1: set the SbatchMan config it runs with.");
+  });
+});
+
+describe("validateCampaign with a wrapper catalog", () => {
+  const catalog = { wrappers: new Set(["blink/alltoall/alltoall_b.py"]), cluster: "leonardo" };
+  const withPath = (path: string): SbatchmanCampaign => {
+    const c = campaign();
+    c.groups[0].config.experiments["g500_baseline_{scale}_{ef}_{nodes}"].apps["0"].path = path;
+    return c;
+  };
+
+  it("is unchanged without a catalog", () => {
+    expect(validateCampaign(withPath("blink/a2a_b.py"))).toEqual([]);
+  });
+
+  it("names a wrapper path the cluster does not have", () => {
+    const issues = validateCampaign(withPath("blink/a2a_b.py"), catalog);
+    const hits = issues.filter((i) => i.includes("blink/a2a_b.py"));
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toContain("leonardo");
+  });
+
+  it("accepts a wrapper path the cluster has", () => {
+    expect(validateCampaign(withPath("blink/alltoall/alltoall_b.py"), catalog)).toEqual([]);
+  });
+
+  it("does not flag a {var} wrapper path", () => {
+    expect(validateCampaign(withPath("blink/{nodes}/a2a_b.py"), catalog)).toEqual([]);
+  });
+});
+
+describe("preset field copy", () => {
+  it("tells the user which name to put and where it comes from", () => {
+    expect(PRESET_PLACEHOLDER).toBe("crab_run");
+    expect(PRESET_HINT).toContain("crab sbatchman-preset --name");
+    expect(PRESET_HINT).toContain("crab_run");
+    expect(PRESET_HINT).toContain("crab_run_{nodes}");
+    expect(PRESET_HINT).toContain("step 5");
+    expect(PRESET_HINT).not.toContain("—");
   });
 });
