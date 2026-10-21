@@ -1,8 +1,21 @@
 # `presets.json` format
 
-`config/presets.json` defines the [system-dependent](../concepts/system-dependent-vs-independent.md)
-environments CRAB can run in. This is the field-level reference; for the practical walkthrough of
-adding a cluster, see [Configuring your cluster](../using/presets.md).
+The presets file defines the [system-dependent](../concepts/system-dependent-vs-independent.md)
+environments CRAB can run in. The shipped one is `src/crab/presets.json`, inside the package (a pip
+install has it as `crab/presets.json`). This is the field-level reference; for the practical
+walkthrough of adding a cluster, see [Configuring your cluster](../using/presets.md).
+
+## Where presets are read from
+
+CRAB reads up to three files and merges them in this order, each over the one before:
+
+1. The shipped file, `src/crab/presets.json`.
+2. The user file: `~/.config/crab/presets.json`, or the path in `CRAB_PATH_PRESETS` when it is set.
+3. In a git checkout, `local/presets.json`.
+
+Per layer, a preset with the name of an earlier one replaces it as a whole. In `_common`, `env`
+is merged key by key and any other key replaces the earlier value. A file that exists but is not
+a JSON object stops CRAB with an error that names the file.
 
 ## Structure
 
@@ -174,8 +187,8 @@ in the results path (`data/<CRAB_SYSTEM>/…`).
 
 ## Special tokens
 
-- **`__CWD__`** — replaced with the repository root (`CRAB_ROOT`) wherever it appears in an `env`
-  value. Used in `_common` for `CRAB_ROOT`.
+- **`__CWD__`**: replaced with CRAB's home (`CRAB_ROOT`: the repository root in a checkout, the
+  data directory of a pip install) wherever it appears in an `env` value. Used in `_common` for `CRAB_ROOT`.
 
 ## Recognized environment variables
 
@@ -184,8 +197,8 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 
 | Variable | Read by | Notes |
 |----------|---------|-------|
-| `CRAB_ROOT` | framework | Repository root. Set in `_common` via `__CWD__`. |
-| `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/`. Default: the checkout's `wrappers/`. The shipped presets do not set it, so a value you export reaches the jobs; set it in a preset's `env` to override that. |
+| `CRAB_ROOT` | framework | CRAB's home: the repository root in a checkout, `~/.local/share/crab` (or `CRAB_HOME`) in a pip install. Set in `_common` via `__CWD__`. |
+| `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/` (`~/.config/crab/wrappers` in a pip install). Default: `wrappers/` in CRAB's home. The shipped presets do not set it, so a value you export reaches the jobs; set it in a preset's `env` to override that. |
 | `CRAB_SYSTEM` | engine | System label for the output path. Defaults to the preset name. |
 | `CRAB_PRESET` | CLI | If set, selects the preset (overridden by `-p`). |
 | `CRAB_PATH_<ID>` | wrappers | Injected automatically from each receipt's `binary_path` at run time — not set by hand. |
@@ -218,7 +231,7 @@ If none of these names a preset, `crab run` stops with an error; it never picks 
 
 ## A note on `example_preset`
 
-`config/presets.json` contains an `example_preset` entry. It is a **structural placeholder only**
+The shipped presets file contains an `example_preset` entry. It is a **structural placeholder only**
 — it has no `scheduler`, so CRAB refuses it, and it is excluded from
 `-p` tab-completion. Use it as a shape reference if you like, but build real presets by copying a
 working one (see [Configuring your cluster](../using/presets.md)).

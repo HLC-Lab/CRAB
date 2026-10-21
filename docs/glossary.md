@@ -118,8 +118,8 @@ else `global_options.ppn`; see [Ranks per node](reference/configuration.md#ranks
 ### Preset
 
 A named, [system-dependent](concepts/system-dependent-vs-independent.md) environment definition in
-`config/presets.json`: scheduler, launcher and its flags, CPU pinning, modules (`header`), and Slurm
-directives (`sbatch`). Selected at run time with `-p <name>`. The `_common` block is merged under
+the shipped `src/crab/presets.json` or in your own presets file: scheduler, launcher and its
+flags, CPU pinning, modules (`header`), and Slurm directives (`sbatch`). Selected at run time with `-p <name>`. The `_common` block is merged under
 every preset.
 
 ### Receipt

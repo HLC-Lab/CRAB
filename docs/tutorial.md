@@ -17,7 +17,7 @@ with a victim and an aggressor, `crab run`, the results layout, and `crab export
       preset first.
     - Your project account in that preset. The shipped presets carry the placeholder
       `--account=YOUR_PROJECT_ACCOUNT`, which `sbatch` refuses: copy your preset's block into
-      `local/presets.json` and put your account there
+      your presets file (`local/presets.json` in a checkout) and put your account there
       ([how](using/presets.md#keep-your-presets-out-of-git)).
 
 It helps to skim [System-dependent vs system-independent](concepts/system-dependent-vs-independent.md)

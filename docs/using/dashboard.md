@@ -70,6 +70,7 @@ Click **+ Add cluster**, fill in the form and click **Save**. The form has these
 | `Key path` | Shown for `key file`: the private key, for example `~/.ssh/id_ed25519`. |
 | `Host key` | `strict` checks the cluster's host key against your `~/.ssh/known_hosts`. `insecure (rotating login nodes)` skips the check. Use `insecure` only for a cluster whose login nodes present a different host key on each connection. The profile then shows `hostkey:insecure` as a reminder. |
 | `Install dir` | The folder on the cluster that holds CRAB. The default is `~`. CRAB lives in a `CRAB` folder inside it, and the field shows the result, for example `CRAB goes in ~/CRAB`. |
+| `Crab command (optional)` | One executable that runs `crab` on the cluster, for example `~/.local/bin/crab` for a CRAB installed with pipx. Leave it empty for the CRAB checkout in `Install dir`. See [A cluster where CRAB is a pipx install](#a-cluster-where-crab-is-a-pipx-install). |
 | `Preset` | The [preset](../glossary.md#preset) the Submit window starts with for this cluster. Empty means the first preset the cluster reports. |
 
 <!-- screenshot: remotes-add-cluster -->
@@ -122,6 +123,25 @@ The guided install does not set up benchmarks. Do that on the cluster with `crab
 [Installation](installation.md#set-up-benchmarks-crab-setup)), or import a binary from the
 [Wrappers page](dashboard-wrappers.md#needs-attention).
 
+### A cluster where CRAB is a pipx install
+
+When CRAB on the cluster was installed with pipx (see
+[Install with pip or pipx](installation.md#install-with-pip-or-pipx)), there is no `CRAB` folder
+to find. Put the command that starts it in `Crab command (optional)`, for example
+`~/.local/bin/crab`, and save. The dashboard then runs that command directly:
+
+- It does not go to `<Install dir>/CRAB` or activate a virtual environment. The lines of
+  `remote_setup` still run first.
+- The `CRAB goes in ...` hint under `Install dir` disappears, and the **Install CRAB** panel is
+  never offered. If the command does not answer, the profile shows `This cluster runs <command>
+  directly. You manage that install (pipx install crab-hpc).` Fix the install on the cluster, then
+  reconnect.
+- The value must be one path or name with no spaces: the form and the backend both refuse a value
+  with whitespace. A leading `~` is expanded on the cluster.
+
+Clear the field to go back to the checkout in `Install dir`. The connected line then shows the
+CRAB home of that install, for example `~/.local/share/crab`.
+
 ### Version skew
 
 The dashboard and the cluster's CRAB must speak the same version of the command output. When they
@@ -135,7 +155,8 @@ do not, the profile shows one of two lines in orange:
 ### Commands the dashboard runs on the cluster
 
 On every command, the dashboard opens a login shell on the cluster, runs the lines of the profile's
-`remote_setup` list, goes to `<Install dir>/CRAB`, activates its `.venv` and runs `crab`. A cluster
+`remote_setup` list, goes to `<Install dir>/CRAB`, activates its `.venv` and runs `crab`. With a
+`Crab command` set, it runs that command instead of the last three steps. A cluster
 that needs `module load` lines before CRAB works can have them in `clusters.json`, in the
 `remote_setup` list of its profile, for example `"remote_setup": ["module load python"]`. The form
 does not show that field. Edit the file, then reconnect.

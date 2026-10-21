@@ -2,9 +2,10 @@
 
 A preset with `"scheduler": "local"` runs the job on the machine where you type `crab run`, with
 no Slurm involved. Use it to try CRAB on a laptop or workstation, or to run on a few machines
-that you reach over `ssh`. The preset still comes from `config/presets.json` or
-`local/presets.json`; see [Configuring your cluster](presets.md) for where presets live and how
-one is selected.
+that you reach over `ssh`. The preset still comes from the shipped presets
+or from your own presets file (`~/.config/crab/presets.json`, or `local/presets.json` in a
+checkout); see [Configuring your cluster](presets.md) for where presets live and how one is
+selected.
 
 CRAB never picks a local preset on its own: ask for it with `-p`.
 

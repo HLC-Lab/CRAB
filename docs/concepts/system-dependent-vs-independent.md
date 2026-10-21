@@ -10,7 +10,7 @@ the framework — presets, receipts, wrappers, the orchestrator/worker dance —
 |---|---|---|
 | **Question it answers** | *What do I want to run and measure?* | *How does **this** cluster build and launch it?* |
 | **Examples** | which applications, their arguments, node allocation, scheduling, how many runs, what to collect | binary locations, module loads, launcher (`srun`/`mpirun`), CPU pinning, Slurm account/partition, environment variables |
-| **Where it lives** | the **experiment config** (`*.json`) and the parsing logic inside a **wrapper** | **presets** (`config/presets.json`, overridden per machine by `local/presets.json`) and **receipts** (`local/receipts/*.json`) |
+| **Where it lives** | the **experiment config** (`*.json`) and the parsing logic inside a **wrapper** | **presets** (the shipped `src/crab/presets.json`, overridden per machine by your own presets file) and **receipts** (`local/receipts/*.json`) |
 | **Travels between machines?** | ✅ Yes — commit it, share it, reproduce it anywhere | ❌ No — it describes one specific system |
 | **Who provides it** | the person designing the benchmark study | configured once per cluster (and per build) |
 
@@ -44,7 +44,7 @@ flowchart TD
 
 When you bring CRAB to a new cluster, three things — and only these three — are what you adapt:
 
-1. **A preset** (`config/presets.json`) — the environment for that system: which scheduler and
+1. **A preset** (shipped in `src/crab/presets.json`, extended in your own presets file): the environment for that system, which scheduler and
    launcher to use, the launcher's flags, CPU pinning, modules to load, and the Slurm directives
    (account, partition) every job needs. You select it at run time with `-p <name>`.
    See [Configuring your cluster](../using/presets.md).

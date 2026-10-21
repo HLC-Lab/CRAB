@@ -30,7 +30,7 @@ crab run [-p PRESET] [--log-level LEVEL] [--json] [--only KEYS] <config.json>
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `config.json` | Path to the [experiment config](configuration.md). Required. Tab-completes `.json` files. | none |
-| `-p`, `--preset` | Preset name from `config/presets.json` or `local/presets.json`. Tab-completes known presets. See [resolution order](../using/presets.md#selecting-your-preset). | the `CRAB_PRESET` environment variable; with neither, `crab run` stops with an error |
+| `-p`, `--preset` | Preset name from the shipped presets or your own presets file. Tab-completes known presets. See [resolution order](../using/presets.md#selecting-your-preset). | the `CRAB_PRESET` environment variable; with neither, `crab run` stops with an error |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`. Any other value counts as `INFO`. | `INFO` |
 | `--json` | Print the submit result as JSON on stdout: `job_id`, `data_dir` and `system`. Logs go to stderr. | off |
 | `--only` | Comma-separated experiment keys of the config to run. The other experiments are skipped. A key the config does not have is an error. | the whole config |

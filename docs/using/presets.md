@@ -5,8 +5,9 @@ run: it tells CRAB how *this* machine runs work — which scheduler, which launc
 flags, CPU pinning, modules to load, and the Slurm directives every job needs. CRAB ships with
 presets for several systems; this page is about adding one for a cluster it doesn't know yet.
 
-Presets live in `config/presets.json`, and your own additions and changes go in
-`local/presets.json` (see [Keep your presets out of git](#keep-your-presets-out-of-git)). For the
+The shipped presets live inside the package (`src/crab/presets.json` in a checkout), and your own
+additions and changes go in a file of yours (see
+[Keep your presets out of git](#keep-your-presets-out-of-git)). For the
 exhaustive field/merge reference, see
 [presets.json format](../reference/presets.md); this page is the practical how-to.
 
@@ -67,7 +68,7 @@ To adapt it to your cluster, change the values you already know for your system:
 
 ## A minimal preset for a new cluster
 
-For a cluster CRAB does not know, this is enough to start. Put it in `local/presets.json` (see
+For a cluster CRAB does not know, this is enough to start. Put it in your presets file (see
 [Keep your presets out of git](#keep-your-presets-out-of-git)), and replace the account, the
 partition and the module lines with your site's:
 
@@ -197,35 +198,54 @@ At run time CRAB resolves which preset to use in this order:
 If none of these names a preset, `crab run` stops with an error. It never picks one for you;
 to run without Slurm, ask for it explicitly with `-p local`.
 
-The `_common` block in `config/presets.json` is merged underneath every preset — put truly
+The `_common` block of the shipped presets is merged underneath every preset. Put truly
 universal settings there (it already defines `CRAB_ROOT`). It may hold
 only `description`, `env`, `sbatch` and `header`; `scheduler`, `launcher` and the other execution
 fields belong in each preset. The special
-token `__CWD__` is replaced with the repository root. If a preset doesn't set `CRAB_SYSTEM`, it
+token `__CWD__` is replaced with CRAB's home: the repository root in a checkout, the data
+directory of a pip install. If a preset doesn't set `CRAB_SYSTEM`, it
 defaults to the preset's name and is used in the output directory path.
 
 ## Keep your presets out of git
 
-`config/presets.json` is tracked, so editing it (for example to put in your project account)
-turns every `git pull` or `crab update` into a conflict. Put your presets in
-`local/presets.json` instead: same format, git-ignored, and merged over the shipped file.
+The shipped presets are part of CRAB's code, so editing them (for example to put in your project
+account) would turn every `crab update` into a conflict. Put your presets in a file of your own
+instead: same format, merged over the shipped file. CRAB reads three files, in this order, each
+merged over the one before:
 
-`local/` is a folder at the root of the CRAB checkout, next to `config/`. It may not exist yet.
-Create it from the checkout and start the file:
+1. The shipped presets, `src/crab/presets.json` (installed as `crab/presets.json`).
+2. Your user file: `~/.config/crab/presets.json`, or the path in `CRAB_PATH_PRESETS` when that
+   variable is set. With `CRAB_HOME` set on a pip install it is `$CRAB_HOME/config/presets.json`.
+3. In a git checkout only, `local/presets.json`: a folder at the root of the checkout, next to
+   `src/`. It is git-ignored and may not exist yet.
+
+On a checkout you can use either of the last two; `local/` keeps everything with the checkout. On
+a pip install use the user file. To start the checkout's file:
 
 ```bash
 mkdir -p local
 $EDITOR local/presets.json
 ```
 
-- A preset in `local/presets.json` **replaces** the shipped preset of the same name as a whole,
-  so copy the entire block before changing it.
-- A preset that exists only in `local/presets.json` is simply added.
+The merge rules apply to every layer:
+
+- A preset in your file **replaces** the earlier preset of the same name as a whole, so copy the
+  entire block before changing it.
+- A preset that exists only in your file is simply added.
 - For `_common`, the `env` entries are merged key by key (yours win); any other `_common` key
-  you set replaces the shipped one.
+  you set replaces the earlier one.
+
+The shipped `_common.env` sets only `CRAB_ROOT`. It does not set `CRAB_PATH_WRAPPERS`, so a value
+you export in your shell reaches the jobs.
+
+!!! note "Edited `config/presets.json` on an older checkout?"
+    The shipped file used to be `config/presets.json`. If you edited it, `crab update` refuses to
+    go on and prints the steps: copy your edits to `local/presets.json`, run `git checkout
+    config/presets.json`, then run `crab update` again.
 
 For example, to run on `leonardo` with your project account, copy the whole `leonardo` block from
-`config/presets.json` into `local/presets.json` and change only the `--account` line:
+the shipped `src/crab/presets.json` into your file (`local/presets.json` here) and change only the
+`--account` line:
 
 ```json
 {
