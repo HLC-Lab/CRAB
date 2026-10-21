@@ -61,7 +61,7 @@ def create_app(
             from crab.web.connections.manager import ConnectionManager
 
             app.state.manager = ConnectionManager()
-        logger.info("CRAB web starting — data dir: %s", settings.data_dir)
+        logger.info("CRAB web starting, data dir: %s", settings.data_dir)
         yield
         await app.state.manager.close_all()
         logger.info("CRAB web shutting down")
@@ -75,7 +75,7 @@ def create_app(
     app.state.settings = settings
     app.state.manager = manager
     # In-memory async-submit tracker: submission_id -> status dict.
-    # Not persisted — lost on a backend restart mid-submit (documented limitation).
+    # Not persisted: lost on a backend restart mid-submit (documented limitation).
     # Unpolled entries expire on their own (see `web/trackers.py`).
     app.state.submissions = ExpiringTracker()
     # Keeps a strong reference to each submission's background task so it can't
@@ -146,7 +146,7 @@ def _hostname(host_header: str) -> str:
 
 def _install_api_guard(app: FastAPI) -> None:
     """Reject /api/* requests that lack the session token or come from a
-    non-local host/origin. Static assets and the SPA shell stay open — the
+    non-local host/origin. Static assets and the SPA shell stay open: the
     shell is how the browser obtains the token in the first place."""
     from fastapi import Request
     from fastapi.responses import JSONResponse
@@ -183,7 +183,7 @@ def _install_api_guard(app: FastAPI) -> None:
 def _install_asset_cache_headers(app: FastAPI) -> None:
     """Cache `/assets/*` responses for a year: Vite content-hashes
     every filename under that directory, so a changed file is always a new
-    URL — a long cache lifetime is safe, unlike the SPA shell (`index.html`),
+    URL: a long cache lifetime is safe, unlike the SPA shell (`index.html`),
     which names the current hashed bundle and must stay `no-cache`."""
     from fastapi import Request
 
@@ -222,7 +222,7 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
                 "</body>"
             )
 
-        logger.warning("Frontend not built (%s missing) — serving placeholder.", index)
+        logger.warning("Frontend not built (%s missing): serving placeholder.", index)
         return
 
     from fastapi.staticfiles import StaticFiles
@@ -238,7 +238,7 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
     _index_headers = {"Cache-Control": "no-cache"}
 
     def _shell() -> HTMLResponse:
-        """index.html with the session token injected as a meta tag — the SPA
+        """index.html with the session token injected as a meta tag: the SPA
         reads it and sends X-Crab-Token on every API call (see api_guard)."""
         html = index.read_text(encoding="utf-8")
         # This branch always runs in SbatchMan mode (ADR-026); inject it next to the

@@ -160,9 +160,41 @@ class TestNcclCommon(unittest.TestCase):
         )
         instance = self._make_instance(stdout)
         result = instance.read_data()
-        # Each of the 6 metrics should have 2 data points (from 2 rows)
-        self.assertEqual(len(result), 6)
-        self.assertEqual(len(result[0]), 2, "read_data must return ALL rows, not just the first")
+        # One row per data line, each keyed by the 6 metric names
+        self.assertEqual(len(result), 2, "read_data must return ALL rows, not just the first")
+        metric_names = [
+            "time-oop",
+            "algbw-oop",
+            "busbw-oop",
+            "time-ip",
+            "algbw-ip",
+            "busbw-ip",
+        ]
+        for row in result:
+            self.assertEqual(list(row), metric_names)
+        # Columns 5-7 are the out-of-place time/algbw/busbw, 9-11 the in-place ones
+        self.assertEqual(
+            result[0],
+            {
+                "time-oop": 1.0,
+                "algbw-oop": 2.0,
+                "busbw-oop": 3.0,
+                "time-ip": 4.0,
+                "algbw-ip": 5.0,
+                "busbw-ip": 6.0,
+            },
+        )
+        self.assertEqual(
+            result[1],
+            {
+                "time-oop": 10.0,
+                "algbw-oop": 20.0,
+                "busbw-oop": 30.0,
+                "time-ip": 40.0,
+                "algbw-ip": 50.0,
+                "busbw-ip": 60.0,
+            },
+        )
 
     def test_empty_output_raises_instead_of_recording_zeros(self):
         """No result rows must fail the parse; zeros would be recorded as real samples."""

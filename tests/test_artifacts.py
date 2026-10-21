@@ -63,7 +63,7 @@ def test_artifacts_survive_retain_files_false(tmp_path: Path, monkeypatch) -> No
         "        return \"sh -c 'echo 3 > out.txt; echo log > run.log'\"\n\n"
         "    def read_data(self):\n"
         "        with open(os.path.join(self.run_dir, 'out.txt')) as f:\n"
-        "            return [[float(f.read())]]\n\n"
+        "            return [{'v': float(f.read())}]\n\n"
         "    def get_extra_artifacts(self):\n"
         "        return ['run.log']\n"
     )

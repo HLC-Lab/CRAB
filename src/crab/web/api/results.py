@@ -1,4 +1,4 @@
-"""``/api/results`` — fetch and cache a job's CSV result tree.
+"""``/api/results``: fetch and cache a job's CSV result tree.
 
 Job identity is off the local registry: a route key is
 ``(cluster, system, job_basename)``, resolved registry-first against
@@ -7,7 +7,7 @@ job never submitted through this dashboard (CLI-only, per ADR-002 -- the
 engine/CLI stays authoritative, the dashboard never guesses a path).
 
 Fetching a large result tree over SFTP can take a while, so it runs as a
-background task with its own accept/poll/pop tracker — the same shape as
+background task with its own accept/poll/pop tracker: the same shape as
 `api/jobs.py`'s async-submit tracker (`_submissions`/`_run_submission`/
 `submit_job`/`get_submission`), copied rather than shared (two small independent trackers, not a premature shared abstraction).
 """
@@ -71,7 +71,7 @@ def _manager(request: Request) -> ConnectionManager:
 def _live_transport(cluster: str, request: Request) -> Transport:
     """The cluster's existing live transport, or a clean error if not connected.
 
-    No implicit reconnect — the user must have connected the cluster first.
+    No implicit reconnect: the user must have connected the cluster first.
     """
     transport = _manager(request).get(cluster)
     if transport is None:

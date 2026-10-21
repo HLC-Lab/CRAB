@@ -47,14 +47,16 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
   status and per-app error logs are browsable (ADR-017), but not a live per-run metric feed.
 - Guided bootstrap confirms before running; not fully silent. Its install output is captured
   per step rather than streamed live — live progress streaming stays out of v1.0 (the
-  per-step capture is workable) and is revisited after the bootstrap switches to installing
-  the published package.
+  per-step capture is workable) and is revisited after the bootstrap's default install
+  source changes to a release.
 
 ## Known debt (tracked, not forgotten)
 
-- The guided bootstrap currently clones the `feature/web-dashboard` branch (the JSON seam is
-  not on master yet); switch to the default branch at the v1 merge — a `TODO(pre-v1)` comment
-  in `src/crab/web/remoteops/bootstrap.py` marks the spot.
+- The guided bootstrap currently clones the `develop` branch (the product line until v1.0); after
+  the v1.0 release it should install the release (PyPI or `master`) instead: a `TODO(pre-v1)`
+  comment in `src/crab/web/remoteops/bootstrap.py` marks the spot. This is the only bootstrap
+  item left: a cluster where CRAB is a pipx install already works without the bootstrap, through
+  the profile's `crab_command`, and only the default install source is open.
 - `webui/src/api/types.ts`: generated types (`npm run gen:api`, landed with the
   config-validation work) are now the default for every backend-owned shape — most of the file
   is `type X = components["schemas"]["X"]` re-exports. Only cluster-contract passthrough shapes

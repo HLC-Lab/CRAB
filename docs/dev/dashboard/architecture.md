@@ -29,8 +29,25 @@ crab web → uvicorn (127.0.0.1) → browser SPA        researcher's CRAB checko
 | `errors.py` | Error taxonomy; every API error is the stable envelope `{code, message, detail?}` |
 | `api/` | Routes only, no business logic: `remotes.py`, `bootstrap.py`, `wrappers.py`, `experiments.py`, `local.py`, `jobs.py`, `results.py` |
 | `connections/` | `transport.py` (`Transport` ABC; `SSHTransport` via asyncssh, `LocalTransport` via subprocess), `manager.py` (one reused live connection per remote, liveness eviction) |
-| `remoteops/` | `crab_cli.py` (builds/runs `bash -lc "… crab <args> --json"`, parses JSON), `bootstrap.py` (guided CRAB install) |
+| `remoteops/` | `crab_cli.py` (builds/runs `bash -lc "… crab <args> --json"`, parses JSON), `bootstrap.py` (guided CRAB install, for profiles without a `crab_command`) |
 | `store/` | `profiles.py` (`clusters.json`), `library.py` (experiment configs) — atomic writes, slug-validated ids |
+
+### How a profile reaches `crab`
+
+`remoteops/crab_cli.py::build_crab_command` turns a profile and the `crab` arguments into one
+`bash -lc` command. A local profile runs the backend's own interpreter (`python -m crab`). For an
+SSH profile the command has two shapes:
+
+- **Checkout (the default).** The profile's `remote_setup` lines, then `cd <remote_crab>/CRAB`,
+  then `. <venv>/bin/activate` (`venv_activate`, else `<remote_crab>/CRAB/.venv/bin/activate`),
+  then `crab <args>`. `remote_crab` is the base dir; CRAB always lives at `<remote_crab>/CRAB`.
+- **A command of the user's own.** When the profile's `crab_command` is set (one executable with no
+  whitespace, validated by `store/profiles.py::check_crab_command`, for example
+  `~/.local/bin/crab` for a pipx install), the command is the `remote_setup` lines, then
+  `<crab_command> <args>`. There is no `cd` and no venv activation. A leading `~` in
+  `crab_command` expands on the cluster. The bootstrap refuses such a profile
+  (`remoteops/bootstrap.py::ensure_installable`): the user manages that install, so the dashboard
+  has nothing to clone or build, and the UI hides the Install CRAB panel.
 
 ### Layering rule
 

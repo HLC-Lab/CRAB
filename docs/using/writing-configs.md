@@ -1,14 +1,14 @@
 # Writing experiment configs
 
-This page shows the common *patterns* for expressing a study — measuring an application, adding
+This page shows the common *patterns* for expressing a study: measuring an application, adding
 interference, chaining runs. For the exhaustive field list (every `global_options` key, defaults,
 allocation/scheduling rules), see the [Configuration schema](../reference/configuration.md).
 
-Recall the [victim / aggressor](../glossary.md#victim) model: a **victim** is measured and runs to
-completion (`end: ""`); an **aggressor** generates interference and is force-killed once the
+Recall the [victim / aggressor](../glossary.md#victim) model: a victim is measured and runs to
+completion (`end: ""`); an aggressor generates interference and is force-killed once the
 victims finish (`end: "f"`).
 
-## Pattern 1 — a single measured application (baseline)
+## Pattern 1: a single measured application (baseline)
 
 The simplest experiment: one victim, collected, run on all nodes. Use this to establish a baseline
 before introducing interference.
@@ -27,9 +27,9 @@ before introducing interference.
 }
 ```
 
-## Pattern 2 — victim vs aggressor (the core use case)
+## Pattern 2: victim vs aggressor (the core use case)
 
-Run a measured victim alongside an aggressor to quantify interference. Use **partitioned**
+Run a measured victim alongside an aggressor to quantify interference. Use partitioned
 allocation so each gets its own nodes, and mark the aggressor `end: "f"` so it's killed as soon as
 the victim finishes.
 
@@ -60,11 +60,11 @@ the victim finishes.
 ```
 
 `mode: "interleaved"` interleaves the two partitions' nodes so the victim and aggressor share the
-network fabric — exactly the contention you usually want to measure.
+network fabric, which is exactly the contention you usually want to measure.
 
-## Pattern 3 — sequential / dependent runs
+## Pattern 3: sequential / dependent runs
 
-Use `start: "sN"` to launch an application only **after application N has finished**. This chains
+Use `start: "sN"` to launch an application only after application N has finished. This chains
 applications in sequence within one experiment.
 
 ```json
@@ -75,18 +75,18 @@ applications in sequence within one experiment.
 }
 ```
 
-Here app 1 starts when app 0 ends, and app 2 when app 1 ends — a message-size sweep run one after
-another. (This is the shape used in `examples/lorenzo/cong_analysis.json`.)
+Here app 1 starts when app 0 ends, and app 2 when app 1 ends, a message-size sweep run one after
+another. (This is the shape used in `examples/blink-congestion-analysis/incast_burst_grid.json`.)
 
 All three run on the same nodes: a chained app reuses the nodes of the app it waits for, so only
-app 0 takes a share of the allocation. To start an app when another one ends but on **other**
+app 0 takes a share of the allocation. To start an app when another one ends but on other
 nodes, give it a different `partition`. Two apps cannot both start after the same app on its
 nodes (they would share them at the same time); CRAB reports that before submitting. Details:
 [Scheduling](../reference/configuration.md#scheduling-start-and-end).
 
-## Pattern 4 — timed termination
+## Pattern 4: timed termination
 
-Give `end` a number to stop an application after a fixed number of seconds — useful for a
+Give `end` a number to stop an application after a fixed number of seconds, which is useful for a
 long-running aggressor you want bounded regardless of the victim:
 
 ```json
@@ -95,7 +95,7 @@ long-running aggressor you want bounded regardless of the victim:
 
 This app starts 5 seconds in and is terminated after 60 seconds.
 
-## Pattern 5 — several experiments in one run
+## Pattern 5: several experiments in one run
 
 Put multiple named experiments in one config to run a baseline and a co-run back-to-back; they
 execute sequentially and each writes its own results. Use `local_options` to vary settings per
@@ -120,7 +120,7 @@ experiment.
 }
 ```
 
-## Pattern 6 — apps sharing nodes, with different ranks per node
+## Pattern 6: apps sharing nodes, with different ranks per node
 
 Set `allocation.mode` to `"shared"` and every app runs on all the nodes at the same time, so they
 compete inside each node. Each app can have its own `ppn`: here the victim runs one rank per node
@@ -224,22 +224,26 @@ See [Allocation fields](../reference/configuration.md#allocation-fields).
 
 CRAB repeats each experiment until its convergence-target metrics stabilize. The relevant knobs:
 
-- `minruns` / `maxruns` — the floor and ceiling on repetitions.
-- `alpha` / `beta` — the confidence level and the relative width threshold (CI width `< beta × mean`).
-- `convergeall` — require *every* metric to converge, not just those flagged `conv` in the wrapper.
-- `timeout` — a wall-clock cap that ends the experiment regardless of convergence.
+- `minruns` / `maxruns`: the floor and ceiling on repetitions.
+- `alpha` / `beta`: the confidence level and the relative width threshold (CI width `< beta × mean`).
+- `convergeall`: require *every* metric to converge, not just those flagged `conv` in the wrapper.
+- `timeout`: a wall-clock cap that ends the experiment regardless of convergence.
 
 Start with the defaults (`minruns: 10`, `maxruns: 20`, `alpha`/`beta`: `0.05`) and tighten `beta`
-if you need narrower intervals. See [Convergence](../glossary.md#convergence).
+if you need narrower intervals. See [Convergence](../glossary.md#convergence), and
+[Methodology](../concepts/methodology.md#how-many-runs-the-convergence-check) for what the check
+computes.
 
 ## Browse real examples
 
-The `examples/` directory has working configs per system (`examples/leonardo/`, `examples/local/`,
-`examples/cluster_di/`, `examples/lorenzo/`) covering baselines, interleaved tests, sequential
-sweeps, and aggressor mixes — a good starting point to copy and adapt. Representative examples:
+The `examples/` directory has working configs per system (`examples/local/`, `examples/cluster_di/`,
+`examples/leonardo/`, `examples/blink-congestion-analysis/`) covering baselines, interleaved tests,
+sequential sweeps, and aggressor mixes. Copy one and adapt it. The
+[examples guide](https://github.com/HLC-Lab/CRAB/tree/master/examples) says in which order to
+read them, which one runs on a laptop, and how to adapt one to your cluster. Representative examples:
 
-- `examples/leonardo/congestion/noise_heatmap.json` — A2A victim-vs-aggressor sweep across message
+- `examples/leonardo/congestion/noise_heatmap.json`: A2A victim-vs-aggressor sweep across message
   sizes and noise intensities (partitioned allocation).
-- `examples/leonardo/congestion/layout_effect.json` — same workload with four different placement
+- `examples/leonardo/congestion/layout_effect.json`: same workload with four different placement
   strategies (`local_options.allocation` replaced per experiment).
-- `examples/leonardo/congestion/co_scheduling.json` — flat interleaved co-runs without partitions.
+- `examples/leonardo/congestion/co_scheduling.json`: flat interleaved co-runs without partitions.

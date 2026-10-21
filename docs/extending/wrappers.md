@@ -18,8 +18,8 @@ The wrapper is created in the shared wrappers folder (the first folder of `CRAB_
 git-ignored and meant for private or in-progress wrappers, or `--dir <folder>` for any other
 folder.
 
-The web dashboard lists the wrappers of this laptop and of each connected cluster, and its **New
-wrapper** button shows this command: see [Wrappers in the web
+The web dashboard lists the wrappers of this laptop and of each connected cluster, and its New
+wrapper button shows this command: see [Wrappers in the web
 dashboard](../using/dashboard-wrappers.md).
 
 ## Where the shared wrappers live
@@ -44,7 +44,7 @@ found on it.
 
 ## The contract
 
-Define a class named **`app`** that subclasses `base`:
+Define a class named `app` that subclasses `base`:
 
 ```python
 from crab.wrappers.base import base
@@ -76,7 +76,7 @@ class app(base):
 | `benchmark_id` | Name of the [receipt](receipts.md) that records where the binary lives. |
 | `get_extra_artifacts()` | Optional: paths or glob patterns, relative to `self.run_dir`, of files to keep with the results. |
 
-**When the output is not what you expect, raise an exception.** CRAB checks every result against
+When the output is not what you expect, raise an exception. CRAB checks every result against
 `keys` and `metadata`. A result that raises, misses a field, has an undeclared field or holds a
 value of the wrong type fails that run, with the reason in the log. Nothing is recorded for it, and
 the experiment goes on with the next run. Never return zeros or placeholders: they would look like
@@ -101,11 +101,20 @@ metadata = [
 ]
 ```
 
-### The older shape
+### The older shape is gone
 
-Wrappers written before version 1 return one list of samples per metric from `read_data()`, in
-`metadata` order. That shape is still accepted and converted to rows, and CRAB logs a warning once
-per experiment. It stops being accepted at v1.0, so new wrappers should return rows.
+Before version 1, a wrapper returned one list of samples per metric from `read_data()`, in
+`metadata` order. CRAB 1.0 removed that shape. A wrapper that still returns it fails its runs, and
+`crab parse` exits with an error that names the wrapper. To migrate, return one dict per sample
+instead:
+
+```python
+# before: [[1.5, 2.5], [0.7, 0.9]]   (one list per metric)
+return [{"gflops": 1.5, "time": 0.7}, {"gflops": 2.5, "time": 0.9}]
+```
+
+An empty list is not accepted either: it means the parser found no rows, so the run fails (an
+app that declares no metrics is the only exception).
 
 ## Finding the binary
 

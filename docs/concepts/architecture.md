@@ -1,20 +1,20 @@
 # Architecture
 
 This page explains how CRAB is structured. Two ideas are worth internalizing before reading the
-code: the **orchestrator/worker split** (how a run actually reaches the compute nodes) and the
-**wrapper / recipe / receipt** model (how arbitrary applications are made runnable). Everything
+code: the orchestrator/worker split (how a run actually reaches the compute nodes) and the
+wrapper / recipe / receipt model (how arbitrary applications are made runnable). Everything
 else builds on these.
 
 ## High-level responsibilities
 
 | Layer | Location | Job |
 |-------|----------|-----|
-| **Entry point (CLI / TUI)** | `src/crab/cli/`, `src/crab/tui/` | Collect configuration, choose a preset, hand off to the engine. |
-| **Engine** | `src/crab/core/engine.py` | The control core. Runs in one of two modes (orchestrator or worker). |
-| **Experiment runner** | `src/crab/core/experiment/runner.py` | Drives a single experiment: load apps, allocate nodes, run, check convergence, save data. |
-| **Launcher** | `src/crab/core/execution/launcher/` | Translate "run this command on these nodes" into `srun` / `mpirun` invocations. |
-| **Wrappers** | `wrappers/` | Per-application adapters: how to launch and how to parse output. |
-| **Setup (recipes + receipts)** | `src/crab/setup/` | Build benchmarks and record where their binaries live. |
+| Entry point (CLI) | `src/crab/cli/` | Collect configuration, choose a preset, hand off to the engine. |
+| Engine | `src/crab/core/engine.py` | The control core. Runs in one of two modes (orchestrator or worker). |
+| Experiment runner | `src/crab/core/experiment/runner.py` | Drives a single experiment: load apps, allocate nodes, run, check convergence, save data. |
+| Launcher | `src/crab/core/execution/launcher/` | Translate "run this command on these nodes" into `srun` / `mpirun` invocations. |
+| Wrappers | `wrappers/` | Per-application adapters: how to launch and how to parse output. |
+| Setup (recipes + receipts) | `src/crab/setup/` | Build benchmarks and record where their binaries live. |
 
 ## The two-phase execution model
 
@@ -34,10 +34,10 @@ flowchart TD
 
 The diagram shows the Slurm path; the local scheduler skips the queue, as step 4 below says.
 
-**Phase 1 — Orchestrator** (`Engine._run_orchestrator`, runs on the login node):
+Phase 1, the orchestrator (`Engine._run_orchestrator`, runs on the login node):
 
-1. Loads the selected **preset** and merges its environment, Slurm directives, and shell header.
-2. Loads all benchmark **receipts** (and injects each as a `CRAB_PATH_<ID>` environment variable).
+1. Loads the selected preset and merges its environment, Slurm directives, and shell header.
+2. Loads all benchmark receipts (and injects each as a `CRAB_PATH_<ID>` environment variable).
 3. Creates a timestamped data directory and writes `config.json`, `environment.json` and
    `execution.json` (the preset's scheduler, launcher and hosts) into it.
 4. Under the `slurm` scheduler, generates `crab_job.sh` with the computed `#SBATCH` headers and
@@ -47,7 +47,7 @@ The diagram shows the Slurm path; the local scheduler skips the queue, as step 4
 
 The job's payload is `crab worker --workdir <data_dir>` in both cases.
 
-**Phase 2 — Worker** (`Engine._run_worker`, runs on the allocated compute nodes):
+Phase 2, the worker (`Engine._run_worker`, runs on the allocated compute nodes):
 
 1. Reads `config.json` / `environment.json` back from the data directory.
 2. Injects the framework environment and takes the node list: under Slurm it expands
@@ -55,7 +55,7 @@ The job's payload is `crab worker --workdir <data_dir>` in both cases.
 3. Runs each experiment in turn through an `ExperimentRunner`.
 
 !!! info "The handoff is the filesystem"
-    The orchestrator and worker never share memory — they communicate **only** through the files
+    The orchestrator and worker never share memory. They communicate **only** through the files
     written into the data directory. That directory is both the input contract for the worker and
     the output location for results, which is why a CRAB run is fully reproducible from its folder.
 
@@ -63,7 +63,7 @@ The job's payload is `crab worker --workdir <data_dir>` in both cases.
     The preset's `scheduler` decides how the job is submitted: `slurm` submits it with `sbatch`
     (`scheduler/slurm.py`), and `local` runs it as a detached process on this machine
     (`scheduler/local.py`, for development and testing). The preset's `launcher` decides how
-    *individual applications* are started **inside** the worker: `srun`, `mpirun` or `direct`,
+    *individual applications* are started inside the worker: `srun`, `mpirun` or `direct`,
     where `direct` runs the application command as is (`launcher/srun.py`, `launcher/mpirun.py`,
     `launcher/direct.py`). The `srun` launcher needs the `slurm` scheduler. On a cluster, Slurm
     stays on the critical path.
@@ -71,7 +71,7 @@ The job's payload is `crab worker --workdir <data_dir>` in both cases.
 ## The wrapper / recipe / receipt model
 
 This is how "any application can be run" without modifying the framework. Three distinct concepts
-collaborate — keep them separate in your mind:
+collaborate, so keep them separate in your mind:
 
 ```mermaid
 flowchart LR
@@ -86,11 +86,11 @@ flowchart LR
 A Python module in `wrappers/` containing a class literally named `app` that subclasses `base`
 (`src/crab/wrappers/base.py`). It defines:
 
-- `metadata` — a list of metric descriptors, each `{"name": ..., "unit": ..., "conv": ...}`
+- `metadata`: a list of metric descriptors, each `{"name": ..., "unit": ..., "conv": ...}`
   (`conv` marks a metric as a convergence target).
-- `get_binary_path()` — the absolute path to the executable (often read from a receipt or a
+- `get_binary_path()`: the absolute path to the executable (often read from a receipt or a
   `CRAB_PATH_*` environment variable).
-- `read_data()` — parses `self.stdout` and returns a **list of lists**: one inner list of samples
+- `read_data()`: parses `self.stdout` and returns a list of lists: one inner list of samples
   per metric, in the same order as `metadata`.
 
 Wrappers are loaded dynamically *by file path* at experiment setup time, so adding a benchmark
@@ -99,19 +99,19 @@ requires no changes to the core.
 ### Recipe
 
 A class in `src/crab/setup/recipes/` subclassing `BenchmarkRecipe`. It describes how to
-**download and build** a benchmark (clone, compile, locate the binary). Recipes are auto-discovered
+download and build a benchmark (clone, compile, locate the binary). Recipes are auto-discovered
 by `setup/registry.py` and are used only by the `crab setup` wizard.
 
 ### Receipt
 
 A JSON file at `local/receipts/<benchmark_id>.json`, managed by `setup/memory.py`. It is the
-**output of building a recipe** and the **input the wrapper reads at runtime**, recording:
+output of building a recipe and the input the wrapper reads at runtime, recording:
 
-- `binary_path` — where the built executable lives.
-- `hooks.pre_run` — shell commands to run before launching the application.
-- `launcher_override` — the launcher kind, `srun` or `mpirun`, to use instead of the preset's
+- `binary_path`: where the built executable lives.
+- `hooks.pre_run`: shell commands to run before launching the application.
+- `launcher_override`: the launcher kind, `srun` or `mpirun`, to use instead of the preset's
   launcher. Empty means use the preset's.
-- `target_arch` — e.g. `gpu`, used for a guardrail check against the requested partition.
+- `target_arch`: e.g. `gpu`, used for a guardrail check against the requested partition.
 
 The `local/receipts/` folder is created on first use; receipts in the older `config/environments/` folder are still read.
 
@@ -119,15 +119,15 @@ The `local/receipts/` folder is created on first use; receipts in the older `con
 
 Inside the worker, `ExperimentRunner` manages one experiment at a time:
 
-1. **`setup()`** — load the wrappers, resolve each app's launcher, allocate nodes
+1. `setup()`: load the wrappers, resolve each app's launcher, allocate nodes
    (`core/allocation/allocator.py`), and build a `DataContainer` per collected metric.
-2. **`execute()`** — repeat the experiment from `minruns` up to `maxruns`. Each run drives an
+2. `execute()`: repeat the experiment from `minruns` up to `maxruns`. Each run drives an
    event loop that starts/stops applications on schedule, polls their processes, and resolves
    "start after app N finishes" dependencies. After `minruns`, the loop stops early once metrics
-   reach **statistical convergence** (`core/data/utils.py::check_CI` — the confidence-interval
+   reach statistical convergence (`core/data/utils.py::check_CI`, the confidence-interval
    width falls below `beta × mean`).
-3. **`save_results()`** — write per-application CSV (or HDF) files.
-4. **`teardown()`** — guarantee every process is killed before the next experiment.
+3. `save_results()`: write per-application CSV (or HDF) files.
+4. `teardown()`: guarantee every process is killed before the next experiment.
 
 A single application launch (`core/process/manager.py::run_job`) writes a per-app bash script
 under `<run_dir>/.wrappers/`, sources the cluster's module system, runs any `pre_run` hooks, and
@@ -139,13 +139,13 @@ then executes the launch command built by the experiment's launcher (`srun`, `mp
 The allocator maps the job's node list onto the applications according to the `allocation.mode`
 field in `global_options` (or per-experiment `local_options`):
 
-- **`"linear"`** (default) — contiguous blocks of nodes per application or partition.
-- **`"interleaved"`** — nodes dealt round-robin; an optional `stride` controls how many
+- `"linear"` (default): contiguous blocks of nodes per application or partition.
+- `"interleaved"`: nodes dealt round-robin; an optional `stride` controls how many
   consecutive nodes are assigned per turn.
-- **`"random"`** — node list shuffled (with optional `seed`) before splitting linearly.
-- **`"shared"`**: every application gets all the nodes and they run together on the same hosts;
+- `"random"`: node list shuffled (with optional `seed`) before splitting linearly.
+- `"shared"`: every application gets all the nodes and they run together on the same hosts;
   see [Shared nodes](../reference/configuration.md#shared-nodes).
-- **Partitioned** — add a `partitions` dict to split nodes into named groups (e.g. `"victim"` /
+- Partitioned: add a `partitions` dict to split nodes into named groups (e.g. `"victim"` /
   `"aggressor"`), each with a `share` percentage; each app declares which group it belongs to via
   its `partition` field. Independent mode and split can be applied within each partition.
 

@@ -1,6 +1,6 @@
 # Configuration schema
 
-This is the complete reference for a CRAB experiment config — the JSON file you pass to
+This is the complete reference for a CRAB experiment config: the JSON file you pass to
 `crab run`. It is [system-independent](../concepts/system-dependent-vs-independent.md): the same
 file runs on any cluster by selecting a different preset.
 
@@ -12,7 +12,7 @@ For the conceptual walkthrough of writing one, see
 A run config describes a small nesting of levels. From outermost to innermost:
 
 ```text
-Job — one `crab run`: one config file → one Slurm job → one output directory
+Job: one `crab run`: one config file → one Slurm job → one output directory
 │     (named by global_options.name)
 ├─ Experiment "baseline"          an entry in `experiments`; experiments run sequentially
 │    ├─ Run 1, Run 2, …           repetitions (minruns…maxruns), for statistical convergence
@@ -23,10 +23,10 @@ Job — one `crab run`: one config file → one Slurm job → one output directo
 
 | Level | Where it lives | Notes |
 |-------|----------------|-------|
-| **[Job](../glossary.md#job)** | the whole config file | One `crab run` = one Slurm job = one `data/<system>/<name>_<timestamp>/` directory. Named by `global_options.name`. |
-| **[Experiment](../glossary.md#experiment)** | a key under `experiments` | Run one after another, in sorted key order. Has its own `apps`; may override options via `local_options`. |
-| **[Run](../glossary.md#run)** | runtime only (not in the JSON) | One repetition of an experiment. Repeated from `minruns` to `maxruns`, stopping early on convergence. |
-| **[Application](../glossary.md#application)** | a key under an experiment's `apps` | The processes launched **concurrently** within each run. |
+| [Job](../glossary.md#job) | the whole config file | One `crab run` = one Slurm job = one `data/<system>/<name>_<timestamp>/` directory. Named by `global_options.name`. |
+| [Experiment](../glossary.md#experiment) | a key under `experiments` | Run one after another, in sorted key order. Has its own `apps`; may override options via `local_options`. |
+| [Run](../glossary.md#run) | runtime only (not in the JSON) | One repetition of an experiment. Repeated from `minruns` to `maxruns`, stopping early on convergence. |
+| [Application](../glossary.md#application) | a key under an experiment's `apps` | The processes launched concurrently within each run. |
 
 !!! note "Runs and apps are orthogonal"
     Each *run* executes all of the experiment's *apps* once, together; runs are repetitions for
@@ -97,7 +97,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `numnodes` | int | **required** | Total nodes: allocated for the Slurm job, or the first `numnodes` hosts of a local preset. |
+| `numnodes` | int | required | Total nodes: allocated for the Slurm job, or the first `numnodes` hosts of a local preset. |
 | `ppn` | int | `1` | Ranks per node, for every app that does not set its own. Drives the launcher's total task count. See [Ranks per node](#ranks-per-node-ppn). |
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
 | `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
@@ -148,7 +148,7 @@ So a victim with one rank per node can share its nodes with an aggressor that ru
 
 An app's total ranks are its `ppn` times the number of nodes it runs on.
 
-**The batch job's `--ntasks-per-node`** is the largest per-node load over the experiments, which
+The batch job's `--ntasks-per-node` is the largest per-node load over the experiments, which
 CRAB computes: on each node, apps that share it add up, and apps that start after another one on
 its nodes (`start: "sN"`, see [Scheduling](#scheduling-start-and-end)) count once per chain, at
 the chain's largest `ppn`. Experiments run one after the other, so the job takes the largest of
@@ -156,7 +156,7 @@ their loads. It cannot be set by hand: `--ntasks-per-node` in `sbatch_directives
 [sbatch directives](#sbatch-directives)). When the load cannot be worked out (for example
 `numnodes` is missing), CRAB uses `global_options.ppn`.
 
-**What is recorded.** The `ppn` column of `metadata.csv` holds the experiment's value
+What is recorded. The `ppn` column of `metadata.csv` holds the experiment's value
 (`local_options.ppn` if set, else `global_options.ppn`). Each app's own `ppn` and its `env` are in
 the job's `crab_run.json`, under `launches`, so the results show what each app ran with; see
 [What a run records about its launches](../using/running-without-slurm.md#what-a-run-records-about-its-launches).
@@ -169,7 +169,7 @@ All allocation config lives under a single `allocation` key. The minimal form is
 "allocation": { "mode": "linear" }
 ```
 
-**`mode`** — how nodes are distributed:
+`mode` sets how nodes are distributed:
 
 | Value | Behaviour |
 |-------|-----------|
@@ -178,7 +178,7 @@ All allocation config lives under a single `allocation` key. The minimal form is
 | `"random"` | Node list is shuffled (optionally with `seed`), then split linearly. |
 | `"shared"` | Every app gets all the nodes, so the apps run together on the same hosts. See [Shared nodes](#shared-nodes). |
 
-**`split`** — percentage share per app (omit for an equal split). An app that runs on another
+`split` is the percentage share per app (omit for an equal split). An app that runs on another
 app's nodes (a chained app, see [Scheduling](#scheduling-start-and-end)) takes no share: give one
 value per remaining app, in app order.
 
@@ -186,7 +186,7 @@ value per remaining app, in app order.
 "allocation": { "mode": "linear", "split": [60, 40] }
 ```
 
-**Partitioned allocation** — add a `partitions` key to split nodes into named groups. Each app then declares which group it belongs to via its `partition` field:
+Partitioned allocation: add a `partitions` key to split nodes into named groups. Each app then declares which group it belongs to via its `partition` field:
 
 ```json
 "allocation": {
@@ -203,7 +203,7 @@ value per remaining app, in app order.
 - If a partition contains multiple apps, an inner `mode` and `split` can be added inside the partition entry for intra-partition placement.
 - A chained app with no `partition`, or with the same one as the app it waits for, runs on that app's nodes and is not counted as a member of the partition.
 
-**Mode extras:**
+Mode extras:
 
 | Extra key | Used with | Meaning |
 |-----------|-----------|---------|
@@ -212,7 +212,7 @@ value per remaining app, in app order.
 
 ### Shared nodes
 
-By default each app gets nodes of its own. With `mode: "shared"` every app gets **all** the nodes
+By default each app gets nodes of its own. With `mode: "shared"` every app gets all the nodes
 of its scope instead, so the apps run at the same time on the same hosts. That measures
 interference inside a node: the apps compete for memory bandwidth, caches and the network card.
 The `cores` key says how they share the cores:
@@ -226,7 +226,7 @@ The `cores` key says how they share the cores:
 | `"disjoint"` (default) | Apps on the same nodes run on different cores. |
 | `"shared"` | Apps may run on the same cores, so the result measures how the operating system schedules them as much as the hardware. CRAB warns about it. |
 
-**Where it applies.** `mode: "shared"` goes at the top level of `allocation` when there are no
+Where it applies. `mode: "shared"` goes at the top level of `allocation` when there are no
 `partitions`, or inside one partition, which then holds two or more apps (a partition with one
 app gives it all of its nodes whatever its `mode`). `cores` sits next to it, in the same scope. A
 chained app (`start: "sN"`) already runs on its head's nodes and its cores.
@@ -239,11 +239,11 @@ These are errors, reported before anything is submitted:
 - `cores` with any `mode` other than `"shared"`;
 - a `cores` value other than `"disjoint"` or `"shared"`.
 
-**Which cores each app gets.** CRAB decides this before the job starts, from the apps' [`cpus`
+Which cores each app gets. CRAB decides this before the job starts, from the apps' [`cpus`
 lists](#core-lists-and-environment-per-app-cpus-and-env) and the allocation's `cores`:
 
 - An app with `cpus` is bound to exactly those cores, on every host it runs on.
-- With `cores: "disjoint"` on a **local** preset, apps that have no `cpus` are split
+- With `cores: "disjoint"` on a local preset, apps that have no `cpus` are split
   automatically. In app order they get consecutive blocks of `ppn` cores that no other app of the
   group uses, counted from core 0 of the host and skipping the cores that some `cpus` list
   names. A host's core count is the one in the preset's `hosts`, or this machine's CPU count for a
@@ -302,7 +302,7 @@ These are errors, reported before anything is submitted:
 
 ## `experiments`
 
-A dictionary mapping an experiment name to its definition. Experiments run **sequentially**, in
+A dictionary mapping an experiment name to its definition. Experiments run sequentially, in
 sorted key order.
 
 | Key | Type | Meaning |
@@ -325,24 +325,24 @@ say, `allocation` or `timeout` between experiments in the same run.
 
 ### The `apps` block
 
-A dictionary keyed by **numeric string IDs** (`"0"`, `"1"`, …). CRAB takes the apps in numeric
+A dictionary keyed by numeric string IDs (`"0"`, `"1"`, …). CRAB takes the apps in numeric
 key order, and `start: "sN"` counts positions in that order from 0, so number the apps from
 `"0"` without gaps: then N is also the key of the app being waited for. Each value describes one
 application:
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `path` | string | **required** | Path to the [wrapper](../glossary.md#wrapper) module. A relative path is looked up in `local/wrappers/`, then in each folder of `CRAB_PATH_WRAPPERS` (or `wrappers/`); see [Where CRAB looks for wrappers](../extending/wrappers.md#where-crab-looks-for-wrappers). |
-| `binary` | string | — | Path to the application's executable for this app. Takes precedence over the wrapper's receipt and `PATH` lookup. |
+| `path` | string | required | Path to the [wrapper](../glossary.md#wrapper) module. A relative path is looked up in `local/wrappers/`, then in each folder of `CRAB_PATH_WRAPPERS` (or `wrappers/`); see [Where CRAB looks for wrappers](../extending/wrappers.md#where-crab-looks-for-wrappers). |
+| `binary` | string | none | Path to the application's executable for this app. Takes precedence over the wrapper's receipt and `PATH` lookup. |
 | `args` | string | `""` | Command-line arguments passed to the executable. |
 | `collect` | bool | `false` | Whether to parse and store this app's metrics. |
 | `start` | string | `"0"` | When to start the app. See [Scheduling](#scheduling-start-and-end). |
 | `end` | string | `""` | When to stop the app. See [Scheduling](#scheduling-start-and-end). |
-| `partition` | string | — | (partitioned allocation) The named partition this app belongs to, e.g. `"victim"` or `"aggressor"`. Must match a key in `allocation.partitions`. |
+| `partition` | string | none | (partitioned allocation) The named partition this app belongs to, e.g. `"victim"` or `"aggressor"`. Must match a key in `allocation.partitions`. |
 | `ppn` | int | the experiment's, else the global one | Ranks per node for this app. See [Ranks per node](#ranks-per-node-ppn). |
-| `cpus` | string | — | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
+| `cpus` | string | none | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 | `env` | object | `{}` | Environment variables set for this app's ranks only. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
-| `nics` | list of strings | — | One NIC per rank: rank `i` on a node uses `nics[i % len(nics)]`. See [NICs per rank](#nics-per-rank-nics). |
+| `nics` | list of strings | none | One NIC per rank: rank `i` on a node uses `nics[i % len(nics)]`. See [NICs per rank](#nics-per-rank-nics). |
 
 !!! tip "Extra keys become wrapper attributes"
     Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end`,
@@ -352,7 +352,7 @@ application:
 
 ### Core lists and environment per app (`cpus` and `env`)
 
-**`cpus`** is a string of comma-separated items, each a core number `N` or a range `A-B` with
+`cpus` is a string of comma-separated items, each a core number `N` or a range `A-B` with
 `A` not above `B`: `"0-15,32"`, `"4"`, `"0-3, 8-11"`. The cores are sorted, and a core listed
 twice is an error. It must list at least the app's own `ppn` cores (one per rank), and the same
 list is used on every host the app runs on. The `mpirun` and `srun` launchers bind the ranks to
@@ -364,7 +364,7 @@ Other errors:
   `cpus` there (its `ppn` may not exceed the number of those cores);
 - `cpus` under Slurm without `--exclusive` among the `sbatch_directives` or the preset's `sbatch`.
 
-**`env`** is an object of strings. Each key has to be a valid shell variable name (letters, digits
+`env` is an object of strings. Each key has to be a valid shell variable name (letters, digits
 and underscores, not starting with a digit), and may not be one of the removed `CRAB_*` launch
 keys listed in the [presets reference](presets.md#removed-keys). The app's launch script exports
 the variables just before the launch line, so they reach that app's ranks and no other app's, and
@@ -387,7 +387,7 @@ To give each app its own network interface, see
 
 ### NICs per rank (`nics`)
 
-**`nics`** is a non-empty list of NIC device names, such as `["mlx5_0:1", "mlx5_1:1"]`. Each name
+`nics` is a non-empty list of NIC device names, such as `["mlx5_0:1", "mlx5_1:1"]`. Each name
 may contain only letters, digits and `_ . : -`. Under any launcher, the app's ranks on a node
 are numbered from 0 (their local rank), and rank `i` gets `UCX_NET_DEVICES` set to
 `nics[i % len(nics)]`: with more ranks than NICs the list wraps around. A name that is not a
@@ -443,14 +443,14 @@ For a worked example, see
 
 The `start` and `end` strings encode the victim/aggressor model and timed/sequential execution.
 
-**`start` — when the app launches:**
+`start` sets when the app launches:
 
 | Value | Meaning |
 |-------|---------|
 | `"0"` or a number | Delay in seconds from the start of the run before launching. |
-| `"sN"` | Start only **after application N has finished** (a dependency, enabling sequential chains). The app runs on application N's nodes; see below. |
+| `"sN"` | Start only after application N has finished (a dependency, enabling sequential chains). The app runs on application N's nodes; see below. |
 
-**`end` — when the app is stopped:**
+`end` sets when the app is stopped:
 
 | Value | Meaning | Role |
 |-------|---------|------|
@@ -462,10 +462,10 @@ An app is stopped by killing it, and the output of a killed app is not collected
 `collect: true` that is still running when `f` or a timed `end` stops it has no data for that
 run; CRAB warns about this combination before the run starts.
 
-**Which nodes a chained app uses.** An app with `start: "sN"` runs on the nodes of application N,
+Which nodes a chained app uses. An app with `start: "sN"` runs on the nodes of application N,
 which have just been released. This carries along a chain: in `0` → `s0` → `s1` all three apps
 run on app 0's nodes, and only app 0 gets a share of the allocation. A chained app that names a
-**different** `partition` than the app it waits for instead gets a share of its own partition:
+different `partition` than the app it waits for instead gets a share of its own partition:
 use this to start an app when another one ends, but on other nodes.
 
 These are errors, reported before anything is submitted:
@@ -479,13 +479,13 @@ These are errors, reported before anything is submitted:
 ## sbatch directives
 
 `global_options.sbatch_directives` lets you add or override Slurm `#SBATCH` lines. The preferred
-form is a **list** of complete directives:
+form is a list of complete directives:
 
 ```json
 "sbatch_directives": ["--account=IscrC_FOO", "--qos=normal", "--exclusive"]
 ```
 
-A legacy **dict** form is also accepted (`true` → bare flag, `false` → omitted, value → `--key=value`):
+A legacy dict form is also accepted (`true` → bare flag, `false` → omitted, value → `--key=value`):
 
 ```json
 "sbatch_directives": { "time": "00:20:00", "exclusive": true }

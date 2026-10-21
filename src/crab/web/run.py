@@ -21,7 +21,7 @@ def _open_browser_when_up(url: str, delay: float = 1.0) -> None:
     def _open() -> None:
         try:
             webbrowser.open(url)
-        except Exception:  # headless / no browser — non-fatal
+        except Exception:  # headless / no browser: non-fatal
             logger.info("Could not open a browser automatically; visit %s", url)
 
     threading.Timer(delay, _open).start()

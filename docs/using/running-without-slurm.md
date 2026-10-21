@@ -2,9 +2,10 @@
 
 A preset with `"scheduler": "local"` runs the job on the machine where you type `crab run`, with
 no Slurm involved. Use it to try CRAB on a laptop or workstation, or to run on a few machines
-that you reach over `ssh`. The preset still comes from `config/presets.json` or
-`local/presets.json`; see [Configuring your cluster](presets.md) for where presets live and how
-one is selected.
+that you reach over `ssh`. The preset still comes from the shipped presets
+or from your own presets file (`~/.config/crab/presets.json`, or `local/presets.json` in a
+checkout); see [Configuring your cluster](presets.md) for where presets live and how one is
+selected.
 
 CRAB never picks a local preset on its own: ask for it with `-p`.
 
@@ -59,6 +60,9 @@ Run an experiment with the preset like any other:
 ```bash
 crab run examples/my_experiment.json -p lab
 ```
+
+The repository's [`examples/local/`](https://github.com/HLC-Lab/CRAB/tree/master/examples/local)
+holds two configs that run with the shipped `local` preset, for a first try on a laptop.
 
 The job starts in the background and `crab run` returns, as it does after an `sbatch`. The job
 survives the end of your shell. Its output files are the same as on a cluster, and its two log

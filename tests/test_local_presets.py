@@ -1,5 +1,5 @@
 """Per-machine presets live in the untracked `local/presets.json`, merged over the shipped
-`config/presets.json`, so accounts and cluster tweaks never conflict with `git pull`."""
+`src/crab/presets.json`, so accounts and cluster tweaks never conflict with `git pull`."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from crab import paths
 from crab.cli.contract import gather_info
 from crab.cli.presets import load_all_presets
 
@@ -18,9 +19,16 @@ SHIPPED = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _shipped_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shipped layer is a fixture file, not the package's real presets."""
+    shipped = tmp_path / "shipped" / "presets.json"
+    shipped.parent.mkdir()
+    shipped.write_text(json.dumps(SHIPPED))
+    monkeypatch.setattr(paths, "shipped_presets", lambda: shipped)
+
+
 def _root(tmp_path: Path, local: dict | str | None = None) -> Path:
-    (tmp_path / "config").mkdir()
-    (tmp_path / "config" / "presets.json").write_text(json.dumps(SHIPPED))
     if local is not None:
         (tmp_path / "local").mkdir()
         text = local if isinstance(local, str) else json.dumps(local)

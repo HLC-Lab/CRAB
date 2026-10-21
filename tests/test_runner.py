@@ -42,7 +42,11 @@ class _MockApp:
         self._series_list = series_list
 
     def read_data(self):
-        return [list(s) for s in self._series_list]
+        # Rows: one dict per sample, built from the per-metric series this stub is given.
+        names = [m["name"] for m in self.metadata]
+        return [
+            dict(zip(names, values, strict=True)) for values in zip(*self._series_list, strict=True)
+        ]
 
 
 def _run_collection(apps, containers):

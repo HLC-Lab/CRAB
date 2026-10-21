@@ -8,7 +8,9 @@ import os
 import pathlib
 from types import ModuleType
 
-_CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+from crab import paths
+
+_CRAB_ROOT = str(paths.crab_home())
 
 # What an untracked `wrappers/` checkout leaves behind: git keeps ignored files and folders when a
 # pull removes the tracked ones, so a folder holding only these is not a checkout.
@@ -27,7 +29,7 @@ def wrapper_search_path() -> list[str]:
     """
     configured = os.environ.get("CRAB_PATH_WRAPPERS")
     shared = [d for d in configured.split(os.pathsep) if d] if configured else []
-    return [os.path.join(_CRAB_ROOT, "local", "wrappers")] + (
+    return [str(paths.local_path(pathlib.Path(_CRAB_ROOT), "wrappers"))] + (
         shared or [os.path.join(_CRAB_ROOT, "wrappers")]
     )
 
@@ -117,7 +119,8 @@ def missing_wrappers_hint() -> str:
         return ""
     if _is_usable_checkout(os.path.join(_CRAB_ROOT, "wrappers")):
         return ""
-    return f"wrappers/ is missing: run `crab update` to clone the wrappers ({_WRAPPERS_REPO})"
+    command = "crab update" if paths.is_checkout() else "crab wrappers pull"
+    return f"wrappers/ is missing: run `{command}` to clone the wrappers ({_WRAPPERS_REPO})"
 
 
 def load_module(path: str) -> ModuleType:

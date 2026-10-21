@@ -10,12 +10,13 @@ from argcomplete.completers import FilesCompleter
 
 
 def _preset_completer(prefix, parsed_args, **kwargs):
-    """Dynamically parses presets.json for tab-autocompletion."""
+    """Dynamically loads the merged presets for tab-autocompletion."""
     from pathlib import Path
 
+    from crab import paths
     from crab.cli.presets import load_all_presets
 
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    base_dir = paths.crab_home()
     try:
         all_presets = load_all_presets(Path(base_dir))
         valid_presets = [k for k in all_presets.keys() if k not in ["_common", "example_preset"]]
@@ -48,6 +49,7 @@ def handle_info(args):
     def human(d):
         print(f"CRAB {d['crab_version']}  (contract schema v{d['schema']})")
         print(f"root: {d['crab_root']}")
+        print(f"layout: {d['layout']}")
         print("presets:")
         for p in d["presets"]:
             print(f"  {p['name']:<14} {p['description']}")
@@ -174,67 +176,28 @@ def handle_logs(args):
 
 
 def handle_setup(args):
+    from crab.cli import wrappers_clone
     from crab.setup.wizard import run as run_wizard
 
+    wrappers_clone.ensure_wrappers_clone(print)
     run_wizard()
 
 
 def _local_install_args(extra: str, root=None) -> list[str] | None:
-    """pip command installing this checkout with an optional extra, or None if there is none.
+    """pip command installing CRAB with an optional extra, or None for an explicit root without one.
 
+    A checkout installs itself editable; a pip install asks for the `crab-hpc` distribution.
     Never `pip install crab[...]`: `crab` on PyPI is an unrelated package.
     """
     if root is None:
-        # cli -> crab -> src -> checkout root
-        root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        from crab import paths
+
+        root = paths.checkout_root()
+        if root is None:
+            return [sys.executable, "-m", "pip", "install", f"crab-hpc[{extra}]"]
     if not os.path.isfile(os.path.join(root, "pyproject.toml")):
         return None
     return [sys.executable, "-m", "pip", "install", "-e", f"{root}[{extra}]"]
-
-
-def handle_tui(args):
-    """
-    Handles the TUI launch with lazy loading and auto-installation
-    of optional dependencies.
-    """
-    try:
-        # Architect Protocol: Delayed import to avoid 'Import Tax' on CLI
-        from crab.tui.app import BenchmarkApp
-    except ImportError:
-        # Analyst Protocol: Diagnose missing optional dependencies
-        print("[!] TUI dependencies (textual) are not installed.")
-
-        # Interactive prompt using standard input
-        try:
-            confirm = input(
-                "Would you like to install the 'tui' optional dependencies now? (y/N): "
-            ).lower()
-        except EOFError:
-            return
-
-        if confirm == "y":
-            print(f"[*] Installing 'textual' and 'textual-fspicker' into {sys.prefix}...")
-            try:
-                # sys.executable installs into the active .venv, from this checkout
-                install_args = _local_install_args("tui")
-                if install_args is None:
-                    raise RuntimeError("no CRAB checkout found to install from")
-                subprocess.check_call(install_args)
-                print("[+] Installation successful. Launching TUI...")
-
-                # Re-attempt the import now that the environment is populated
-                from crab.tui.app import BenchmarkApp
-            except Exception as e:
-                print(f"[ERROR] Auto-installation failed: {e}")
-                print("Please run 'pip install -e .[tui]' from your CRAB checkout to fix this.")
-                return
-        else:
-            print("Aborting. The TUI requires optional dependencies to run.")
-            return
-
-    # Initialize and execute the Textual App
-    app = BenchmarkApp()
-    app.run()
 
 
 _WEB_EXTRA_PACKAGES = ("fastapi", "uvicorn", "asyncssh")
@@ -248,7 +211,7 @@ def _missing_web_packages() -> list[str]:
 def handle_web(args):
     """
     Launch the web dashboard with lazy loading and auto-installation
-    of optional dependencies (mirrors the TUI launcher).
+    of optional dependencies (offers to install them on first use).
     """
     try:
         if _missing_web_packages():
@@ -277,7 +240,12 @@ def handle_web(args):
                 from crab.web.run import run_server
             except Exception as e:
                 print(f"[ERROR] Auto-installation failed: {e}")
-                print("Please run 'pip install -e .[web]' from your CRAB checkout to fix this.")
+                from crab import paths
+
+                if paths.is_checkout():
+                    print("Please run 'pip install -e .[web]' from your CRAB checkout to fix this.")
+                else:
+                    print("Please run 'pipx install --force \"crab-hpc[web]\"' to fix this.")
                 return
         else:
             print("Aborting. The web dashboard requires optional dependencies to run.")
@@ -315,7 +283,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,tui,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update,sbatchman-preset}",
+        metavar="{setup,run,validate,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update,sbatchman-preset}",
     )
     subparsers.required = True
 
@@ -342,11 +310,11 @@ def cli_router():
     )
     parser_run.set_defaults(func=handle_run)
 
-    # 3. TUI Command
-    parser_tui = subparsers.add_parser("tui", help="Launch the Terminal User Interface")
-    parser_tui.set_defaults(func=handle_tui)
+    from crab.cli import validate
 
-    # 4. Web Command
+    validate.register(subparsers, _preset_completer)
+
+    # 3. Web Command
     parser_web = subparsers.add_parser("web", help="Launch the local web dashboard")
     parser_web.add_argument("--host", default=None, help="Bind host (default: 127.0.0.1).")
     parser_web.add_argument("--port", type=int, default=None, help="Bind port (default: 8765).")
@@ -361,7 +329,7 @@ def cli_router():
     )
     parser_web.set_defaults(func=handle_web)
 
-    # 5. Introspection commands (machine-readable seam for the web dashboard)
+    # 4. Introspection commands (machine-readable seam for the web dashboard)
     def _add_json_flag(p):
         p.add_argument(
             "--json", action="store_true", help="Emit machine-readable JSON instead of text."
@@ -415,7 +383,7 @@ def cli_router():
     )
     _add_json_flag(parser_logs).set_defaults(func=handle_logs)
 
-    # 6. Export Command
+    # 5. Export Command
     parser_export = subparsers.add_parser(
         "export", help="Export results as a self-contained HTML dashboard"
     )
@@ -423,11 +391,11 @@ def cli_router():
         "data_dir", help="Path to the directory containing experiment results."
     ).completer = FilesCompleter()
     parser_export.add_argument(
-        "-o", "--output", default=None, help="Output HTML file (default: crab_export.html)"
+        "-o", "--output", default=None, help="Output HTML file (default: crab_export.html)."
     )
     parser_export.set_defaults(func=handle_export)
 
-    # 7. Wrapper tooling: crab parse, crab wrappers, crab receipts
+    # 6. Wrapper tooling: crab parse, crab wrappers, crab receipts
     from crab.cli import wrappers_cmd
 
     wrappers_cmd.register(subparsers)
@@ -436,7 +404,7 @@ def cli_router():
 
     update.register(subparsers)
 
-    # 8. SbatchMan preset printer
+    # 7. SbatchMan preset printer
     parser_preset = subparsers.add_parser(
         "sbatchman-preset",
         help="Print the `sbatchman configure slurm` command for this CRAB install",
@@ -467,7 +435,7 @@ def cli_router():
     )
     parser_preset.set_defaults(func=handle_sbatchman_preset)
 
-    # 9. Worker Command (Hidden)
+    # 8. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)
     parser_worker.add_argument("--log-level", dest="log_level", default=None)
@@ -476,4 +444,10 @@ def cli_router():
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
-    args.func(args)
+    from crab.setup.memory import ReceiptError
+
+    try:
+        args.func(args)
+    except ReceiptError as exc:
+        print(f"crab: {exc}", file=sys.stderr)
+        sys.exit(1)

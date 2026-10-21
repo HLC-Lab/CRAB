@@ -5,14 +5,14 @@ benchmarks you want available on this machine.
 
 ## Prerequisites
 
-- **Python 3.10+** (the installer hard-fails below this; on a cluster you may need `module load python` first).
-- **Git**.
-- **A Slurm cluster** to run experiments. `crab run` submits the job with `sbatch`; see the note
+- Python 3.10+ (the installer hard-fails below this; on a cluster you may need `module load python` first).
+- Git.
+- A Slurm cluster to run experiments. `crab run` submits the job with `sbatch`; see the note
   below for the one exception.
-- **Network access.** `make` downloads Python packages from PyPI and clones the wrappers from
+- Network access. `make` downloads Python packages from PyPI and clones the wrappers from
   github.com. `crab setup` clones the benchmark sources from github.com when you build from source.
   A cluster login node usually has this; a compute node may not.
-- **Build tools** if you intend to *build* benchmarks from source with the setup wizard. Blink
+- Build tools if you intend to *build* benchmarks from source with the setup wizard. Blink
   needs CMake 3.16 or newer, a C and a C++ compiler, and the MPI compiler wrappers `mpicc` and
   `mpicxx`. On a cluster these usually come from modules (see the build step below).
 
@@ -36,18 +36,18 @@ make
 [HLC-Lab/crab-wrappers](https://github.com/HLC-Lab/crab-wrappers), and CRAB does not ship them in
 its own tree.
 
-`make` is idempotent — if CRAB is already installed it tells you so. Use `make clean` to remove
+`make` is idempotent: if CRAB is already installed it tells you so. Use `make clean` to remove
 the virtual environment and build artifacts, and `make setup` to re-run just the wizard.
 `make clean` leaves `wrappers/` alone.
 
 ### The `local/` folder
 
-`local/` sits at the root of the checkout (next to `config/` and `wrappers/`). Git ignores it, so
+`local/` sits at the root of the checkout (next to `src/` and `wrappers/`). Git ignores it, so
 it holds the files that belong to this machine and never conflict with an update:
 
 | Path | What it is | Who creates it |
 |------|------------|----------------|
-| `local/presets.json` | Your presets, merged over the shipped `config/presets.json` (see [Configuring your cluster](presets.md#keep-your-presets-out-of-git)). | You: run `mkdir -p local` in the checkout, then create the file. |
+| `local/presets.json` | Your presets, merged over the shipped presets in `src/crab/presets.json` (see [Configuring your cluster](presets.md#keep-your-presets-out-of-git)). | You: run `mkdir -p local` in the checkout, then create the file. |
 | `local/receipts/` | One receipt per configured benchmark. | `crab setup` |
 | `local/wrappers/` | Private or in-progress wrappers, searched before `wrappers/`. | You, if you need it. |
 
@@ -56,7 +56,7 @@ Before the first `crab run` on a cluster that needs a Slurm account, create
 `--account=YOUR_PROJECT_ACCOUNT`, which `sbatch` refuses. The
 [presets page](presets.md#keep-your-presets-out-of-git) has a complete example.
 
-Once installed, **activate the environment** before using the `crab` command (this also enables
+Once installed, activate the environment before using the `crab` command (this also enables
 shell tab-completion, registered during install):
 
 ```bash
@@ -72,7 +72,6 @@ git clone https://github.com/HLC-Lab/crab-wrappers wrappers   # the wrappers, ne
 python -m venv .venv
 source .venv/bin/activate
 pip install -e .          # core framework
-pip install -e .[tui]     # optional: adds the Textual UI dependencies
 ```
 
 Run the `git clone` from the CRAB checkout, so that the folder is `wrappers/` there. A command that
@@ -82,14 +81,60 @@ needs a wrapper stops with `wrappers/ is missing: run crab update` when the fold
 For the web dashboard, which runs on your laptop and drives clusters over SSH, install the `web`
 extra (`pip install -e ".[web]"`) and start it with `crab web`.
 
-The TUI extra can also be installed on demand — `crab tui` will offer to install it the first time
-if it's missing.
+## Install with pip or pipx
+
+!!! note "Available from the first PyPI release"
+    The package `crab-hpc` is not on PyPI yet. These steps work from the first PyPI release of
+    `crab-hpc`. Until then, the git checkout above is the documented way to install CRAB on a
+    cluster, and it stays the main path.
+
+For a machine where you do not want a checkout, install the package into its own environment
+with pipx (the `web` extra adds the dashboard):
+
+```bash
+pipx install "crab-hpc[web]"
+```
+
+Without the dashboard, `pipx install crab-hpc` is enough. `pip install crab-hpc` into a virtual
+environment works the same way.
+
+A pip install has no checkout, so CRAB keeps its files in user folders instead (the two layouts
+are described in [ADR-038](../dev/dashboard/decisions/adr-038-two-layouts.md); the code is
+`src/crab/paths.py`). `crab info` prints the layout (`installed`) and the home.
+
+| Folder | What it holds |
+|--------|---------------|
+| `~/.local/share/crab` (the home) | `data/` (results), `benchmarks/` (source builds) and `wrappers/` (the wrappers clone). |
+| `~/.config/crab` | `presets.json` (your presets), `receipts/` and `wrappers/` (private or in-progress wrappers, searched before the shared ones). |
+
+These are the places on Linux; other systems use their own user data and config folders. Two
+variables move them:
+
+- `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`.
+- `CRAB_PATH_PRESETS` sets the path of your presets file.
+
+The shipped presets come inside the package. Your own presets go in `~/.config/crab/presets.json`
+(see [Configuring your cluster](presets.md#keep-your-presets-out-of-git)).
+
+The wrappers are not part of the package. The first time a command needs them (`crab run`,
+`crab setup`, `crab wrappers ...`), CRAB prints one line and clones
+[crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) into `~/.local/share/crab/wrappers`.
+This needs git and network access on that machine. It does not happen in a call with `--json`
+(there a hint is printed instead) or when `CRAB_PATH_WRAPPERS` is set. If the clone fails, run
+`crab wrappers pull` once the network is back.
+
+`crab update` on a pip install does not touch CRAB itself: it updates the wrappers and prints
+`pipx upgrade crab-hpc`, which is the command that upgrades the program. See
+[Keep it up to date](#keep-it-up-to-date).
+
+To drive a cluster that has CRAB installed this way from the dashboard, fill the remote's
+"Crab command" field (see [Connect a cluster](dashboard.md#connect-a-cluster)).
 
 ## Set up benchmarks (`crab setup`)
 
-CRAB ships with **recipes** that know how to obtain and build a set of supported benchmarks. The
-wizard turns a recipe into a **receipt** — a record of where the built binary lives on this
-machine — so wrappers can find it at run time.
+CRAB ships with recipes that know how to obtain and build a set of supported benchmarks. The
+wizard turns a recipe into a receipt, a record of where the built binary lives on this
+machine, so wrappers can find it at run time.
 
 ```bash
 crab setup
@@ -100,18 +145,18 @@ or reconfigure benchmarks later.
 
 The wizard walks through:
 
-1. **Select suites.** Choose which benchmark suites to install
+1. Select suites. Choose which benchmark suites to install
    (see [Supported benchmarks](../reference/supported-benchmarks.md)).
-2. **Select versions.** For suites with multiple versions (Quantum ESPRESSO offers v6 and v7),
+2. Select versions. For suites with multiple versions (Quantum ESPRESSO offers v6 and v7),
    pick which to build.
-3. **Choose a strategy** per benchmark:
+3. Choose a strategy per benchmark:
 
     | Strategy | What it does |
     |----------|--------------|
-    | **Auto-detect** | Looks for an existing build under `benchmarks/`, optionally doing a deep search of your home directory. For Blink it only finds a build that `crab setup` made (`benchmarks/blink/build/bin`). |
-    | **Manual path** | You supply the absolute path to an existing executable/directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
-    | **Environment module** | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
-    | **Build from source** | Asks for a module line (default `module load gcc openmpi`), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE), streaming the build log live. |
+    | Auto-detect | Looks for an existing build under `benchmarks/`, optionally doing a deep search of your home directory. For Blink it only finds a build that `crab setup` made (`benchmarks/blink/build/bin`). |
+    | Manual path | You supply the absolute path to an existing executable/directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
+    | Environment module | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
+    | Build from source | Asks for a module line (default `module load gcc openmpi`), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE), streaming the build log live. |
 
 For a source build, the module line is run in a non-interactive `bash`, so it must work there. If
 CMake is a module on your cluster, add it to the line (for example
@@ -121,18 +166,18 @@ that benchmark without building anything.
 
 #### Example: build Blink from source
 
-1. Run `crab setup` and choose **Install or configure a supported benchmark**.
+1. Run `crab setup` and choose "Install or configure a supported benchmark".
 2. The suite list pre-selects every suite that is not configured yet. Press Space to untick the
-   ones you do not want, so that only **Blink Suite** is ticked, then press Enter.
-3. At **Select Configuration Strategy**, type `4` (Download and compile from source layout).
-4. At **Enter necessary pre-build cluster module loads**, press Enter to accept
+   ones you do not want, so that only Blink Suite is ticked, then press Enter.
+3. At "Select Configuration Strategy", type `4` (Download and compile from source layout).
+4. At "Enter necessary pre-build cluster module loads", press Enter to accept
    `module load gcc openmpi`, or type your own line (add CMake if it is a module).
 5. A build panel shows the steps (clone, configure with CMake, compile) with the last lines of the
    log. Blink is built under `benchmarks/blink/`.
 6. When it ends, the wizard saves the receipt `local/receipts/blink.json`.
 
 If an earlier build failed, it left a `benchmarks/blink` folder behind. The wizard then asks
-**Found a leftover build at ... Remove it and start again?** Answer yes to remove the folder and
+"Found a leftover build at ... Remove it and start again?" Answer yes to remove the folder and
 build again. If you answer no, Blink is skipped.
 
 On success the wizard writes a receipt to `local/receipts/<benchmark_id>.json` (receipts written
@@ -164,27 +209,34 @@ An application that is already installed does not need the wizard:
 
 ## Keep it up to date
 
-Run `crab update` in the install. On a branch checkout it fast-forwards the branch; on an install
-that sits on a release tag it moves to the newest release of the same line. It reinstalls
-dependencies only when they changed, and it stops without changing anything if tracked files have
-local edits.
+Run `crab update` in the install. By default it goes to the release: a checkout moves to the
+newest release tag of its line, and the wrappers clone moves to the matching wrappers tag
+(`vX.Y.Z` of the CRAB version it ends on). `crab update --head` follows the branches of both
+instead, which is for developers. [`crab update`](../reference/cli.md#crab-update) lists every
+case. CRAB reinstalls dependencies only when they changed, and it stops without changing
+anything if tracked files have local edits.
+
+On a pip or pipx install, `crab update` updates only the wrappers (to the tag of the installed
+version, or the branch with `--head`) and prints `pipx upgrade crab-hpc`. Run that command to
+upgrade CRAB itself.
 
 Two cases need a little more:
 
-- **It stops with "Local edits to tracked files would be overwritten".** The message lists the
-  files. The usual one is `config/presets.json`, where you put your account. Copy your preset's
-  block into `local/presets.json` (see [Configuring your cluster](presets.md#keep-your-presets-out-of-git)),
-  restore the shipped file with `git checkout -- config/presets.json`, and run `crab update` again.
-- **You come from v0.4.0 or older.** Run `crab update` twice. The first run still executes the old
+- It stops with "Local edits to tracked files would be overwritten". The message lists the
+  files. Move per-machine changes to `local/`, or commit or stash them. One old case has its own
+  message: the shipped presets used to be `config/presets.json`, and if you put your account
+  there, the update tells you to copy your edits to `local/presets.json` (see
+  [Configuring your cluster](presets.md#keep-your-presets-out-of-git)), run
+  `git checkout config/presets.json`, and run `crab update` again.
+- You come from v0.4.0 or older. Run `crab update` twice. The first run still executes the old
   update code, which does not know how to fetch the wrappers. The second run uses the new code and
   clones them.
 
-It updates the wrappers too: it pulls `wrappers/` when that folder is its own git clone, and
-clones [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) when the folder is missing or
-holds only leftovers of the old copy that CRAB used to track (such as `__pycache__` folders). A
-`wrappers/` folder with anything else in it is left alone. The wrappers follow the `main` branch
-of crab-wrappers, not the CRAB release you are on. Running `make` again also clones them when
-`wrappers/` is missing.
+The wrappers are updated too: `crab update` pulls or moves `wrappers/` when that folder is its own
+git clone, and clones [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) when the folder
+is missing or holds only leftovers of the old copy that CRAB used to track (such as `__pycache__`
+folders). A `wrappers/` folder with anything else in it is left alone. Running `make` again also
+clones them when `wrappers/` is missing.
 
 Keep per-machine changes out of the tracked files so updates never conflict: the git-ignored
 `local/` folder holds `local/presets.json` (merged over the shipped presets, see

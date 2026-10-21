@@ -1,7 +1,7 @@
-"""Cluster connection profiles — the only persistent laptop state for connections.
+"""Cluster connection profiles: the only persistent laptop state for connections.
 
 Profiles are **non-secret**: host, user, paths,
-preset, auth *method*. No passwords or keys are stored — agent auth (the
+preset, auth *method*. No passwords or keys are stored: agent auth (the
 Leonardo path) needs no secret, and a password (if ever used) is supplied
 transiently at connect time, never written here.
 
@@ -45,6 +45,22 @@ def check_profile_name(name: str) -> None:
         )
 
 
+def check_crab_command(crab_command: str | None) -> None:
+    """Raise InputError unless ``crab_command`` is unset or one executable.
+
+    The command is placed in front of the ``crab`` arguments verbatim (only quoted),
+    so whitespace would turn it into a command line; an empty value means "unset"
+    and must be sent as null instead.
+    """
+    if crab_command is None:
+        return
+    if not crab_command or re.search(r"\s", crab_command):
+        raise InputError(
+            "Crab command must be one executable path or name with no spaces "
+            "(for example ~/.local/bin/crab); leave it unset to use the CRAB checkout."
+        )
+
+
 class Profile(BaseModel):
     """A cluster the dashboard can connect to."""
 
@@ -63,7 +79,7 @@ class Profile(BaseModel):
     key_path: str | None = None
 
     # Host-key verification. 'strict' uses the system known_hosts; 'insecure'
-    # disables verification — required for round-robin login nodes that present
+    # disables verification: required for round-robin login nodes that present
     # different host keys per connection (common on large HPC front ends).
     hostkey_policy: Literal["strict", "insecure"] = "strict"
 
@@ -79,6 +95,15 @@ class Profile(BaseModel):
     remote_setup: list[str] = Field(
         default_factory=list,
         description="Commands run before activation (e.g. 'module load python').",
+    )
+
+    crab_command: str | None = Field(
+        default=None,
+        description=(
+            "One executable that runs crab on the remote (e.g. ~/.local/bin/crab for a pipx "
+            "install). Set: no cd into <remote_crab>/CRAB and no venv activation; "
+            "remote_setup still runs first. Unset: the CRAB checkout in <remote_crab>/CRAB."
+        ),
     )
 
     preset: str | None = None
@@ -131,6 +156,7 @@ class ProfileStore:
 
     def add(self, profile: Profile) -> Profile:
         check_profile_name(profile.name)
+        check_crab_command(profile.crab_command)
         store = self._load()
         if any(p.name == profile.name for p in store.clusters):
             raise ConflictError(f"A profile named {profile.name!r} already exists.")
@@ -141,6 +167,7 @@ class ProfileStore:
     def update(self, name: str, profile: Profile) -> Profile:
         if profile.name != name:
             check_profile_name(profile.name)
+        check_crab_command(profile.crab_command)
         store = self._load()
         for i, p in enumerate(store.clusters):
             if p.name == name:

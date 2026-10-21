@@ -7,6 +7,7 @@ import re
 import time
 from typing import Any
 
+from crab import paths
 from crab.core.config_checks import check_config
 from crab.core.execution.job_geometry import job_tasks_per_node, needs_job_geometry
 from crab.core.execution.scheduler.select import scheduler_for
@@ -15,7 +16,7 @@ from crab.core.experiment import ExperimentRunner
 from crab.core.provenance import write_provenance
 from crab.log import CrabLogger
 
-CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+CRAB_ROOT = str(paths.crab_home())
 
 # Version of the config.json format this engine reads. A config without the field predates it
 # and is version 1. Bump only with a migration for the previous version.
@@ -75,7 +76,7 @@ class Engine:
             if "applications" in config:
                 apps_data = config.pop("applications")
                 if isinstance(apps_data, dict) and "apps" in apps_data:
-                    # TUI format: {"apps": {...}, "local_options": {...}}
+                    # Object form: {"apps": {...}, "local_options": {...}}
                     config["experiments"] = {"default_ex": apps_data}
                 else:
                     # Legacy flat format: {0: {...}, 1: {...}}
@@ -96,25 +97,25 @@ class Engine:
 
         os.makedirs(data_path, exist_ok=True)
 
-        # 1. Genera timestamp base
+        # 1. Base timestamp
         timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
 
-        # 2. Cerca il nome custom nelle opzioni
+        # 2. Look up the custom name in the options
         custom_name = g_opts.get("name", "")
 
         if custom_name:
-            # Sanificazione: mantieni solo alfanumerici, trattini e underscore
-            # Sostituisci spazi o altri caratteri con '_'
+            # Sanitize: keep only alphanumerics, dashes and underscores,
+            # and replace spaces and any other character with '_'
             safe_name = "".join(
                 [c if c.isalnum() or c in ("-", "_") else "_" for c in str(custom_name)]
             )
-            # Formato: NAME_TIMESTAMP
+            # Format: NAME_TIMESTAMP
             folder_name = f"{safe_name}_{timestamp_str}"
         else:
-            # Fallback legacy: solo TIMESTAMP
+            # Legacy fallback: timestamp only
             folder_name = timestamp_str
 
-        # 3. Costruzione path finale — sanitize CRAB_SYSTEM to prevent path traversal
+        # 3. Build the final path; sanitize CRAB_SYSTEM to prevent path traversal
         raw_system = str(environment.get("CRAB_SYSTEM", "unknown"))
         safe_system = re.sub(r"[^\w\-]", "_", raw_system)
         runner_id = safe_system + "/" + folder_name

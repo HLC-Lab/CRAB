@@ -50,7 +50,7 @@ def _writer(path: Path, value: int) -> None:
         f"        return \"sh -c 'echo {value} > out.txt; sleep 0.3'\"\n\n"
         "    def read_data(self):\n"
         "        with open(os.path.join(self.run_dir, 'out.txt')) as f:\n"
-        "            return [[float(f.read())]]\n"
+        "            return [{'v': float(f.read())}]\n"
     )
 
 

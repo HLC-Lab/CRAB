@@ -3,23 +3,21 @@ from __future__ import annotations
 import glob
 import json
 import os
-import shutil
 from pathlib import Path
 from typing import Any
 
-from rich.console import Console
+from crab import paths
 
-console = Console()
-
-# Calculate the absolute physical root of the CRAB framework
-_base_path = Path(__file__).resolve().parents[3]
-
-CRAB_ROOT = str(_base_path)
+CRAB_ROOT = str(paths.crab_home())
 CONFIG_DIR = os.path.join(CRAB_ROOT, "config")
 # Receipts are per-machine, so they live in the git-ignored local/ folder. Receipts written
 # before that folder existed stay readable from LEGACY_ENV_DIR; a local receipt wins.
-ENV_DIR = os.path.join(CRAB_ROOT, "local", "receipts")
+ENV_DIR = str(paths.local_path(Path(CRAB_ROOT), "receipts"))
 LEGACY_ENV_DIR = os.path.join(CONFIG_DIR, "environments")
+
+
+class ReceiptError(Exception):
+    """A receipt file exists but cannot be read or parsed."""
 
 
 def ensure_env_dir():
@@ -47,28 +45,42 @@ def _receipt_file(benchmark_id: str) -> str | None:
     return None
 
 
+def read_receipt_file(receipt_file: str | os.PathLike[str]) -> dict[str, Any]:
+    """Parses one receipt file.
+
+    Raises:
+        ReceiptError: if the file cannot be read, is not valid JSON, or is not a JSON object.
+    """
+    try:
+        with open(receipt_file) as f:
+            receipt = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise ReceiptError(
+            f"receipt {receipt_file} is not valid JSON ({exc}). "
+            "Fix or delete the file, or register the binary again."
+        ) from exc
+    except (OSError, UnicodeDecodeError) as exc:
+        reason = exc.strerror if isinstance(exc, OSError) and exc.strerror else str(exc)
+        raise ReceiptError(f"cannot read receipt {receipt_file}: {reason}") from exc
+    if not isinstance(receipt, dict):
+        raise ReceiptError(
+            f"receipt {receipt_file} must hold a JSON object, got {type(receipt).__name__}"
+        )
+    return receipt
+
+
 def get_receipt(benchmark_id: str) -> dict[str, Any] | None:
-    """Loads a benchmark receipt. Returns None if not configured."""
+    """Loads a benchmark receipt. Returns None if there is none (the binary lookup then falls
+    through to the config and PATH).
+
+    Raises:
+        ReceiptError: if a receipt file exists but cannot be read or parsed. The file is left
+            as it is.
+    """
     receipt_file = _receipt_file(benchmark_id)
     if receipt_file is None:
         return None
-
-    try:
-        with open(receipt_file) as f:
-            return json.load(f)
-    except json.JSONDecodeError:
-        # FAILSAFE: Backup corrupted receipt
-        backup_file = f"{receipt_file}.bak"
-        shutil.copy2(receipt_file, backup_file)
-
-        console.print(
-            f"[bold red]Warning:[/bold red] The receipt [yellow]{receipt_file}[/yellow] is corrupted."
-        )
-        console.print(f"A backup has been saved to [yellow]{backup_file}[/yellow].")
-        return None
-    except Exception as e:
-        console.print(f"[bold red]Error reading receipt {benchmark_id}:[/bold red] {e}")
-        return None
+    return read_receipt_file(receipt_file)
 
 
 def remove_receipt(benchmark_id: str):

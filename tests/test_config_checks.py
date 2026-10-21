@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from crab import paths
 from crab.core.config_checks import parse_bool
 from crab.core.engine import Engine
 
@@ -110,7 +111,7 @@ def test_every_shipped_example_passes_the_checks(path: Path) -> None:
 def _local_preset_settings():
     from crab.core.execution.settings import from_preset
 
-    presets = json.loads((REPO / "config" / "presets.json").read_text())
+    presets = json.loads(paths.shipped_presets().read_text())
     body = dict(presets["local"])
     body["env"] = {**presets["_common"].get("env", {}), **body.get("env", {})}
     return from_preset(body, "local")

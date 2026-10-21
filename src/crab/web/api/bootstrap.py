@@ -1,4 +1,4 @@
-"""``/api/remotes/{name}/bootstrap/*`` — guided CRAB install on a remote (D5).
+"""``/api/remotes/{name}/bootstrap/*``: guided CRAB install on a remote (D5).
 
 The flow is stateless: ``plan`` reports whether CRAB is present and previews the
 fixed install commands; ``install`` runs the whole install in one shell (the
@@ -21,6 +21,7 @@ from crab.web.remoteops.bootstrap import (
     StepResult,
     default_plan,
     detect,
+    ensure_installable,
     install,
 )
 from crab.web.store.profiles import ProfileStore
@@ -57,6 +58,7 @@ def _connected_transport(request: Request, name: str) -> Transport:
 @router.post("/{name}/bootstrap/plan")
 async def bootstrap_plan(name: str, request: Request) -> PlanResponse:
     profile = _store(request).get(name)
+    ensure_installable(profile)
     transport = _connected_transport(request, name)
     result = await detect(transport, profile)
     return PlanResponse(
@@ -71,6 +73,7 @@ async def bootstrap_plan(name: str, request: Request) -> PlanResponse:
 @router.post("/{name}/bootstrap/install")
 async def bootstrap_install(name: str, body: InstallRequest, request: Request) -> StepResult:
     profile = _store(request).get(name)
+    ensure_installable(profile)
     transport = _connected_transport(request, name)
     return await install(transport, profile, body.pre_commands)
 

@@ -1,6 +1,7 @@
 """Wrapper contract v1 data model: `read_data()` returns rows (one dict per sample) with the
-declared `keys` and metrics. Today's list-of-lists shape is still accepted and converted, and a
-keyless wrapper's CSV is byte-identical to what CRAB wrote before rows existed."""
+declared `keys` and metrics. The old list-of-lists shape is an error since CRAB 1.0 (see
+test_parse_output.py), and a keyless wrapper's CSV is byte-identical to what CRAB wrote before
+rows existed."""
 
 from __future__ import annotations
 
@@ -64,13 +65,6 @@ def test_rows_are_returned_as_given() -> None:
     assert parsed.legacy is False
 
 
-def test_list_of_lists_is_lifted_to_rows() -> None:
-    app = _App([[[1.0, 2.0], [3.0, 4.0]]], [_m("a"), _m("b")])
-    parsed = parse_output(app)
-    assert parsed.rows == [{"a": 1.0, "b": 3.0}, {"a": 2.0, "b": 4.0}]
-    assert parsed.legacy is True
-
-
 @pytest.mark.parametrize(
     ("rows", "why"),
     [
@@ -98,13 +92,14 @@ def test_text_and_boolean_fields_are_allowed_when_declared() -> None:
 # ---- CSV -----------------------------------------------------------------------------------
 
 
-def test_a_legacy_wrapper_writes_the_same_csv_as_before(tmp_path: Path) -> None:
+def test_a_keyless_wrapper_writes_the_same_csv_as_before(tmp_path: Path) -> None:
     run1 = [1.5e-05, 2.25e-05, 1.0]
     run2 = [3.125, 0.1, 7.0]
-    app = _App(
-        [[run1, [x / 2 for x in run1]], [run2, [x / 2 for x in run2]]],
-        [_m("Avg-Duration"), _m("Min-Duration", conv=False)],
-    )
+
+    def rows(values: list[float]) -> list[dict]:
+        return [{"Avg-Duration": x, "Min-Duration": x / 2} for x in values]
+
+    app = _App([rows(run1), rows(run2)], [_m("Avg-Duration"), _m("Min-Duration", conv=False)])
     app.id_num = 0
     containers = _setup_containers(app, msg_size=1024)
     for run_id in (1, 2):
@@ -133,23 +128,13 @@ def test_keyed_rows_write_key_columns_after_msg_size(tmp_path: Path) -> None:
 
 
 def test_run_id_is_the_real_run_number(tmp_path: Path) -> None:
-    app = _App([[[1.0]], [[2.0]]], [_m("t")])
+    app = _App([[{"t": 1.0}], [{"t": 2.0}]], [_m("t")])
     app.id_num = 0
     containers = _setup_containers(app)
     collect_run([app], containers, MagicMock(), run_id=2)  # run 1 failed: nothing collected
     collect_run([app], containers, MagicMock(), run_id=3)
     log_data("csv", str(tmp_path / "data"), containers)
     assert (tmp_path / "data_app_0.csv").read_text() == "run_id,msg_size,0_t_s\n2,0,1.0\n3,0,2.0\n"
-
-
-def test_the_legacy_shape_warns_once_per_app() -> None:
-    app = _App([[[1.0]], [[2.0]]], [_m("t")])
-    log = MagicMock()
-    containers = _setup_containers(app)
-    collect_run([app], containers, log, run_id=1)
-    collect_run([app], containers, log, run_id=2)
-    assert log.warning.call_count == 1
-    assert "rows" in log.warning.call_args[0][0]
 
 
 # ---- convergence per key ---------------------------------------------------------------------

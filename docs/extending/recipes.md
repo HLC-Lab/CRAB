@@ -1,13 +1,13 @@
 # Adding a build recipe
 
-A recipe teaches `crab setup` how to **obtain and build** a benchmark on the current machine. It's
-optional — you only need one if you want CRAB to build the benchmark for you rather than pointing
+A recipe teaches `crab setup` how to obtain and build a benchmark on the current machine. It's
+optional: you only need one if you want CRAB to build the benchmark for you rather than pointing
 it at a binary you built yourself. Running a recipe produces a [receipt](receipts.md).
 
 ## The contract
 
 Create a module in `src/crab/setup/recipes/` with a class subclassing `BenchmarkRecipe`. The setup
-wizard **auto-discovers** any such subclass in that package — just dropping the file in is enough,
+wizard auto-discovers any such subclass in that package, so dropping the file in is enough,
 no registration.
 
 ```python
@@ -44,11 +44,11 @@ class MyBenchRecipe(BenchmarkRecipe):
 | `suite` (property) | `name` | Groups multiple recipes under one wizard entry (e.g. QE v6 & v7). |
 | `launcher_override` (property) | `""` | Force a launcher: `""` (use the preset's), `"srun"` or `"mpirun"` (e.g. `"mpirun"`). Any other value makes the experiment fail at setup with an error naming the app. |
 | `pre_run_hooks` (property) | `[]` | Commands recorded into the receipt to run before each launch. |
-| `build_manifest` (property) | `BuildManifest()` | Declares build inputs — whether modules are needed and any `BuildParameter`s (e.g. a `cpu`/`gpu` choice). |
+| `build_manifest` (property) | `BuildManifest()` | Declares build inputs: whether modules are needed and any `BuildParameter`s (e.g. a `cpu`/`gpu` choice). |
 | `module_executable` (property) | `""` | The command an environment module puts on `PATH` (e.g. `"pw.x"`). The wizard's module option offers it as the default; when empty it asks with no default. |
 | `fast_search(dir)` | checks `<dir>/<id>`, then `PATH` for `module_executable` (or the id) | Tier-1 auto-detect of an existing install. |
 
-The base class also gives you **`run_command_streamed(cmd, cwd, step_name, env, log_callback)`** — run
+The base class also gives you `run_command_streamed(cmd, cwd, step_name, env, log_callback)`: run
 a build command with its output streamed live into the wizard UI. Use it for every clone/compile
 step.
 
@@ -102,7 +102,7 @@ class G500Recipe(BenchmarkRecipe):
 
 To ask the user for build-time choices, declare a `build_manifest` with `BuildParameter`s and read
 them from the `params` dict in `download_and_build`. Anything you put in
-`BuildResult(binary_path=..., metadata={...})` is merged into the receipt — for example QE records
+`BuildResult(binary_path=..., metadata={...})` is merged into the receipt. For example, QE records
 `{"target_arch": "gpu"}`, which CRAB later uses for an architecture guardrail.
 
 ```python
@@ -120,9 +120,9 @@ from .base import BuildManifest, BuildParameter
 ## What the binary_path should point to
 
 Return whatever directory or file your [wrapper](wrappers.md) expects. The convention used by the
-shipped recipes is to return the **directory** containing the binaries (e.g. `bin/`, `src/`) and let
+shipped recipes is to return the directory containing the binaries (e.g. `bin/`, `src/`) and let
 the wrapper append the specific executable name via `get_path`. Be consistent between the two.
 
-Once the recipe exists, `crab setup` lists it, builds it, and writes the receipt — see
+Once the recipe exists, `crab setup` lists it, builds it, and writes the receipt. See
 [From recipe to receipt](receipts.md). For the exact base-class signatures, see the
 [Wrapper & Recipe API](../reference/api.md).

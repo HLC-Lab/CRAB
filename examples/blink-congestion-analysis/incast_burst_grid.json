@@ -1,0 +1,724 @@
+{
+    "schema_version": 2,
+    "global_options": {
+        "name": "incast_burst_grid",
+        "numnodes": "8",
+        "ppn": "1",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "1200.0",
+        "outformat": "csv",
+        "extrainfo": "incast_burst_grid",
+        "sbatch_directives": {
+            "time": "00:20:00",
+            "job-name": "crab_incast_burst_grid",
+            "exclusive": true
+        },
+        "allocation": {
+            "mode": "interleaved",
+            "partitions": {
+                "victim": {
+                    "share": 50
+                },
+                "aggressor": {
+                    "share": 50
+                }
+            }
+        }
+    },
+    "experiments": {
+        "cong_inc_0.000001_0.001": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.001 s, pauses of 0.000001 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.001 -bpause 0.000001",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.000001_0.01": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.01 s, pauses of 0.000001 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.000001",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.000001_0.1": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.1 s, pauses of 0.000001 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.1 -bpause 0.000001",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.0001_0.001": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.001 s, pauses of 0.0001 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.001 -bpause 0.0001",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.0001_0.01": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.01 s, pauses of 0.0001 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.0001",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.0001_0.1": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.1 s, pauses of 0.0001 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.1 -bpause 0.0001",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.01_0.001": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.001 s, pauses of 0.01 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.001 -bpause 0.01",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.01_0.01": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.01 s, pauses of 0.01 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.01 -bpause 0.01",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        },
+        "cong_inc_0.01_0.1": {
+            "description": "A2A size sweep 8 B-16 MiB (chained) on the victim half vs bursty incast noise: bursts of 0.1 s, pauses of 0.01 s",
+            "apps": {
+                "0": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 8 -iter 1000",
+                    "collect": true,
+                    "start": "3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "1": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 64 -iter 1000",
+                    "collect": true,
+                    "start": "s0",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "2": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 512 -iter 1000",
+                    "collect": true,
+                    "start": "s1",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "3": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 4096 -iter 1000",
+                    "collect": true,
+                    "start": "s2",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "4": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 32768 -iter 1000",
+                    "collect": true,
+                    "start": "s3",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "5": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 262144 -iter 1000",
+                    "collect": true,
+                    "start": "s4",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "6": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 2097152 -iter 1000",
+                    "collect": true,
+                    "start": "s5",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "7": {
+                    "path": "blink/alltoall/alltoall_comm_only.py",
+                    "args": "-msgsize 16777216 -iter 1000",
+                    "collect": true,
+                    "start": "s6",
+                    "end": "",
+                    "partition": "victim"
+                },
+                "8": {
+                    "path": "blink/incast/incast_nb.py",
+                    "args": "-endl -msgsize 2097152 -blength 0.1 -bpause 0.01",
+                    "collect": false,
+                    "start": "0",
+                    "end": "f",
+                    "partition": "aggressor"
+                }
+            }
+        }
+    }
+}

@@ -2,12 +2,12 @@
 
 Read-only cluster data (job logs, per-app error logs, `crab history` rows) is
 never authoritative on the laptop (ADR-002: the engine on the cluster is
-authoritative) — this cache exists only so a disconnected cluster doesn't
+authoritative): this cache exists only so a disconnected cluster doesn't
 blank out a view that was already fetched once. Callers always try the live
 call first and fall back to this only on failure (see `web/api/jobs.py`).
 
 One JSON file per `(scope, key)` under `Settings.cache_dir`, degrading
-gracefully on any read problem (missing/corrupt file) rather than raising —
+gracefully on any read problem (missing/corrupt file) rather than raising:
 same convention as `cli/contract.py`'s gatherers.
 """
 

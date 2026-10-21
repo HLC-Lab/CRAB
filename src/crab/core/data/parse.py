@@ -2,7 +2,7 @@
 
 Wrapper contract v1: `read_data()` returns rows, one dict per sample, holding every declared
 key (`keys`, the sweep dimensions such as a message size) and every metric in `metadata`. The
-older shape, one list of samples per metric, is still accepted and converted to rows.
+older shape, one list of samples per metric, was removed in CRAB 1.0 and is a ParseError.
 
 A parse that raises or does not match the declarations is a ParseError: the app contributes
 nothing to that run and the run counts as failed, the same as a non-zero exit. Nothing is
@@ -11,6 +11,7 @@ truncated, padded or filled with zeros.
 
 from __future__ import annotations
 
+import json
 import numbers
 from dataclasses import dataclass
 from typing import Any
@@ -34,8 +35,9 @@ class ParseError(Exception):
 @dataclass
 class Parsed:
     rows: list[dict[str, Any]]
-    # True when the wrapper returned the pre-v1 list-of-lists shape.
-    legacy: bool
+    # Kept for `crab parse --json` (`legacy_shape`, frozen by ADR-030): always False, because
+    # the list-per-metric shape is an error since 1.0.
+    legacy: bool = False
 
 
 def _metric_type(meta: dict[str, Any]) -> str:
@@ -54,20 +56,25 @@ def _check_names(metadata: list[dict[str, Any]]) -> list[str]:
     return [m["name"] for m in metadata if m.get("role") == "check"]
 
 
-def _lift_legacy(raw: list[Any], metadata: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    if len(raw) != len(metadata):
-        raise ParseError(
-            f"expected {len(metadata)} metric series (one per metadata entry), got {len(raw)} series"
-        )
-    for meta, series in zip(metadata, raw, strict=True):
-        if not isinstance(series, list | tuple) or len(series) == 0:
-            raise ParseError(f"metric {meta['name']!r} has no samples")
-    counts = [len(s) for s in raw]
-    if len(set(counts)) > 1:
-        per_metric = ", ".join(f"{m['name']}={n}" for m, n in zip(metadata, counts, strict=True))
-        raise ParseError(f"metrics have different sample counts ({per_metric})")
-    names = [m["name"] for m in metadata]
-    return [dict(zip(names, values, strict=True)) for values in zip(*raw, strict=True)]
+def _wrapper_name(app: Any) -> str:
+    """The wrapper's file name without `.py` (the module a wrapper is loaded as)."""
+    return getattr(type(app), "__module__", "") or type(app).__name__
+
+
+def _rows_example(metadata: list[dict[str, Any]], keys: list[str]) -> str:
+    """A one-line rows return for the app's declarations, e.g. `[{"size": 8, "lat": 1.0}]`."""
+    fields = [(key, 8 if i == 0 else 1.0) for i, key in enumerate(keys)]
+    fields += [(m["name"], float(i + 1)) for i, m in enumerate(metadata)]
+    return "[" + json.dumps(dict(fields)) + "]"
+
+
+def _legacy_shape_error(app: Any, metadata: list[dict[str, Any]], keys: list[str]) -> ParseError:
+    return ParseError(
+        f"wrapper {_wrapper_name(app)!r} returns one list of samples per metric from "
+        "read_data(). That shape was removed in CRAB 1.0: return rows, one dict per sample "
+        f"holding every key and metric, e.g. return {_rows_example(metadata, keys)}. "
+        "See docs/extending/wrappers.md."
+    )
 
 
 def _check_rows(rows: list[Any], metadata: list[dict[str, Any]], keys: list[str]) -> None:
@@ -109,18 +116,16 @@ def parse_output(app: Any) -> Parsed:
     keys = list(getattr(app, "keys", []) or [])
     if not isinstance(raw, list | tuple):
         raise ParseError(
-            f"expected {len(metadata)} metric series (one per metadata entry), "
-            f"got {type(raw).__name__}"
+            f"read_data must return a list of rows (one dict per sample), got {type(raw).__name__}"
         )
-    # An empty result is only read as the old shape when no keys are declared.
-    legacy = isinstance(raw[0], list | tuple) if raw else not keys
-    if legacy and len(raw) == 0 and not metadata:
-        return Parsed(rows=[], legacy=True)
-    rows = _lift_legacy(list(raw), metadata) if legacy else list(raw)
-    if legacy and keys:
-        raise ParseError("a wrapper that declares keys must return rows")
+    if raw and isinstance(raw[0], list | tuple):
+        raise _legacy_shape_error(app, metadata, keys)
+    # An empty result is no rows: a failure, unless the app declares nothing to measure.
+    if not raw and not metadata and not keys:
+        return Parsed(rows=[])
+    rows = list(raw)
     _check_rows(rows, metadata, keys)
-    return Parsed(rows=rows, legacy=legacy)
+    return Parsed(rows=rows)
 
 
 def setup_containers(app: Any) -> list[DataContainer]:
@@ -164,13 +169,6 @@ def collect_run(apps: list[Any], containers: list[DataContainer], log: Any, *, r
             log.error(f"PARSE FAILED  app {app.id_num}: {exc}")
             all_parsed = False
             continue
-
-        if parsed.legacy and not getattr(app, "_warned_legacy_shape", False):
-            app._warned_legacy_shape = True
-            log.warning(
-                f"app {app.id_num} returns one list per metric; wrappers should return rows "
-                "(one dict per sample). The old shape stops being accepted at v1.0."
-            )
 
         keys = list(getattr(app, "keys", []) or [])
         checks = _check_names(app.metadata)

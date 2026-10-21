@@ -14,6 +14,7 @@ pytest.importorskip("fastapi", reason="web extra not installed")
 from conftest import auth_client  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
+from crab.web.errors import InputError  # noqa: E402
 from crab.web.remoteops.bootstrap import (  # noqa: E402
     CRAB_REPO_BRANCH,
     CRAB_REPO_URL,
@@ -71,6 +72,7 @@ def test_default_plan_is_clean_and_hardcoded():
     blob = " ".join(s.command for s in steps)
     # Repo + branch + structure are fixed; the remote path is honoured.
     assert CRAB_REPO_URL in blob and CRAB_REPO_BRANCH in blob
+    assert "--branch develop " in blob  # the product line, not the old feature branch
     assert "git clone" in blob and "make venv" in blob and "pip install -e ." in blob
     assert '"$HOME"/CRAB' in blob  # ~ expanded
     # After installing, move to the newest release of the branch's line (stays put if none).
@@ -155,3 +157,37 @@ def test_bootstrap_requires_connection(tmp_path: Path):
         resp = client.post("/api/remotes/leo/bootstrap/plan")
         assert resp.status_code == 502
         assert resp.json()["code"] == "connection_error"
+
+
+# --------------------------------------------------------------------------- #
+# A profile with its own crab command: the user manages the install
+# --------------------------------------------------------------------------- #
+def _managed_profile() -> Profile:
+    p = _profile()
+    p.crab_command = "~/.local/bin/crab"
+    return p
+
+
+def test_a_crab_command_profile_has_no_install_plan():
+    with pytest.raises(InputError, match="pipx install crab-hpc"):
+        default_plan(_managed_profile())
+    with pytest.raises(InputError, match="pipx install crab-hpc"):
+        build_install_command(_managed_profile(), [])
+
+
+def test_bootstrap_plan_and_install_refuse_a_crab_command_profile(tmp_path: Path):
+    transport = FakeTransport()
+    with _client(tmp_path, transport) as client:
+        client.post("/api/remotes", json=_managed_profile().model_dump())
+        client.post("/api/remotes/leo/connect")
+        transport.calls.clear()
+
+        for route, body in (("plan", None), ("install", {"pre_commands": []})):
+            resp = client.post(f"/api/remotes/leo/bootstrap/{route}", json=body)
+            assert resp.status_code == 422, route
+            assert resp.json()["code"] == "input_error"
+            assert "you manage this install: pipx install crab-hpc" in resp.json()["message"]
+        assert transport.calls == []  # nothing ran on the cluster
+
+        # verify is only a `crab info` re-check, so it stays available.
+        assert client.post("/api/remotes/leo/bootstrap/verify").json()["installed"] is True

@@ -391,3 +391,234 @@ def test_pull_on_a_detached_head_stops(setup, monkeypatch, capsys) -> None:
     assert code == 1
     assert out == ""
     assert err.startswith("crab: wrappers pull stopped:")
+
+
+# --- update_wrappers_clone: release tag and --head modes ---------------------------------------
+
+
+def _tag_origin(setup: Setup, tag: str) -> str:
+    git(setup.work, "tag", tag)
+    git(setup.work, "push", "-q", "origin", tag)
+    return git(setup.work, "rev-parse", f"{tag}^{{commit}}")
+
+
+def test_a_tag_moves_the_clone_to_it_and_reports_the_release_ref(setup, tmp_path) -> None:
+    tagged = _tag_origin(setup, "v1.0.0")
+    setup.push_new()
+    setup.make_clone()
+    result = wrappers_clone.update_wrappers_clone(tmp_path, setup.clone, str(setup.bare), "v1.0.0")
+    assert (result["action"], result["ref"]) == ("updated", "release")
+    assert git(setup.clone, "rev-parse", "HEAD") == tagged
+    again = wrappers_clone.update_wrappers_clone(tmp_path, setup.clone, str(setup.bare), "v1.0.0")
+    assert again["action"] == "up to date"
+
+
+def test_a_missing_tag_keeps_the_clone_where_it_is(setup, tmp_path) -> None:
+    setup.make_clone()
+    before = git(setup.clone, "rev-parse", "HEAD")
+    result = wrappers_clone.update_wrappers_clone(tmp_path, setup.clone, str(setup.bare), "v9.9.9")
+    assert result["action"] == "kept"
+    assert result["detail"] == f"no wrappers tag v9.9.9 yet, left at {before[:12]}"
+    assert git(setup.clone, "rev-parse", "HEAD") == before
+
+
+def test_rejoin_branch_returns_a_detached_clone_to_the_default_branch(setup, tmp_path) -> None:
+    setup.make_clone()
+    git(setup.clone, "checkout", "-q", "--detach")
+    newest = setup.push_new()
+    result = wrappers_clone.update_wrappers_clone(
+        tmp_path, setup.clone, str(setup.bare), rejoin_branch=True
+    )
+    assert (result["action"], result["ref"]) == ("updated", "head")
+    assert git(setup.clone, "symbolic-ref", "--short", "HEAD") == "main"
+    assert git(setup.clone, "rev-parse", "HEAD") == newest
+
+
+# ---- first-use clone (ensure_wrappers_clone) -----------------------------------------------
+
+
+@pytest.fixture
+def installed(setup, monkeypatch):
+    """An installed CRAB (not a checkout) whose wrappers dir is `setup.clone`, with git calls
+    recorded: `calls` holds the argument list of every git command the clone helpers run."""
+    import crab.paths as crab_paths
+
+    monkeypatch.setattr(crab_paths, "is_checkout", lambda: False)
+    calls: list[tuple[str, ...]] = []
+    real = wrappers_clone.git
+
+    def recording(repo, *args, **kwargs):
+        calls.append(args)
+        return real(repo, *args, **kwargs)
+
+    monkeypatch.setattr(wrappers_clone, "git", recording)
+    setup.calls = calls
+    return setup
+
+
+def _clones(setup) -> int:
+    return sum(1 for args in setup.calls if args and args[0] == "clone")
+
+
+def test_ensure_clones_a_missing_dir_once_and_announces_it(installed) -> None:
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert _clones(installed) == 1
+    assert git(installed.clone, "rev-parse", "HEAD") == installed.first
+    assert len(said) == 1
+    assert str(installed.clone) in said[0] and "first use" in said[0]
+
+
+def test_ensure_clones_over_leftovers_only(installed) -> None:
+    (installed.clone / "__pycache__").mkdir(parents=True)
+    (installed.clone / "__pycache__" / "x.pyc").write_bytes(b"")
+    (installed.clone / ".pytest_cache").mkdir()
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert _clones(installed) == 1
+    assert (installed.clone / "app.py").is_file()
+    assert len(said) == 1
+
+
+def test_ensure_lands_on_the_release_tag_when_there_is_one(installed, monkeypatch) -> None:
+    import crab
+
+    git(installed.work, "tag", "v9.9.9")
+    git(installed.work, "push", "-q", "origin", "v9.9.9")
+    installed.push_new()  # the default branch moves past the tag
+    monkeypatch.setattr(crab, "__version__", "9.9.9")
+    wrappers_clone.ensure_wrappers_clone(lambda line: None)
+    assert git(installed.clone, "rev-parse", "HEAD") == installed.first
+
+
+def test_ensure_follows_the_default_branch_without_a_matching_tag(installed, monkeypatch) -> None:
+    import crab
+
+    new = installed.push_new()
+    monkeypatch.setattr(crab, "__version__", "9.9.9")
+    wrappers_clone.ensure_wrappers_clone(lambda line: None)
+    assert git(installed.clone, "rev-parse", "HEAD") == new
+
+
+def test_ensure_does_nothing_in_a_checkout(installed, monkeypatch) -> None:
+    import crab.paths as crab_paths
+
+    monkeypatch.setattr(crab_paths, "is_checkout", lambda: True)
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert installed.calls == [] and said == []
+    assert not installed.clone.exists()
+
+
+def test_ensure_does_nothing_when_wrappers_path_is_set(installed, monkeypatch) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(installed.tmp / "mine"))
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert installed.calls == [] and said == []
+    assert not installed.clone.exists()
+
+
+def test_ensure_does_nothing_for_an_existing_clone(installed) -> None:
+    installed.make_clone()
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert installed.calls == [] and said == []
+
+
+def test_ensure_leaves_a_folder_with_real_files_alone(installed) -> None:
+    installed.clone.mkdir()
+    (installed.clone / "mine.py").write_text("x = 1\n")
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert installed.calls == [] and said == []
+    assert (installed.clone / "mine.py").read_text() == "x = 1\n"
+
+
+def test_ensure_without_a_git_binary_prints_the_hint(installed, monkeypatch) -> None:
+    monkeypatch.setenv("PATH", str(installed.tmp / "no-bin"))
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert not installed.clone.exists()
+    assert said[0].startswith("Cloning the CRAB wrappers")
+    assert any(wp.missing_wrappers_hint() in line for line in said[1:])
+
+
+def test_ensure_with_a_failing_clone_prints_the_hint(installed, monkeypatch) -> None:
+    monkeypatch.setattr(wrappers_clone, "WRAPPERS_REPO_URL", str(installed.tmp / "nowhere.git"))
+    said: list[str] = []
+    wrappers_clone.ensure_wrappers_clone(said.append)
+    assert not (installed.clone / ".git").exists()
+    assert any(wp.missing_wrappers_hint() in line for line in said[1:])
+
+
+# ---- call sites ----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ensure_spy(monkeypatch) -> list[object]:
+    calls: list[object] = []
+    monkeypatch.setattr(wrappers_clone, "ensure_wrappers_clone", lambda announce: calls.append(1))
+    return calls
+
+
+def _run_config(tmp_path: Path) -> str:
+    path = tmp_path / "run.json"
+    path.write_text(json.dumps({"global_options": {}, "experiments": {}}))
+    return str(path)
+
+
+def test_execute_orchestrator_ensures_the_wrappers_once(ensure_spy, tmp_path, monkeypatch) -> None:
+    from unittest.mock import patch
+
+    from crab.cli.orchestrator import execute_orchestrator
+
+    monkeypatch.chdir(tmp_path)
+    with (
+        patch("crab.setup.memory.get_all_receipts", return_value={}),
+        patch("crab.core.engine.Engine.run", return_value={}),
+    ):
+        execute_orchestrator(_run_config(tmp_path), "local")
+    assert ensure_spy == [1]
+
+
+def test_execute_orchestrator_skips_it_for_json(ensure_spy, tmp_path, monkeypatch) -> None:
+    from unittest.mock import patch
+
+    from crab.cli.orchestrator import execute_orchestrator
+
+    monkeypatch.chdir(tmp_path)
+    with (
+        patch("crab.setup.memory.get_all_receipts", return_value={}),
+        patch("crab.core.engine.Engine.run", return_value={}),
+    ):
+        execute_orchestrator(_run_config(tmp_path), "local", as_json=True)
+    assert ensure_spy == []
+
+
+def test_the_worker_never_ensures_the_wrappers(ensure_spy, tmp_path) -> None:
+    from crab.cli.orchestrator import execute_worker
+
+    with pytest.raises(SystemExit):
+        execute_worker(str(tmp_path))  # no config.json: fails right after start-up
+    assert ensure_spy == []
+
+
+def test_wrappers_list_test_new_ensure_the_wrappers(ensure_spy, setup, monkeypatch, capsys) -> None:
+    _crab(monkeypatch, capsys, "wrappers", "list")
+    _crab(monkeypatch, capsys, "wrappers", "test")
+    _crab(monkeypatch, capsys, "wrappers", "new", "verifyapp", "--dir", str(setup.tmp / "new"))
+    assert ensure_spy == [1, 1, 1]
+
+
+def test_wrappers_list_json_does_not_ensure(ensure_spy, setup, monkeypatch, capsys) -> None:
+    _crab(monkeypatch, capsys, "wrappers", "list", "--json")
+    assert ensure_spy == []
+
+
+def test_setup_ensures_the_wrappers(ensure_spy, monkeypatch) -> None:
+    import crab.setup.wizard as wizard
+    from crab.cli.main import handle_setup
+
+    monkeypatch.setattr(wizard, "run", lambda: None)
+    handle_setup(None)
+    assert ensure_spy == [1]
