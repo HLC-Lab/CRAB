@@ -174,6 +174,8 @@ the mean of each metric flagged `conv` (or of every metric, with `convergeall`) 
 `beta` times that mean (see [Convergence](../glossary.md#convergence)). With keys, each key value has to converge on its own.
 The CSV does not say whether the experiment converged or ran out of runs. `total_runs` in the
 registry says how many runs it took.
+[Methodology](../concepts/methodology.md#how-many-runs-the-convergence-check) describes the
+check and what it pools.
 
 A run fails when an app exits non-zero, when a wrapper cannot parse an app's output, or when a
 check is `False`. An app that exits non-zero or whose output cannot be parsed adds no rows to that
