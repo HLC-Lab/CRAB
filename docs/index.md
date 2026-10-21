@@ -1,52 +1,43 @@
-# 🦀 CRAB
+# CRAB
 
-**CRAB** (Co-Running Applications Benchmarking framework) is a framework for executing,
-collecting, and analyzing high-performance computing (HPC) benchmarks on clusters managed by
-**Slurm**. Its purpose is to run **multiple applications at the same time** on a supercomputer
-and measure whether — and how much — they **interfere** with one another (network congestion,
-shared-resource contention).
+CRAB (Co-Running Applications Benchmarking framework) runs several HPC applications at the same
+time on one machine and measures how much they interfere with each other: network congestion and
+contention for shared resources. You mark applications as victims (measured) or aggressors (load
+generators). CRAB launches them together, repeats the run until the victims' metrics converge, and
+stores the results as CSV.
 
-## The core idea
+It runs on Slurm clusters, and on a laptop or a few workstations through the local scheduler. Each
+application is described by a small Python wrapper that says how to start it and how to parse its
+output, so any program can take part.
 
-CRAB treats the applications it runs as black boxes. Any executable can be benchmarked, because
-each one is described by a small Python **wrapper** that teaches the framework two things:
-
-1. **How to launch it** — the binary path and arguments.
-2. **How to read it** — how to parse the program's output into numeric metrics.
-
-Because every application funnels through the same wrapper contract, the collected performance
-data is stored in a **uniform format** (CSV) regardless of which benchmark produced it — ready
-for analysis with pandas, R, or the bundled `crab_dashboard.html` viewer.
-
-## What you can express
-
-- **Application mixes.** Run several applications concurrently, designating *victims* (the
-  applications you measure) and *aggressors* (applications whose only job is to create
-  interference).
-- **Scheduling.** Start applications after a delay, or only once another application finishes;
-  terminate them naturally, after a fixed time, or as soon as the victims complete.
-- **Node layout.** Place applications across the allocated nodes linearly, interleaved, or in
-  dedicated victim/aggressor partitions.
-- **Statistical rigor.** Repeat each experiment until its metrics reach a configurable
-  confidence interval, so results are converged rather than single-shot.
-
-## Two interfaces
+## Three ways to use it
 
 | Interface | Command | Use it for |
 |-----------|---------|------------|
-| **CLI**   | `crab run …` | Automation, scripting, batch studies |
-| **Web dashboard** | `crab web` | Interactive, visual configuration, job monitoring and results |
+| Command line | `crab run` | Submitting and following experiments, scripting, batch studies |
+| JSON configs | `crab validate`, `crab run` | Experiments written by hand and kept in git |
+| Web dashboard | `crab web` | Authoring, submitting and comparing experiments from your laptop, over SSH |
 
 ## Where to go next
 
-- **New to CRAB?** Start with the concepts:
-  [System-dependent vs system-independent](concepts/system-dependent-vs-independent.md) then
-  [Architecture](concepts/architecture.md) — together they explain the whole mental model.
-- **Want to run benchmarks?** [Install CRAB and set up benchmarks](using/installation.md),
-  [configure your cluster](using/presets.md), then
-  [write a config](using/writing-configs.md) and [run it](using/running.md).
-- **Need to support a new application?** See [Extending CRAB](extending/overview.md) —
-  writing a [wrapper](extending/wrappers.md) and, optionally, a [build recipe](extending/recipes.md).
-- **Looking something up?** The [Reference](reference/configuration.md) section has the full
-  configuration schema, CLI, preset format, and API, and the [Glossary](glossary.md) defines every
-  term.
+- To try CRAB, [install it](using/installation.md), then follow the [tutorial](tutorial.md) or
+  [run without Slurm](using/running-without-slurm.md).
+- To run experiments on a cluster, [configure your cluster](using/presets.md),
+  [write a config](using/writing-configs.md), [run it](using/running.md) and
+  [read the results](using/results.md). The [web dashboard](using/dashboard.md) does the same
+  from a browser.
+- To understand the model, read
+  [System-dependent vs system-independent](concepts/system-dependent-vs-independent.md) and the
+  [architecture](concepts/architecture.md).
+- To support a new application, see [Extending CRAB](extending/overview.md): a
+  [wrapper](extending/wrappers.md) and, optionally, a [build recipe](extending/recipes.md). The
+  stock wrappers live in [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers).
+- To look something up, use the [CLI reference](reference/cli.md), the
+  [configuration schema](reference/configuration.md), the [presets format](reference/presets.md),
+  the [glossary](glossary.md) and the [changelog](changelog.md).
+- To work on CRAB itself, read [Contributing](contributing.md).
+
+The SbatchMan integration lives on the `sbatchman` branch of the repository. Its guide is
+[Using CRAB with SbatchMan](https://github.com/HLC-Lab/CRAB/blob/sbatchman/docs/using/sbatchman-integration.md).
+
+CRAB is released under the MIT License.
