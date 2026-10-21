@@ -893,7 +893,19 @@ function envProblems(rows: EnvRow[]): string[] {
   return out;
 }
 
-export function validateDraft(d: Draft): string[] {
+/** The target cluster's wrapper catalog: relpaths as the wrappers list holds them. */
+export interface WrapperCatalog {
+  wrappers: ReadonlySet<string>;
+  cluster: string;
+}
+
+/**
+ * With a catalog, an app path outside it is a problem. A path the catalog cannot judge is never
+ * flagged: a {name} placeholder (resolved at run time) or an absolute path. An EMPTY catalog is
+ * treated as unknown (the listing may have failed or the clone may be missing), so no check runs
+ * rather than flagging every app.
+ */
+export function validateDraft(d: Draft, catalog?: WrapperCatalog): string[] {
   const issues: string[] = [];
   const numeric = _numeric;
 
@@ -929,7 +941,16 @@ export function validateDraft(d: Draft): string[] {
 
     if (!e.apps.length) issues.push(`Experiment "${label}" has no apps.`);
     e.apps.forEach((a, ai) => {
-      if (!a.path.trim()) issues.push(`${label} · app #${ai}: wrapper path is required.`);
+      const wrapperPath = a.path.trim();
+      if (!wrapperPath) issues.push(`${label} · app #${ai}: wrapper path is required.`);
+      else if (
+        catalog &&
+        catalog.wrappers.size > 0 &&
+        !wrapperPath.includes("{") &&
+        !wrapperPath.startsWith("/") &&
+        !catalog.wrappers.has(wrapperPath)
+      )
+        issues.push(`${label} · app #${ai}: wrapper ${wrapperPath} is not on ${catalog.cluster}.`);
       if (a.startKind === "delay" && !numeric(a.startDelay))
         issues.push(`${label} · app #${ai}: start delay must be a number.`);
       if (a.endKind === "timed" && !numeric(a.endTimed))
