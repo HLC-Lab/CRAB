@@ -509,14 +509,15 @@ Prints the `sbatchman configure slurm` command for this CRAB install, ready to p
 ```bash
 crab sbatchman-preset [--name NAME] [--partition P] [--account A] [--qos Q] [--time T]
                       [--nodes N] [--tasks-per-node N] [--system NAME]
-                      [--no-exclusive] [--cpu-bind MODE]
+                      [--no-exclusive] [--cpu-bind MODE] [--configs-file]
 ```
 
 CRAB fills in what it knows: the `bin` directory of the Python environment running `crab` (on
 `PATH`), the checkout root (`CRAB_ROOT`) and the wrappers folder (`CRAB_PATH_WRAPPERS`, resolved as
 the worker resolves it, so a set `CRAB_PATH_WRAPPERS` is kept). The Slurm values it cannot know stay
 as `<placeholders>` until a flag gives them. The command goes to stdout and nothing else does, so
-`crab sbatchman-preset ... > preset.sh` works. CRAB does not run SbatchMan.
+`crab sbatchman-preset ... > preset.sh` works. CRAB does not run SbatchMan. With `--configs-file`
+the output is a SbatchMan configs file instead of the command (see below).
 
 | Flag | Description |
 |------|-------------|
@@ -526,6 +527,11 @@ as `<placeholders>` until a flag gives them. The command goes to stdout and noth
 | `--system` | Cluster name for `CRAB_SYSTEM`. Default `<cluster name>`. |
 | `--no-exclusive` | Leaves out `--exclusive`. |
 | `--cpu-bind` | Adds a last `--env 'SLURM_CPU_BIND=MODE'` line, for example `cores`. |
+| `--configs-file` | Prints a SbatchMan configs file that sweeps `--nodes` instead of the `sbatchman configure slurm` command. Needs `--nodes`. |
+
+`--nodes` takes one node count. With `--configs-file` it also takes a comma-separated list of
+positive whole numbers, such as `--nodes 4,8,16`. A list without `--configs-file`, and
+`--configs-file` without `--nodes`, are errors (exit 2, one line).
 
 A value that is not one token of letters, digits and `. _ : , + / @ % = -`, or a path with a single
 quote, is an error: the command exits 2 with a one-line message and prints no command. When the
@@ -535,6 +541,31 @@ wrappers.
 ```bash
 crab sbatchman-preset --partition boost --account ACC --time 00:30:00 --nodes 2 \
   --tasks-per-node 8 --system leo
+```
+
+### Configs file for a node sweep
+
+```bash
+crab sbatchman-preset --configs-file --nodes 4,8,16 --system leonardo \
+  --partition boost --account ACC --time 00:20:00 --tasks-per-node 4 > configs.yaml
+```
+
+The file has a `variables:` block with the node counts and, under the `--system` name, one
+configuration called `<name>_{nodes}` (here `crab_run_{nodes}`) with `nodes: "{nodes}"`. SbatchMan
+creates one configuration per node count (`crab_run_4`, `crab_run_8`, `crab_run_16`). The Slurm
+values and the job environment (`PATH`, `CRAB_ROOT`, `CRAB_SYSTEM`, `CRAB_PATH_WRAPPERS`,
+`SBATCHMAN_JOB_DIR`, and `SLURM_CPU_BIND` with `--cpu-bind`) are the same as in the command form.
+`--no-exclusive` leaves `exclusive` out, and `--qos` adds the `qos` key. The first two lines of the
+file are comments that name the command that made it.
+
+The top-level key must equal the output of `sbatchman set-cluster-name` on the cluster, so pass the
+same name to `--system`. Load the file with `sbatchman configure --file configs.yaml`, or point a
+SbatchMan jobs file at it and use the swept name:
+
+```yaml
+configs: configs.yaml
+# in each job entry:
+config: crab_run_{nodes}
 ```
 
 See [SbatchMan integration](../using/sbatchman-integration.md).
