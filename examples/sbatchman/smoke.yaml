@@ -12,8 +12,8 @@
 #
 # Measures: the all-to-all (Blink alltoall_b) with no other traffic. Run it first: it is small
 # enough for a debug queue and shows that the project, the config file and CRAB's worker all work.
-# The victim's args are empty, so Blink uses its defaults. Add flags such as -msgsize <bytes> or
-# -iter <n> to "args" to change the message size or the iterations.
+# The victim sends 1 MiB messages (-msgsize 1048576) and measures 100 iterations per run
+# (-iter 100). Change those flags in "args" to try another size or iteration count.
 configs: configs.yaml
 variables:
   nodes:
@@ -36,7 +36,7 @@ jobs:
             "apps": {
               "0": {
                 "path": "blink/alltoall/alltoall_b.py",
-                "args": "",
+                "args": "-msgsize 1048576 -iter 100",
                 "collect": true,
                 "start": "0",
                 "end": ""

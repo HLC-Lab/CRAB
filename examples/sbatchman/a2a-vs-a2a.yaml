@@ -8,27 +8,44 @@
 #   sbatchman launch -f a2a-vs-a2a.yaml --dry-run
 #   sbatchman launch -f a2a-vs-a2a.yaml
 # `configs.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>.
-# The `--nodes` list must hold every value of `nodes` below.
+# The `--nodes` list must hold every value of `nodes` below. Set --time for a job that runs six
+# experiments in a row (three baselines and three noise runs).
 #
-# Measures: how much all-to-all noise slows an all-to-all (Blink alltoall_b, the victim).
-# `nodes` is the TOTAL allocation, 2N: 4, 8 and 16 give the victim 2, 4 and 8 nodes.
-# Both jobs allocate the same 2N nodes and split them 50/50, interleaved: the victim gets nodes
-# 0, 2, 4, ... and the aggressor partition gets the rest. The baseline job runs only the victim
-# (the aggressor nodes stay idle). The noise job adds the aggressor on those nodes. The victim
-# therefore has the same node count and the same node placement in both jobs, and the only
-# difference is the traffic.
+# Measures: how much all-to-all noise slows an all-to-all (Blink alltoall_b, the victim), at
+# several message sizes. `nodes` is the TOTAL allocation, 2N: 4, 8 and 16 give the victim 2, 4
+# and 8 nodes. The victim sends `msgsize` bytes per message (1 KiB, 64 KiB, 1 MiB, 4 MiB) and
+# measures 100 iterations per run.
+#
+# One job per (nodes, msgsize) pair: 3 x 4 = 12 jobs per file. Each job is one Slurm allocation
+# and runs six experiments one after another: r1_baseline, r1_noise, r2_baseline, r2_noise,
+# r3_baseline, r3_noise. The baseline and the noise therefore run on the same physical nodes, and
+# alternating them three times spreads any drift over both sides. (CRAB runs the experiments of
+# a config in sorted name order, which is why the names start with the round.) Jobs of different
+# message sizes get different allocations, so compare baseline and noise inside one job, and
+# treat comparisons across sizes with that in mind.
+# The nodes of an allocation are split 50/50, interleaved: the victim gets nodes 0, 2, 4, ...
+# and the aggressor partition gets the rest. A baseline experiment runs only the victim (the
+# aggressor nodes stay idle). A noise experiment adds the aggressor on those nodes. The victim
+# has the same node count and node placement in all six, and the only difference is the traffic.
 # The aggressor sends 2 MiB messages in bursts of 1 s with a 1 s pause, until the victim ends.
-# The victim's args are empty, so Blink uses its defaults. Add flags such as -msgsize <bytes> or
-# -iter <n> to its "args" in BOTH jobs to change the message size or the iterations.
+#
+# To shrink the sweep, edit the two lists under `variables` (for example `nodes: [4]` and
+# `msgsize: [1048576]` give one job). Every `nodes` value needs a crab_run_<nodes> config, so the
+# `--nodes` list in configs.yaml must cover them.
 configs: configs.yaml
 variables:
   nodes:
     - 4
     - 8
     - 16
+  msgsize:
+    - 1024
+    - 65536
+    - 1048576
+    - 4194304
 jobs:
   - config: crab_run_{nodes}
-    tag: a2a-baseline-{nodes}
+    tag: a2a-a2a-{nodes}n-{msgsize}B
     preprocess: |
       mkdir -p "$SBATCHMAN_JOB_DIR"
       cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
@@ -37,10 +54,10 @@ jobs:
         "global_options": {
           "numnodes": "{nodes}",
           "ppn": "4",
-          "name": "a2a-baseline-{nodes}"
+          "name": "a2a-a2a-{nodes}n-{msgsize}B"
         },
         "experiments": {
-          "run": {
+          "r1_baseline": {
             "local_options": {
               "allocation": {
                 "mode": "interleaved",
@@ -53,32 +70,15 @@ jobs:
             "apps": {
               "0": {
                 "path": "blink/alltoall/alltoall_b.py",
-                "args": "",
+                "args": "-msgsize {msgsize} -iter 100",
                 "collect": true,
                 "start": "0",
                 "end": "",
                 "partition": "victim"
               }
             }
-          }
-        }
-      }
-      JSON
-    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
-  - config: crab_run_{nodes}
-    tag: a2a-a2a-noise-{nodes}
-    preprocess: |
-      mkdir -p "$SBATCHMAN_JOB_DIR"
-      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
-      {
-        "schema_version": 2,
-        "global_options": {
-          "numnodes": "{nodes}",
-          "ppn": "4",
-          "name": "a2a-a2a-noise-{nodes}"
-        },
-        "experiments": {
-          "run": {
+          },
+          "r1_noise": {
             "local_options": {
               "allocation": {
                 "mode": "interleaved",
@@ -91,7 +91,107 @@ jobs:
             "apps": {
               "0": {
                 "path": "blink/alltoall/alltoall_b.py",
-                "args": "",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              },
+              "1": {
+                "path": "blink/alltoall/alltoall_nb.py",
+                "args": "-msgsize 2097152 -endl -blength 1 -bpause 1",
+                "collect": false,
+                "start": "0",
+                "end": "f",
+                "partition": "aggressor"
+              }
+            }
+          },
+          "r2_baseline": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              }
+            }
+          },
+          "r2_noise": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              },
+              "1": {
+                "path": "blink/alltoall/alltoall_nb.py",
+                "args": "-msgsize 2097152 -endl -blength 1 -bpause 1",
+                "collect": false,
+                "start": "0",
+                "end": "f",
+                "partition": "aggressor"
+              }
+            }
+          },
+          "r3_baseline": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              }
+            }
+          },
+          "r3_noise": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
                 "collect": true,
                 "start": "0",
                 "end": "",
