@@ -3,7 +3,9 @@
 Three ready-to-launch campaigns for [SbatchMan](https://github.com/LorenzoPichetti/SbatchMan), the
 job manager that submits and tracks the runs. Copy a file to your SbatchMan project directory,
 generate `configs.yaml` once, and launch it as it is. Each job runs CRAB's worker (`crab worker`)
-on the allocation SbatchMan requests, and the worker runs the experiment embedded in the job.
+on the allocation SbatchMan requests, and the worker runs the experiment embedded in the job. The
+[SbatchMan guide](../../docs/using/sbatchman-integration.md) walks through the whole flow, from
+installing CRAB on the cluster to reading results.
 
 ## Files
 
@@ -108,9 +110,11 @@ Each job has a folder in the SbatchMan project (SbatchMan gives it to the job as
 ## Compare baseline and noise
 
 Pair the jobs by node count: `a2a-baseline-8` against `a2a-incast-noise-8`. Open the two
-`run/data_app_0.csv` files and compare the `Avg-Duration` column, which is the victim's time per
-iteration in seconds. The ratio of the noise job's mean to the baseline's is the slowdown. Do it
-for 4, 8 and 16 to see how the effect changes with the allocation size.
+`run/data_app_0.csv` files. Each row is one sample of one run (`run_id`) at one message size
+(`msg_size`), and the metric columns are prefixed with the app index and end with the unit: the
+victim is app 0, so compare `0_Avg-Duration_s` (app 0's Avg-Duration metric, in seconds) of the two
+files for each `msg_size`. The ratio of the noise job's mean to the baseline's is the slowdown. Do
+it for 4, 8 and 16 to see how the effect changes with the allocation size.
 
 To change the study, edit the `args` of the victim in both jobs of a file (for example
 `-msgsize 8192` for another message size), and keep the two identical. Run

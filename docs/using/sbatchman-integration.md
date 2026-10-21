@@ -4,67 +4,50 @@ CRAB and [SbatchMan](https://github.com/LorenzoPichetti/SbatchMan) are independe
 tools with a fixed division of labor: CRAB downloads, builds, and co-runs benchmarks and parses
 their output. SbatchMan owns scheduler configuration, job submission, monitoring, and results
 visualization, through its own CLI and TUI. **CRAB's dashboard does not launch, monitor, or
-visualize a SbatchMan campaign.** Its only role in this flow is authoring a campaign and
+visualize a SbatchMan campaign.** Its only optional role in this flow is authoring a campaign and
 generating the SbatchMan jobs file. See
 [the roadmap's "Relationship with SbatchMan" section](../dev/roadmap.md#relationship-with-sbatchman)
 for the full picture.
 
-This page walks through the whole flow once, from a clean cluster account to results on disk,
-with CRAB's `blink` benchmark suite as the worked example. The
-[troubleshooting](#troubleshooting) section at the end lists the failures people hit and how to
-fix each one.
+This page has two tracks, and you can follow either one top to bottom:
+
+- **[Track 1](#track-1-everything-on-the-cluster)** does everything on the cluster over SSH, from
+  installing CRAB to reading results. Nothing is installed on your laptop. This is all you need.
+- **[Track 2](#track-2-author-campaigns-on-your-laptop-optional)** adds the dashboard on your
+  laptop, as a nicer way to write the campaign file of
+  [step 6](#6-write-a-campaign). It sends the file to the cluster, and you launch it with
+  [step 7](#7-launch-it) of Track 1.
+
+CRAB's `blink` benchmark suite is the worked example. The [troubleshooting](#troubleshooting)
+section at the end lists the failures people hit and how to fix each one.
 
 ## What goes where
 
 | Machine | What runs there | Installed from |
 |---|---|---|
-| Your laptop | CRAB's web dashboard (`crab web`), where you author campaigns | CRAB, `sbatchman` branch, `web` extra |
-| The cluster | CRAB (benchmarks, recipes, the `crab worker` that runs inside each job) and SbatchMan (presets, `launch`, `status`), side by side in one virtual environment | CRAB `sbatchman` branch + SbatchMan from GitHub, at a pinned commit |
+| The cluster | CRAB (benchmarks, recipes, the `crab worker` that runs inside each job) and SbatchMan (presets, `launch`, `status`), side by side in one virtual environment. Also your campaign files and the results. | CRAB `sbatchman` branch + SbatchMan from GitHub, at a pinned commit |
+| Your laptop (optional) | CRAB's web dashboard (`crab web`), where you author campaigns | CRAB, `sbatchman` branch, `web` extra |
 
 Every job SbatchMan submits runs `crab worker` inside the allocation it obtained. Both tools
 therefore live in the same environment on the cluster, and the job must be able to find that
-environment (see [step 5](#5-create-a-sbatchman-preset-for-crab)).
+environment (see [step 5](#5-create-the-sbatchman-presets)).
 
 ## Prerequisites
 
-- A laptop with Python 3.10+ and git (any OS; no Slurm, no compilers needed here).
-- A cluster account with Slurm, Python 3.10+ and git on the login node, and SSH access (key or
-  agent auth; see the dashboard's Remotes page for the supported methods).
+- A cluster account with Slurm, Python 3.10+ and git on the login node, and SSH access.
 - Your Slurm partition and account names, and a QoS name if your site requires one.
+- Only for Track 2: a laptop with Python 3.10+ and git (any OS; no Slurm, no compilers needed
+  there), and a way to log in to the cluster from it with a key or an agent (see
+  [Connect the cluster](#start-it-and-connect-the-cluster)).
 
-## 1. Install the dashboard on your laptop
+## Track 1: everything on the cluster
 
-```bash
-git clone --branch sbatchman https://github.com/HLC-Lab/CRAB
-cd CRAB
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[web]"
-crab web
-```
+Log in to the cluster over SSH and run every command of this track there.
 
-This opens the dashboard at `http://127.0.0.1:8765`. The `web` extra holds the dashboard's
-dependencies: a plain `make` install, as on the cluster below, lacks it.
-
-## 2. Install CRAB and SbatchMan on the cluster
+### 1. Install CRAB
 
 Pick an install directory on the cluster (your home directory is fine). CRAB goes into
-`<install dir>/CRAB`, with its virtual environment at `<install dir>/CRAB/.venv`; SbatchMan is
-installed into that same environment.
-
-**Option A, from the dashboard.** Open **Remotes**, add the cluster (name, transport `ssh`,
-host, user, auth) and set **Install dir**. Click **Connect**. When CRAB is not there yet, the
-page offers **Install CRAB**: it clones the `sbatchman` branch into `<install dir>/CRAB`,
-installs it into `<install dir>/CRAB/.venv`, and switches to the newest `+sbatchman` release once
-one exists. It runs anything you put in **Pre-commands** first (for example
-`module load python/3.11`). Then add SbatchMan over SSH:
-
-```bash
-source <install dir>/CRAB/.venv/bin/activate
-pip install "git+https://github.com/LorenzoPichetti/SbatchMan.git@f4537e6312cb064d44a060d7c53901a91735b11a"
-```
-
-**Option B, by hand.** Over SSH:
+`<install dir>/CRAB`, with its virtual environment at `<install dir>/CRAB/.venv`.
 
 ```bash
 cd <install dir>
@@ -72,33 +55,37 @@ git clone --branch sbatchman https://github.com/HLC-Lab/CRAB
 cd CRAB
 make
 source .venv/bin/activate
-pip install "git+https://github.com/LorenzoPichetti/SbatchMan.git@f4537e6312cb064d44a060d7c53901a91735b11a"
+crab info
 ```
 
 `make` creates `.venv`, installs CRAB into it, clones the shared wrappers into `wrappers/`, and
 then opens the `crab setup` wizard. You can build the benchmarks there right away (that is
 [step 3](#3-build-or-register-the-benchmarks)), or exit the wizard and come back later with
-`crab setup`.
+`crab setup`. `make` needs `python3` 3.10 or newer. If your site's default is older, load a module
+for a recent Python before running it (for example `module load python/3.11`).
 
-`make` needs `python3` 3.10 or newer. If your site's default is older, load a module for a
-recent Python before running it (for example `module load python/3.11`).
+`crab info` prints the CRAB version, the root directory, `layout: checkout` for a checkout like
+this one, and the known presets. Activate the environment (`source <install dir>/CRAB/.venv/bin/activate`)
+in every new shell before the steps below.
 
-Install SbatchMan **from GitHub at this commit**, not from PyPI. PyPI's release (`1.0.8`)
-predates a fix this flow depends on: SbatchMan exporting `SBATCHMAN_JOB_DIR` into each job.
+### 2. Install SbatchMan
+
+Install SbatchMan into the same environment, **from GitHub at this commit**, not from PyPI:
+
+```bash
+pip install "git+https://github.com/LorenzoPichetti/SbatchMan.git@f4537e6312cb064d44a060d7c53901a91735b11a"
+sbatchman --version
+```
+
+PyPI's release (`1.0.8`) predates a fix this flow depends on: SbatchMan exporting
+`SBATCHMAN_JOB_DIR` into each job.
 
 The Leonardo pilot (2026-10-19) ran SbatchMan commit `18701e4`, and the pinned commit
 `f4537e6312cb064d44a060d7c53901a91735b11a` (SbatchMan `2.0.3`; `sbatchman --version` prints it)
 was checked only on a laptop, with the same behavior. If something here stops matching, check
 whether `main` has moved.
 
-Check both tools from the activated environment:
-
-```bash
-crab info          # prints the CRAB version, its root directory, and the known presets
-sbatchman --version
-```
-
-## 3. Build or register the benchmarks
+### 3. Build or register the benchmarks
 
 Every application a campaign uses must be findable on the cluster. CRAB looks for each wrapper's
 binary in this order: the app's `binary` key in the campaign's config, then a receipt, then the
@@ -114,13 +101,21 @@ wrapper's `executable` on `PATH` in the job (see
 - **Already installed through a module?** Add the `module load` to your SbatchMan preset (step 5).
   If the wrapper declares an `executable`, CRAB then finds it on `PATH` with no receipt.
 - **Installed somewhere else?** Record it once: `crab receipts set <benchmark_id> --binary
-  /path/to/program`, or use **Import binary** on the dashboard's **Wrappers** page.
+  /path/to/program`.
 
-`crab wrappers list` (or the **Wrappers** page) shows, for every wrapper, where its binary comes
-from or that it is missing. A campaign whose binary is missing fails before its first run, with a
-message saying what was tried.
+Check the result:
 
-## 4. Create a SbatchMan project
+```bash
+crab wrappers list
+```
+
+It shows, for every wrapper, where its binary comes from (`config`, `receipt` or `path`) or
+`missing`. A program that was never built shows `missing`. A campaign whose binary is missing
+fails before its first run, with a message saying what was tried. For the Blink examples below,
+`blink/alltoall/alltoall_b.py`, `blink/alltoall/alltoall_nb.py` and `blink/incast/incast_nb.py`
+must not show `missing`.
+
+### 4. Create a SbatchMan project
 
 SbatchMan keeps its presets and job records in a project folder. Create one in the directory you
 will launch campaigns from (a directory next to CRAB works well), and tell SbatchMan the
@@ -134,20 +129,31 @@ sbatchman set-cluster-name <cluster name>
 
 `sbatchman init` creates a `SbatchMan/` folder there. Every later `sbatchman` command looks for
 that folder in the current directory and its parents (then in your home directory), so run
-`configure` and `launch` from inside this directory.
+`configure` and `launch` from inside this directory. The cluster name is the one you pass as
+`--system` in the next step.
 
-## 5. Create a SbatchMan preset for CRAB
+### 5. Create the SbatchMan presets
 
 A SbatchMan preset (a "configuration") holds the Slurm settings and the environment every job
-gets. CRAB's worker takes its environment from here: it does not write its own environment file
-when run under SbatchMan (see
-[ADR-027](../dev/dashboard/decisions/adr-027-sbatchman-seam-v2.md) for the reasoning).
+gets. SbatchMan submits each job with the allocation its preset asks for, so **the node count
+lives in the preset**. A `{nodes}` variable in CRAB's own config changes only what CRAB tries to
+run inside the allocation, not the allocation Slurm gives the job. CRAB's worker also takes its
+environment from the preset: it does not write its own environment file when run under SbatchMan
+(see [ADR-027](../dev/dashboard/decisions/adr-027-sbatchman-seam-v2.md) for the reasoning).
 
-`crab sbatchman-preset` prints the `sbatchman configure slurm` command for the CRAB install that
-runs it. It fills in the paths (`PATH`, `CRAB_ROOT`, `CRAB_PATH_WRAPPERS`) and takes the Slurm
-values from flags. In the activated environment on the cluster, write the command to a file:
+`crab sbatchman-preset` prints what you need for the CRAB install that runs it. It fills in the
+paths (`PATH`, `CRAB_ROOT`, `CRAB_PATH_WRAPPERS`) and takes the Slurm values from flags. It has
+two forms. Run it in the activated environment, and replace each `<placeholder>` with your value.
+Add `--qos <qos>` only where your site requires a QoS for the partition. A value you leave out
+stays a `<placeholder>` in the output, so give every flag or edit the file before you use it.
+[`crab sbatchman-preset`](../reference/cli.md#crab-sbatchman-preset) lists every flag.
+
+**One preset**, for one node count. The command writes a `sbatchman configure slurm` command, named
+`crab_run` unless you pass `--name`. Run it from the project directory of
+[step 4](#4-create-a-sbatchman-project):
 
 ```bash
+cd <install dir>/campaigns
 crab sbatchman-preset \
   --system <cluster name> \
   --partition <partition> \
@@ -155,28 +161,39 @@ crab sbatchman-preset \
   --time <hh:mm:ss> \
   --nodes <nodes> \
   --tasks-per-node <tasks per node> > preset.sh
-```
-
-Replace each `<placeholder>` with your value. Add `--qos <qos>` only where your site requires a
-QoS for the partition. A value you leave out stays a `<placeholder>` in `preset.sh`, so give every
-flag or edit the file before you run it. If CRAB prints a warning that `wrappers/` is missing, run
-`crab update` in the CRAB checkout: the warning goes to the terminal, not into `preset.sh`.
-[`crab sbatchman-preset`](../reference/cli.md#crab-sbatchman-preset) lists every flag.
-
-Read `preset.sh`, then run it from the SbatchMan project directory of
-[step 4](#4-create-a-sbatchman-project):
-
-```bash
-cd <install dir>/campaigns
 sh preset.sh
 ```
 
+**A node sweep**, for a campaign that runs the same experiment on several node counts. With
+`--configs-file` the command writes a SbatchMan configs file instead, and `--nodes` takes a comma
+list:
+
+```bash
+cd <install dir>/campaigns
+crab sbatchman-preset --configs-file --nodes 2,4,8,16 \
+  --system <cluster name> \
+  --partition <partition> \
+  --account <account> \
+  --time <hh:mm:ss> \
+  --tasks-per-node <tasks per node> > configs.yaml
+```
+
+`configs.yaml` defines one preset per node count, named `crab_run_2`, `crab_run_4`, `crab_run_8`
+and `crab_run_16`. The top-level key of the file is the `--system` name and must equal the output
+of `sbatchman set-cluster-name`. A jobs file uses the file with `configs: configs.yaml` and picks
+the preset with `config: crab_run_{nodes}` ([step 6](#6-write-a-campaign)). To use the file
+without a jobs file naming it, load it into the project once with
+`sbatchman configure --file configs.yaml`.
+
+Read the output before you use it. If CRAB prints a warning that `wrappers/` is missing, run
+`crab update` in the CRAB checkout: the warning goes to the terminal, not into the file.
+
 SbatchMan turns each option into an `#SBATCH` line of the job script. Each line of the printed
-command does this:
+command (and each key of the configs file) does this:
 
 | Option | What it sets | When and why |
 |---|---|---|
-| `--name crab_run` | The preset's name. | A campaign group refers to the preset by this name ([step 6](#6-author-a-campaign)). Change it with `--name`. |
+| `--name crab_run` | The preset's name. | A campaign group refers to the preset by this name ([step 6](#6-write-a-campaign)). Change it with `--name`. |
 | `--partition <partition>` | `#SBATCH --partition`: the queue the jobs go to. | Most sites require one. Use a partition your account may submit to. |
 | `--account <account>` | `#SBATCH --account`: the project the hours are charged to. | Required where the site accounts for usage. |
 | `--qos <qos>` | `#SBATCH --qos`: the quality of service. | Printed only when you pass `--qos`. Some sites use it to select short debug queues. |
@@ -189,6 +206,11 @@ command does this:
 | `--env 'CRAB_SYSTEM=<cluster name>'` | Names the system the job runs on. | The value of `--system`: use the cluster name from [step 4](#4-create-a-sbatchman-project). |
 | `--env 'CRAB_PATH_WRAPPERS=<install dir>/CRAB/wrappers'` | Where the worker resolves wrapper paths. | Lets it resolve paths like `blink/alltoall/alltoall_b.py`. |
 | `--env 'SBATCHMAN_JOB_DIR={EXP_DIR}'` | Points the worker at the job's own directory. | SbatchMan at the pinned commit already exports it. Keeping the line makes the preset work with builds that don't. |
+
+
+In the table, the one-preset form writes `--name crab_run`; a campaign refers to the preset by that
+name ([step 6](#6-write-a-campaign)), and `--name` changes it. The configs file names its presets
+`<name>_<nodes>` instead.
 
 The command keeps single quotes around each `--env` entry. If you edit them, keep the quotes:
 SbatchMan writes each entry into the job script as a plain `export` line, so `$PATH` is expanded
@@ -205,7 +227,7 @@ it as `#SBATCH --gres=gpu:<n>`. See SbatchMan's own documentation for the other 
 `--constraint`, `--reservation`, ...). To change a preset later, regenerate `preset.sh`, append
 ` --overwrite` to its last line, and run it again.
 
-### Sizing the allocation for co-runs
+#### Sizing the allocation for co-runs
 
 When an experiment co-runs apps on the same nodes (`allocation.mode: "shared"`), the Slurm
 allocation has to hold all of their ranks at once. CRAB sizes Slurm's `--ntasks-per-node` itself in
@@ -230,83 +252,223 @@ crab sbatchman-preset \
   --tasks-per-node 8 > preset_2n.sh
 ```
 
-This is [step 5](#5-create-a-sbatchman-preset-for-crab)'s command with three flags set for the
+
+This is [step 5](#5-create-the-sbatchman-presets)'s one-preset form with three flags set for the
 co-run:
 
 - `--name crab_corun_2n` names a preset for this node count, so another count gets its own.
 - `--nodes 2` is the experiment's `numnodes`.
 - `--tasks-per-node 8` is two apps times a `ppn` of 4 on each node.
 
-A group that sweeps the node count needs one preset per value (for example `crab_corun_2n` and
-`crab_corun_4n`), picked through a `{nodes}`-style placeholder in the group's **SbatchMan preset**.
+A campaign that sweeps the node count needs one preset per value. The easiest way is the
+configs file of step 5 (`--configs-file --nodes 2,4`), picked through `config: crab_run_{nodes}`.
 
 CRAB does not check this value for a SbatchMan campaign. When it is smaller than the largest
 per-node load, the allocation cannot hold every app's ranks at the same time, so the co-run does
 not happen as configured: what follows is Slurm's behavior (a step is refused, or waits for
 free ranks), not a CRAB error message.
 
-## 6. Author a campaign
+### 6. Write a campaign
 
-In the dashboard, open **SbatchMan** and build your campaign: give the group a tag, set its
-**SbatchMan preset** to the name you configured above (`crab_run` in the example), and add an
-app the same way you would in a normal CRAB experiment: for `blink`, pick a wrapper such as
-`blink/alltoall/alltoall_b.py` from the picker and set its args. Sweep values go in variables and
-are used as `{name}` placeholders, including in numeric fields such as the node count or an
-allocation's stride.
+A campaign is a SbatchMan jobs file: a YAML file that lists the jobs to submit. In each job,
+`preprocess` writes CRAB's experiment as `config.json` into the job's directory, and `command`
+runs `crab worker` there. The shape:
 
-The preview panel lists anything that would make the campaign fail at launch (a variable without
-a name, a `{placeholder}` no variable defines, a group without a preset, an invalid experiment).
-**Write files** stays disabled until that list is empty.
+```yaml
+configs: configs.yaml          # from step 5; leave out for a single preset made with preset.sh
+variables:
+  nodes: [2, 4, 8, 16]         # SbatchMan runs the jobs once per value
+jobs:
+  - config: crab_run_{nodes}   # the preset of step 5 (crab_run for a single preset)
+    tag: a2a-smoke-{nodes}
+    preprocess: |
+      mkdir -p "$SBATCHMAN_JOB_DIR"
+      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
+      { "schema_version": 2, "global_options": { ... }, "experiments": { "run": { ... } } }
+      JSON
+    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
+```
 
-The dashboard does not write SbatchMan's jobs-file `configs:` key: each group's **SbatchMan
-preset** is resolved by name from the presets you created with `sbatchman configure`.
-
-Choose the connected cluster and click **Write files**. This saves the jobs YAML on your laptop
-and copies it to the cluster's staging directory; the page shows both paths. Each job's
-`preprocess` writes only `config.json` (your experiment) into the job's directory.
-
-## 7. Launch it
-
-This is your step, not a dashboard button: CRAB never runs `sbatchman launch` itself. On the
-cluster, from the project directory, with the path the Write step showed you:
+The quickest start is to copy a ready-made campaign from `examples/sbatchman/` in the CRAB
+checkout, next to your `configs.yaml`:
 
 ```bash
 cd <install dir>/campaigns
-sbatchman launch -f /path/shown/by/the/dashboard/campaign.yaml --dry-run   # list the jobs only
-sbatchman launch -f /path/shown/by/the/dashboard/campaign.yaml
+cp <install dir>/CRAB/examples/sbatchman/*.yaml .
 ```
 
-## 8. Monitor and visualize
+The folder has `smoke.yaml` (one all-to-all on 2 nodes, small enough for a debug queue),
+`a2a-vs-incast.yaml` and `a2a-vs-a2a.yaml` (a baseline and a noise job at 4, 8 and 16 nodes). Its
+[README](https://github.com/HLC-Lab/CRAB/blob/sbatchman/examples/sbatchman/README.md) explains each
+file and what it measures. Edit the `args` of an app, the `variables`, or the experiment, or write
+your own file in the same shape. The `"experiments"` object is a normal CRAB config: see the
+[configuration reference](../reference/configuration.md).
 
-Use SbatchMan's own tooling from here: `sbatchman status`, `sbatchman campaign-tui`, or
-`sbatchman visualize`. CRAB's dashboard has no view into a SbatchMan campaign's job status or
-results.
+To check an experiment before you launch, copy the JSON between the heredoc lines into a file and
+run `crab validate config.json`. This step is optional: it catches a mistake in the experiment,
+not in the jobs file.
+
+
+### 7. Launch it
+
+CRAB never runs `sbatchman launch` for you. From the project directory:
+
+```bash
+cd <install dir>/campaigns
+sbatchman launch -f smoke.yaml --dry-run   # list the jobs only
+sbatchman launch -f smoke.yaml
+squeue --me
+```
+
+`--dry-run` shows what SbatchMan would submit and changes nothing. `squeue --me` lists your Slurm
+jobs. Launch the small `smoke.yaml` first: when it finishes cleanly, your project, presets and
+CRAB's worker work together. Then launch the real campaign the same way.
+
+### 8. Monitor
+
+Use SbatchMan's own tooling: `sbatchman status` lists the jobs and their state,
+`sbatchman campaign-tui` is a terminal view of a campaign, and `sbatchman visualize` serves a
+results page. CRAB's dashboard has no view into a SbatchMan campaign's job status or results.
 
 !!! warning "Port collision"
     Both `crab web` and `sbatchman visualize` use port `8765`, and `sbatchman visualize` has no
-    option to change it. To run both at once, start the dashboard on a different port with
-    `crab web --port <other port>`.
+    option to change it. To run both on the same machine, start the dashboard on a different port
+    with `crab web --port <other port>`.
 
-## 9. Where results land
+### 9. Read the results
 
-Each job's `config.json` names an experiment (its key under `experiments` in the campaign).
-CRAB writes that experiment's parsed results to `<job directory>/<experiment name>/`. A run that
-collects metrics produces `data_app_<index>.csv` there (one file per app in the experiment): for
-example, a group whose experiment is named `run` with a single app produces
-`<job directory>/run/data_app_0.csv`. The job directory is the one SbatchMan assigned
-(`SBATCHMAN_JOB_DIR`/`{EXP_DIR}`), shown in SbatchMan's own job listing; the job's
-`stdout.log` and `stderr.log` are in the same directory.
+SbatchMan gives each job a directory:
 
-Next to the experiment folders, `crab_run.json` records which CRAB version and which wrapper
-files (with their hashes) produced the job. Inside an experiment, each run's working files are in
-`run_<n>/app_<index>/`, and files a wrapper asks to keep are copied to `artifacts/run_<n>/`.
+```text
+<project>/SbatchMan/experiments/<cluster name>/<config>/<tag>/<timestamp>/
+```
 
-Not every app produces this file: a benchmark that collects no metrics (`blink`'s `null_dummy`,
-for instance, an isolation sanity check with nothing to measure) never writes a CSV, by design.
+`<config>` is the preset (for example `crab_run_8`) and `<tag>` is the job's tag. This is the
+directory SbatchMan exports as `SBATCHMAN_JOB_DIR`; `sbatchman status` also lists it. In it:
 
-Reading that CSV is up to you: a spreadsheet, a notebook, or `sbatchman visualize`'s own parser
-script (its `--parser` option, `./parser.py` by default). CRAB's dashboard does not read or plot
-it. To parse a saved output again with a wrapper, use `crab parse <wrapper> <output file>`.
+- `metadata.yaml` is SbatchMan's record of the job: its tag, config, job id and state.
+- `config.json` is the experiment the job wrote and ran, and `stdout.log` and `stderr.log` are
+  the job's output.
+- `crab_run.json`, next to `config.json`, records which CRAB version and which wrapper files (with
+  their hashes) produced the job.
+- `run/` is the experiment's folder, named after the experiment's key under `experiments` (`run`
+  in the examples). A run that collects metrics produces `run/data_app_<index>.csv` there, one
+  file per app that has `"collect": true`, so `run/data_app_0.csv` for the first app.
+  `run/bindings_app_<index>.log` holds the launcher's report of how it bound the ranks.
+- Inside the experiment folder, each run's working files are in `run_<n>/app_<index>/`, and files
+  a wrapper asks to keep are copied to `artifacts/run_<n>/`.
+
+Not every app produces a CSV: a benchmark that collects no metrics (`blink`'s `null_dummy`, for
+instance, an isolation sanity check with nothing to measure) never writes one, by design.
+
+**Compare a baseline with noise.** Pair the jobs by node count, for example `a2a-baseline-8`
+against `a2a-incast-noise-8`, and open the two `run/data_app_0.csv` files. Each row is one sample
+of one run (`run_id`) at one message size (`msg_size`). The metric columns are prefixed with the
+app index and end with the unit, so for the victim (app 0) the columns are `0_Avg-Duration_s`,
+`0_Min-Duration_s`, `0_Max-Duration_s`, `0_Median-Duration_s` and `0_MainRank-Duration_s`, in
+seconds. Compare `0_Avg-Duration_s` of the two files for each `msg_size`: the ratio of the noise
+job's mean to the baseline's is the slowdown.
+
+The comparison is only fair when the baseline and the noise job get the same allocation and the
+same placement of the victim: both jobs allocate the same number of nodes, split between a victim
+partition and an aggressor partition in the same way, and only the aggressor differs. The
+examples are built that way (see the
+[README's fairness rule](https://github.com/HLC-Lab/CRAB/blob/sbatchman/examples/sbatchman/README.md#the-fairness-rule)).
+A baseline that allocated fewer nodes would change which switches the victim's nodes sit behind,
+and the result would mix that change with the noise.
+
+Reading the CSV is up to you: a spreadsheet, a notebook, or `sbatchman visualize`'s own parser
+script (its `--parser` option, `./parser.py` by default). To parse a saved output again with a
+wrapper, use `crab parse <wrapper> <output file>`.
+
+## Track 2: author campaigns on your laptop (optional)
+
+The dashboard writes the jobs file of [step 6](#6-write-a-campaign) for you and sends it to the
+cluster. The cluster needs CRAB, SbatchMan, the benchmarks and the presets first, as set up by steps
+1 to 5 of Track 1 (the dashboard can also install CRAB itself, see below).
+
+### Install the dashboard
+
+On your laptop:
+
+```bash
+git clone --branch sbatchman https://github.com/HLC-Lab/CRAB
+cd CRAB
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[web]"
+```
+
+The `web` extra holds the dashboard's dependencies: a plain `make` install, as on the cluster,
+lacks it.
+
+### Start it and connect the cluster
+
+The usual way to log in is your `ssh-agent`. The dashboard reads `SSH_AUTH_SOCK` from the
+environment of the process that started it, so an agent started in another shell is invisible to
+it. Start the agent, load your key and start the dashboard **in the same shell**:
+
+```bash
+eval $(ssh-agent)
+ssh-add
+crab web
+```
+
+The dashboard opens at `http://127.0.0.1:8765`. Open **Remotes**, click **+ Add cluster**, and fill
+in:
+
+- **Name**: a name for the cluster in the dashboard.
+- **Transport**: `ssh`.
+- **Host** and **User**: the login node and your user name there.
+- **Auth**: `agent`. The other methods are `key file` and `password` (see
+  [Connect a cluster](dashboard.md#connect-a-cluster)).
+- **Install dir**: the **parent** folder of the CRAB checkout on the cluster, not the checkout
+  itself. CRAB lives in a `CRAB` folder inside it. If CRAB is at `~/crab-v1/CRAB`, Install dir is
+  `~/crab-v1`. The field shows the result, for example `CRAB goes in ~/crab-v1/CRAB`.
+
+Click **Save**, then **Connect**. The line under the name shows the CRAB version on the cluster.
+When CRAB is not there yet, the page offers **Install CRAB**; the manual install of Track 1 works
+just as well. After it, add SbatchMan as in [step 2](#2-install-sbatchman).
+
+### Author a campaign and write the files
+
+Open **SbatchMan** and build your campaign: give the group a tag, and set its **SbatchMan
+preset** to the preset you created in [step 5](#5-create-the-sbatchman-presets): `crab_run` for a
+single preset, or `crab_run_{nodes}` when the presets came from the configs file and the group
+sweeps `nodes`. Add an app the same way you would in a normal CRAB experiment: for `blink`, pick a
+wrapper such as `blink/alltoall/alltoall_b.py` from the picker and set its args. Sweep values go in
+variables and are used as `{name}` placeholders, including in numeric fields such as the node
+count or an allocation's stride.
+
+The preview panel lists anything that would make the campaign fail at launch: a variable without a
+name, a `{placeholder}` no variable defines, a group without a preset, an invalid experiment, and
+wrappers the connected cluster does not have. **Write files** stays disabled until that list is
+empty.
+
+Choose the connected cluster and click **Write files**. The page shows two paths:
+
+- On the cluster, the file is `<Install dir>/CRAB/.web_staging/<campaign name>.yaml`. The file name
+  is the campaign name in lower case, with every run of other characters replaced by `-`
+  (`My A2A run` becomes `my-a2a-run.yaml`).
+- On your laptop, a copy is kept in the dashboard's data folder, in `sbatchman_campaigns/`
+  (`~/.local/share/crab/sbatchman_campaigns/` on Linux), as `<timestamp>-<campaign name>.yaml`.
+
+The dashboard does not write the jobs file's `configs:` key: each group's preset is resolved by
+name from the presets already in your SbatchMan project. If you made them with the configs file,
+load it once from the project directory with `sbatchman configure --file configs.yaml`.
+
+### Launch it
+
+Launching is Track 1's [step 7](#7-launch-it), run on the cluster, with the path the page showed
+you:
+
+```bash
+cd <install dir>/campaigns
+sbatchman launch -f <install dir>/CRAB/.web_staging/<campaign name>.yaml --dry-run
+sbatchman launch -f <install dir>/CRAB/.web_staging/<campaign name>.yaml
+```
+
+Then monitor and read results with steps 8 and 9.
 
 ## CPU pinning and launch settings
 
@@ -317,7 +479,7 @@ A CRAB worker started by SbatchMan has no CRAB execution preset: the job directo
 
 To pin processes to CPUs, set Slurm's own input variable in the SbatchMan preset's environment
 (the job script's environment). `--cpu-bind cores` adds it to the command of
-[step 5](#5-create-a-sbatchman-preset-for-crab):
+[step 5](#5-create-the-sbatchman-presets):
 
 ```bash
 crab sbatchman-preset \
@@ -332,7 +494,7 @@ crab sbatchman-preset \
 ```
 
 The printed command is step 5's under another name, plus a last `--env 'SLURM_CPU_BIND=cores'`
-line. Run it as in step 5.
+line. Run it as in step 5. The node-sweep form takes `--cpu-bind` too, and puts `SLURM_CPU_BIND` into each preset of the configs file.
 
 `SLURM_CPU_BIND` is the input variable Slurm documents for `srun`'s `--cpu-bind` option, so every
 `srun` the worker starts binds as if `--cpu-bind=cores` had been given. Other values work the same
@@ -365,7 +527,7 @@ repository.
 
 ## Keeping CRAB up to date
 
-Run `crab update` in the activated environment on the cluster, and in your laptop's CRAB checkout.
+Run `crab update` in the activated environment on the cluster, and, if you use Track 2, in your laptop's CRAB checkout.
 By default it moves CRAB to the newest `+sbatchman` release tag (`vX.Y.Z+sbatchman`) and the
 shared wrappers clone to the tag `vX.Y.Z` of the CRAB version it ends on, so the two match. It
 reinstalls dependencies only when they changed, and refuses to run over local edits to tracked
@@ -375,7 +537,7 @@ To follow the `sbatchman` branch between releases, run `crab update --head`: CRA
 both fast-forward to their branch HEAD. A checkout that a plain `crab update` left on a release
 tag has to return to the branch first: run `git checkout sbatchman`, then `crab update --head`.
 
-When the laptop and a cluster run versions that no longer understand each other, the dashboard's
+With Track 2, when the laptop and a cluster run versions that no longer understand each other, the dashboard's
 **Remotes** page says which side to update.
 
 ## Troubleshooting
@@ -384,10 +546,10 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `crab: command not found` in a job's `stderr.log` | The job's shell cannot see the CRAB environment | Regenerate the preset with `crab sbatchman-preset` from the activated environment: its command carries the `PATH` entry ([step 5](#5-create-a-sbatchman-preset-for-crab)). Append ` --overwrite` to the last line of the file, run it, then relaunch |
+| `crab: command not found` in a job's `stderr.log` | The job's shell cannot see the CRAB environment | Regenerate the preset with `crab sbatchman-preset` from the activated environment: its command carries the `PATH` entry ([step 5](#5-create-the-sbatchman-presets)). Append ` --overwrite` to the last line of the file, run it, then relaunch |
 | `SbatchMan root not found. Please run 'sbatchman init'`, or a prompt offering to create a project | The command ran outside the project directory | `cd` into the directory where you ran `sbatchman init` ([step 4](#4-create-a-sbatchman-project)) |
 | `Cluster name not set. Please run 'sbatchman set-cluster-name'.` | No cluster name in SbatchMan's global settings | `sbatchman set-cluster-name <cluster name>` |
-| `Wrapper not found: blink/alltoall/alltoall_b.py` (a relative path) in the job log | `CRAB_PATH_WRAPPERS` is not set in the job | Regenerate the preset with `crab sbatchman-preset`: its command carries the entry ([step 5](#5-create-a-sbatchman-preset-for-crab)). Append ` --overwrite` to the last line of the file, run it, then relaunch |
+| `Wrapper not found: blink/alltoall/alltoall_b.py` (a relative path) in the job log | `CRAB_PATH_WRAPPERS` is not set in the job | Regenerate the preset with `crab sbatchman-preset`: its command carries the entry ([step 5](#5-create-the-sbatchman-presets)). Append ` --overwrite` to the last line of the file, run it, then relaunch |
 | `Wrapper not found: blink/alltoall/alltoall_b.py`, and `<install dir>/CRAB/wrappers/` is empty or missing | CRAB was installed with `pip install -e .` alone, which does not fetch the shared wrappers | Run `make` (or `crab update`) in the CRAB checkout |
 | `Wrapper not found: <absolute path>` | The wrapper file is not in that CRAB checkout | Check the path, and that the cluster's CRAB is on the `sbatchman` branch and up to date (`crab update`) |
 | `No binary for ... Tried: ...` in the job log | No config `binary`, receipt, or program on `PATH` for that wrapper | Build it, load its module in the preset, or record it with `crab receipts set` ([step 3](#3-build-or-register-the-benchmarks)) |
@@ -397,10 +559,10 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `crab update` stops with `config/presets.json moved to src/crab/presets.json in this version: copy your edits to local/presets.json, run `git checkout config/presets.json`, then `crab update` again` | The checkout has edits to the old `config/presets.json`, which now lives inside the package | Do what the message says: copy your edits to `local/presets.json`, run `git checkout config/presets.json`, then run `crab update` again |
 | `crab update --head` stops with `CRAB is on release <tag>, not a branch: run `git checkout <branch>` in <dir>, then `crab update --head`` | A plain `crab update` left the checkout on a release tag, and `--head` needs a branch to follow | Run `git checkout sbatchman` in the CRAB checkout, then `crab update --head` |
 | `crab update` stops with `The wrappers clone <dir> has local edits (<files>): commit or stash them (or keep private wrappers in local/wrappers), then run crab update again.` | A tracked file in the `wrappers/` clone was edited by hand | Commit or stash the edits, or move private wrappers to `local/wrappers/` ([Writing a wrapper](#writing-a-wrapper-for-your-own-application)), then run `crab update` again |
-| `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job: SbatchMan is the PyPI release, or the preset lacks the entry | Install SbatchMan from GitHub at the pinned commit ([step 2](#2-install-crab-and-sbatchman-on-the-cluster)) and keep the `SBATCHMAN_JOB_DIR={EXP_DIR}` entry that `crab sbatchman-preset` prints |
+| `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job: SbatchMan is the PyPI release, or the preset lacks the entry | Install SbatchMan from GitHub at the pinned commit ([step 2](#2-install-sbatchman)) and keep the `SBATCHMAN_JOB_DIR={EXP_DIR}` entry that `crab sbatchman-preset` prints |
 | `worker environment: CRAB_... is no longer read; use ...` in the job log | The preset still exports an old `CRAB_*` launch variable | Regenerate the preset with `crab sbatchman-preset`, append ` --overwrite` to the last line of the file, and run it ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
-| **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
+| Track 2: **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
 | "SSH support isn't installed in this environment" in the dashboard | The laptop install lacks the `web` extra | `pip install -e ".[web]"` from your CRAB checkout, then restart `crab web` |
-| `No such option: --ntasks-per-node` from `sbatchman configure slurm` | SbatchMan names that option `--tasks-per-node` (it writes Slurm's `--ntasks-per-node` itself) | Use `--tasks-per-node`, as `crab sbatchman-preset` does, and re-run with `--overwrite` ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
-| Timings vary between jobs of the same campaign, or `squeue` shows two of its jobs on the same nodes | The preset lacks `--exclusive`, so the jobs share nodes | Regenerate the preset without `--no-exclusive`, append ` --overwrite` to the last line of the file, and run it ([step 5](#5-create-a-sbatchman-preset-for-crab)) |
-| The dashboard or `sbatchman visualize` will not start: port in use | Both use `8765`, and `sbatchman visualize` cannot change it | Start the dashboard on another port with `crab web --port <other port>` (see [step 8](#8-monitor-and-visualize)) |
+| `No such option: --ntasks-per-node` from `sbatchman configure slurm` | SbatchMan names that option `--tasks-per-node` (it writes Slurm's `--ntasks-per-node` itself) | Use `--tasks-per-node`, as `crab sbatchman-preset` does, and re-run with `--overwrite` ([step 5](#5-create-the-sbatchman-presets)) |
+| Timings vary between jobs of the same campaign, or `squeue` shows two of its jobs on the same nodes | The preset lacks `--exclusive`, so the jobs share nodes | Regenerate the preset without `--no-exclusive`, append ` --overwrite` to the last line of the file, and run it ([step 5](#5-create-the-sbatchman-presets)) |
+| The dashboard or `sbatchman visualize` will not start: port in use | Both use `8765`, and `sbatchman visualize` cannot change it | Start the dashboard on another port with `crab web --port <other port>` (see [step 8](#8-monitor)) |
