@@ -468,3 +468,57 @@ def test_configs_file_keeps_a_cluster_name_yaml_would_misread_as_a_string_key(
 def test_configs_file_rejects_a_cluster_named_like_the_variables_block() -> None:
     with pytest.raises(ValueError, match="--system"):
         _configs(system="variables")
+
+
+# --- the configs-file form through the argument parser ------------------------------------------
+
+
+def test_the_cli_prints_the_configs_file_for_a_node_sweep(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fake_root: Path
+) -> None:
+    _crab(
+        monkeypatch,
+        "sbatchman-preset",
+        "--configs-file",
+        "--nodes",
+        "4,8",
+        "--system",
+        "leonardo",
+        "--partition",
+        "p",
+        "--account",
+        "a",
+        "--time",
+        "00:20:00",
+        "--tasks-per-node",
+        "4",
+    )
+    out = capsys.readouterr()
+
+    data = yaml.safe_load(out.out)
+    assert data["variables"]["nodes"] == [4, 8]
+    assert "leonardo" in data
+    assert out.err == ""
+
+
+def test_the_cli_configs_file_without_nodes_names_the_flag(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fake_root: Path
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _crab(monkeypatch, "sbatchman-preset", "--configs-file", "--system", "leonardo")
+    out = capsys.readouterr()
+
+    assert exc.value.code not in (0, None)
+    assert out.out == ""
+    assert "--nodes" in out.err
+
+
+def test_the_cli_help_lists_the_configs_file_flag(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exc:
+        _crab(monkeypatch, "sbatchman-preset", "--help")
+    out = capsys.readouterr()
+
+    assert exc.value.code == 0
+    assert "--configs-file" in out.out

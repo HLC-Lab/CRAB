@@ -407,7 +407,10 @@ def cli_router():
     # 7. SbatchMan preset printer
     parser_preset = subparsers.add_parser(
         "sbatchman-preset",
-        help="Print the `sbatchman configure slurm` command for this CRAB install",
+        help=(
+            "Print the `sbatchman configure slurm` command, "
+            "or a SbatchMan configs file with --configs-file"
+        ),
     )
     parser_preset.add_argument("--name", default="crab_run", help="Preset name.")
     parser_preset.add_argument("--partition", default=None, help="Slurm partition.")
@@ -416,7 +419,11 @@ def cli_router():
         "--qos", default=None, help="Slurm QoS (the line is left out without it)."
     )
     parser_preset.add_argument("--time", default=None, help="Walltime of each job, hh:mm:ss.")
-    parser_preset.add_argument("--nodes", default=None, help="Nodes per job.")
+    parser_preset.add_argument(
+        "--nodes",
+        default=None,
+        help="Nodes per job; with --configs-file a comma-separated list such as 4,8,16.",
+    )
     parser_preset.add_argument(
         "--tasks-per-node", dest="tasks_per_node", default=None, help="Ranks per node."
     )
@@ -432,6 +439,12 @@ def cli_router():
         dest="cpu_bind",
         default=None,
         help="Add SLURM_CPU_BIND=<value> (for example cores) to the job environment.",
+    )
+    parser_preset.add_argument(
+        "--configs-file",
+        dest="configs_file",
+        action="store_true",
+        help="Print a SbatchMan configs file that sweeps --nodes, instead of the configure command.",
     )
     parser_preset.set_defaults(func=handle_sbatchman_preset)
 
