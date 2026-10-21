@@ -61,6 +61,9 @@ Run an experiment with the preset like any other:
 crab run examples/my_experiment.json -p lab
 ```
 
+The repository's [`examples/local/`](https://github.com/HLC-Lab/CRAB/tree/master/examples/local)
+holds two configs that run with the shipped `local` preset, for a first try on a laptop.
+
 The job starts in the background and `crab run` returns, as it does after an `sbatch`. The job
 survives the end of your shell. Its output files are the same as on a cluster, and its two log
 files are named like Slurm's, `slurm_output.log` and `slurm_error.log`, in the run's data

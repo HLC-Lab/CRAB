@@ -76,7 +76,7 @@ applications in sequence within one experiment.
 ```
 
 Here app 1 starts when app 0 ends, and app 2 when app 1 ends — a message-size sweep run one after
-another. (This is the shape used in `examples/lorenzo/cong_analysis.json`.)
+another. (This is the shape used in `examples/blink-congestion-analysis/incast_burst_grid.json`.)
 
 All three run on the same nodes: a chained app reuses the nodes of the app it waits for, so only
 app 0 takes a share of the allocation. To start an app when another one ends but on **other**
@@ -234,9 +234,11 @@ if you need narrower intervals. See [Convergence](../glossary.md#convergence).
 
 ## Browse real examples
 
-The `examples/` directory has working configs per system (`examples/leonardo/`, `examples/local/`,
-`examples/cluster_di/`, `examples/lorenzo/`) covering baselines, interleaved tests, sequential
-sweeps, and aggressor mixes — a good starting point to copy and adapt. Representative examples:
+The `examples/` directory has working configs per system (`examples/local/`, `examples/cluster_di/`,
+`examples/leonardo/`, `examples/blink-congestion-analysis/`) covering baselines, interleaved tests,
+sequential sweeps, and aggressor mixes — a good starting point to copy and adapt. The
+[examples guide](https://github.com/HLC-Lab/CRAB/tree/master/examples) says in which order to
+read them, which one runs on a laptop, and how to adapt one to your cluster. Representative examples:
 
 - `examples/leonardo/congestion/noise_heatmap.json` — A2A victim-vs-aggressor sweep across message
   sizes and noise intensities (partitioned allocation).

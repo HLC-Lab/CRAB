@@ -63,7 +63,7 @@ src/crab/
 
 wrappers/         # application wrappers: a separate git-ignored clone of HLC-Lab/crab-wrappers
 local/            # git-ignored, per machine: presets.json, receipts/, wrappers/
-examples/         # sample experiment configs per system
+examples/         # sample experiment configs per system, each folder with a README
 ```
 
 The most important thing to understand before changing the core is the **two-phase orchestrator /

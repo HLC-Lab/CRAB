@@ -1,17 +1,17 @@
 {
     "schema_version": 2,
     "global_options": {
-        "name": "cong",
+        "name": "incast_burst_grid",
         "numnodes": "8",
         "ppn": "1",
         "minruns": "1",
         "maxruns": "1",
         "timeout": "1200.0",
         "outformat": "csv",
-        "extrainfo": "cong_analysis",
+        "extrainfo": "incast_burst_grid",
         "sbatch_directives": {
             "time": "00:20:00",
-            "job-name": "crab_cong_analysis",
+            "job-name": "crab_incast_burst_grid",
             "exclusive": true
         },
         "allocation": {

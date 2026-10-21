@@ -27,6 +27,10 @@ Example:
 crab run examples/leonardo/congestion/noise_heatmap.json -p leonardo --log-level DEBUG
 ```
 
+To check a config without submitting it, run `crab validate <config.json> -p <preset>`. The
+[examples](https://github.com/HLC-Lab/CRAB/tree/master/examples) hold configs you can run as they
+are or adapt, starting with one that runs on a laptop.
+
 **What happens:** the [orchestrator](../glossary.md#orchestrator) prepares a timestamped output
 directory, writes the resolved `config.json` and `environment.json` into it, generates a
 `crab_job.sh` batch script, and submits it: with `sbatch` under a Slurm preset, or as a detached

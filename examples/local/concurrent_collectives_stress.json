@@ -3,7 +3,7 @@
     "global_options": {
         "name": "concurrent_collectives_stress",
         "numnodes": "1",
-        "ppn": "1",
+        "ppn": "2",
         "minruns": "5",
         "maxruns": "10",
         "timeout": "1800.0",
@@ -15,35 +15,31 @@
     },
     "experiments": {
         "01_concurrent_collectives_stress": {
-            "description": "Concurrent A2A, Barrier, and Ring stress test on local nodes.",
+            "description": "An all-to-all and a ring measured while a barrier loop runs on the same machine.",
             "apps": {
                 "0": {
                     "path": "blink/alltoall/alltoall_b.py",
-                    "args": "-msgsize 67108864 -iter 1000 -grty 1",
+                    "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "cpus": "0-1"
                 },
                 "1": {
-                    "path": "blink/alltoall/alltoall_b.py",
-                    "args": "-msgsize 67108864 -iter 500 -grty 1",
+                    "path": "blink/ring/ring_nb.py",
+                    "args": "-msgsize 1048576 -iter 200",
                     "collect": true,
                     "start": "0",
-                    "end": ""
+                    "end": "",
+                    "cpus": "2-3"
                 },
                 "2": {
                     "path": "blink/barrier/barrier_b.py",
-                    "args": "-iter 5000",
+                    "args": "-endl",
                     "collect": false,
                     "start": "0",
-                    "end": "f"
-                },
-                "3": {
-                    "path": "blink/ring/ring_nb.py",
-                    "args": "-msgsize 33554432 -iter 1000",
-                    "collect": true,
-                    "start": "0",
-                    "end": ""
+                    "end": "f",
+                    "cpus": "4-5"
                 }
             }
         }

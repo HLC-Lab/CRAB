@@ -190,7 +190,8 @@ interference. From here:
   plus delayed and timed aggressors). `examples/leonardo/congestion/noise_heatmap.json` sweeps
   message sizes against light, medium and heavy noise.
   `examples/leonardo/congestion/layout_effect.json` isolates the effect of node placement.
-  All three are natural next reads.
+  All three are natural next reads. The [examples guide](https://github.com/HLC-Lab/CRAB/tree/master/examples)
+  lists every example in reading order.
 - **Vary placement** — try `mode: "interleaved"` in the `allocation` block to make victim and
   aggressor share the fabric more aggressively. See
   [Writing experiment configs](using/writing-configs.md#choosing-an-allocation-mode).
