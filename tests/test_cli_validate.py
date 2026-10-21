@@ -21,6 +21,17 @@ LOADER = "crab.cli.orchestrator.load_environment_config"
 EXAMPLE = Path(__file__).parent.parent / "examples" / "local" / "sequential_barrier.json"
 
 
+@pytest.fixture(autouse=True)
+def _wrapper_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The wrappers the configs below name, in a folder of their own as the search path."""
+    folder = tmp_path / "wrapper-folder"
+    for name in ("a.py", "blink/barrier/barrier_b.py"):
+        (folder / name).parent.mkdir(parents=True, exist_ok=True)
+        (folder / name).write_text("class app: pass\n")
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(folder))
+    return folder
+
+
 def _crab(monkeypatch: pytest.MonkeyPatch, *args: str) -> None:
     monkeypatch.setattr(sys, "argv", ["crab", "validate", *args])
     cli_router()
@@ -216,3 +227,94 @@ def test_validate_never_loads_a_scheduler(
         _crab(monkeypatch, str(EXAMPLE))
 
     run.assert_not_called()
+
+
+def _stale_config(tmp_path: Path) -> str:
+    config = _experiment(numnodes="2")
+    config["experiments"]["e1"]["apps"] = {
+        "0": {"path": "blink/a2a_b.py"},
+        "1": {"path": "blink/bursty_noise_incast.py"},
+    }
+    return _config(tmp_path, config)
+
+
+def test_a_renamed_wrapper_is_an_error_with_the_new_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _stale_config(tmp_path)
+
+    with pytest.raises(SystemExit) as exit_info:
+        _crab(monkeypatch, path)
+
+    err = capsys.readouterr().err
+    assert exit_info.value.code == 1
+    assert "crab: wrapper blink/a2a_b.py not found on the wrapper search path (" in err
+    assert "blink/alltoall/alltoall_b.py" in err
+    assert "blink/incast/incast_nb.py" in err
+
+
+def test_json_lists_one_wrapper_error_per_missing_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _stale_config(tmp_path)
+
+    with pytest.raises(SystemExit):
+        _crab(monkeypatch, path, "--json")
+
+    report = json.loads(capsys.readouterr().out)
+    assert report["ok"] is False
+    assert len(report["errors"]) == 2
+    assert "blink/alltoall/alltoall_b.py" in report["errors"][0]
+
+
+def test_a_placeholder_path_is_not_checked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = _experiment()
+    config["experiments"]["e1"]["apps"] = {"0": {"path": "blink/{name}.py"}}
+    path = _config(tmp_path, config)
+
+    _crab(monkeypatch, path)
+
+    assert capsys.readouterr().out == f"ok: {path}\n"
+
+
+def test_validate_file_names_the_new_home_when_it_exists_on_the_search_path(
+    tmp_path: Path, _wrapper_folder: Path
+) -> None:
+    from crab.cli.validate import validate_file
+
+    new_home = _wrapper_folder / "blink" / "alltoall" / "alltoall_b.py"
+    new_home.parent.mkdir(parents=True)
+    new_home.write_text("class app: pass\n")
+    config = _experiment()
+    config["experiments"]["e1"]["apps"] = {"0": {"path": "blink/a2a_b.py"}}
+
+    errors, warnings = validate_file(_config(tmp_path, config))
+
+    assert len(errors) == 1 and "blink/alltoall/alltoall_b.py" in errors[0]
+    assert warnings == []
+    assert validate_file(str(EXAMPLE)) == ([], [])
+
+
+def test_a_preset_env_wrapper_folder_applies_with_the_preset_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`crab run -p` searches the preset's CRAB_PATH_WRAPPERS; so must `crab validate -p`."""
+    from crab.cli.validate import validate_file
+
+    preset_folder = tmp_path / "preset-wrappers"
+    (preset_folder / "blink").mkdir(parents=True)
+    (preset_folder / "blink" / "only_here.py").write_text("class app: pass\n")
+    config = _experiment(numnodes="2")
+    config["experiments"]["e1"]["apps"] = {"0": {"path": "blink/only_here.py"}}
+    path = _config(tmp_path, config)
+    preset = {**_local_preset(["n0:4", "n1:4"]), "env": {"CRAB_PATH_WRAPPERS": str(preset_folder)}}
+
+    with patch(LOADER, return_value=preset):
+        with_preset = validate_file(path, "lab")
+    without_preset = validate_file(path)
+
+    assert with_preset == ([], [])
+    assert len(without_preset[0]) == 1
+    assert "wrapper blink/only_here.py not found" in without_preset[0][0]
