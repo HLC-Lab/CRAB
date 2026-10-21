@@ -328,6 +328,12 @@ def execute_orchestrator(
                 "(use -p local to run without Slurm)."
             )
 
+        if not as_json:
+            # A pip install has no wrappers until now; --json (the dashboard) never waits on it.
+            from crab.cli import wrappers_clone
+
+            wrappers_clone.ensure_wrappers_clone(logger.info)
+
         logger.info(f"Loading preset '{selected_preset}'")
 
         preset_config = load_environment_config(selected_preset)

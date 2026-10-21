@@ -111,9 +111,20 @@ def handle_receipts_set(args: argparse.Namespace) -> None:
         print(f"Saved receipt {args.id!r}: {args.binary}")
 
 
+def _ensure_wrappers(args: argparse.Namespace) -> None:
+    """Clone the wrappers on first use for an installed CRAB, except for a `--json` call."""
+    if getattr(args, "json", False):
+        return
+    from crab.cli import wrappers_clone
+
+    wrappers_clone.ensure_wrappers_clone(print)
+
+
 def handle_wrappers_list(args: argparse.Namespace) -> None:
     from crab.cli import contract
     from crab.cli.wrappers_catalog import gather_wrappers
+
+    _ensure_wrappers(args)
 
     def human(data: dict[str, Any]) -> None:
         print("Search path: " + " > ".join(data["search_path"]))
@@ -176,6 +187,7 @@ def handle_wrappers_show(args: argparse.Namespace) -> None:
 def handle_wrappers_test(args: argparse.Namespace) -> None:
     from crab.cli.wrappers_catalog import run_samples
 
+    _ensure_wrappers(args)
     try:
         results = run_samples(args.apps or None, args.strict)
     except LookupError as exc:
@@ -192,6 +204,7 @@ def handle_wrappers_new(args: argparse.Namespace) -> None:
     from crab.cli.wrappers_catalog import scaffold
     from crab.core.wrapper_paths import wrapper_search_path
 
+    _ensure_wrappers(args)
     search = wrapper_search_path()
     target = Path(args.dir or (search[0] if args.local else search[1]))
     try:

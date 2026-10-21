@@ -7,9 +7,11 @@ holds only leftovers of the old tracked folder, and left alone when it holds any
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -174,6 +176,52 @@ def update_wrappers_clone(
     new = git(wrappers_dir, "rev-parse", "HEAD")
     action = "updated" if new != old else "up to date"
     return {**entry, "action": action, "old": old[:12], "new": new[:12]}
+
+
+def _missing_or_leftovers(wrappers_dir: Path) -> bool:
+    """True when `wrappers_dir` is absent, or an empty folder or one holding only leftovers."""
+    if wrappers_dir.is_symlink():
+        return False
+    if not wrappers_dir.exists():
+        return True
+    if not wrappers_dir.is_dir() or is_repo_root(wrappers_dir):
+        return False
+    try:
+        return all(_is_leftover(child) for child in wrappers_dir.iterdir())
+    except OSError:
+        return False
+
+
+def ensure_wrappers_clone(announce: Callable[[str], None]) -> None:
+    """Clone crab-wrappers into the shared wrappers folder the first time a pip install needs it.
+
+    Acts only for an installed CRAB (not a checkout) with CRAB_PATH_WRAPPERS unset and the shared
+    folder (`<crab home>/wrappers`) missing or holding only leftovers; anything else returns at
+    once. It says so through `announce`, clones at the tag of this CRAB's version (the default
+    branch when that tag does not exist), and on any failure (no git, offline) announces the
+    missing-wrappers hint and returns: the caller goes on without wrappers.
+
+    Callers skip it for `--json` calls and the worker, which need clean stdout and a short run.
+    """
+    import crab
+    from crab import paths
+    from crab.core import wrapper_paths
+
+    if paths.is_checkout() or os.environ.get("CRAB_PATH_WRAPPERS"):
+        return
+    wrappers_dir = Path(wrapper_paths.wrapper_search_path()[1])
+    if not _missing_or_leftovers(wrappers_dir):
+        return
+    announce(f"Cloning the CRAB wrappers into {wrappers_dir} (first use)")
+    try:
+        update_wrappers_clone(
+            Path(wrapper_paths._CRAB_ROOT),
+            wrappers_dir,
+            WRAPPERS_REPO_URL,
+            tag=f"v{crab.__version__}",
+        )
+    except (GitError, OSError) as exc:
+        announce(f"{wrapper_paths.missing_wrappers_hint()} ({_without_credentials(str(exc))})")
 
 
 def _without_credentials(text: str) -> str:
