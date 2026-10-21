@@ -260,6 +260,8 @@ example:
 - `<experiment> · app #0: wrapper path is required.`
 - `<experiment> · app #1: "after" must reference another app.`
 - `<experiment> · app #0: partition "<name>" is not a defined node group.`
+- `<experiment> · app #0: wrapper <path> is not on <cluster>.` (once the chosen cluster's wrapper
+  list has loaded; absolute paths and `{name}` placeholders are not checked)
 
 These messages do not block anything. **Save** works with them open, and the cluster checks the
 config again when you submit. When the server sees a shape problem on save, it saves anyway and

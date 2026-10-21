@@ -8,6 +8,28 @@ All notable changes to CRAB are listed here, newest first. The format follows
 Each release `vX.Y.Z` also has a `vX.Y.Z+sbatchman` tag for the SbatchMan partner line. This file
 lists the product line only.
 
+## [1.1.0] - Unreleased
+
+### Changed
+
+- `crab validate` and `crab run` refuse an app whose wrapper `path` is not on the wrapper search
+  path, before anything is submitted. Before, the job started and failed inside its first run with
+  `Wrapper not found`. For a Blink wrapper renamed in 1.0 (for example `blink/a2a_b.py`) the
+  message names the new path. For the removed `bursty_noise` wrappers it names the replacement and
+  the flags to use. A `CRAB_PATH_WRAPPERS` set in the preset's `env` is honored (`crab validate`
+  needs `-p` to see it), and `crab worker` gives the same rename message.
+- The dashboard's Author view lists a wrapper the selected cluster does not have
+  (`wrapper <path> is not on <cluster>.`) once that cluster's wrapper list has loaded.
+- crab-wrappers 1.1.0 lets the gpubench wrappers be listed without `CRAB_SYSTEM` set.
+
+### Fixed
+
+- A binary path from a receipt or from a wrapper's built-in default counts only when every path in
+  it exists. Before, `crab wrappers list` showed `receipt` for programs that were never built, and
+  a run failed on the missing file. Now the lookup goes on to the wrapper's `executable` on `PATH`,
+  and when that fails too, the missing-binary error names the absent path. The app's `binary` key
+  in the config still wins even when the file is absent.
+
 ## [1.0.0] - 2026-10-21
 
 ### Read before upgrading

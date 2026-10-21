@@ -19,8 +19,10 @@ config against the preset (scheduler, launcher, number of hosts). It exits 1 and
 problem to stderr, or prints `ok: <file>` followed by the warnings. See
 [`crab validate`](../reference/cli.md#crab-validate).
 
-It does not check that wrapper files, binaries or receipts exist, and it does not ask Slurm about
-your account or partition. Those problems appear when the job starts, in the entries below.
+It checks that each app's wrapper `path` names a file on this machine's wrapper search path (see
+[a wrapper not on the search path](#wrapper-not-found-on-the-wrapper-search-path)). It does not
+check that binaries or receipts exist, and it does not ask Slurm about your account or partition.
+Those problems appear when the job starts, in the entries below.
 
 ## Where to look when a job fails
 
@@ -52,6 +54,36 @@ git and network access on that machine; a pip install tries the clone itself on 
 says `Cloning the CRAB wrappers into <folder> (first use)`. If you set `CRAB_PATH_WRAPPERS`, CRAB
 does not print the hint, because you chose the folders yourself.
 
+### "wrapper <path> not found on the wrapper search path"
+
+```text
+wrapper <path> not found on the wrapper search path (<folder>, <folder>)
+```
+
+`crab validate` prints this as an error, and `crab run` stops with it before it submits anything,
+when an app's `path` names no file on the wrapper search path. The folders in parentheses are the
+search path as this machine sees it: `local/wrappers/` first, then each folder of
+`CRAB_PATH_WRAPPERS`, or `wrappers/` when that variable is unset. A path that is still an old
+Blink name gets a second sentence with the fix:
+
+```text
+wrapper <path> was renamed to <new path>: update the config
+wrapper <path> was removed: use <replacement> with the burst flags (...); set "collect": false, "end": "f" for the app
+```
+
+Change `path` in the config to the new one. The removed `bursty_noise` wrappers are replaced by
+the non-blocking `alltoall` and `incast` wrappers with burst flags, as the message spells out. For
+any other path, check it against `crab wrappers list`. When `wrappers/` is missing, the message
+ends with the hint from the entry above.
+
+The check uses this machine's search path, and a `CRAB_PATH_WRAPPERS` set in the preset's `env`
+replaces the one in your shell, as it does in the job. `crab validate` sees the preset's `env`
+only with `-p`. If the wrappers are on the cluster and not on this machine, validate there, or run
+`crab update` (or `crab wrappers pull` on a pip install) to get the wrappers. A path with a
+`{name}` placeholder is skipped, because it is known only when the sweep expands. `crab worker`
+does not run this check up front, but it gives the same rename message when it reaches the
+wrapper.
+
 ### "Wrapper not found" for a relative path
 
 ```text
@@ -61,8 +93,10 @@ Wrapper not found: <path>
 A relative `path` in an app is looked up in `local/wrappers/` (`~/.config/crab/wrappers` on a pip
 install), then in each folder of `CRAB_PATH_WRAPPERS`, or in `wrappers/` when that variable is
 unset. If nothing matches, the message shows the path the lookup fell back to: under the first
-`CRAB_PATH_WRAPPERS` folder when that is set, else relative to the worker's working directory. It
-appears in the job's logs, not at submit time.
+`CRAB_PATH_WRAPPERS` folder when that is set, else relative to the worker's working directory.
+`crab validate` and `crab run` catch a wrong path before they submit (see the entry above), so this
+message appears in a job's logs only when the wrappers differ between the submitting machine and
+the compute node.
 
 Check the path against `crab wrappers list`, which prints every wrapper CRAB can see with its path
 relative to the wrappers folders. Paths are relative to the folder, such as
@@ -97,6 +131,18 @@ note that it declares none). Fix one of them:
 
 `crab wrappers list` shows, for each wrapper, which of the three sources gives its binary, or
 `missing`.
+
+A receipt, or a default path built into the wrapper, counts only when the file exists. When it
+does not, the second item of the message names the path:
+
+```text
+No binary for <module> (app <n>). Tried: the app's 'binary' key in the config; receipt or wrapper default '<path>' (does not exist); '<executable>' on PATH.
+```
+
+The program was never built there, or was moved or deleted. Build it (`crab setup`), point the
+receipt at the real file with `crab receipts set <id> --binary <path>`, or set the app's `binary`
+key. A wrapper with no such path says `receipt '<id>'` or `no receipt (the wrapper has no
+benchmark_id)` in that place instead.
 
 ### A receipt that cannot be read
 
