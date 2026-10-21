@@ -72,7 +72,7 @@ def test_default_plan_is_clean_and_hardcoded():
     blob = " ".join(s.command for s in steps)
     # Repo + branch + structure are fixed; the remote path is honoured.
     assert CRAB_REPO_URL in blob and CRAB_REPO_BRANCH in blob
-    assert "--branch develop " in blob  # the product line, not the old feature branch
+    assert "--branch sbatchman " in blob  # the partner line installs itself, not develop
     assert "git clone" in blob and "make venv" in blob and "pip install -e ." in blob
     assert '"$HOME"/CRAB' in blob  # ~ expanded
     # After installing, move to the newest release of the branch's line (stays put if none).
