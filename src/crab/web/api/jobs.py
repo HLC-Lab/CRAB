@@ -1,9 +1,9 @@
-"""``/api/jobs`` — submit an authored config to a connected cluster, then
+"""``/api/jobs``: submit an authored config to a connected cluster, then
 monitor/cancel/read logs for it.
 
 The local job registry (``store/jobs.py``) only records what the dashboard
 itself submitted (cluster, Slurm job id, data_dir, a config snapshot); live
-state always comes from a fresh ``crab status``/``crab logs --json`` call —
+state always comes from a fresh ``crab status``/``crab logs --json`` call:
 this module never assumes a job's state without asking the cluster.
 """
 
@@ -39,7 +39,7 @@ from crab.web.trackers import ExpiringTracker
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
-# States that will never change again — jobs in one of these are never
+# States that will never change again: jobs in one of these are never
 # re-polled. Anything else (including our own "UNKNOWN") is treated as active.
 # Slurm's terminal states plus the local scheduler's LOST (supervisor gone
 # without a final state).
@@ -104,7 +104,7 @@ async def _live_or_cached(
     """Try `fetch()` live; on disconnect/command failure, fall back to the local cache.
 
     `ttl_seconds` (default 0, meaning always live) lets a caller reuse a very
-    recent live result instead of paying a second SSH round-trip — e.g. the
+    recent live result instead of paying a second SSH round-trip: e.g. the
     Results picker and a job's own experiment-status query both read the same
     cluster's `crab history` moments apart. A hit within `ttl_seconds` is
     returned as fresh (`stale=False`), not as the disconnected-fallback case.
@@ -142,7 +142,7 @@ def _manager(request: Request) -> ConnectionManager:
 def _live_transport(profile_name: str, request: Request) -> Transport:
     """The profile's existing live transport, or a clean error if not connected.
 
-    No implicit reconnect — the user must have connected the cluster first.
+    No implicit reconnect: the user must have connected the cluster first.
     """
     transport = _manager(request).get(profile_name)
     if transport is None:
@@ -229,7 +229,7 @@ async def submit_job(body: SubmitRequest, request: Request) -> SubmissionAccepte
 
     Everything that can fail instantly (profile exists, connected, config
     resolves, a preset is chosen) still happens before responding, same as
-    before — only the SSH round-trip (staging + `crab run`) moves off the
+    before: only the SSH round-trip (staging + `crab run`) moves off the
     request cycle, since that's what used to make a submit or rerun feel like
     it hung with no feedback.
     """
@@ -321,14 +321,14 @@ async def _resolve_via_history(
     """Cross-check `crab history` against a job's actual per-experiment outcomes.
 
     Used two ways: (1) squeue/sacct report UNKNOWN (accounting purged), or
-    (2) squeue/sacct report a fresh COMPLETED — engine.py's `_run_worker`
+    (2) squeue/sacct report a fresh COMPLETED: engine.py's `_run_worker`
     catches each experiment's exception and keeps going, so the Slurm job can
     exit 0 while an experiment inside it genuinely failed. Both cases need the
     same worst-first read: a job's data_dir can hold several experiments; their
     metadata.csv rows all share `./<basename(data_dir)>/` as their
     relative_path prefix (`core/experiment/runner.py::_write_to_registry`).
     Returns the worst matching status, or None if nothing matches (still
-    genuinely unknown/clean — never guessed).
+    genuinely unknown/clean: never guessed).
     """
     history = await run_crab_json(
         transport, profile, ["history", "-s", record.system, "--json"], timeout=timeout
@@ -590,14 +590,14 @@ async def job_experiments(record_id: str, request: Request) -> JobDetail:
 async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
     """Every experiment ever run under `config_name`, across every connected cluster.
 
-    Sourced from `crab history --json` (authoritative — matches manual runs too,
+    Sourced from `crab history --json` (authoritative: matches manual runs too,
     not only ones submitted through this dashboard), then joined against the
     local job registry just for submit metadata (job id, submitted_at). A
     disconnected cluster is skipped and named in `clusters_skipped` rather than
     silently omitted, same convention as `list_jobs`'s `connected` flag. A
     disconnected cluster with a prior cached fetch falls back to it instead of
     being skipped, named in `clusters_stale` rather than
-    `clusters_skipped` — the caller can still tell the two cases apart.
+    `clusters_skipped`: the caller can still tell the two cases apart.
     """
     records_by_cluster: dict[str, dict[str, JobRecord]] = {}
     for rec in _jobs_store(request).list():

@@ -16,8 +16,9 @@ if TYPE_CHECKING:
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
-# Walk up: cli -> crab -> src -> CRAB_ROOT
-CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+from crab import paths  # noqa: E402 -- must follow the sys.path setup above
+
+CRAB_ROOT = str(paths.crab_home())
 
 import crab.setup.memory as memory  # noqa: E402 -- must follow the sys.path setup above
 
@@ -35,19 +36,21 @@ def load_environment_config(preset_arg: str, crab_root: str | Path | None = None
         ValueError: `_common` holds an execution field, the preset's execution fields are invalid, or a dropped `CRAB_*` launch key
             is in `env` (the preset's or `_common`'s).
     """
-    from crab.cli.presets import LOCAL_PRESETS, SHIPPED_PRESETS, load_all_presets
+    from crab.cli.presets import load_all_presets, preset_locations
     from crab.core.execution.settings import from_preset
 
     root = str(crab_root) if crab_root is not None else CRAB_ROOT
     try:
         all_presets = load_all_presets(Path(root))
     except FileNotFoundError:
-        shipped = os.path.join(root, SHIPPED_PRESETS)
+        shipped = preset_locations(Path(root))[0]
         raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
 
     if preset_arg not in all_presets:
+        shipped, user, local = preset_locations(Path(root))
         raise KeyError(
-            f"The preset '{preset_arg}' was not found in {SHIPPED_PRESETS} or {LOCAL_PRESETS}."
+            f"The preset '{preset_arg}' was not found in {shipped} (shipped), {user} (user) "
+            f"or {local} (local)."
         )
 
     # Carica _common e il preset specifico
@@ -67,18 +70,18 @@ def load_environment_config(preset_arg: str, crab_root: str | Path | None = None
     # Parsed before CRAB_SYSTEM is added, so a dropped key in `_common` is caught too.
     settings = from_preset({**target_preset, "env": final_env}, preset_arg)
 
-    # Assicuriamo che CRAB_SYSTEM sia impostato
+    # Make sure CRAB_SYSTEM is set
     if "CRAB_SYSTEM" not in final_env:
         final_env["CRAB_SYSTEM"] = preset_arg
 
     # 2. Merge SBATCH directives (List extend)
-    # L'ordine è: Common -> Preset. (Engine poi aggiungerà Experiment overrides)
+    # Order: Common -> Preset. (The engine then adds the experiment overrides.)
     final_sbatch = common_preset.get("sbatch", []) + target_preset.get("sbatch", [])
 
     # 3. Merge Header commands (List extend)
     final_header = common_preset.get("header", []) + target_preset.get("header", [])
 
-    # Restituiamo una struttura configurata completa
+    # Return the fully merged configuration
     return {
         "env": final_env,
         "sbatch": final_sbatch,
@@ -275,6 +278,9 @@ def execute_worker(work_dir: str, log_level_str: str = None):
 
         stop_all_registered(logger)
         sys.exit(143)
+    except memory.ReceiptError as e:
+        logger.critical(str(e))
+        sys.exit(1)
     except Exception as e:
         logger.critical(f"Worker fatal error: {e}")
         import traceback
@@ -325,6 +331,12 @@ def execute_orchestrator(
                 "(use -p local to run without Slurm)."
             )
 
+        if not as_json:
+            # A pip install has no wrappers until now; --json (the dashboard) never waits on it.
+            from crab.cli import wrappers_clone
+
+            wrappers_clone.ensure_wrappers_clone(logger.info)
+
         logger.info(f"Loading preset '{selected_preset}'")
 
         preset_config = load_environment_config(selected_preset)
@@ -363,7 +375,9 @@ def execute_orchestrator(
             settings=preset_config["settings"],
         )
 
-        logger.info("Orchestration complete — job submitted to SLURM")
+        local = preset_config["settings"].scheduler == "local"
+        scheduler_name = "the local scheduler" if local else "Slurm"
+        logger.info(f"Orchestration complete: job submitted to {scheduler_name}")
 
         if as_json:
             print(json.dumps(result or {}, indent=2))
@@ -373,6 +387,9 @@ def execute_orchestrator(
     except KeyboardInterrupt:
         logger.warning("Orchestrator interrupted by user")
         sys.exit(130)
+    except memory.ReceiptError as e:
+        logger.critical(str(e))
+        sys.exit(1)
     except Exception as e:
         logger.critical(f"Orchestrator fatal error: {e}")
         import traceback

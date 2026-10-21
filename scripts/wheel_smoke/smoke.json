@@ -1,0 +1,28 @@
+{
+    "schema_version": 2,
+    "global_options": {
+        "name": "wheel_smoke",
+        "numnodes": "1",
+        "ppn": "1",
+        "minruns": "1",
+        "maxruns": "1",
+        "timeout": "60.0",
+        "convergeall": true,
+        "outformat": "csv",
+        "extrainfo": "wheel_smoke"
+    },
+    "experiments": {
+        "01_smoke": {
+            "description": "One run of the fixture wrapper, which just echoes its arguments.",
+            "apps": {
+                "0": {
+                    "path": "fixture/path_app.py",
+                    "args": "1 2 3",
+                    "collect": true,
+                    "start": "0",
+                    "end": ""
+                }
+            }
+        }
+    }
+}

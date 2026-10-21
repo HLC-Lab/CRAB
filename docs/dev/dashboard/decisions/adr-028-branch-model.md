@@ -3,6 +3,8 @@
 - **Date:** 2026-09-24
 - **Status:** accepted
 
+**Amendment (2026-10-21):** the product line is renamed `develop` (it was `feature/web-dashboard`); partner branches merge down from `develop`.
+
 ## Context
 
 ADR-026 moved the SbatchMan campaign work onto its own `sbatchman` branch. Over the following

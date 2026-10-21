@@ -1,9 +1,9 @@
-"""``/api/remotes`` — manage cluster profiles and live connections.
+"""``/api/remotes``: manage cluster profiles and live connections.
 
 Connecting opens (or reuses) the SSH/local transport and checks for CRAB with
 ``crab info --json``, so the UI gets the remote's version and presets in one
 round-trip. A missing CRAB is reported as ``crab_installed: false`` (an expected
-state that the UI turns into a guided install), not an error — only a real
+state that the UI turns into a guided install), not an error: only a real
 SSH/auth/connection failure surfaces as the error envelope.
 """
 
@@ -65,7 +65,7 @@ async def update_remote(name: str, profile: Profile, request: Request) -> Profil
     store = _store(request)
     if profile.name != name:
         # Renaming: the new name must be free, and any live connection is keyed
-        # by the old name — close it so it can't linger unreachable.
+        # by the old name: close it so it can't linger unreachable.
         if any(p.name == profile.name for p in store.list()):
             raise ConflictError(f"A profile named {profile.name!r} already exists.")
         updated = store.update(name, profile)

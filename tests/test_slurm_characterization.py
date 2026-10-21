@@ -36,20 +36,26 @@ _FIXED_CRAB = "/opt/crab/bin/crab"
 # --------------------------------------------------------------------------- #
 @pytest.fixture
 def crab_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """An empty checkout root. CRAB_ROOT is the one module attribute patched: the `source`
-    line of the job script depends on it. Add `.venv/bin/activate` to get that line."""
+    """An empty checkout root, running outside any venv (`sys.prefix == sys.base_prefix`). The
+    `source` line of the job script depends on the running interpreter's venv: call `_add_venv`
+    to get that line."""
     root = tmp_path / "root"
     root.mkdir()
     monkeypatch.setattr(engine_module, "CRAB_ROOT", str(root))
     monkeypatch.setattr(sys, "executable", _FIXED_PYTHON)
     monkeypatch.setattr(sys, "argv", [_FIXED_CRAB])
+    monkeypatch.setattr(sys, "base_prefix", "/opt/base-python")
+    monkeypatch.setattr(sys, "prefix", "/opt/base-python")
     return root
 
 
-def _add_venv(root: Path) -> None:
-    activate = root / ".venv" / "bin" / "activate"
-    activate.parent.mkdir(parents=True)
-    activate.write_text("")
+def _add_venv(prefix: Path, monkeypatch: pytest.MonkeyPatch, *, activate: bool = True) -> None:
+    """Run inside the venv at `prefix` (`sys.prefix` moves there); `activate` writes its script."""
+    if activate:
+        script = prefix / "bin" / "activate"
+        script.parent.mkdir(parents=True)
+        script.write_text("")
+    monkeypatch.setattr(sys, "prefix", str(prefix))
 
 
 class _FakeSbatch:
@@ -129,8 +135,8 @@ def test_script_defaults_without_extrainfo_walltime_or_ppn(tmp_path, crab_root, 
     )
 
 
-def test_script_preset_defaults_venv_and_system_header(tmp_path, crab_root, sbatch):
-    _add_venv(crab_root)
+def test_script_preset_defaults_venv_and_system_header(tmp_path, crab_root, sbatch, monkeypatch):
+    _add_venv(crab_root / ".venv", monkeypatch)
     _, script = _submit(
         tmp_path,
         crab_root,
@@ -159,6 +165,36 @@ def test_script_preset_defaults_venv_and_system_header(tmp_path, crab_root, sbat
         "module load openmpi\n"
         "\n" + _WORKER_LINE
     )
+
+
+def test_script_has_no_source_line_outside_a_venv(tmp_path, crab_root, sbatch, monkeypatch):
+    # A `<root>/.venv` exists, but the interpreter is not running from a venv.
+    script_file = crab_root / ".venv" / "bin" / "activate"
+    script_file.parent.mkdir(parents=True)
+    script_file.write_text("")
+    _, script = _submit(tmp_path, crab_root, numnodes=1)
+    assert "source" not in script
+    assert ".venv" not in script
+
+
+def test_script_ignores_an_unrelated_root_venv(tmp_path, crab_root, sbatch, monkeypatch):
+    # The checkout root holds a `.venv`, but the running interpreter lives in another venv.
+    root_activate = crab_root / ".venv" / "bin" / "activate"
+    root_activate.parent.mkdir(parents=True)
+    root_activate.write_text("")
+    pipx = tmp_path / "pipx" / "crab-hpc"
+    _add_venv(pipx, monkeypatch)
+    _, script = _submit(tmp_path, crab_root, numnodes=1)
+    assert f"\nsource {pipx}/bin/activate\n" in script
+    assert "<ROOT>" not in script
+
+
+def test_script_has_no_source_line_when_the_venv_has_no_activate(
+    tmp_path, crab_root, sbatch, monkeypatch
+):
+    _add_venv(tmp_path / "bare-venv", monkeypatch, activate=False)
+    _, script = _submit(tmp_path, crab_root, numnodes=1)
+    assert "source" not in script
 
 
 def test_script_user_list_directives_override_preset(tmp_path, crab_root, sbatch):

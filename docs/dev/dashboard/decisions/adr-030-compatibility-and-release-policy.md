@@ -45,12 +45,17 @@ cannot read.
 (`local/receipts/`) and private wrappers live in the git-ignored `local/` folder, so `git pull`
 never conflicts with them. Receipts in the old `config/environments/` folder are still read.
 
+See [ADR-038](adr-038-two-layouts.md): that is the checkout layout; an install keeps these files in
+the user config directory.
+
 **Tags and updates.** Each partner release is tagged `vX.Y.Z` on the product line and
 `vX.Y.Z+sbatchman` on `sbatchman` (the ADR-028 scheme, now used before 1.0 as well). The
 installer will clone the newest tag of its line instead of the branch tip. A `crab update`
 command, added before the first tag, will move an installation to the newest tag of its line,
 reinstall dependencies only when they changed, update the wrappers checkout, and refuse to run
 over local edits to tracked files.
+
+See [ADR-038](adr-038-two-layouts.md): in a `pip` install, `crab update` updates only the wrappers.
 
 ## Alternatives considered
 

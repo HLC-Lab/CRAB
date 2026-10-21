@@ -62,6 +62,7 @@ nav:
   - Concepts:
       - System-dependent vs system-independent: concepts/system-dependent-vs-independent.md
       - Architecture: concepts/architecture.md
+      - Methodology: concepts/methodology.md
   - Tutorial: tutorial.md
   - Using CRAB:
       - Installation & benchmark setup: using/installation.md
@@ -70,7 +71,9 @@ nav:
       - Running an experiment: using/running.md
       - Writing experiment configs: using/writing-configs.md
       - Reading results: using/results.md
+      - The web dashboard: using/dashboard.md
       - Wrappers in the web dashboard: using/dashboard-wrappers.md
+      - Troubleshooting: using/troubleshooting.md
   - Extending CRAB:
       - Overview: extending/overview.md
       - Writing a wrapper: extending/wrappers.md
@@ -83,12 +86,14 @@ nav:
       - Supported benchmarks: reference/supported-benchmarks.md
       - Wrapper & Recipe API: reference/api.md
   - Contributing: contributing.md
+  - Changelog: changelog.md
   - Development:
       - Web dashboard architecture: dev/dashboard/architecture.md
       - Testing & verification: dev/dashboard/testing.md
       - Roadmap: dev/roadmap.md
-      - Roadmap, July 2026 edition: dev/roadmap-2026-07-streams.md
-      - Web dashboard milestones: dev/dashboard/roadmap.md
       - Deferred work: dev/dashboard/deferred.md
       - Decision records: dev/dashboard/decisions/index.md
+      - History:
+          - Roadmap, July 2026 edition: dev/roadmap-2026-07-streams.md
+          - Web dashboard milestones: dev/dashboard/roadmap.md
   - Glossary: glossary.md

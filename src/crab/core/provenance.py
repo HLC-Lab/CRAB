@@ -14,15 +14,14 @@ import subprocess
 from typing import Any
 
 import crab
+from crab import paths
 from crab.core.execution.launcher import dialect
 from crab.core.execution.settings import ExecutionSettings
-from crab.core.wrapper_paths import resolve_wrapper_path
+from crab.core.wrapper_paths import resolve_wrapper_path, wrapper_search_path
 from crab.wrappers.base import base
 
 # Version of the results layout (data_app_<id>.csv, metadata.csv, this file).
 RESULTS_SCHEMA = 1
-
-_CRAB_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 
 def _git(directory: str, *args: str) -> str | None:
@@ -39,8 +38,15 @@ def _git(directory: str, *args: str) -> str | None:
     return result.stdout.strip()
 
 
+def _crab_commit() -> str | None:
+    """The checkout's HEAD; None when installed (no checkout, so no commit to name)."""
+    root = paths.checkout_root()
+    return _git(str(root), "rev-parse", "HEAD") if root is not None else None
+
+
 def _wrappers_dir() -> str:
-    return os.environ.get("CRAB_PATH_WRAPPERS") or os.path.join(_CRAB_ROOT, "wrappers")
+    """The shared wrappers folder: entry 0 of the search path is the private `local/wrappers`."""
+    return wrapper_search_path()[1]
 
 
 def _sha256(path: str) -> str | None:
@@ -94,7 +100,7 @@ def build_provenance(
     provenance: dict[str, Any] = {
         "results_schema": RESULTS_SCHEMA,
         "crab_version": crab.__version__,
-        "crab_commit": _git(_CRAB_ROOT, "rev-parse", "HEAD"),
+        "crab_commit": _crab_commit(),
         "wrapper_api": base.wrapper_api,
         "started": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
         "nodes": list(nodes),

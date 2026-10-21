@@ -384,7 +384,7 @@ export interface paths {
      *
      *     Everything that can fail instantly (profile exists, connected, config
      *     resolves, a preset is chosen) still happens before responding, same as
-     *     before — only the SSH round-trip (staging + `crab run`) moves off the
+     *     before: only the SSH round-trip (staging + `crab run`) moves off the
      *     request cycle, since that's what used to make a submit or rerun feel like
      *     it hung with no feedback.
      */
@@ -520,14 +520,14 @@ export interface paths {
      * Use Case Report
      * @description Every experiment ever run under `config_name`, across every connected cluster.
      *
-     *     Sourced from `crab history --json` (authoritative — matches manual runs too,
+     *     Sourced from `crab history --json` (authoritative: matches manual runs too,
      *     not only ones submitted through this dashboard), then joined against the
      *     local job registry just for submit metadata (job id, submitted_at). A
      *     disconnected cluster is skipped and named in `clusters_skipped` rather than
      *     silently omitted, same convention as `list_jobs`'s `connected` flag. A
      *     disconnected cluster with a prior cached fetch falls back to it instead of
      *     being skipped, named in `clusters_stale` rather than
-     *     `clusters_skipped` — the caller can still tell the two cases apart.
+     *     `clusters_skipped`: the caller can still tell the two cases apart.
      */
     get: operations["use_case_report_api_jobs_report__config_name__get"];
     put?: never;
@@ -969,6 +969,11 @@ export interface components {
        * @description Commands run before activation (e.g. 'module load python').
        */
       remote_setup?: string[];
+      /**
+       * Crab Command
+       * @description One executable that runs crab on the remote (e.g. ~/.local/bin/crab for a pipx install). Set: no cd into <remote_crab>/CRAB and no venv activation; remote_setup still runs first. Unset: the CRAB checkout in <remote_crab>/CRAB.
+       */
+      crab_command?: string | null;
       /** Preset */
       preset?: string | null;
     };
@@ -1041,6 +1046,11 @@ export interface components {
        * @description Commands run before activation (e.g. 'module load python').
        */
       remote_setup?: string[];
+      /**
+       * Crab Command
+       * @description One executable that runs crab on the remote (e.g. ~/.local/bin/crab for a pipx install). Set: no cd into <remote_crab>/CRAB and no venv activation; remote_setup still runs first. Unset: the CRAB checkout in <remote_crab>/CRAB.
+       */
+      crab_command?: string | null;
       /** Preset */
       preset?: string | null;
       /**

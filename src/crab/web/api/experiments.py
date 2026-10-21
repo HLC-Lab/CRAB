@@ -1,9 +1,10 @@
-"""``/api/experiments`` — the laptop-local library of authored configs.
+"""``/api/experiments``: the laptop-local library of authored configs.
 
 Pure local CRUD over :class:`LibraryStore`; no cluster involved. The config
 body is stored verbatim, but saves also report shape WARNINGS (never
-rejections — the engine is the final authority; see ADR-015) so the UI can
-tell the user when a config looks engine-incompatible.
+rejections; the engine is the final authority, see ADR-015) so the UI can
+tell the user when a config looks engine-incompatible. The engine's own config-only checks
+(`crab validate` without a preset) run in process and join the same list.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from crab.cli.validate import check_config_problems
 from crab.web.models import validate_config
 from crab.web.store.library import LibraryEntry, LibraryStore
 
@@ -32,8 +34,19 @@ def _store(request: Request) -> LibraryStore:
     return LibraryStore(request.app.state.settings)
 
 
+def _warnings(config: dict) -> list[str]:
+    """Shape warnings, then what the engine's own checks say about the config.
+
+    The engine checks run with no preset, so they decide only what the config alone decides: an
+    error and a warning both come back as plain text.
+    """
+    shape = validate_config(config)
+    errors, engine_warnings = check_config_problems(config)
+    return shape + [e for e in errors if e not in shape] + engine_warnings
+
+
 def _saved(entry: LibraryEntry, config: dict) -> SavedEntry:
-    return SavedEntry(**entry.model_dump(), warnings=validate_config(config))
+    return SavedEntry(**entry.model_dump(), warnings=_warnings(config))
 
 
 @router.get("")

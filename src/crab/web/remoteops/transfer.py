@@ -3,8 +3,9 @@
 The config JSON is written to a per-profile staging directory so
 ``crab run <staged> -p <preset> --json`` can read it without
 inventing a separate upload mechanism. For an SSH profile that is
-``<crab_dir>/.web_staging`` inside the existing CRAB checkout; for the
-``local`` transport (no checkout concept — see ``crab_cli.build_crab_command``)
+``<crab_dir>/.web_staging`` inside the existing CRAB checkout (``<remote_crab>/.crab_web_staging``
+when the profile names its own crab command, which has no checkout); for the
+``local`` transport (no checkout concept: see ``crab_cli.build_crab_command``)
 it's a ``web_staging`` folder under the backend's own data dir. Staged files
 are not cleaned up automatically (kept for post-hoc debugging on the cluster).
 """
@@ -33,6 +34,9 @@ def staging_dir(profile: Profile, settings: Settings | None = None) -> str:
     if profile.is_local():
         s = settings or get_settings()
         return str(s.data_dir / "web_staging")
+    if profile.crab_command is not None:
+        # No <base>/CRAB checkout to put it in, and none is created just for staging.
+        return f"{profile.remote_crab.rstrip('/') or '~'}/.crab_web_staging"
     return f"{crab_dir(profile)}/.web_staging"
 
 
@@ -50,7 +54,7 @@ async def stage_config(
     ``staging_dir`` may contain a literal ``~`` for SSH profiles. Only a shell
     can expand that (``mkdir -p "$HOME/..."`` via ``remote_path_expr``), but
     the write goes over SFTP, which has no shell and does no expansion of its
-    own — so mkdir and the write could target different trees if each handled
+    own: so mkdir and the write could target different trees if each handled
     ``~`` separately. Instead, one shell round-trip resolves the directory to
     an absolute path (``cd ... && pwd``) that mkdir, the SFTP write, and the
     returned path (used later as a ``crab run`` arg) all share.

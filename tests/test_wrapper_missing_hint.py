@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 
 import crab.core.wrapper_paths as wp
+from crab import paths
 from crab.core.experiment.runner import ExperimentRunner
 
 URL = "https://github.com/HLC-Lab/crab-wrappers"
@@ -27,6 +28,15 @@ def test_no_wrappers_folder_gives_the_hint(root: Path) -> None:
     hint = wp.missing_wrappers_hint()
     assert "wrappers/ is missing" in hint
     assert "crab update" in hint
+    assert URL in hint
+
+
+def test_installed_hint_names_wrappers_pull(root: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(paths, "is_checkout", lambda: False)
+    hint = wp.missing_wrappers_hint()
+    assert "wrappers/ is missing" in hint
+    assert "crab wrappers pull" in hint
+    assert "crab update" not in hint
     assert URL in hint
 
 

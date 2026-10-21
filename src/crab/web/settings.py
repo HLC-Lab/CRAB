@@ -2,11 +2,11 @@
 
 All persistent laptop state lives under platform-standard config/data dirs
 (via ``platformdirs``, already a core dependency). Locations can be overridden
-with environment variables — primarily for tests and power users:
+with environment variables: primarily for tests and power users:
 
-* ``CRAB_WEB_CONFIG_DIR``  — overrides the config dir (holds ``clusters.json``).
-* ``CRAB_WEB_DATA_DIR``    — overrides the data dir (library, jobs, cache, logs).
-* ``CRAB_WEB_LIBRARY_DIR`` — puts the experiment-config library in a directory of
+* ``CRAB_WEB_CONFIG_DIR``:  overrides the config dir (holds ``clusters.json``).
+* ``CRAB_WEB_DATA_DIR``:    overrides the data dir (library, jobs, cache, logs).
+* ``CRAB_WEB_LIBRARY_DIR``: puts the experiment-config library in a directory of
   the user's choosing (e.g. a git repo or synced folder) instead of the data dir
   (see docs/dev/dashboard/decisions/ ADR-014). Existing entries are copied over
   on first run.
@@ -27,7 +27,7 @@ import platformdirs
 APP_NAME = "crab"
 APP_AUTHOR = "crab"
 
-# Bound to localhost only — the dashboard is a personal tool, never exposed.
+# Bound to localhost only: the dashboard is a personal tool, never exposed.
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 

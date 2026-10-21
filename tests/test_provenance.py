@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 
 import crab
+import crab.core.wrapper_paths as wrapper_paths
+from crab import paths
 from crab.core.execution.launcher import dialect
 from crab.core.execution.settings import from_preset
 from crab.core.provenance import RESULTS_SCHEMA, write_provenance
@@ -79,6 +81,42 @@ def test_no_git_and_missing_files_are_recorded_as_unknown(
     data = json.loads((tmp_path / "crab_run.json").read_text())
     assert data["wrappers"]["commit"] is None and data["wrappers"]["dirty"] is None
     assert data["apps"]["e1"]["0"]["sha256"] is None
+
+
+# --------------------------------------------------------------------------- #
+# crab_commit: only a checkout has one
+# --------------------------------------------------------------------------- #
+def _git_repo(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "f").write_text("x")
+    _git(path, "init", "-q")
+    _git(path, "-c", "user.name=t", "-c", "user.email=t@t", "add", ".")
+    _git(path, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "x")
+    return path
+
+
+def test_a_checkout_records_the_checkouts_commit(
+    tmp_path: Path, wrappers: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _git_repo(tmp_path / "checkout")
+    monkeypatch.setattr(paths, "checkout_root", lambda: repo)
+    write_provenance(str(tmp_path), _config(), [])
+    data = json.loads((tmp_path / "crab_run.json").read_text())
+    assert data["crab_commit"] == _git(repo, "rev-parse", "HEAD")
+
+
+def test_installed_has_no_crab_commit_even_inside_a_git_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = _git_repo(tmp_path / "crab-home")
+    monkeypatch.delenv("CRAB_PATH_WRAPPERS", raising=False)
+    monkeypatch.setattr(paths, "is_checkout", lambda: False)
+    monkeypatch.setattr(wrapper_paths, "_CRAB_ROOT", str(home))
+    write_provenance(str(tmp_path), _config(), [])
+    data = json.loads((tmp_path / "crab_run.json").read_text())
+    assert data["crab_commit"] is None
+    assert data["crab_version"] == crab.__version__
+    assert data["wrappers"]["dir"] == str(home / "wrappers")
 
 
 # --------------------------------------------------------------------------- #

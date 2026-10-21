@@ -1,8 +1,8 @@
-"""CRAB web dashboard — laptop-local control plane.
+"""CRAB web dashboard: laptop-local control plane.
 
 A FastAPI app (launched by ``crab web``) that drives each cluster's existing CRAB
 CLI over a reused SSH connection: author experiments, submit them, monitor jobs,
-and fetch/visualise results. The cluster's engine stays authoritative — this package
+and fetch/visualise results. The cluster's engine stays authoritative: this package
 never re-implements orchestration or submission logic.
 
 """

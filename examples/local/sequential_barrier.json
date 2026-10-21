@@ -3,7 +3,7 @@
     "global_options": {
         "name": "sequential_barrier",
         "numnodes": "1",
-        "ppn": "1",
+        "ppn": "2",
         "minruns": "1",
         "maxruns": "5",
         "timeout": "600.0",
@@ -16,7 +16,7 @@
     },
     "experiments": {
         "01_sequential_barrier_chain": {
-            "description": "Sequential chain of 4 Barrier runs: each starts only after the previous finishes.",
+            "description": "Four barrier runs in a chain: each starts only after the previous one finishes.",
             "apps": {
                 "0": {
                     "path": "blink/barrier/barrier_b.py",

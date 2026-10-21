@@ -1,16 +1,16 @@
-"""Machine-readable ``--json`` seam — the contract the web backend speaks to.
+"""Machine-readable ``--json`` seam: the contract the web backend speaks to.
 
 The web dashboard (laptop) never screen-scrapes human output: it calls these
 ``crab ... --json`` commands over SSH and parses the result. Keeping the seam
 here, in the ``crab`` package on the cluster, means the engine and its security
-logic stay authoritative — the laptop only consumes structured data.
+logic stay authoritative: the laptop only consumes structured data.
 
 Every gatherer:
 * returns a plain ``dict``/``list`` (JSON-serialisable),
 * takes explicit paths / an injectable command runner so it is unit-testable
   without a real cluster,
 * degrades gracefully (missing files, unloadable wrappers, absent ``sinfo``)
-  rather than raising — partial data beats a crash for an introspection call.
+  rather than raising: partial data beats a crash for an introspection call.
 
 """
 
@@ -26,7 +26,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
-from crab import __version__
+from crab import __version__, paths
 from crab.cli.presets import load_all_presets
 from crab.core.execution.scheduler.base import CancelResult, Scheduler
 from crab.core.execution.scheduler.local import LocalScheduler
@@ -40,8 +40,7 @@ from crab.log import CrabLogger
 CONTRACT_SCHEMA = 2
 
 # Resolve the framework root the same way the rest of the package does.
-# contract.py is at <root>/src/crab/cli/contract.py → parents[3] is <root>.
-_CRAB_ROOT = Path(__file__).resolve().parents[3]
+_CRAB_ROOT = paths.crab_home()
 
 
 def _crab_version() -> str:
@@ -73,7 +72,7 @@ def _error_text(error: Exception) -> str:
 
 
 def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
-    """Version handshake + available presets.
+    """Version handshake, install layout + available presets.
 
     Each preset carries `scheduler`, `launcher` and `hosts` (names; empty under Slurm). A preset
     that does not parse keeps its name and description and gets an `error` message instead.
@@ -105,6 +104,7 @@ def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
         "schema": CONTRACT_SCHEMA,
         "crab_version": _crab_version(),
         "crab_root": str(root),
+        "layout": paths.layout(),
         "presets": sorted(presets, key=lambda p: p["name"]),
     }
 
@@ -169,12 +169,12 @@ def gather_history(data_root: Path | None = None, system: str | None = None) -> 
 # benchmarks (receipts) + wrappers (discovered .py files)
 # --------------------------------------------------------------------------- #
 def _gather_receipts(env_dir: Path) -> list[dict[str, Any]]:
+    """The receipts in a folder. Raises ReceiptError for one that cannot be read or parsed."""
+    from crab.setup.memory import read_receipt_file
+
     benchmarks: list[dict[str, Any]] = []
     for file in sorted(glob.glob(str(env_dir / "*.json"))):
-        try:
-            r = json.loads(Path(file).read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
+        r = read_receipt_file(file)
         benchmarks.append(
             {
                 "id": r.get("id", Path(file).stem),
@@ -259,7 +259,7 @@ def _introspect_wrapper(path: Path, wrappers_root: Path) -> dict[str, Any]:
                 for m in meta
                 if isinstance(m, dict)
             ]
-        # benchmark_id / bench_name often need an instance — guard it.
+        # benchmark_id / bench_name often need an instance: guard it.
         try:
             inst = app_cls(0, False, "")
             bid = getattr(inst, "benchmark_id", None)
@@ -269,7 +269,7 @@ def _introspect_wrapper(path: Path, wrappers_root: Path) -> dict[str, Any]:
                 entry["bench_name"] = name if isinstance(name, str) else None
         except Exception:
             pass  # introspection-only; metadata already captured above
-    except Exception as exc:  # noqa: BLE001 — any wrapper import error is non-fatal
+    except Exception as exc:  # any wrapper import error is non-fatal  # noqa: BLE001
         entry["error"] = f"{type(exc).__name__}: {exc}"
     finally:
         sys.modules.pop(mod_name, None)
@@ -289,7 +289,7 @@ def gather_benchmarks(
     env_dirs = (
         [Path(env_dir)]
         if env_dir
-        else [_CRAB_ROOT / "config" / "environments", _CRAB_ROOT / "local" / "receipts"]
+        else [_CRAB_ROOT / "config" / "environments", paths.local_path(_CRAB_ROOT, "receipts")]
     )
     if wrappers_dir:
         wdirs = [Path(wrappers_dir)]
@@ -506,11 +506,11 @@ def gather_experiment_logs(
 
     ``ExperimentRunner.execute`` writes ``error_app_<id>.log`` directly into the
     experiment's own directory (``<data_dir>/<experiment_name>``) whenever an
-    app exits non-zero (``runner.py:344-350``) — never on success. Unlike
+    app exits non-zero (``runner.py:344-350``): never on success. Unlike
     ``gather_logs``, a missing experiment directory raises rather than
     degrading gracefully: the caller always derives ``experiment_name`` from a
     real ``crab history`` row, so a missing directory means the wrong
-    data_dir/name was passed, not "no errors yet" — collapsing that into an
+    data_dir/name was passed, not "no errors yet": collapsing that into an
     empty list would silently hide the mistake.
     """
     exp_dir = Path(data_dir) / experiment_name

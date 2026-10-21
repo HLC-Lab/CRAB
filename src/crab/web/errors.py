@@ -1,11 +1,11 @@
 """Error taxonomy and the stable error envelope for the web backend.
 
 Every failure that crosses an API boundary becomes a structured, actionable
-response — the backend never crashes the process on a remote or user error. Each domain error carries:
+response: the backend never crashes the process on a remote or user error. Each domain error carries:
 
-* ``code``    — stable machine string the frontend can switch on,
-* ``message`` — human, actionable text safe to display,
-* ``detail``  — optional extra context (e.g. stderr); secrets must be redacted
+* ``code``:    stable machine string the frontend can switch on,
+* ``message``: human, actionable text safe to display,
+* ``detail``:  optional extra context (e.g. stderr); secrets must be redacted
                 by the raiser before it reaches here.
 
 Builtin names (``ConnectionError``, ``ValidationError``) are deliberately *not*
@@ -67,7 +67,7 @@ class ContractError(CrabWebError):
 
 
 class InputError(CrabWebError):
-    """Bad user input / malformed config — never forwarded to the cluster."""
+    """Bad user input / malformed config: never forwarded to the cluster."""
 
     code = "input_error"
     http_status = 422

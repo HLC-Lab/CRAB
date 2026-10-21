@@ -27,7 +27,7 @@ def _wrapper(path: Path, counter: Path, values: list[float]) -> None:
         f"        values = {values!r}\n"
         "        return f'echo {values[(run - 1) % len(values)]}'\n\n"
         "    def read_data(self):\n"
-        "        return [[float(self.stdout)]]\n"
+        "        return [{'v': float(self.stdout)}]\n"
     )
 
 

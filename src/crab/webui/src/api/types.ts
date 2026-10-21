@@ -33,6 +33,7 @@ export interface CrabInfo {
   schema: number;
   crab_version: string;
   crab_root: string;
+  layout?: "checkout" | "installed";
   presets: {
     name: string;
     description: string;

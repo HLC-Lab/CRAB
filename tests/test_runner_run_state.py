@@ -21,7 +21,7 @@ def _wrapper(path: Path, command: str) -> None:
         "    def run_app(self):\n"
         f"        return {command!r}\n\n"
         "    def read_data(self):\n"
-        "        return [[float(self.stdout)]]\n"
+        "        return [{'v': float(self.stdout)}]\n"
     )
 
 

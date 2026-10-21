@@ -5,8 +5,8 @@ the backend is identical whether the cluster is reached over SSH or is the
 local machine. ``SSHTransport`` wraps a single long-lived ``asyncssh``
 connection (channels are multiplexed over it, so one auth per session).
 
-asyncssh is imported lazily inside the factory so this module — and the unit
-tests that inject a fake transport — stay importable without the web extra.
+asyncssh is imported lazily inside the factory so this module, and the unit
+tests that inject a fake transport, stay importable without the web extra.
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ class SSHTransport(Transport):
             )
         except asyncssh.SFTPError as exc:
             # A file/permission error, not a dropped connection (e.g. the
-            # parent directory doesn't exist yet) — the connection stays alive.
+            # parent directory doesn't exist yet): the connection stays alive.
             raise RemoteCommandError(f"Could not write {path} over SFTP.", detail=str(exc)) from exc
         except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
             self._closed = True  # treat any other SFTP/channel error as a drop
@@ -155,7 +155,7 @@ class SSHTransport(Transport):
         except asyncssh.SFTPError as exc:
             await _discard(staging)
             # A file/permission error, not a dropped connection (e.g. the
-            # remote directory doesn't exist) — the connection stays alive.
+            # remote directory doesn't exist): the connection stays alive.
             raise RemoteCommandError(
                 f"Could not fetch {remote_dir} over SFTP.", detail=str(exc)
             ) from exc
@@ -187,13 +187,13 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
     """Open an asyncssh connection for ``profile``, mapping failures to our errors.
 
     Auth:
-      * 'agent'    — uses the inherited SSH_AUTH_SOCK (Leonardo's step-cli cert,
+      * 'agent':    uses the inherited SSH_AUTH_SOCK (Leonardo's step-cli cert,
                      or ordinary keys-in-agent). No secret needed.
-      * 'key'      — explicit private key file.
-      * 'password' — transient password (never persisted).
+      * 'key':      explicit private key file.
+      * 'password': transient password (never persisted).
     Host key:
-      * 'strict'   — verify against the system known_hosts.
-      * 'insecure' — no verification (required for round-robin login nodes).
+      * 'strict':   verify against the system known_hosts.
+      * 'insecure': no verification (required for round-robin login nodes).
     """
     try:
         import asyncssh
@@ -247,7 +247,7 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
     except asyncssh.PermissionDenied as exc:
         raise AuthError(
             "Authentication was rejected by the cluster. For Leonardo, your "
-            "certificate may have expired — re-run `step-cli ssh login …` into "
+            "certificate may have expired: re-run `step-cli ssh login …` into "
             "the same ssh-agent, then reconnect.",
             detail=str(exc),
         ) from exc

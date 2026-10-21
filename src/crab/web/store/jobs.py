@@ -3,7 +3,7 @@
 Live status/logs always come from a fresh ``crab status``/``crab logs --json`` call
 (the API layer's job); this store only persists what the dashboard itself recorded
 at submit time, plus the last state a poll observed. Stored as one JSON array file
-at ``settings.jobs_file`` (unlike the config library's one-file-per-entry — job
+at ``settings.jobs_file`` (unlike the config library's one-file-per-entry: job
 records are backend-managed only, never hand-edited, so a single array file is
 simpler and sufficient), atomic write.
 """

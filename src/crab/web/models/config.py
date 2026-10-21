@@ -10,9 +10,9 @@ Ground truth for these shapes is ``examples/**/*.json`` plus the engine readers
 example must validate warning-free (enforced by tests/test_web_config_model.py).
 
 Deliberate permissiveness:
-* ``extra="allow"`` everywhere — unknown app keys are wrapper attributes (a
+* ``extra="allow"`` everywhere: unknown app keys are wrapper attributes (a
   feature), and new engine options must not break older dashboards.
-* Numeric options accept str|int|float — examples write numbers as strings.
+* Numeric options accept str|int|float: examples write numbers as strings.
 * The legacy top-level ``applications`` key is accepted (engine rewrites it).
 """
 
