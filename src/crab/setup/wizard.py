@@ -30,7 +30,7 @@ BENCHMARKS_DIR = os.path.join(CRAB_ROOT, "benchmarks")
 
 def print_header(total_recipes: int | None = None, title: str = "Welcome to the CRAB Setup Wizard"):
     console.clear()
-    console.print(Panel.fit(f"[bold cyan]🦀 {title}[/bold cyan]", border_style="cyan"))
+    console.print(Panel.fit(f"[bold cyan]{title}[/bold cyan]", border_style="cyan"))
     if total_recipes is not None:
         console.print(f"Found [bold]{total_recipes}[/bold] supported benchmarks.\n")
 
@@ -257,7 +257,7 @@ def _run_custom_benchmark_wizard(
 
         if bench_id in taken_receipt_ids:
             console.print(
-                f"[yellow]  ⚠  A receipt for '[bold]{bench_id}[/bold]' already exists. "
+                f"[yellow]  Warning: A receipt for '[bold]{bench_id}[/bold]' already exists. "
                 f"You will be asked before it is overwritten.[/yellow]"
             )
 
@@ -272,7 +272,9 @@ def _run_custom_benchmark_wizard(
             console.print("[red]Path cannot be empty.[/red]")
             continue
         if not os.path.isfile(path):
-            console.print(f"[yellow]  ⚠  '{path}' does not point to an existing file.[/yellow]")
+            console.print(
+                f"[yellow]  Warning: '{path}' does not point to an existing file.[/yellow]"
+            )
             if not Confirm.ask("  Register the path anyway?", default=False):
                 continue
         break
@@ -300,7 +302,7 @@ def _run_custom_benchmark_wizard(
     # ── Step 5: overwrite guard ───────────────────────────────────────────────
     existing_receipt = memory.get_receipt(bench_id)
     if existing_receipt:
-        console.print(f"\n[yellow]⚠  A receipt for '{bench_id}' already exists:[/yellow]")
+        console.print(f"\n[yellow]Warning: A receipt for '{bench_id}' already exists:[/yellow]")
         console.print(f"   Binary: [dim]{existing_receipt.get('binary_path')}[/dim]")
         console.print(f"   Type:   [dim]{existing_receipt.get('type')}[/dim]")
         if not Confirm.ask("  Overwrite it?", default=False):
@@ -345,10 +347,10 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
 
         if configured:
             sample_path = _shorten_path(configured_receipts[0].get("binary_path", "unknown"))
-            title = f"  {suite_name:<28}  ✓  {sample_path}"
+            title = f"  {suite_name:<28}  ok  {sample_path}"
             checked = False
         else:
-            title = f"  {suite_name:<28}  ○  not configured"
+            title = f"  {suite_name:<28}  --  not configured"
             checked = True
 
         suite_choices.append(Choice(title=title, value=suite_name, checked=checked))
@@ -356,7 +358,7 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
     selected_suite_names = questionary.checkbox(
         "Benchmarks:",
         choices=suite_choices,
-        qmark="🦀",
+        qmark="?",
         style=questionary.Style(
             [
                 ("highlighted", "fg:cyan bold"),
@@ -384,17 +386,17 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                 receipt = memory.get_receipt(recipe.benchmark_id)
                 if receipt:
                     path_hint = _shorten_path(receipt.get("binary_path", "unknown"), max_len=36)
-                    ver_title = f"  {recipe.name:<32}  ✓  {path_hint}"
+                    ver_title = f"  {recipe.name:<32}  ok  {path_hint}"
                     ver_checked = False
                 else:
-                    ver_title = f"  {recipe.name:<32}  ○  not configured"
+                    ver_title = f"  {recipe.name:<32}  --  not configured"
                     ver_checked = True
                 version_choices.append(Choice(title=ver_title, value=recipe, checked=ver_checked))
 
             chosen = questionary.checkbox(
                 f"{suite_name} versions:",
                 choices=version_choices,
-                qmark="🦀",
+                qmark="?",
                 style=questionary.Style(
                     [
                         ("highlighted", "fg:cyan bold"),
@@ -417,14 +419,14 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
 
         receipt = memory.get_receipt(recipe.benchmark_id)
         if receipt:
-            console.print(f"✅ [bold green]{recipe.name}[/bold green] is already configured.")
+            console.print(f"[bold green]{recipe.name}[/bold green] is already configured.")
             console.print(f"   Binary Path: [dim]{receipt.get('binary_path')}[/dim]\n")
             if not Confirm.ask(
                 f"Do you want to completely reconfigure {recipe.name}?", default=False
             ):
                 continue
         else:
-            console.print(f"❌ [bold yellow]{recipe.name}[/bold yellow] is not configured.\n")
+            console.print(f"[bold yellow]{recipe.name}[/bold yellow] is not configured.\n")
 
         console.print("[bold]Select Configuration Strategy:[/bold]")
         console.print("  [1] Auto-detect existing installation environment")
@@ -521,7 +523,7 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
             recent_logs = deque(maxlen=6)
 
             def render_build_ui() -> Panel:
-                step_text = Text(f"🟢 {current_step}", style="bold yellow")  # noqa: B023 -- late binding intentional (mutated via nonlocal below)
+                step_text = Text(f"{current_step}", style="bold yellow")  # noqa: B023 -- late binding intentional (mutated via nonlocal below)
                 log_text = Text.from_markup("\n".join(f"> [dim]{log}[/dim]" for log in recent_logs))  # noqa: B023 -- late binding intentional
                 return Panel(
                     Group(step_text, Text(""), log_text),
@@ -566,7 +568,7 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
             )
         else:
             console.print(
-                f"\n[yellow]⚠️  {recipe.name} action skipped or path mapping incomplete.[/yellow]\n"
+                f"\n[yellow]Warning: {recipe.name} action skipped or path mapping incomplete.[/yellow]\n"
             )
 
         console.input("\n[dim]Press [Enter] to continue...[/dim]")
@@ -598,7 +600,7 @@ def run():
             Choice("Exit", value="exit"),
         ],
         style=questionary.Style([("highlighted", "fg:cyan bold")]),
-        qmark="🦀",
+        qmark="?",
     ).ask()
 
     if action is None or action == "exit":

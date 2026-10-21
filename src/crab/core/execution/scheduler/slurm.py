@@ -13,7 +13,7 @@ from crab.core.execution.scheduler.base import CancelResult, JobStatus, worker_c
 from crab.log import CrabLogger
 
 # A command runner returns stdout as text. It raises FileNotFoundError when the
-# binary is absent and subprocess.CalledProcessError on a non-zero exit — both
+# binary is absent and subprocess.CalledProcessError on a non-zero exit: both
 # are caught by the scheduler methods for graceful degradation. Injectable for tests.
 CommandRunner = Callable[[list[str]], str]
 
@@ -238,7 +238,7 @@ class SlurmScheduler:
             raise RuntimeError(f"sbatch refused the job (exit {exc.returncode}): {reason}") from exc
         except (KeyboardInterrupt, SystemExit):
             if job_id:
-                self.log.warning(f"Interrupted — cancelling Slurm job {job_id}")
+                self.log.warning(f"Interrupted: cancelling Slurm job {job_id}")
                 subprocess.run(["scancel", job_id], check=False)
             raise
         return job_id
@@ -253,7 +253,7 @@ class SlurmScheduler:
         nodelist = os.environ.get("SLURM_NODELIST")
         if not nodelist:
             raise RuntimeError(
-                "SLURM_NODELIST is not set — are you running inside a Slurm allocation?"
+                "SLURM_NODELIST is not set: are you running inside a Slurm allocation?"
             )
         result = subprocess.run(
             ["scontrol", "show", "hostnames", nodelist],

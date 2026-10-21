@@ -5,7 +5,7 @@ Each saved config is one JSON file ``<library>/<id>.json`` holding
 ``{global_options, experiments}`` document the dashboard authors and later
 submits; the store persists it verbatim (shape validation lives at the author
 layer, not here). The library lives in the data dir by default, or in a
-user-chosen ``library_dir`` — e.g. a git repo — per ADR-014; plain JSON files
+user-chosen ``library_dir`` (e.g. a git repo, per ADR-014); plain JSON files
 either way, so entries stay hand-shareable.
 """
 

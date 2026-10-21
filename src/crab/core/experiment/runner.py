@@ -59,7 +59,7 @@ class ExperimentRunner:
         self.exp_dir = os.path.join(output_dir, self.name)
         os.makedirs(self.exp_dir, exist_ok=True)
 
-        # Configuration Merge — shallow: a local 'allocation' key replaces the global one entirely.
+        # Configuration merge (shallow): a local 'allocation' key replaces the global one entirely.
         # A partial local override (e.g. just {mode: "random"}) will drop global partitions.
         local_opts = self.config.get("local_options", {})
         self.exp_opts = {**self.global_opts, **local_opts}

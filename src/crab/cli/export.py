@@ -160,7 +160,7 @@ def export_dashboard(data_dir: Path, output: Path) -> None:
             print(f"    {experiment} / {app}")
 
     html = _DASHBOARD_TEMPLATE.read_text(encoding="utf-8")
-    # crab_dashboard.html's own JS reads `.labs` — legacy embedding key, out of this plan's scope.
+    # crab_dashboard.html's own JS reads `.labs`: legacy embedding key, out of this plan's scope.
     data_json = json.dumps({"labs": experiments}, separators=(",", ":"))
 
     inject = (

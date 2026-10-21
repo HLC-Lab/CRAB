@@ -1,4 +1,4 @@
-"""``/api/remotes/{name}/bootstrap/*`` — guided CRAB install on a remote (D5).
+"""``/api/remotes/{name}/bootstrap/*``: guided CRAB install on a remote (D5).
 
 The flow is stateless: ``plan`` reports whether CRAB is present and previews the
 fixed install commands; ``install`` runs the whole install in one shell (the

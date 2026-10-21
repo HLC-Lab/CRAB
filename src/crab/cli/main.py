@@ -382,7 +382,7 @@ def cli_router():
         "data_dir", help="Path to the directory containing experiment results."
     ).completer = FilesCompleter()
     parser_export.add_argument(
-        "-o", "--output", default=None, help="Output HTML file (default: crab_export.html)"
+        "-o", "--output", default=None, help="Output HTML file (default: crab_export.html)."
     )
     parser_export.set_defaults(func=handle_export)
 

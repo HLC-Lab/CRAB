@@ -1,5 +1,5 @@
 """
-CRAB Logging Package — public API.
+CRAB Logging Package: public API.
 
 Usage:
     from crab.log import get_logger, LogLevel

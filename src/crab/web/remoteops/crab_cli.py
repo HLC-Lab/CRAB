@@ -2,7 +2,7 @@
 
 Non-interactive SSH shells don't activate venvs or source rc files, so for a
 remote profile we explicitly ``cd`` into the CRAB repo, source its venv, and
-run ``crab`` — all under ``bash -lc`` so module systems and login config load.
+run ``crab``: all under ``bash -lc`` so module systems and login config load.
 For a local profile we invoke the same interpreter that runs the backend.
 """
 
@@ -109,7 +109,7 @@ async def run_crab_json(
         return json.loads(result.stdout)
     except json.JSONDecodeError as exc:
         raise ContractError(
-            "Could not parse JSON from the cluster's `crab` output — the remote "
+            "Could not parse JSON from the cluster's `crab` output: the remote "
             "CRAB may be missing, too old, or not reachable via the configured "
             "path/venv.",
             detail=f"{exc}; stdout[:500]={result.stdout[:500]!r}; "

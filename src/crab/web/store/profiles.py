@@ -1,7 +1,7 @@
-"""Cluster connection profiles — the only persistent laptop state for connections.
+"""Cluster connection profiles: the only persistent laptop state for connections.
 
 Profiles are **non-secret**: host, user, paths,
-preset, auth *method*. No passwords or keys are stored — agent auth (the
+preset, auth *method*. No passwords or keys are stored: agent auth (the
 Leonardo path) needs no secret, and a password (if ever used) is supplied
 transiently at connect time, never written here.
 
@@ -79,7 +79,7 @@ class Profile(BaseModel):
     key_path: str | None = None
 
     # Host-key verification. 'strict' uses the system known_hosts; 'insecure'
-    # disables verification — required for round-robin login nodes that present
+    # disables verification: required for round-robin login nodes that present
     # different host keys per connection (common on large HPC front ends).
     hostkey_policy: Literal["strict", "insecure"] = "strict"
 

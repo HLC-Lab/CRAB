@@ -1,8 +1,8 @@
-"""``/api/experiments`` — the laptop-local library of authored configs.
+"""``/api/experiments``: the laptop-local library of authored configs.
 
 Pure local CRUD over :class:`LibraryStore`; no cluster involved. The config
 body is stored verbatim, but saves also report shape WARNINGS (never
-rejections — the engine is the final authority; see ADR-015) so the UI can
+rejections; the engine is the final authority, see ADR-015) so the UI can
 tell the user when a config looks engine-incompatible. The engine's own config-only checks
 (`crab validate` without a preset) run in process and join the same list.
 """

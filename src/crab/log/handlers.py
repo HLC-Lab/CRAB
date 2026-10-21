@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class BaseHandler:
-    """Abstract base — subclasses must implement `emit()`."""
+    """Abstract base: subclasses must implement `emit()`."""
 
     def __init__(self, formatter: Union["RichFormatter", "PlainFormatter"]):
         self.formatter = formatter
