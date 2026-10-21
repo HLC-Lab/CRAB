@@ -40,6 +40,10 @@ crab run examples/local/sequential_barrier.json -p local
 crab run examples/local/sequential_barrier.json -p local --only 01_sequential_barrier_chain --json
 ```
 
+Before it submits, `crab run` checks that every app's wrapper `path` names a file on the wrapper
+search path (the preset's `CRAB_PATH_WRAPPERS` included), with the same messages as
+[`crab validate`](#crab-validate). With `--only`, only the chosen experiments are checked.
+
 See [Running an experiment](../using/running.md).
 
 ## `crab validate`
@@ -58,6 +62,11 @@ crab validate [-p PRESET] [--json] <config.json>
 | `config.json` | Path to the [experiment config](configuration.md). Required. | none |
 | `-p`, `--preset` | Also check the config against this preset. | none: config-only checks |
 | `--json` | Print `{"ok": bool, "errors": [...], "warnings": [...]}` on stdout instead of text. The exit status is the same. | off |
+
+Every app's wrapper `path` must name a file on this machine's wrapper search path. Otherwise the
+check is an error, and for a Blink wrapper renamed in 1.0 it names the new path. A
+`CRAB_PATH_WRAPPERS` set in the preset's `env` is honored, but only when you pass `-p`. See
+[the troubleshooting entry](../using/troubleshooting.md#wrapper-not-found-on-the-wrapper-search-path).
 
 The output is `ok: <file>` followed by one line per warning, with exit status 0. When a check fails,
 the message goes to stderr and the exit status is 1. A missing file, a file that is not JSON and an

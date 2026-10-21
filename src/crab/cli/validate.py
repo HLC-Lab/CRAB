@@ -1,7 +1,10 @@
 """`crab validate`: the config checks `crab run` makes before it submits, without submitting.
 
 `check_config_problems` is also what the web dashboard runs when it saves a config, so one gate
-covers every producer of configs.
+covers every producer of configs. It holds only checks that need no files of this machine: the
+dashboard runs it on a laptop where the cluster's wrappers are absent. `validate_file` adds the
+checks that read this machine's wrapper search path (every app's wrapper `path` must name an
+existing file), because `crab validate` runs where `crab run` will.
 """
 
 from __future__ import annotations
@@ -45,8 +48,8 @@ def _load_config(path: str) -> dict[str, Any] | str:
         return f"cannot read {path}: {error.strerror or error}"
 
 
-def _preset_settings(config: Any, preset: str) -> Any:
-    """The `ExecutionSettings` `crab run -p` would build.
+def _preset_settings(config: Any, preset: str) -> tuple[Any, dict[str, str]]:
+    """The `ExecutionSettings` and the execution environment `crab run -p` would build.
 
     Also injects the preset's sbatch directives into the config as `crab run` does, because the
     managed-directive check reads them there.
@@ -60,23 +63,34 @@ def _preset_settings(config: Any, preset: str) -> Any:
     options = config.get("global_options") if isinstance(config, dict) else None
     if isinstance(options, dict) and "system_sbatch" not in options:
         options["system_sbatch"] = loaded["sbatch"]
-    return loaded["settings"]
+    return loaded["settings"], orchestrator.prepare_execution_environment(loaded["env"])
 
 
 def validate_file(path: str, preset: str | None = None) -> tuple[list[str], list[str]]:
-    """(errors, warnings) for a config file, optionally against a preset."""
+    """(errors, warnings) for a config file, optionally against a preset.
+
+    Besides `check_config_problems`, every app's wrapper path must resolve on the wrapper search
+    path (the preset's `CRAB_PATH_WRAPPERS`, when it sets one, as in `crab run -p`); a known
+    pre-rename Blink name gets a message saying what replaced it.
+    """
     config = _load_config(path)
     if isinstance(config, str):
         return [config], []
     settings = None
+    execution_env: dict[str, str] = {}
     if preset:
         try:
-            settings = _preset_settings(config, preset)
+            settings, execution_env = _preset_settings(config, preset)
         except KeyError as error:
             return [str(error.args[0])], []
         except (FileNotFoundError, ValueError) as error:
             return [str(error)], []
-    return check_config_problems(config, settings)
+    errors, warnings = check_config_problems(config, settings)
+    if isinstance(config, dict):
+        from crab.core.wrapper_paths import config_wrapper_path_problems
+
+        errors = errors + config_wrapper_path_problems(config, env=execution_env)
+    return errors, warnings
 
 
 def handle_validate(args: Any) -> None:

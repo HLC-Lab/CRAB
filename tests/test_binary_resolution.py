@@ -59,8 +59,10 @@ def test_config_binary_wins(receipts: Path, on_path: Path) -> None:
 
 
 def test_receipt_comes_before_path(receipts: Path, on_path: Path) -> None:
-    _receipt(receipts, "/from/receipt")
-    assert _App(0, True, "").run_app() == "/from/receipt"
+    binary = on_path.parent / "from_receipt"
+    binary.write_text("#!/bin/sh\n")
+    _receipt(receipts, str(binary))
+    assert _App(0, True, "").run_app() == str(binary)
 
 
 def test_path_lookup_of_the_declared_executable(receipts: Path, on_path: Path) -> None:
