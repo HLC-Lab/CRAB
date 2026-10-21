@@ -20,7 +20,7 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
 
   // Fill the group: tag, SbatchMan preset, nodes, one app with a wrapper path.
   await page.getByPlaceholder("e.g. g500_baseline_{scale}_{nodes}").fill("e2e_{nodes}");
-  await page.getByPlaceholder("e.g. {nodes}_nodes").fill("cpu");
+  await page.getByLabel("SbatchMan preset").fill("cpu");
   await page.getByPlaceholder("e.g. {nodes}", { exact: true }).fill("{nodes}");
   await page.getByRole("button", { name: "+ Add variable" }).first().click();
   const varRow = page.locator(".var-row").last();
@@ -51,7 +51,7 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
 
   // Edit, then delete the open campaign from Browse: the confirmation names the
   // unsaved loss, and confirming resets the editor.
-  await page.getByPlaceholder("e.g. {nodes}_nodes").fill("gpu");
+  await page.getByLabel("SbatchMan preset").fill("gpu");
   await page.getByRole("button", { name: "Browse…" }).click();
   await page.getByRole("button", { name: "Discard" }).click(); // opens the overlay only
   await page.getByTitle("Delete campaign").click();
