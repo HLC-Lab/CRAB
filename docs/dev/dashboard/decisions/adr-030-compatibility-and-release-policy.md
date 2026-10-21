@@ -3,6 +3,17 @@
 - **Date:** 2026-09-30
 - **Status:** accepted
 
+**Amendment (2026-10-21):** a release whose changes live on one line only is tagged on that line
+only. A fix or a guide change that touches just `sbatchman` is tagged `vX.Y.Z+sbatchman` with no
+`vX.Y.Z`, so a partner-only change does not force an empty product release. The two lines can then
+carry different versions. The next release with changes for both lines takes the next version above
+both and is tagged on both again. `crab update` already handles this: a checkout moves to the
+newest tag of its own line, and the wrappers clone moves to the tag `vX.Y.Z` of the CRAB version it
+ends on, or stays where it is when that tag does not exist. The crab-wrappers repository is tagged
+with the same `vX.Y.Z` as the CRAB release it pairs with, whichever line that release is on. The
+"Tags and updates" paragraph below is the original text; read "each partner release is tagged on
+both lines" as the usual case, not a rule.
+
 ## Context
 
 Partners are about to install CRAB from the `sbatchman` branch and keep files produced by it on
