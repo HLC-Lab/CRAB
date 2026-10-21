@@ -8,7 +8,7 @@ All notable changes to CRAB are listed here, newest first. The format follows
 Each release `vX.Y.Z` also has a `vX.Y.Z+sbatchman` tag for the SbatchMan partner line. This file
 lists the product line only.
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-10-21
 
 ### Changed
 
