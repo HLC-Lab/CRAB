@@ -1,3 +1,5 @@
+import os
+import shlex
 import shutil
 
 import crab.setup.memory as memory
@@ -24,6 +26,8 @@ class base:
     keys: list = []
     # Executable name looked up on PATH when neither the config nor a receipt names a binary.
     executable = ""
+    # Set by find_binary: the first path of a receipt or wrapper default that does not exist.
+    _absent_binary: str | None = None
     # Set by the runner before launch: the app's placed cores (None means the launcher's default),
     # whether it competes for shared cores with co-located apps, and the variables its ranks run
     # with.
@@ -98,17 +102,41 @@ class base:
     def get_bench_input(self):
         return ""
 
+    @staticmethod
+    def _first_absent_path(command: str) -> str | None:
+        """The first token of `command` that names a path (has a separator) and is not a file.
+
+        A default may be a prefix command plus the binary ("/opt/select_nic /opt/bin/x"), so every
+        path-like token must exist. A bare command name has no path to check: None.
+        """
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = command.split()
+        for token in tokens:
+            if os.sep in token and not os.path.isfile(token):
+                return token
+        return None
+
     def find_binary(self) -> tuple[str | None, str]:
-        """(binary, source): the app's config `binary`, else the receipt, else PATH.
+        """(binary, source): the app's config `binary`, else the receipt or wrapper default, else PATH.
 
         `source` is "config", "receipt" or "path"; (None, "missing") when nothing gives one.
+        A receipt or wrapper-default command counts only when every path in it exists (a bare
+        command name cannot be checked and is kept); the first absent path is remembered in
+        `_absent_binary` for the error message and the lookup goes on to PATH. The config
+        `binary` is the user's explicit choice and is returned even when absent.
         """
+        self._absent_binary = None
         configured = getattr(self, "binary", None)
         if configured:
             return str(configured), "config"
         from_receipt = self.get_binary_path()
         if from_receipt:
-            return from_receipt, "receipt"
+            absent = self._first_absent_path(from_receipt)
+            if absent is None:
+                return from_receipt, "receipt"
+            self._absent_binary = absent
         if self.executable:
             found = shutil.which(self.executable)
             if found:
@@ -126,7 +154,9 @@ class base:
             return binary
 
         tried = ["the app's 'binary' key in the config"]
-        if self.benchmark_id:
+        if self._absent_binary:
+            tried.append(f"receipt or wrapper default {self._absent_binary!r} (does not exist)")
+        elif self.benchmark_id:
             tried.append(f"receipt {self.benchmark_id!r}")
         else:
             tried.append("no receipt (the wrapper has no benchmark_id)")

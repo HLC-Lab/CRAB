@@ -100,7 +100,8 @@ class TestPwBaseOutdirRegex(unittest.TestCase):
             input_path = f.name
         try:
             app.input_file = input_path
-            with patch.object(type(app), "get_binary_path", return_value="/bin/pw.x"):
+            # Any existing file: a receipt path that does not exist no longer counts.
+            with patch.object(type(app), "get_binary_path", return_value=sys.executable):
                 with tempfile.TemporaryDirectory() as tmpdir:
                     app.run_dir = tmpdir
                     app.run_app()

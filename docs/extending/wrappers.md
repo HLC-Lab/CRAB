@@ -125,6 +125,12 @@ order:
 2. the wrapper's receipt (`get_binary_path()`, which reads the receipt named by `benchmark_id`);
 3. `executable`, looked up on `PATH` in the job's environment.
 
+A receipt path or a wrapper's built-in default counts only when the file exists. A default can be a
+prefix command followed by the binary (`/opt/select_nic /opt/bin/x`), and then every path in it
+must exist; a bare command name has no path to check and is kept. When a path is absent, CRAB goes
+on to the next source, and the error names that path. The app's `binary` key is your explicit
+choice and is used even when the file is absent.
+
 When none of them gives a binary, the experiment fails before its first run, with a message listing
 what was tried. A wrapper whose receipt stores a directory rather than the executable can override
 `get_binary_path()` to add the file name:

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watchEffect } from "vue";
+import { computed, onMounted, ref, watch, watchEffect } from "vue";
 import { useAuthorStore } from "@/stores/author";
 import { useRemotesStore } from "@/stores/remotes";
+import { useCatalogStore } from "@/stores/catalog";
 import { cloneExperiment, emptyExperiment, validateDraft } from "@/lib/config";
 import ConfirmModal from "@/components/ConfirmModal.vue";
 import LibraryBar from "@/components/author/LibraryBar.vue";
@@ -14,6 +15,7 @@ import JsonPanel from "@/components/author/JsonPanel.vue";
 
 const store = useAuthorStore();
 const remotes = useRemotesStore();
+const catalog = useCatalogStore();
 const d = store.draft;
 
 // What the main pane shows: a global section or one experiment.
@@ -45,7 +47,26 @@ watchEffect(() => {
   }
 });
 
-const issues = computed(() => validateDraft(d));
+// The selected cluster's wrapper catalog (the one the picker shows), once loaded. Without a
+// connected cluster or a loaded list there is nothing to check against.
+const wrapperCatalog = computed(() => {
+  const cluster = sourceCluster.value;
+  const list = cluster ? catalog.benchmarks[cluster]?.wrappers : undefined;
+  if (!list) return undefined;
+  return { cluster, wrappers: new Set(list.map((w) => w.relpath)) };
+});
+// ExperimentPane loads the same catalog, but only while an experiment is open; the preview needs
+// it whichever pane shows. The store caches it, so this is one request per cluster.
+const anyWrapperPath = computed(() => d.experiments.some((e) => e.apps.some((a) => a.path.trim())));
+watch(
+  [anyWrapperPath, sourceCluster],
+  () => {
+    const cluster = sourceCluster.value;
+    if (anyWrapperPath.value && cluster && !catalog.busy[cluster]) catalog.loadBenchmarks(cluster);
+  },
+  { immediate: true },
+);
+const issues = computed(() => validateDraft(d, wrapperCatalog.value));
 const showIssues = ref(false);
 
 const showJson = ref(false);

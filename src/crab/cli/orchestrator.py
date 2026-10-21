@@ -21,6 +21,10 @@ from crab import paths  # noqa: E402 -- must follow the sys.path setup above
 CRAB_ROOT = str(paths.crab_home())
 
 import crab.setup.memory as memory  # noqa: E402 -- must follow the sys.path setup above
+from crab.core.wrapper_paths import (  # noqa: E402 -- same
+    WrapperPathError,
+    config_wrapper_path_problems,
+)
 
 COMMON_KEYS = ("description", "env", "sbatch", "header")
 
@@ -362,6 +366,12 @@ def execute_orchestrator(
         if "system_header" not in benchmark_config["global_options"]:
             benchmark_config["global_options"]["system_header"] = preset_config["header"]
 
+        # Before anything is written or submitted: a path that names no wrapper would only fail
+        # inside run 1 of the batch job. Same message as `crab validate`.
+        wrapper_problems = config_wrapper_path_problems(benchmark_config, only, execution_env)
+        if wrapper_problems:
+            raise WrapperPathError("; ".join(wrapper_problems))
+
         logger.info(f"Starting engine with preset '{selected_preset}'")
 
         from crab.core.engine import Engine
@@ -387,7 +397,7 @@ def execute_orchestrator(
     except KeyboardInterrupt:
         logger.warning("Orchestrator interrupted by user")
         sys.exit(130)
-    except memory.ReceiptError as e:
+    except (memory.ReceiptError, WrapperPathError) as e:
         logger.critical(str(e))
         sys.exit(1)
     except Exception as e:
