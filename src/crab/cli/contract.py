@@ -169,12 +169,12 @@ def gather_history(data_root: Path | None = None, system: str | None = None) -> 
 # benchmarks (receipts) + wrappers (discovered .py files)
 # --------------------------------------------------------------------------- #
 def _gather_receipts(env_dir: Path) -> list[dict[str, Any]]:
+    """The receipts in a folder. Raises ReceiptError for one that cannot be read or parsed."""
+    from crab.setup.memory import read_receipt_file
+
     benchmarks: list[dict[str, Any]] = []
     for file in sorted(glob.glob(str(env_dir / "*.json"))):
-        try:
-            r = json.loads(Path(file).read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
+        r = read_receipt_file(file)
         benchmarks.append(
             {
                 "id": r.get("id", Path(file).stem),

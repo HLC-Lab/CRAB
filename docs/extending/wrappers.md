@@ -101,11 +101,20 @@ metadata = [
 ]
 ```
 
-### The older shape
+### The older shape is gone
 
-Wrappers written before version 1 return one list of samples per metric from `read_data()`, in
-`metadata` order. That shape is still accepted and converted to rows, and CRAB logs a warning once
-per experiment. It stops being accepted at v1.0, so new wrappers should return rows.
+Before version 1, a wrapper returned one list of samples per metric from `read_data()`, in
+`metadata` order. CRAB 1.0 removed that shape. A wrapper that still returns it fails its runs, and
+`crab parse` exits with an error that names the wrapper. To migrate, return one dict per sample
+instead:
+
+```python
+# before: [[1.5, 2.5], [0.7, 0.9]]   (one list per metric)
+return [{"gflops": 1.5, "time": 0.7}, {"gflops": 2.5, "time": 0.9}]
+```
+
+An empty list is not accepted either: it means the parser found no rows, so the run fails (an
+app that declares no metrics is the only exception).
 
 ## Finding the binary
 

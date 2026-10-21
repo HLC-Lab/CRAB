@@ -404,4 +404,10 @@ def cli_router():
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
-    args.func(args)
+    from crab.setup.memory import ReceiptError
+
+    try:
+        args.func(args)
+    except ReceiptError as exc:
+        print(f"crab: {exc}", file=sys.stderr)
+        sys.exit(1)

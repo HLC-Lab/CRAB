@@ -278,6 +278,9 @@ def execute_worker(work_dir: str, log_level_str: str = None):
 
         stop_all_registered(logger)
         sys.exit(143)
+    except memory.ReceiptError as e:
+        logger.critical(str(e))
+        sys.exit(1)
     except Exception as e:
         logger.critical(f"Worker fatal error: {e}")
         import traceback
@@ -384,6 +387,9 @@ def execute_orchestrator(
     except KeyboardInterrupt:
         logger.warning("Orchestrator interrupted by user")
         sys.exit(130)
+    except memory.ReceiptError as e:
+        logger.critical(str(e))
+        sys.exit(1)
     except Exception as e:
         logger.critical(f"Orchestrator fatal error: {e}")
         import traceback

@@ -13,6 +13,11 @@ comes first, and the wrapper's `executable` on `PATH` comes last (see
 [Finding the binary](wrappers.md#finding-the-binary)). An application that is on `PATH` when the
 job runs needs no receipt at all.
 
+A missing receipt is not an error, but a receipt file that exists and cannot be read or parsed is.
+CRAB stops with a message that names the file and the problem (invalid JSON, a file that is not a
+JSON object, or a permission error) and leaves the file as it is. Fix or delete it, or register the
+binary again with `crab receipts set`.
+
 ## How `crab setup` generates one
 
 When you run `crab setup` and configure a benchmark, the wizard's chosen strategy determines the

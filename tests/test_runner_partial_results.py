@@ -30,7 +30,7 @@ def _wrapper_failing_at_launch(path: Path, counter: Path, failing_run: int) -> N
         "            raise FileNotFoundError('no such binary: bench')\n"
         "        return f'echo {run}'\n\n"
         "    def read_data(self):\n"
-        "        return [[float(self.stdout)]]\n"
+        "        return [{'v': float(self.stdout)}]\n"
     )
 
 

@@ -63,8 +63,6 @@ def handle_parse(args: argparse.Namespace) -> None:
         )
     except ParseError as exc:
         _fail(str(exc))
-    if parsed.legacy:
-        print("crab: note: this wrapper returns the old list-per-metric shape", file=sys.stderr)
 
     if args.check:
         from crab.cli.wrappers_catalog import row_differences

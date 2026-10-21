@@ -62,7 +62,7 @@ def test_read_data_can_use_its_run_dir_even_when_the_app_wrote_nothing_there(
         "        with open(scratch, 'w') as f:\n"
         "            f.write(self.stdout)\n"
         "        with open(scratch) as f:\n"
-        "            return [[float(f.read())]]\n",
+        "            return [{'v': float(f.read())}]\n",
     )
     runner = _run(tmp_path, monkeypatch, wrapper)
 
@@ -74,7 +74,7 @@ def test_read_data_can_use_its_run_dir_even_when_the_app_wrote_nothing_there(
 
 def test_an_empty_run_dir_is_still_removed_after_the_run(tmp_path: Path, monkeypatch) -> None:
     wrapper = tmp_path / "w.py"
-    _wrapper(wrapper, "        return [[float(self.stdout)]]\n")
+    _wrapper(wrapper, "        return [{'v': float(self.stdout)}]\n")
     runner = _run(tmp_path, monkeypatch, wrapper)
 
     assert _registry_row(tmp_path)["status"] == "COMPLETED"
