@@ -19,6 +19,7 @@ def write_registry_row(
     failed_runs: int,
     log_error: Callable[[str], None],
     started_at: float | None = None,
+    seed: Any = "",
 ) -> None:
     """
     Appends a data row for this experiment to the system-level metadata.csv.
@@ -27,9 +28,11 @@ def write_registry_row(
     `total_runs`/`failed_runs` let a caller distinguish "this experiment's
     overall status latched to FAILED because of one bad run, but N of M
     runs actually succeeded and have data" from "every run failed" (plan
-    081). An existing metadata.csv from before this field existed keeps
-    its old header forever (no migration, by design) -- new rows still
-    append fine, they just aren't readable by these column names.
+    081). `seed` is the experiment's allocation seed, empty when none was
+    used. An existing metadata.csv from before these fields existed keeps
+    its old header forever (no migration, by design) -- new rows are cut
+    to that header's width, so the file stays rectangular and the newer
+    columns are simply not recorded there.
 
     The timestamp column is the job folder's own timestamp when its name has one
     (CRAB's `<job_name>_<timestamp>` folders). A job folder without one, such as a
@@ -89,6 +92,7 @@ def write_registry_row(
             "relative_path",
             "total_runs",
             "failed_runs",
+            "seed",
         ]
         row = [
             job_name,
@@ -102,6 +106,7 @@ def write_registry_row(
             relative_path,
             total_runs,
             failed_runs,
+            "" if seed is None else seed,
         ]
 
         # Atomic append routine using advisory locking
@@ -114,6 +119,16 @@ def write_registry_row(
             if f.tell() == 0:
                 writer = csv.writer(f)
                 writer.writerow(headers)
+            else:
+                # An older, narrower header stays as it is: cut the row to its width so
+                # the file stays rectangular (pandas.read_csv rejects a wider row).
+                try:
+                    f.seek(0)
+                    existing_header = next(csv.reader(f), [])
+                    if existing_header:
+                        row = row[: len(existing_header)]
+                except (csv.Error, UnicodeDecodeError, OSError):
+                    pass  # unreadable header: write the full row
 
             writer = csv.writer(f)
             writer.writerow(row)

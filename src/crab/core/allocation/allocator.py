@@ -63,12 +63,20 @@ class NodeAllocator:
         return NodeAllocator._apply_largest_remainder(num_nodes, split_list)
 
     @staticmethod
-    def allocate_experiment(apps: list[Any], node_list: list[str], allocation: dict[str, Any]):
+    def allocate_experiment(
+        apps: list[Any], node_list: list[str], allocation: dict[str, Any]
+    ) -> dict[str, Any]:
         """Give every app of one experiment its nodes, per the experiment's `allocation`.
 
         The single entry point used by the runner and by the pre-submit config checks. Only
         chain heads get a share; an app that reuses nodes (ADR-032) gets its head's nodes.
         Apps are read through `start_string` (default "0") and `partition_id`.
+
+        Returns the allocation record: `{"mode": str, "apps": {"<index>": [nodes]}}`, plus
+        `"seed"` when a top-level random shuffle ran (the given seed as given, else a drawn
+        one) and `"partition_seeds": {name: seed}` when a partition shuffled. With partitions,
+        `"mode"` is the top-level layout mode and `"partitioned"` is True. Passing the
+        recorded seeds back reproduces the layout on the same node list.
         """
         reuse = resolve_chains(
             [str(getattr(app, "start_string", "0")) for app in apps],
@@ -80,12 +88,14 @@ class NodeAllocator:
             if i not in reuse
         }
         slots = list(heads.values())
+        record: dict[str, Any] = {"mode": allocation.get("mode", "linear")}
         if "partitions" in allocation:
-            NodeAllocator.allocate_partitioned(slots, node_list, allocation)
+            record["partitioned"] = True
+            record.update(NodeAllocator.allocate_partitioned(slots, node_list, allocation))
         elif allocation.get("mode") == "shared":
             NodeAllocator.allocate_shared(slots, node_list)
         else:
-            mode = allocation.get("mode", "linear")
+            mode = record["mode"]
             split = NodeAllocator.get_abs_split(
                 allocation.get("split", "even"), len(slots), len(node_list)
             )
@@ -94,11 +104,17 @@ class NodeAllocator:
                     slots, node_list, split, stride=allocation.get("stride", 1)
                 )
             elif mode == "random":
-                NodeAllocator.allocate_random(slots, node_list, split, seed=allocation.get("seed"))
+                record["seed"] = NodeAllocator.allocate_random(
+                    slots, node_list, split, seed=allocation.get("seed")
+                )
             else:  # linear (default)
                 NodeAllocator.allocate_linear(slots, node_list, split)
+        record["apps"] = {}
         for i, app in enumerate(apps):
-            app.set_nodes(list(heads[reuse.get(i, i)].nodes))
+            nodes = list(heads[reuse.get(i, i)].nodes)
+            app.set_nodes(nodes)
+            record["apps"][str(i)] = nodes
+        return record
 
     @staticmethod
     def allocate_linear(apps: list[Any], node_list: list[str], split_counts: list[int]):
@@ -142,20 +158,32 @@ class NodeAllocator:
 
     @staticmethod
     def allocate_random(
-        apps: list[Any], node_list: list[str], split_counts: list[int], seed: int = None
-    ):
-        """Shuffles nodes (optionally seeded) then applies linear allocation."""
+        apps: list[Any], node_list: list[str], split_counts: list[int], seed: Any = None
+    ) -> Any:
+        """Shuffles nodes then applies linear allocation; returns the seed used.
+
+        A given seed is used as is (any type `random.Random` takes); with `seed=None` one is
+        drawn from the OS, so the caller can record it and replay the layout.
+        """
+        if seed is None:
+            seed = random.SystemRandom().randrange(2**32)
         shuffled = list(node_list)
         random.Random(seed).shuffle(shuffled)
         NodeAllocator.allocate_linear(apps, shuffled, split_counts)
+        return seed
 
     @staticmethod
-    def allocate_partitioned(apps: list[Any], node_list: list[str], allocation: dict[str, Any]):
+    def allocate_partitioned(
+        apps: list[Any], node_list: list[str], allocation: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Divides nodes into named partitions then allocates apps within each.
         `allocation` must contain a 'partitions' dict: {name: {share?, mode?, split?, stride?, seed?, cores?}}.
         Top-level 'mode' controls how partition node-blocks are laid out (linear/interleaved/random).
         Apps are matched to partitions via app.partition_id (string name).
+
+        Returns the seeds used: `"seed"` for a random top-level layout and
+        `"partition_seeds"` ({name: seed}) for partitions that shuffled; absent when none did.
         """
         if "partitions" not in allocation:
             raise ValueError("allocation dict must contain a 'partitions' key.")
@@ -167,6 +195,8 @@ class NodeAllocator:
                 "mode lays out the partition blocks; set mode 'shared' inside a partition"
             )
         partition_names = list(partitions_cfg.keys())
+        seeds: dict[str, Any] = {}
+        partition_seeds: dict[str, Any] = {}
 
         # 1. Determine partition sizes
         shares = [partitions_cfg[name].get("share") for name in partition_names]
@@ -203,8 +233,12 @@ class NodeAllocator:
                 if not advanced:
                     break
         elif layout_mode == "random":
+            seed = allocation.get("seed")
+            if seed is None:
+                seed = random.SystemRandom().randrange(2**32)
+            seeds["seed"] = seed
             shuffled = list(node_list)
-            random.Random(allocation.get("seed")).shuffle(shuffled)
+            random.Random(seed).shuffle(shuffled)
             idx = 0
             for p_idx, count in enumerate(pt_counts):
                 partitions_nodes[p_idx] = shuffled[idx : idx + count]
@@ -236,6 +270,11 @@ class NodeAllocator:
                     p_apps, p_nodes, p_split, stride=p_cfg.get("stride", 1)
                 )
             elif p_mode == "random":
-                NodeAllocator.allocate_random(p_apps, p_nodes, p_split, seed=p_cfg.get("seed"))
+                partition_seeds[p_name] = NodeAllocator.allocate_random(
+                    p_apps, p_nodes, p_split, seed=p_cfg.get("seed")
+                )
             else:
                 NodeAllocator.allocate_linear(p_apps, p_nodes, p_split)
+        if partition_seeds:
+            seeds["partition_seeds"] = partition_seeds
+        return seeds

@@ -214,7 +214,7 @@ shared filesystem; see [NICs per rank](../reference/configuration.md#nics-per-ra
 |------|--------------------|----------|
 | Linear | `"linear"` (default) | Each app should get a contiguous block of nodes. |
 | Interleaved | `"interleaved"` | Apps should be spread round-robin across nodes (more fabric sharing). Add `"stride"` to assign multiple nodes per turn. |
-| Random | `"random"` | Shuffle the node list before splitting (add `"seed"` for reproducibility). |
+| Random | `"random"` | Shuffle the node list before splitting. Without a `"seed"`, CRAB draws one for each experiment and records it; set `"seed"` to repeat a layout. |
 | Partitioned | any mode + `"partitions"` | You want named victim/aggressor groups, each with their own `share`. |
 
 For partitioned allocation, each app's `partition` field must match a key in `allocation.partitions`.
@@ -224,7 +224,7 @@ See [Allocation fields](../reference/configuration.md#allocation-fields).
 
 CRAB repeats each experiment until its convergence-target metrics stabilize. The relevant knobs:
 
-- `minruns` / `maxruns`: the floor and ceiling on repetitions.
+- `minruns` / `maxruns`: the floor on successful runs and the ceiling on all runs, failed ones included.
 - `alpha` / `beta`: the confidence level and the relative width threshold (CI width `< beta × mean`).
 - `convergeall`: require *every* metric to converge, not just those flagged `conv` in the wrapper.
 - `timeout`: a wall-clock cap that ends the experiment regardless of convergence.

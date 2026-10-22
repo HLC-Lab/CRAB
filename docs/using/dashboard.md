@@ -196,7 +196,9 @@ The left rail has two groups. **Setup** holds the settings of the whole use case
   nodes into named slices. Drag a divider or type a percentage to size them, and `+ add a slice`
   adds more. Then pick how the slices are placed: `linear` (a block each), `interleaved` (with
   `every N node(s)`), `random` (with a `seed`) or `shared` (every app on all nodes, with `cores`
-  `disjoint` or `shared`). `shared` is available only while there are no slices. The strip under
+  `disjoint` or `shared`). `shared` is available only while there are no slices. The `seed` field of
+  `random` starts blank, with the hint `blank: a new seed for each experiment, saved with the
+  results`; type a number to pin the seed. The strip under
   the bar is an illustration. The exact assignment happens at run time. For what each mode means,
   see the [configuration reference](../reference/configuration.md#allocation-fields).
 - **Run settings.** `Convergence` has `Min runs`, `Max runs`, `Timeout (s)`, `Converge all`,
@@ -332,7 +334,9 @@ The job page lists every experiment of that submission, with its status, its num
 ppn, and the apps it ran. A line such as `3/10 runs failed` means the experiment kept its
 [convergence](../glossary.md#convergence) loop going and collected data from the runs that worked.
 **Logs** on an experiment shows the error log of each app that failed, and says so when nothing
-failed.
+failed. The line of an experiment with a random allocation ends with `· random · seed N`, the seed
+that laid out its nodes. Put that number in the `seed` field to repeat the layout on the same node
+list.
 
 To run only part of the job again:
 

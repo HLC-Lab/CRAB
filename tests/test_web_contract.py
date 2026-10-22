@@ -225,7 +225,7 @@ def test_gather_history_missing_run_failure_columns_is_graceful(tmp_path: Path):
     # files) -- the OLD 9-column header, no total_runs/failed_runs at all.
     system_dir = tmp_path / "leonardo"
     system_dir.mkdir(parents=True)
-    old_columns = contract._HISTORY_COLUMNS[:-2]
+    old_columns = contract._HISTORY_COLUMNS[:-3]
     header = ",".join(old_columns)
     row = ",".join(["j1", "e1", "", "", "", "", "COMPLETED", "", ""])
     (system_dir / "metadata.csv").write_text(header + "\n" + row + "\n")

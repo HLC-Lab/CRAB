@@ -121,9 +121,10 @@ Inside the worker, `ExperimentRunner` manages one experiment at a time:
 
 1. `setup()`: load the wrappers, resolve each app's launcher, allocate nodes
    (`core/allocation/allocator.py`), and build a `DataContainer` per collected metric.
-2. `execute()`: repeat the experiment from `minruns` up to `maxruns`. Each run drives an
+2. `execute()`: repeat the experiment until `minruns` runs have succeeded, and never past
+   `maxruns` runs (failed ones count). Each run drives an
    event loop that starts/stops applications on schedule, polls their processes, and resolves
-   "start after app N finishes" dependencies. After `minruns`, the loop stops early once metrics
+   "start after app N finishes" dependencies. After `minruns` successful runs, the loop stops early once metrics
    reach statistical convergence (`core/data/utils.py::check_CI`, the confidence-interval
    width falls below `beta × mean`).
 3. `save_results()`: write per-application CSV (or HDF) files.
@@ -142,7 +143,8 @@ field in `global_options` (or per-experiment `local_options`):
 - `"linear"` (default): contiguous blocks of nodes per application or partition.
 - `"interleaved"`: nodes dealt round-robin; an optional `stride` controls how many
   consecutive nodes are assigned per turn.
-- `"random"`: node list shuffled (with optional `seed`) before splitting linearly.
+- `"random"`: node list shuffled before splitting linearly, with the given `seed` or one CRAB
+  draws per experiment. The seed and each app's nodes go into `crab_run.json` (`allocations`).
 - `"shared"`: every application gets all the nodes and they run together on the same hosts;
   see [Shared nodes](../reference/configuration.md#shared-nodes).
 - Partitioned: add a `partitions` dict to split nodes into named groups (e.g. `"victim"` /

@@ -183,7 +183,7 @@ const caption = computed(() => {
     a.value.mode === "interleaved"
       ? `${who} alternate every ${strideN.value} node${strideN.value === 1 ? "" : "s"}`
       : a.value.mode === "random"
-        ? `node assignment shuffled (seed ${seedN.value})`
+        ? `node assignment shuffled (${a.value.seed.trim() ? `seed ${seedN.value}` : "seed drawn at run time"})`
         : `each ${solo.value ? "app" : "group"} gets a contiguous block`;
   return `${desc}. Illustration of placement, exact assignment happens at runtime.`;
 });
@@ -272,9 +272,6 @@ function setMode(m: AllocationDraft["mode"]): void {
     a.value.cores = "";
   }
   if (m === "interleaved" && !a.value.stride.trim()) a.value.stride = "1";
-  if (m === "random" && !a.value.seed.trim()) {
-    a.value.seed = String(Math.floor(Math.random() * 1_000_000));
-  }
 }
 
 // "disjoint" is the engine default: a loaded explicit "disjoint" stays, a new pick leaves the key out.
@@ -433,8 +430,11 @@ function startDrag(e: PointerEvent, i: number): void {
           >every <NumberField v-model="a.stride" :min="1" class="subfield" /> node(s)</label
         >
         <label v-if="!hideMode && a.mode === 'random'" class="subc"
-          >seed <NumberField v-model="a.seed" class="subfield seed"
-        /></label>
+          >seed <NumberField v-model="a.seed" class="subfield seed" />
+          <span v-if="!a.seed.trim()" class="hint"
+            >blank: a new seed for each experiment, saved with the results</span
+          ></label
+        >
         <label v-if="!hideMode && isShared" class="subc"
           >cores
           <select
