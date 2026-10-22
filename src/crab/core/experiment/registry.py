@@ -8,6 +8,8 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from crab.core.allocation.allocator import Seed
+
 
 def write_registry_row(
     exp_dir: str,
@@ -19,7 +21,7 @@ def write_registry_row(
     failed_runs: int,
     log_error: Callable[[str], None],
     started_at: float | None = None,
-    seed: Any = "",
+    seed: Seed = "",
 ) -> None:
     """
     Appends a data row for this experiment to the system-level metadata.csv.

@@ -4,6 +4,16 @@ from typing import Any
 
 from crab.core.allocation.chains import resolve_chains
 
+# A shuffle seed as a config gives it: an int, a string, or None for "draw one".
+Seed = int | str | None
+
+
+def _resolve_seed(seed: Seed) -> int | str:
+    """Return a given seed unchanged; with None, draw one from the OS so it can be recorded."""
+    if seed is None:
+        return random.SystemRandom().randrange(2**32)
+    return seed
+
 
 class _Slot:
     """A chain head's place in the allocation; its nodes are copied to the real apps after."""
@@ -158,15 +168,14 @@ class NodeAllocator:
 
     @staticmethod
     def allocate_random(
-        apps: list[Any], node_list: list[str], split_counts: list[int], seed: Any = None
-    ) -> Any:
+        apps: list[Any], node_list: list[str], split_counts: list[int], seed: Seed = None
+    ) -> int | str:
         """Shuffles nodes then applies linear allocation; returns the seed used.
 
         A given seed is used as is (any type `random.Random` takes); with `seed=None` one is
         drawn from the OS, so the caller can record it and replay the layout.
         """
-        if seed is None:
-            seed = random.SystemRandom().randrange(2**32)
+        seed = _resolve_seed(seed)
         shuffled = list(node_list)
         random.Random(seed).shuffle(shuffled)
         NodeAllocator.allocate_linear(apps, shuffled, split_counts)
@@ -196,7 +205,7 @@ class NodeAllocator:
             )
         partition_names = list(partitions_cfg.keys())
         seeds: dict[str, Any] = {}
-        partition_seeds: dict[str, Any] = {}
+        partition_seeds: dict[str, int | str] = {}
 
         # 1. Determine partition sizes
         shares = [partitions_cfg[name].get("share") for name in partition_names]
@@ -233,9 +242,7 @@ class NodeAllocator:
                 if not advanced:
                     break
         elif layout_mode == "random":
-            seed = allocation.get("seed")
-            if seed is None:
-                seed = random.SystemRandom().randrange(2**32)
+            seed = _resolve_seed(allocation.get("seed"))
             seeds["seed"] = seed
             shuffled = list(node_list)
             random.Random(seed).shuffle(shuffled)
