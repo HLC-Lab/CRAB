@@ -266,6 +266,7 @@ class ExperimentRunner:
 
         runs = 0
         failed_runs = 0
+        ok_runs = 0  # minruns counts these; maxruns and timeout count every started run
         global_start = time.time()
         self.started_at = global_start
         converged = False
@@ -275,7 +276,7 @@ class ExperimentRunner:
             while True:
                 # Exit conditions
                 elapsed = time.time() - global_start
-                if runs >= max_runs or (runs >= min_runs and converged) or elapsed >= timeout:
+                if runs >= max_runs or (ok_runs >= min_runs and converged) or elapsed >= timeout:
                     break
 
                 run_log = self.log.enter(f"Run {runs + 1}")
@@ -353,13 +354,15 @@ class ExperimentRunner:
                     shutil.rmtree(run_root, ignore_errors=True)
 
                 runs += 1
-                if not run_successful:
+                if run_successful:
+                    ok_runs += 1
+                else:
                     failed_runs += 1
                 run_open = False
-                if runs >= min_runs:
+                if ok_runs >= min_runs:
                     converged = check_CI(self.data_containers, alpha, beta, converge_all, runs)
                     if converged:
-                        self.log.info(f"Converged at run {runs}")
+                        self.log.info(f"Converged at run {runs} ({ok_runs} successful)")
 
         except Exception as e:
             # Keep what the completed runs measured; the run that raised counts as failed.
