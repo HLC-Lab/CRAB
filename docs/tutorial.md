@@ -101,8 +101,8 @@ What the key fields mean (full list in the [Configuration schema](reference/conf
   `alltoall_man` run until it is stopped (`-endl`), in bursts of 10 ms (`-blength 0.01`) separated
   by 1 ms pauses (`-bpause 0.001`). Each burst sends 2 MiB to every other rank (`-msgsize 2097152`).
   Longer bursts and shorter pauses mean heavier interference.
-- `minruns`/`maxruns`: repeat each experiment 5 to 10 times, stopping early once the victim's
-  metrics [converge](glossary.md#convergence).
+- `minruns`/`maxruns`: run each experiment until 5 runs have succeeded (at most 10 runs in all), stopping as soon as the victim's
+  metrics [converge](glossary.md#convergence) after that.
 
 !!! note "`path` points to the wrapper, not the binary"
     `blink/alltoall/alltoall_comm_only.py` is the [wrapper](glossary.md#wrapper) file, given *relative*: CRAB

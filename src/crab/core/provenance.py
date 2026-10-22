@@ -147,3 +147,22 @@ def record_launch(job_dir: str, experiment: str, app_id: str, record: dict[str, 
         os.replace(tmp, path)
     except (OSError, ValueError, AttributeError, TypeError):
         return
+
+
+def record_allocation(job_dir: str, experiment: str, record: dict[str, Any]) -> None:
+    """Set `allocations[experiment]` of `<job_dir>/crab_run.json` to the allocation `record`.
+
+    An experiment is set up once per job, so a second call replaces the first. A missing or
+    unreadable file is skipped: this is provenance, and must never fail a run.
+    """
+    path = os.path.join(job_dir, "crab_run.json")
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        data.setdefault("allocations", {})[experiment] = record
+        tmp = f"{path}.tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, path)
+    except (OSError, ValueError, AttributeError, TypeError):
+        return

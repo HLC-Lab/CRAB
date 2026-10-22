@@ -38,15 +38,17 @@ Some consequences of how the loop is built:
 
 | Key | Default | Role |
 |---|---|---|
-| `minruns` | `10` | Convergence is not checked before this many runs have finished. |
-| `maxruns` | `20` | The experiment never starts more runs than this. |
+| `minruns` | `10` | Convergence is not checked before this many runs have succeeded. |
+| `maxruns` | `20` | The experiment never starts more runs than this, failed ones included. |
 | `timeout` | `1200.0` | Seconds of wall-clock time for the whole experiment, counted from its start. |
 | `alpha`, `beta` | `0.05`, `0.05` | The confidence level and the width threshold below. |
 
-After every run from `minruns` on, CRAB checks convergence (`check_CI` in
+Once `minruns` runs have succeeded, CRAB checks convergence after every run (`check_CI` in
 `src/crab/core/data/utils.py`). The experiment stops when `maxruns` runs are done, or `minruns`
-runs are done and the check passes, or `timeout` seconds have passed, whichever comes first. A
-failed run counts toward all of these, including `minruns`.
+runs have succeeded and the check passes, or `timeout` seconds have passed, whichever comes first.
+A failed run counts toward `maxruns` and `timeout` but not toward `minruns`, and CRAB does not
+retry it: later runs replace it, up to `maxruns`. An experiment with failures can therefore end
+at `maxruns` or `timeout` with fewer than `minruns` successful runs.
 
 ### What the check computes
 
@@ -123,7 +125,7 @@ combination before the run starts.
 
 Placement and sharing. CRAB gives each app a list of nodes before the job starts, from the
 `allocation` block: contiguous blocks (`linear`), round-robin (`interleaved`), a shuffled list
-(`random`, reproducible only with a `seed`), named partitions, or `shared`, where every app gets
+(`random`, with a `seed` you give or one CRAB draws and records), named partitions, or `shared`, where every app gets
 all the nodes and the apps compete inside each node. An app with `start: "sN"` runs on the nodes
 of the app it waits for, unless it names another partition. Each app has its own `ppn`, and can
 have its own core list (`cpus`). With `shared`, `cores` says whether apps keep to disjoint cores or
@@ -173,9 +175,12 @@ Every job folder holds the inputs and the identity of the code that produced the
   the folder, the clone's commit and whether it had local edits, and for each app the wrapper
   file's path and SHA-256. Its `execution` block holds the scheduler, hosts and launcher, and with
   `mpirun` in dialect `auto` the dialect found and the first line of `mpirun --version`. Its
-  `launches` block holds each app's first launch line, `ppn`, `env` and `nics`.
+  `launches` block holds each app's first launch line, `ppn`, `env` and `nics`. Its `allocations`
+  block holds each experiment's allocation mode, its seed when the layout was random, and each
+  app's nodes.
 - `bindings_app_<i>.log` holds the launcher's report of how it bound the ranks.
-- `metadata.csv` holds the run counts and status of each experiment.
+- `metadata.csv` holds the run counts and status of each experiment, and the allocation seed when
+  there is one.
 
 With these a reader can tell which CRAB and which wrappers ran, on which nodes, with which launch
 lines. To rerun a study, keep the job folder or its `config.json`.
@@ -196,8 +201,9 @@ lines. To rerun a study, keep the job folder or its `config.json`.
 - No application-side record. `crab_run.json` identifies CRAB and the wrapper files. It does
   not store the application's binary checksum or build, the loaded modules (under Slurm they are
   in `crab_job.sh`), or what other jobs sent over the network during the run.
-- Placement varies between jobs. Slurm decides which nodes a job gets, and `random` allocation
-  is not reproducible without a `seed`. Compare experiments of the same job when you can, because
-  they share one allocation.
+- Placement varies between jobs. Slurm decides which nodes a job gets, and a `random` allocation
+  without a `seed` draws a new one for each experiment. CRAB records the seed, so you can repeat
+  a layout by setting that `seed` and running on the same node list. Compare experiments of the
+  same job when you can, because they share one node list.
 - Experiments are sequential. Differences between experiments include any drift of the system
   over the job's duration.

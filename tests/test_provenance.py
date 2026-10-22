@@ -15,7 +15,7 @@ import crab.core.wrapper_paths as wrapper_paths
 from crab import paths
 from crab.core.execution.launcher import dialect
 from crab.core.execution.settings import from_preset
-from crab.core.provenance import RESULTS_SCHEMA, write_provenance
+from crab.core.provenance import RESULTS_SCHEMA, record_allocation, write_provenance
 from settings_fixtures import slurm_settings
 
 
@@ -211,3 +211,38 @@ def test_a_failed_probe_records_the_message_and_still_writes_the_file(
 def test_without_settings_there_is_no_execution_block(tmp_path: Path, wrappers: Path) -> None:
     write_provenance(str(tmp_path), _config(), ["n1"])
     assert "execution" not in json.loads((tmp_path / "crab_run.json").read_text())
+
+
+def test_record_allocation_adds_the_entry_and_keeps_the_other_keys(tmp_path: Path) -> None:
+    path = tmp_path / "crab_run.json"
+    path.write_text(json.dumps({"nodes": ["n0", "n1"], "launches": {"e": {"0": {"line": "x"}}}}))
+    record = {"mode": "random", "seed": 7, "apps": {"0": ["n0"], "1": ["n1"]}}
+
+    record_allocation(str(tmp_path), "e", record)
+
+    data = json.loads(path.read_text())
+    assert data["allocations"] == {"e": record}
+    assert data["nodes"] == ["n0", "n1"]
+    assert data["launches"] == {"e": {"0": {"line": "x"}}}
+
+
+def test_record_allocation_keeps_one_entry_per_experiment(tmp_path: Path) -> None:
+    path = tmp_path / "crab_run.json"
+    path.write_text("{}")
+
+    record_allocation(str(tmp_path), "a", {"mode": "linear", "apps": {"0": ["n0"]}})
+    record_allocation(str(tmp_path), "b", {"mode": "linear", "apps": {"0": ["n1"]}})
+    record_allocation(str(tmp_path), "b", {"mode": "linear", "apps": {"0": ["n2"]}})
+
+    allocations = json.loads(path.read_text())["allocations"]
+    assert sorted(allocations) == ["a", "b"]
+    assert allocations["b"]["apps"] == {"0": ["n2"]}
+
+
+def test_record_allocation_skips_a_missing_or_corrupt_file(tmp_path: Path) -> None:
+    record_allocation(str(tmp_path), "e", {"mode": "linear", "apps": {}})
+    assert not (tmp_path / "crab_run.json").exists()
+
+    (tmp_path / "crab_run.json").write_text("{not json")
+    record_allocation(str(tmp_path), "e", {"mode": "linear", "apps": {}})
+    assert (tmp_path / "crab_run.json").read_text() == "{not json"

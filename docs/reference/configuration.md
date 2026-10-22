@@ -25,7 +25,7 @@ Job: one `crab run`: one config file → one Slurm job → one output directory
 |-------|----------------|-------|
 | [Job](../glossary.md#job) | the whole config file | One `crab run` = one Slurm job = one `data/<system>/<name>_<timestamp>/` directory. Named by `global_options.name`. |
 | [Experiment](../glossary.md#experiment) | a key under `experiments` | Run one after another, in sorted key order. Has its own `apps`; may override options via `local_options`. |
-| [Run](../glossary.md#run) | runtime only (not in the JSON) | One repetition of an experiment. Repeated from `minruns` to `maxruns`, stopping early on convergence. |
+| [Run](../glossary.md#run) | runtime only (not in the JSON) | One repetition of an experiment. Repeated until `minruns` runs succeed (at most `maxruns` runs), stopping early on convergence. |
 | [Application](../glossary.md#application) | a key under an experiment's `apps` | The processes launched concurrently within each run. |
 
 !!! note "Runs and apps are orthogonal"
@@ -102,8 +102,8 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
 | `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
 | `allocation` | object | `{"mode":"linear"}` | Node-to-app mapping strategy. See [Allocation](#allocation-fields). |
-| `minruns` | int | `10` | Minimum runs before convergence is checked. |
-| `maxruns` | int | `20` | Hard cap on runs. |
+| `minruns` | int | `10` | Minimum successful runs before convergence is checked. A failed run does not count. |
+| `maxruns` | int | `20` | Hard cap on runs, failed ones included. |
 | `timeout` | float | `1200.0` | Wall-clock budget for the experiment, in seconds. |
 | `convergeall` | bool | `false` | If true, every metric must converge; otherwise only metrics flagged `conv` in the wrapper. |
 | `alpha` | float | `0.05` | Confidence-interval significance level. |
@@ -175,7 +175,7 @@ All allocation config lives under a single `allocation` key. The minimal form is
 |-------|-----------|
 | `"linear"` (default) | Each app (or partition) gets a contiguous block of nodes. |
 | `"interleaved"` | Nodes are dealt round-robin; supports an optional `stride` (default `1`). |
-| `"random"` | Node list is shuffled (optionally with `seed`), then split linearly. |
+| `"random"` | Node list is shuffled (with `seed`, or a seed CRAB draws), then split linearly. |
 | `"shared"` | Every app gets all the nodes, so the apps run together on the same hosts. See [Shared nodes](#shared-nodes). |
 
 `split` is the percentage share per app (omit for an equal split). An app that runs on another
@@ -208,7 +208,29 @@ Mode extras:
 | Extra key | Used with | Meaning |
 |-----------|-----------|---------|
 | `stride` | `"interleaved"` | Nodes assigned per turn (default `1`). |
-| `seed` | `"random"` | Integer seed for the shuffle; omit for non-deterministic. |
+| `seed` | `"random"` | Integer seed for the shuffle. Omit it and CRAB draws a new seed for each experiment and records it; see [Repeating a random layout](#repeating-a-random-layout). |
+
+### Repeating a random layout
+
+Without a `seed`, CRAB draws one for each experiment when it sets the experiment up, uses it for
+the shuffle, and records it. A `seed` you give is used as given. All the runs of an experiment use
+the same layout: the allocation is computed once per experiment, not once per run.
+
+With `partitions`, the top-level seed shuffles the partition blocks when the top-level `mode` is
+`"random"`. A partition whose own `mode` is `"random"` takes its own `seed`, or a drawn one when it
+has none.
+
+The seed and each app's nodes are in the job's `crab_run.json`, under `allocations`, and the run
+log prints them (`Allocation: random, seed 123456`, then one `App <id>: <nodes>` line per app); see
+[`crab_run.json`](../using/results.md#crab_runjson). The `seed` column of `metadata.csv` holds the
+top-level seed. To repeat a layout, put the recorded seed into the config and run on the same node
+list:
+
+```json
+"allocation": { "mode": "random", "seed": 123456 }
+```
+
+For a partition's seed, copy it from `partition_seeds` into that partition's entry.
 
 ### Shared nodes
 

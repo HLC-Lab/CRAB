@@ -29,7 +29,7 @@ Whether CRAB parses an application's output and stores its metrics. Set per appl
 
 ### Convergence
 
-The condition that stops an experiment's repeated runs early. After `minruns`, CRAB checks whether
+The condition that stops an experiment's repeated runs early. After `minruns` successful runs, CRAB checks whether
 the [confidence interval](concepts/architecture.md#per-experiment-lifecycle) of each
 convergence-target metric has tightened below `beta × mean`; once all targets converge (or
 `maxruns`/`timeout` is hit), the experiment ends. Which metrics are targets is set by the
@@ -138,7 +138,7 @@ download and build a benchmark. Used only by `crab setup`, which turns a recipe 
 ### Run
 
 A single execution of all an [experiment's](#experiment) applications. An experiment performs many
-runs (from `minruns` up to `maxruns`) to gather enough samples for [convergence](#convergence).
+runs (at least `minruns` successful ones, at most `maxruns` in all) to gather enough samples for [convergence](#convergence).
 "Run" (one repetition) and "experiment" (the whole repeated study) are not interchangeable.
 
 ### Scheduler

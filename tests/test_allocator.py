@@ -292,3 +292,123 @@ def test_largest_remainder_sum_within_tolerance_assigns_every_node():
     # 100.05 is inside the 100.1 tolerance: still all nodes, never more
     result = NodeAllocator._apply_largest_remainder(16, [50, 50.05])
     assert sum(result) == 16
+
+
+# ---------------------------------------------------------------------------
+# allocate_experiment returns an allocation record; random shuffles without a seed draw one
+# ---------------------------------------------------------------------------
+
+_NODES = [f"n{i}" for i in range(8)]
+
+
+def _nodes_of(apps):
+    return [a.nodes for a in apps]
+
+
+def test_random_without_seed_draws_and_records_a_seed():
+    apps = [ChainApp(), ChainApp()]
+    record = NodeAllocator.allocate_experiment(apps, _NODES, {"mode": "random"})
+    assert record["mode"] == "random"
+    assert isinstance(record["seed"], int)
+    assert 0 <= record["seed"] < 2**32
+    replay = [ChainApp(), ChainApp()]
+    NodeAllocator.allocate_experiment(replay, _NODES, {"mode": "random", "seed": record["seed"]})
+    assert _nodes_of(replay) == _nodes_of(apps)
+
+
+def test_random_given_seed_is_recorded_unchanged_and_keeps_its_layout():
+    apps = [ChainApp(), ChainApp()]
+    record = NodeAllocator.allocate_experiment(apps, _NODES, {"mode": "random", "seed": 42})
+    assert record["seed"] == 42
+    direct = [MockApp(), MockApp()]
+    NodeAllocator.allocate_random(direct, _NODES, [4, 4], seed=42)
+    assert _nodes_of(apps) == _nodes_of(direct)
+
+
+def test_random_given_string_seed_is_recorded_as_given():
+    apps = [ChainApp(), ChainApp()]
+    record = NodeAllocator.allocate_experiment(apps, _NODES, {"mode": "random", "seed": "7"})
+    assert record["seed"] == "7"
+    expected = list(_NODES)
+    _random.Random("7").shuffle(expected)
+    assert _nodes_of(apps) == [expected[:4], expected[4:]]
+
+
+def test_random_seed_zero_is_a_given_seed():
+    record = NodeAllocator.allocate_experiment(
+        [ChainApp(), ChainApp()], _NODES, {"mode": "random", "seed": 0}
+    )
+    assert record["seed"] == 0
+
+
+@pytest.mark.parametrize("mode", ["linear", "interleaved", "shared"])
+def test_deterministic_modes_record_no_seed(mode):
+    apps = [ChainApp(), ChainApp()]
+    record = NodeAllocator.allocate_experiment(apps, _NODES, {"mode": mode})
+    assert record["mode"] == mode
+    assert "seed" not in record
+    assert "partition_seeds" not in record
+    assert record["apps"] == {"0": apps[0].nodes, "1": apps[1].nodes}
+
+
+def test_record_apps_are_keyed_by_index_and_chained_apps_get_their_heads_nodes():
+    apps = [ChainApp("0"), ChainApp("s0"), ChainApp("0")]
+    record = NodeAllocator.allocate_experiment(apps, _NODES, {"mode": "linear"})
+    assert record["apps"] == {
+        "0": ["n0", "n1", "n2", "n3"],
+        "1": ["n0", "n1", "n2", "n3"],
+        "2": ["n4", "n5", "n6", "n7"],
+    }
+
+
+def test_partitioned_random_draws_top_level_and_partition_seeds():
+    def build():
+        return [
+            ChainApp("0", "a"),
+            ChainApp("0", "a"),
+            ChainApp("0", "b"),
+            ChainApp("0", "b"),
+            ChainApp("0", "c"),
+        ]
+
+    nodes = [f"n{i}" for i in range(20)]
+    allocation = {
+        "mode": "random",
+        "partitions": {
+            "a": {"mode": "random"},  # no seed: drawn
+            "b": {"mode": "random", "seed": 5},  # own seed
+            "c": {"mode": "random"},  # one app: never shuffled, no seed
+        },
+    }
+    apps = build()
+    record = NodeAllocator.allocate_experiment(apps, nodes, allocation)
+    assert record["mode"] == "random"
+    assert isinstance(record["seed"], int)
+    assert 0 <= record["seed"] < 2**32
+    seeds = record["partition_seeds"]
+    assert set(seeds) == {"a", "b"}
+    assert isinstance(seeds["a"], int)
+    assert seeds["b"] == 5
+    assert record["apps"] == {str(i): app.nodes for i, app in enumerate(apps)}
+
+    replay_cfg = {
+        "mode": "random",
+        "seed": record["seed"],
+        "partitions": {
+            "a": {"mode": "random", "seed": seeds["a"]},
+            "b": {"mode": "random", "seed": seeds["b"]},
+            "c": {"mode": "random"},
+        },
+    }
+    replay = build()
+    NodeAllocator.allocate_experiment(replay, nodes, replay_cfg)
+    assert _nodes_of(replay) == _nodes_of(apps)
+
+
+def test_partitioned_without_random_records_no_seeds():
+    apps = [ChainApp("0", "a"), ChainApp("0", "a"), ChainApp("0", "b")]
+    allocation = {"mode": "linear", "partitions": {"a": {"mode": "interleaved"}, "b": {}}}
+    record = NodeAllocator.allocate_experiment(apps, _NODES, allocation)
+    assert "seed" not in record
+    assert "partition_seeds" not in record
+    assert record["apps"] == {str(i): app.nodes for i, app in enumerate(apps)}

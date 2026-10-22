@@ -275,6 +275,21 @@ const fixtures: { name: string; config: AnyObj }[] = [
     },
   },
   {
+    // A blank seed means "draw one at run time": no seed key, in and out.
+    name: "random without seed",
+    config: {
+      global_options: {
+        numnodes: "8",
+        ppn: "1",
+        allocation: {
+          mode: "random",
+          partitions: { victim: { share: 50 }, aggressor: { share: 50 } },
+        },
+      },
+      ...baseExp,
+    },
+  },
+  {
     name: "no allocation key emits none",
     config: { global_options: { numnodes: "8", ppn: "1" }, ...baseExp },
   },
@@ -485,6 +500,21 @@ describe("config round-trip (synthetic fixtures)", () => {
     expect("allocation" in (round.global_options || {})).toBe(
       "allocation" in (config.global_options || {}),
     );
+  });
+});
+
+describe("random allocation with a blank seed", () => {
+  it("reads back as a blank seed and serialises without a seed key", () => {
+    const draft = fromAllocation({
+      mode: "random",
+      partitions: { a: { share: 50 }, b: { share: 50 } },
+    });
+    expect(draft.mode).toBe("random");
+    expect(draft.seed).toBe("");
+    const out = toAllocation(draft);
+    expect(out?.mode).toBe("random");
+    expect(out).not.toHaveProperty("seed");
+    expect(toAllocation({ ...draft, seed: "42" })).toHaveProperty("seed", 42);
   });
 });
 

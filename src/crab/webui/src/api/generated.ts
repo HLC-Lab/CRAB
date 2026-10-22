@@ -1212,6 +1212,11 @@ export interface components {
        * @default
        */
       failed_runs: string;
+      /**
+       * Seed
+       * @default
+       */
+      seed: string;
       /** Record Id */
       record_id?: string | null;
       /** Job Id */

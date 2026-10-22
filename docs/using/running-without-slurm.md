@@ -245,7 +245,7 @@ directory and not in a run directory, it stays even when `retain_files` is `fals
 check that the applications sit on the cores you meant.
 
 The job's `crab_run.json`, in the run's data directory, records which CRAB and which wrapper
-files produced the results. Two of its sections describe the launches:
+files produced the results. Three of its sections describe the launches:
 
 - `execution`: the `scheduler`, the `hosts_used`, the preset's `launcher`, and an `mpirun` object
   with its `command`, its `dialect` and its `version`, the first line of `mpirun --version`.
@@ -255,3 +255,6 @@ files produced the results. Two of its sections describe the launches:
 - `launches`: for each experiment and application, the first launch line that was run (`line`),
   the launcher `kind`, the `dialect` (`null` unless it was `mpirun`), the path of its
   `binding_report` (`null` unless it was `mpirun` or `srun`), the application's `ppn` and its `env`.
+- `allocations`: for each experiment, the allocation `mode`, the `seed` of a random layout (the one
+  you set or the one CRAB drew) and each application's nodes. See
+  [Repeating a random layout](../reference/configuration.md#repeating-a-random-layout).

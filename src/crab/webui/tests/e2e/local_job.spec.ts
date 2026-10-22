@@ -8,7 +8,16 @@
  * test fails if the repo's own `data/` changed.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,7 +56,7 @@ function snapshot(dir: string): string[] {
 // is unique to this test's job).
 function leftovers(marker: string): string[] {
   try {
-    return execFileSync("pgrep", ["-f", marker], { encoding: "utf8" }).trim().split("\n");
+    return execFileSync("pgrep", ["-f", marker], { encoding: "utf8" }).trim().split(/\r?\n/);
   } catch {
     return []; // pgrep exits 1 when nothing matches
   }
@@ -89,6 +98,11 @@ test.skip("submit a local job and watch it complete", async ({ page }) => {
   await page.getByRole("link", { name: "Author" }).click();
   await page.locator(".job-grid label.wide input").fill("e2e_local");
   await page.locator('label:has-text("Total nodes to allocate") input').fill("1");
+
+  // Random placement starts with a blank seed: the engine draws one for the run.
+  await page.locator(".rail li", { hasText: "Node allocation" }).click();
+  await page.locator(".alloc .seg button", { hasText: "random" }).click();
+  await expect(page.locator('.alloc label:has-text("seed") input')).toHaveValue("");
 
   await page.locator(".rail li", { hasText: "Run settings" }).click();
   await page.locator('label:has-text("Data path") input').fill(join(work, "out"));
@@ -135,6 +149,17 @@ test.skip("submit a local job and watch it complete", async ({ page }) => {
   await card.locator(".use-case").click();
   await expect(page.locator(".detail h1")).toHaveText("e2e_local");
   await expect(page.locator(".detail .sub")).toContainText("laptop / local");
+
+  // The engine drew a seed and the registry kept it. The card's "random · seed N"
+  // line is not checked here: `crab history` reads <crab_root>/data, never this
+  // run's temp data path, so the detail lists no experiment for it.
+  const registries = readdirSync(join(work, "out"))
+    .map((name) => join(work, "out", name, "metadata.csv"))
+    .filter((f) => existsSync(f));
+  expect(registries).toHaveLength(1);
+  const [csvHeader, csvRow] = readFileSync(registries[0], "utf8").trim().split(/\r?\n/);
+  expect(csvHeader.endsWith(",seed")).toBe(true); // seed is the last column
+  expect(csvRow.split(",").pop()).toMatch(/^\d+$/);
 
   // --- Nothing leaked: repo data/ untouched, no job process left --------------
   expect(snapshot(repoData)).toEqual(dataBefore);
