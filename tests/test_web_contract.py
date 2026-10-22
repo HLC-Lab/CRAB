@@ -310,7 +310,7 @@ def test_gather_nodes_parses_sinfo():
         if "%R|%a|%D" in cmd:
             return "boost_usr_prod|up|3456\nlrd_all_serial|up|1\nboost_usr_prod|up|3456\n"
         if "%N" in cmd:
-            return "lrdn[0001-0026,0028-0038],gpu01\n"
+            return "node[0001-0026,0028-0038],gpu01\n"
         raise AssertionError(f"unexpected cmd {cmd}")
 
     data = contract.gather_nodes(runner=fake_runner)
@@ -318,7 +318,7 @@ def test_gather_nodes_parses_sinfo():
     names = [p["name"] for p in data["partitions"]]
     assert names == ["boost_usr_prod", "lrd_all_serial"]  # deduped
     assert data["partitions"][0]["nodes"] == 3456
-    assert data["nodes"] == ["lrdn[0001-0026]", "lrdn[0028-0038]", "gpu01"]
+    assert data["nodes"] == ["node[0001-0026]", "node[0028-0038]", "gpu01"]
 
 
 def test_gather_nodes_no_sinfo_is_graceful():

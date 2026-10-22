@@ -25,7 +25,7 @@ _BENCH = (
     '{"file":"broken.py","relpath":"x/broken.py","group":"x","loadable":false,'
     '"benchmark_id":null,"bench_name":null,"metadata":[],"error":"ImportError"}]}'
 )
-_NODES = '{"schema":1,"available":true,"partitions":[{"name":"boost_usr_prod","avail":"up","nodes":3456}],"nodes":["lrdn0001","lrdn0002"]}'
+_NODES = '{"schema":1,"available":true,"partitions":[{"name":"boost_usr_prod","avail":"up","nodes":3456}],"nodes":["node001","node002"]}'
 
 
 def _settings(tmp_path: Path) -> Settings:
