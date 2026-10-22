@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import subprocess
+from collections.abc import Callable
 from typing import Any
 
 import crab
@@ -127,26 +128,41 @@ def write_provenance(
         json.dump(build_provenance(config, nodes, settings), f, indent=2)
 
 
-def record_launch(job_dir: str, experiment: str, app_id: str, record: dict[str, Any]) -> None:
-    """Add `record` under `launches[experiment][app_id]` of `<job_dir>/crab_run.json`.
+def _update_run_json(job_dir: str, mutate: Callable[[dict[str, Any]], bool]) -> None:
+    """Read `<job_dir>/crab_run.json`, apply `mutate` to it, and write it back atomically.
 
-    Only the first launch of an app is kept. A missing or unreadable file is skipped: this is
-    provenance, and must never fail a run.
+    `mutate` returns False to leave the file as it is. A missing or unreadable file is skipped:
+    this is provenance, and must never fail a run.
     """
     path = os.path.join(job_dir, "crab_run.json")
     try:
         with open(path) as f:
             data = json.load(f)
-        launches = data.setdefault("launches", {}).setdefault(experiment, {})
-        if app_id in launches:
+        if not mutate(data):
             return
-        launches[app_id] = record
         tmp = f"{path}.tmp"
         with open(tmp, "w") as f:
             json.dump(data, f, indent=2)
         os.replace(tmp, path)
     except (OSError, ValueError, AttributeError, TypeError):
         return
+
+
+def record_launch(job_dir: str, experiment: str, app_id: str, record: dict[str, Any]) -> None:
+    """Add `record` under `launches[experiment][app_id]` of `<job_dir>/crab_run.json`.
+
+    Only the first launch of an app is kept. A missing or unreadable file is skipped: this is
+    provenance, and must never fail a run.
+    """
+
+    def add(data: dict[str, Any]) -> bool:
+        launches = data.setdefault("launches", {}).setdefault(experiment, {})
+        if app_id in launches:
+            return False
+        launches[app_id] = record
+        return True
+
+    _update_run_json(job_dir, add)
 
 
 def record_allocation(job_dir: str, experiment: str, record: dict[str, Any]) -> None:
@@ -155,14 +171,38 @@ def record_allocation(job_dir: str, experiment: str, record: dict[str, Any]) -> 
     An experiment is set up once per job, so a second call replaces the first. A missing or
     unreadable file is skipped: this is provenance, and must never fail a run.
     """
-    path = os.path.join(job_dir, "crab_run.json")
-    try:
-        with open(path) as f:
-            data = json.load(f)
+
+    def put(data: dict[str, Any]) -> bool:
         data.setdefault("allocations", {})[experiment] = record
-        tmp = f"{path}.tmp"
-        with open(tmp, "w") as f:
-            json.dump(data, f, indent=2)
-        os.replace(tmp, path)
-    except (OSError, ValueError, AttributeError, TypeError):
-        return
+        return True
+
+    _update_run_json(job_dir, put)
+
+
+def record_experiment_allocation(
+    job_dir: str, experiment: str, apps: list[Any], record: dict[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
+    """Key the allocator's `record` by app, record it in `crab_run.json`, and return it with its log lines.
+
+    The allocator keys `record["apps"]` by app index; `launches` in `crab_run.json` keys apps
+    by config key, so the recorded allocation does too. The log lines are the layout mode and
+    seeds, then each app's nodes.
+    """
+    record = {
+        **record,
+        "apps": {
+            str(getattr(app, "config_key", app.id_num)): record["apps"][str(i)]
+            for i, app in enumerate(apps)
+        },
+    }
+    record_allocation(job_dir, experiment, record)
+    line = f"Allocation: {record['mode']}"
+    if "seed" in record:
+        line += f", seed {record['seed']}"
+    if "partition_seeds" in record:
+        seeds = ", ".join(f"{name} {seed}" for name, seed in record["partition_seeds"].items())
+        line += f", partition seeds {seeds}"
+    lines = [line]
+    for app_id, nodes in record["apps"].items():
+        lines.append(f"App {app_id}: {','.join(nodes)}")
+    return record, lines
