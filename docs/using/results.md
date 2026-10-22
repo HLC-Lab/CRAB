@@ -132,6 +132,16 @@ which code produced the data. The values below are an example:
     "a2a_vs_g500": {
       "0": {"line": "srun ...", "kind": "srun", "dialect": null, "binding_report": "...", "ppn": 16, "env": {}, "nics": null}
     }
+  },
+  "allocations": {
+    "a2a_vs_g500": {
+      "mode": "random",
+      "seed": 2918453017,
+      "apps": {
+        "0": ["lrdn0003", "lrdn0001"],
+        "1": ["lrdn0004", "lrdn0002"]
+      }
+    }
   }
 }
 ```
@@ -149,6 +159,14 @@ The fields:
 - `launches` records the first launch of each app: the launch line, the launcher `kind` (`srun`,
   `mpirun` or `direct`), ranks per node, the app's extra environment and its NICs. CRAB adds it
   when the app first starts, so it can be missing from a job that failed early.
+- `allocations` records, for each experiment, how its nodes were laid out: the allocation `mode`
+  and each app's nodes under `apps`, keyed by the same app keys as `launches`. A random layout
+  also has `seed`, the seed given in the config or the one CRAB drew. With `partitions`, the
+  entry has `"partitioned": true`, `mode` is the top-level mode, and `partition_seeds` holds the
+  seed of each partition that shuffled. CRAB writes it when it sets the experiment up, once per
+  experiment: every run of the experiment uses this layout. To repeat the layout, set the recorded
+  `seed` in the config's `allocation` and run on the same node list. The run log prints the same
+  information as `Allocation: random, seed N` and one `App <id>: <nodes>` line per app.
 
 ### The registry, `metadata.csv`
 
@@ -157,14 +175,16 @@ ends. It creates the file, with its header, on the first row. CRAB takes a file 
 jobs that run at the same time do not corrupt it.
 
 ```
-job_name,experiment_name,timestamp,numnodes,ppn,apps_list,status,tags,relative_path,total_runs,failed_runs
-interference,a2a_vs_g500,2026-06-09_14-30-05,4,16,alltoall_b graph500,COMPLETED,demo,./interference_2026-06-09_14-30-05-123456/a2a_vs_g500,12,1
+job_name,experiment_name,timestamp,numnodes,ppn,apps_list,status,tags,relative_path,total_runs,failed_runs,seed
+interference,a2a_vs_g500,2026-06-09_14-30-05,4,16,alltoall_b graph500,COMPLETED,demo,./interference_2026-06-09_14-30-05-123456/a2a_vs_g500,12,1,2918453017
 ```
 
 `status` is `COMPLETED`, `FAILED` or `TIMEOUT`. `total_runs` counts the runs that started and
-`failed_runs` those that did not succeed. `apps_list` holds the unique benchmark names, sorted. A file
-written by an older CRAB keeps its old header, and new rows are added under it. CRAB does not
-migrate it.
+`failed_runs` those that did not succeed. `apps_list` holds the unique benchmark names, sorted.
+`seed` is the seed of the experiment's random layout (the top-level one, see
+[`allocations`](#crab_runjson)), and is empty when the layout was not random. A file written by an
+older CRAB keeps its old header, and new rows are added under it, cut to its width. CRAB does not
+migrate it, so a new row in such a file has no `seed` column; the seed is still in `crab_run.json`.
 
 ## How many runs the CSV holds
 

@@ -277,8 +277,9 @@ It reads the registries under the `data/` folder of the CRAB checkout and does n
 `datapath`. A system with no registry adds nothing, and the command still exits 0. With `--json`
 the answer is `{"schema": 2, "experiments": [...]}`. Each experiment has the registry's columns
 (`job_name`, `experiment_name`, `timestamp`, `numnodes`, `ppn`, `apps_list`, `status`, `tags`,
-`relative_path`, `total_runs` and `failed_runs`) plus `system` and `absolute_path`, the
-experiment's folder.
+`relative_path`, `total_runs`, `failed_runs` and `seed`) plus `system` and `absolute_path`, the
+experiment's folder. `seed` is the experiment's random-layout seed, or an empty string when there
+is none (also for a registry written by an older CRAB, which has no `seed` column).
 
 ```text
 $ crab history

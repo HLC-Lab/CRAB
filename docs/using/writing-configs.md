@@ -214,7 +214,7 @@ shared filesystem; see [NICs per rank](../reference/configuration.md#nics-per-ra
 |------|--------------------|----------|
 | Linear | `"linear"` (default) | Each app should get a contiguous block of nodes. |
 | Interleaved | `"interleaved"` | Apps should be spread round-robin across nodes (more fabric sharing). Add `"stride"` to assign multiple nodes per turn. |
-| Random | `"random"` | Shuffle the node list before splitting (add `"seed"` for reproducibility). |
+| Random | `"random"` | Shuffle the node list before splitting. Without a `"seed"`, CRAB draws one for each experiment and records it; set `"seed"` to repeat a layout. |
 | Partitioned | any mode + `"partitions"` | You want named victim/aggressor groups, each with their own `share`. |
 
 For partitioned allocation, each app's `partition` field must match a key in `allocation.partitions`.

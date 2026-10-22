@@ -143,7 +143,8 @@ field in `global_options` (or per-experiment `local_options`):
 - `"linear"` (default): contiguous blocks of nodes per application or partition.
 - `"interleaved"`: nodes dealt round-robin; an optional `stride` controls how many
   consecutive nodes are assigned per turn.
-- `"random"`: node list shuffled (with optional `seed`) before splitting linearly.
+- `"random"`: node list shuffled before splitting linearly, with the given `seed` or one CRAB
+  draws per experiment. The seed and each app's nodes go into `crab_run.json` (`allocations`).
 - `"shared"`: every application gets all the nodes and they run together on the same hosts;
   see [Shared nodes](../reference/configuration.md#shared-nodes).
 - Partitioned: add a `partitions` dict to split nodes into named groups (e.g. `"victim"` /
