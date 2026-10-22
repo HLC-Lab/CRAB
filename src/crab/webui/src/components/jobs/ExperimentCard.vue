@@ -62,6 +62,7 @@ function toggleLogs(recordId: string, experimentName: string) {
     </div>
     <p class="meta">
       {{ experiment.timestamp }} · {{ experiment.numnodes }} node(s) · ppn {{ experiment.ppn }}
+      <span v-if="experiment.seed"> · random · seed {{ experiment.seed }}</span>
       <span v-if="experiment.job_id"> · job {{ experiment.job_id }}</span>
     </p>
 

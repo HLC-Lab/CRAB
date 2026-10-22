@@ -485,6 +485,9 @@ class ReportExperiment(BaseModel):
     # place (owner's explicit call, see ADR-023).
     total_runs: str = ""
     failed_runs: str = ""
+    # The allocation seed of a random experiment; "" for deterministic
+    # allocations and for a `metadata.csv` written before this field existed.
+    seed: str = ""
     record_id: str | None = None
     job_id: str | None = None
     submitted_at: str | None = None
