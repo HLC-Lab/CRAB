@@ -168,8 +168,9 @@ migrate it.
 
 ## How many runs the CSV holds
 
-CRAB repeats an experiment at least `minruns` times (default 10) and at most `maxruns` (default
-20), and stops at `timeout`. From `minruns` on, it stops early when the confidence interval of
+CRAB repeats an experiment until at least `minruns` runs have succeeded (default 10) and starts
+at most `maxruns` runs (default 20, failed ones included). It also stops at `timeout`. Once
+`minruns` runs have succeeded, it stops early when the confidence interval of
 the mean of each metric flagged `conv` (or of every metric, with `convergeall`) is narrower than
 `beta` times that mean (see [Convergence](../glossary.md#convergence)). With keys, each key value has to converge on its own.
 The CSV does not say whether the experiment converged or ran out of runs. `total_runs` in the

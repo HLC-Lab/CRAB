@@ -48,3 +48,4 @@ deleted.
 | [037](adr-037-blink-wrapper-folders.md) | Blink wrappers live in Blink's own source folders | accepted |
 | [038](adr-038-two-layouts.md) | Two layouts: in-repo state for checkouts, user dirs for installs | accepted |
 | [039](adr-039-public-surface-1-0.md) | The public surface CRAB 1.0 keeps stable: the CLI, its data contracts and the wrapper base class | accepted |
+| [040](adr-040-minruns-counts-successful-runs.md) | `minruns` counts successful runs; `maxruns` and `timeout` count every started run | accepted |

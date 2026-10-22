@@ -38,15 +38,17 @@ Some consequences of how the loop is built:
 
 | Key | Default | Role |
 |---|---|---|
-| `minruns` | `10` | Convergence is not checked before this many runs have finished. |
-| `maxruns` | `20` | The experiment never starts more runs than this. |
+| `minruns` | `10` | Convergence is not checked before this many runs have succeeded. |
+| `maxruns` | `20` | The experiment never starts more runs than this, failed ones included. |
 | `timeout` | `1200.0` | Seconds of wall-clock time for the whole experiment, counted from its start. |
 | `alpha`, `beta` | `0.05`, `0.05` | The confidence level and the width threshold below. |
 
-After every run from `minruns` on, CRAB checks convergence (`check_CI` in
+Once `minruns` runs have succeeded, CRAB checks convergence after every run (`check_CI` in
 `src/crab/core/data/utils.py`). The experiment stops when `maxruns` runs are done, or `minruns`
-runs are done and the check passes, or `timeout` seconds have passed, whichever comes first. A
-failed run counts toward all of these, including `minruns`.
+runs have succeeded and the check passes, or `timeout` seconds have passed, whichever comes first.
+A failed run counts toward `maxruns` and `timeout` but not toward `minruns`, and CRAB does not
+retry it: later runs replace it, up to `maxruns`. An experiment with failures can therefore end
+at `maxruns` or `timeout` with fewer than `minruns` successful runs.
 
 ### What the check computes
 

@@ -121,9 +121,10 @@ Inside the worker, `ExperimentRunner` manages one experiment at a time:
 
 1. `setup()`: load the wrappers, resolve each app's launcher, allocate nodes
    (`core/allocation/allocator.py`), and build a `DataContainer` per collected metric.
-2. `execute()`: repeat the experiment from `minruns` up to `maxruns`. Each run drives an
+2. `execute()`: repeat the experiment until `minruns` runs have succeeded, and never past
+   `maxruns` runs (failed ones count). Each run drives an
    event loop that starts/stops applications on schedule, polls their processes, and resolves
-   "start after app N finishes" dependencies. After `minruns`, the loop stops early once metrics
+   "start after app N finishes" dependencies. After `minruns` successful runs, the loop stops early once metrics
    reach statistical convergence (`core/data/utils.py::check_CI`, the confidence-interval
    width falls below `beta × mean`).
 3. `save_results()`: write per-application CSV (or HDF) files.

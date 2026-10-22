@@ -224,7 +224,7 @@ See [Allocation fields](../reference/configuration.md#allocation-fields).
 
 CRAB repeats each experiment until its convergence-target metrics stabilize. The relevant knobs:
 
-- `minruns` / `maxruns`: the floor and ceiling on repetitions.
+- `minruns` / `maxruns`: the floor on successful runs and the ceiling on all runs, failed ones included.
 - `alpha` / `beta`: the confidence level and the relative width threshold (CI width `< beta × mean`).
 - `convergeall`: require *every* metric to converge, not just those flagged `conv` in the wrapper.
 - `timeout`: a wall-clock cap that ends the experiment regardless of convergence.

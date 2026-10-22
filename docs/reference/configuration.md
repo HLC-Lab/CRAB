@@ -25,7 +25,7 @@ Job: one `crab run`: one config file → one Slurm job → one output directory
 |-------|----------------|-------|
 | [Job](../glossary.md#job) | the whole config file | One `crab run` = one Slurm job = one `data/<system>/<name>_<timestamp>/` directory. Named by `global_options.name`. |
 | [Experiment](../glossary.md#experiment) | a key under `experiments` | Run one after another, in sorted key order. Has its own `apps`; may override options via `local_options`. |
-| [Run](../glossary.md#run) | runtime only (not in the JSON) | One repetition of an experiment. Repeated from `minruns` to `maxruns`, stopping early on convergence. |
+| [Run](../glossary.md#run) | runtime only (not in the JSON) | One repetition of an experiment. Repeated until `minruns` runs succeed (at most `maxruns` runs), stopping early on convergence. |
 | [Application](../glossary.md#application) | a key under an experiment's `apps` | The processes launched concurrently within each run. |
 
 !!! note "Runs and apps are orthogonal"
@@ -102,8 +102,8 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
 | `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
 | `allocation` | object | `{"mode":"linear"}` | Node-to-app mapping strategy. See [Allocation](#allocation-fields). |
-| `minruns` | int | `10` | Minimum runs before convergence is checked. |
-| `maxruns` | int | `20` | Hard cap on runs. |
+| `minruns` | int | `10` | Minimum successful runs before convergence is checked. A failed run does not count. |
+| `maxruns` | int | `20` | Hard cap on runs, failed ones included. |
 | `timeout` | float | `1200.0` | Wall-clock budget for the experiment, in seconds. |
 | `convergeall` | bool | `false` | If true, every metric must converge; otherwise only metrics flagged `conv` in the wrapper. |
 | `alpha` | float | `0.05` | Confidence-interval significance level. |
