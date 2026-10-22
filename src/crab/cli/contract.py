@@ -125,6 +125,7 @@ _HISTORY_COLUMNS = (
     "relative_path",
     "total_runs",
     "failed_runs",
+    "seed",
 )
 
 

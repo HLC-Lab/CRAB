@@ -442,4 +442,5 @@ class ExperimentRunner:
             failed_runs,
             lambda message: self.log.error(message),
             started_at=self.started_at,
+            seed=self.allocation_record.get("seed", ""),
         )
