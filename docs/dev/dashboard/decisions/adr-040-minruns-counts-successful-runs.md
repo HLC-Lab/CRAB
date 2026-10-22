@@ -6,7 +6,7 @@
 ## Context
 
 `minruns`, `maxruns` and `timeout` bound how many runs an experiment makes
-(`core/experiment/runner.py`). A failed run used to count toward all three. On a Leonardo run, runs
+(`core/experiment/runner.py`). A failed run used to count toward all three. In one cluster run, runs
 1 to 6 failed (an `srun` launch failure on one node, exit 233) and runs 7 to 10 succeeded. The
 loop logged "Converged at run 10" with only 4 samples, although `minruns` was 10: the convergence
 check ran as soon as 10 runs had been started, and it passed on too few good samples.

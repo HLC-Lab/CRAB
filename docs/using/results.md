@@ -115,7 +115,7 @@ which code produced the data. The values below are an example:
   "crab_commit": "d7ce8e1a...",
   "wrapper_api": 1,
   "started": "2026-06-09T14:30:05+02:00",
-  "nodes": ["lrdn0001", "lrdn0002", "lrdn0003", "lrdn0004"],
+  "nodes": ["node001", "node002", "node003", "node004"],
   "wrappers": {"dir": "/path/to/wrappers", "commit": "3f9a1c2b...", "dirty": false},
   "apps": {
     "a2a_vs_g500": {
@@ -124,7 +124,7 @@ which code produced the data. The values below are an example:
   },
   "execution": {
     "scheduler": "slurm",
-    "hosts_used": ["lrdn0001", "lrdn0002", "lrdn0003", "lrdn0004"],
+    "hosts_used": ["node001", "node002", "node003", "node004"],
     "launcher": "srun",
     "mpirun": {"command": "mpirun", "dialect": "auto", "version": null}
   },
@@ -138,8 +138,8 @@ which code produced the data. The values below are an example:
       "mode": "random",
       "seed": 2918453017,
       "apps": {
-        "0": ["lrdn0003", "lrdn0001"],
-        "1": ["lrdn0004", "lrdn0002"]
+        "0": ["node003", "node001"],
+        "1": ["node004", "node002"]
       }
     }
   }

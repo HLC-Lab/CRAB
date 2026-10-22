@@ -1020,7 +1020,7 @@ def test_job_logs_disconnected_with_no_prior_cache_still_errors(tmp_path: Path):
 def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: Path):
     _seed_job(
         tmp_path,
-        job_id="48552582",
+        job_id="1000001",
         data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
         config_name="msgsize_scaling_study",
         system="leonardo",
@@ -1045,13 +1045,13 @@ def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: P
         client.post("/api/remotes", json=_leonardo_profile())
         client.post("/api/remotes/leonardo/connect")
 
-        resp = client.get("/api/jobs/leonardo:48552582/experiments")
+        resp = client.get("/api/jobs/leonardo:1000001/experiments")
         assert resp.status_code == 200
         body = resp.json()
 
-        assert body["record_id"] == "leonardo:48552582"
+        assert body["record_id"] == "leonardo:1000001"
         assert body["config_name"] == "msgsize_scaling_study"
-        assert body["job_id"] == "48552582"
+        assert body["job_id"] == "1000001"
         assert body["stale"] is False
         assert [e["experiment_name"] for e in body["experiments"]] == ["01_baseline"]
         assert body["rerun_of"] is None
@@ -1064,7 +1064,7 @@ def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: P
 def test_job_experiments_reports_run_failure_counts(tmp_path: Path):
     _seed_job(
         tmp_path,
-        job_id="48552582",
+        job_id="1000001",
         data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
         config_name="msgsize_scaling_study",
         system="leonardo",
@@ -1083,7 +1083,7 @@ def test_job_experiments_reports_run_failure_counts(tmp_path: Path):
         client.post("/api/remotes", json=_leonardo_profile())
         client.post("/api/remotes/leonardo/connect")
 
-        resp = client.get("/api/jobs/leonardo:48552582/experiments")
+        resp = client.get("/api/jobs/leonardo:1000001/experiments")
         assert resp.status_code == 200
         entry = resp.json()["experiments"][0]
         assert entry["total_runs"] == "10"
@@ -1093,7 +1093,7 @@ def test_job_experiments_reports_run_failure_counts(tmp_path: Path):
 def test_job_experiments_reports_the_allocation_seed(tmp_path: Path):
     _seed_job(
         tmp_path,
-        job_id="48552582",
+        job_id="1000001",
         data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
         config_name="msgsize_scaling_study",
         system="leonardo",
@@ -1115,7 +1115,7 @@ def test_job_experiments_reports_the_allocation_seed(tmp_path: Path):
         client.post("/api/remotes", json=_leonardo_profile())
         client.post("/api/remotes/leonardo/connect")
 
-        resp = client.get("/api/jobs/leonardo:48552582/experiments")
+        resp = client.get("/api/jobs/leonardo:1000001/experiments")
         assert resp.status_code == 200
         by_name = {e["experiment_name"]: e for e in resp.json()["experiments"]}
         assert by_name["01_baseline"]["seed"] == "123"
@@ -1244,7 +1244,7 @@ def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Pat
     # prefix, so the report should attach record_id/job_id/submitted_at to it.
     _seed_job(
         tmp_path,
-        job_id="48552582",
+        job_id="1000001",
         data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
         config_name="msgsize_scaling_study",
     )
@@ -1284,8 +1284,8 @@ def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Pat
 
         matched = by_name["01_baseline"]
         assert matched["cluster"] == "leonardo"
-        assert matched["record_id"] == "leonardo:48552582"
-        assert matched["job_id"] == "48552582"
+        assert matched["record_id"] == "leonardo:1000001"
+        assert matched["job_id"] == "1000001"
 
         unmatched = by_name["02_unmatched"]
         assert unmatched["status"] == "FAILED"
