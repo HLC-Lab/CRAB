@@ -14,6 +14,7 @@ from crab.core.execution.settings import (
     LauncherSpec,
     resolve_launcher,
 )
+from crab.core.provenance import record_allocation
 from crab.core.wrapper_paths import (
     load_module,
     missing_wrappers_hint,
@@ -70,6 +71,8 @@ class ExperimentRunner:
         self.apps = []
         self.launchers: list[LauncherSpec] = []
         self.data_containers = []
+        # What allocate_experiment returned at setup: mode, seed(s) and each app's nodes.
+        self.allocation_record: dict[str, Any] = {}
         # The experiment's ranks per node, which the registry records; an app may set its own.
         self.ppn = parse_ppn(self.exp_opts.get("ppn", 1))
         # Epoch seconds when execute began; the registry timestamps a job folder with none by it.
@@ -201,7 +204,15 @@ class ExperimentRunner:
 
         # 2. Allocate Nodes
         allocation = self.exp_opts.get("allocation", {})
-        NodeAllocator.allocate_experiment(self.apps, self.node_list, allocation)
+        record = NodeAllocator.allocate_experiment(self.apps, self.node_list, allocation)
+        # `launches` in crab_run.json keys apps by config key, so the record does too.
+        record["apps"] = {
+            str(getattr(app, "config_key", app.id_num)): record["apps"][str(i)]
+            for i, app in enumerate(self.apps)
+        }
+        self.allocation_record = record
+        record_allocation(os.path.dirname(self.exp_dir), self.name, record)
+        self._log_allocation(record)
 
         # Which cores and environment each app's ranks get (the warnings are logged by check_config)
         placed = place_experiment(
@@ -244,6 +255,18 @@ class ExperimentRunner:
 
                 app.msg_size = msg_size
                 self.data_containers.extend(setup_containers(app))
+
+    def _log_allocation(self, record: dict[str, Any]) -> None:
+        """Log the layout mode and seeds, then each app's nodes."""
+        line = f"Allocation: {record['mode']}"
+        if "seed" in record:
+            line += f", seed {record['seed']}"
+        if "partition_seeds" in record:
+            seeds = ", ".join(f"{name} {seed}" for name, seed in record["partition_seeds"].items())
+            line += f", partition seeds {seeds}"
+        self.log.info(line)
+        for app_id, nodes in record["apps"].items():
+            self.log.info(f"App {app_id}: {','.join(nodes)}")
 
     def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""
