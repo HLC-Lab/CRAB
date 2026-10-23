@@ -27,7 +27,8 @@ from pathlib import Path
 from typing import Any
 
 from crab import __version__, paths
-from crab.cli.presets import load_all_presets
+from crab.cli.preset_marks import unset_marks
+from crab.cli.presets import load_all_presets, preset_sources
 from crab.core.execution.scheduler.base import CancelResult, Scheduler
 from crab.core.execution.scheduler.local import LocalScheduler
 from crab.core.execution.scheduler.local_state import route
@@ -50,8 +51,12 @@ def _crab_version() -> str:
 # --------------------------------------------------------------------------- #
 # info
 # --------------------------------------------------------------------------- #
-def _preset_settings(name: str, root: Path) -> ExecutionSettings:
+def _preset_settings(
+    name: str, root: Path, *, allow_unset_marks: bool = False
+) -> ExecutionSettings:
     """A preset's execution settings, parsed by the loader `crab run` uses, from `root`'s files.
+
+    A preset with an unset `<YOUR_...>` mark is refused unless `allow_unset_marks` (listing only).
 
     Raises:
         KeyError: no such preset.
@@ -62,7 +67,8 @@ def _preset_settings(name: str, root: Path) -> ExecutionSettings:
     # the other gatherers.
     from crab.cli.orchestrator import load_environment_config
 
-    settings: ExecutionSettings = load_environment_config(name, root)["settings"]
+    config = load_environment_config(name, root, allow_unset_marks=allow_unset_marks)
+    settings: ExecutionSettings = config["settings"]
     return settings
 
 
@@ -71,24 +77,40 @@ def _error_text(error: Exception) -> str:
     return str(error.args[0]) if isinstance(error, KeyError) and error.args else str(error)
 
 
-def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
-    """Version handshake, install layout + available presets.
+def _notes(body: Any) -> list[str]:
+    """The string items of a preset's `notes` (anything else is dropped)."""
+    notes = body.get("notes", []) if isinstance(body, dict) else []
+    return [note for note in notes if isinstance(note, str)] if isinstance(notes, list) else []
 
-    Each preset carries `scheduler`, `launcher` and `hosts` (names; empty under Slurm). A preset
-    that does not parse keeps its name and description and gets an `error` message instead.
+
+def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
+    """Version handshake, install layout + available presets and where they come from.
+
+    Each preset carries `scheduler`, `launcher` and `hosts` (names; empty under Slurm), `needs`
+    (the `<YOUR_...>` values still unset, as labels; the preset is listed anyway) and `notes`. A
+    preset that does not parse keeps its name, description, `needs` and `notes` and gets an `error`
+    message instead. `presets_sources` lists the shared presets folders searched (`path`,
+    `exists`), `presets_overrides` is the user's override directory, and `presets_error` holds the
+    loader's message when the presets cannot be loaded at all (then `presets` is empty).
     """
     root = Path(crab_root) if crab_root else _CRAB_ROOT
 
     presets: list[dict[str, Any]] = []
+    presets_error: str | None = None
     try:
         raw = load_all_presets(root)
         for name, body in raw.items():
             if name in ("example_preset",):
                 continue
             desc = body.get("description", "") if isinstance(body, dict) else ""
-            entry: dict[str, Any] = {"name": name, "description": desc}
+            entry: dict[str, Any] = {
+                "name": name,
+                "description": desc,
+                "needs": unset_marks(body) if isinstance(body, dict) else [],
+                "notes": _notes(body),
+            }
             try:
-                settings = _preset_settings(name, root)
+                settings = _preset_settings(name, root, allow_unset_marks=True)
             except (KeyError, ValueError, OSError) as exc:
                 entry["error"] = _error_text(exc)
             else:
@@ -96,17 +118,23 @@ def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
                 entry["launcher"] = settings.launcher
                 entry["hosts"] = [host.name for host in settings.hosts]
             presets.append(entry)
-    except (OSError, ValueError):
-        # No presets file / malformed → empty list, not a failure.
+    except (OSError, ValueError) as exc:
         presets = []
+        presets_error = str(exc)
 
-    return {
+    folders, _package, overrides = preset_sources(root)
+    info: dict[str, Any] = {
         "schema": CONTRACT_SCHEMA,
         "crab_version": _crab_version(),
         "crab_root": str(root),
         "layout": paths.layout(),
         "presets": sorted(presets, key=lambda p: p["name"]),
+        "presets_sources": [{"path": str(f), "exists": f.is_dir()} for f in folders],
+        "presets_overrides": str(overrides),
     }
+    if presets_error is not None:
+        info["presets_error"] = presets_error
+    return info
 
 
 # --------------------------------------------------------------------------- #

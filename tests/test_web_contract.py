@@ -97,7 +97,7 @@ def test_gather_info_lists_the_hosts_of_a_local_preset():
 def test_gather_info_keeps_a_preset_that_does_not_parse_and_says_why():
     from crab.core.execution.settings import SLURM_DEFAULT
 
-    def load(name: str, root: Path):
+    def load(name: str, root: Path, *, allow_unset_marks: bool = False):
         if name == "local":
             raise ValueError("preset 'local': env.CRAB_WL_MANAGER is no longer read; use launcher")
         return {"settings": SLURM_DEFAULT}

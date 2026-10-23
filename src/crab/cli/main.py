@@ -50,9 +50,15 @@ def handle_info(args):
         print(f"CRAB {d['crab_version']}  (contract schema v{d['schema']})")
         print(f"root: {d['crab_root']}")
         print(f"layout: {d['layout']}")
+        print(f"overrides: {d['presets_overrides']}")
+        if not any(source["exists"] for source in d["presets_sources"]):
+            print("no shared presets folder exists: run `crab update` to fetch crab-wrappers")
+        if "presets_error" in d:
+            print(f"presets error: {d['presets_error']}")
         print("presets:")
         for p in d["presets"]:
-            print(f"  {p['name']:<14} {p['description']}")
+            needs = f"  (needs setup: {', '.join(p['needs'])})" if p["needs"] else ""
+            print(f"  {p['name']:<14} {p['description']}{needs}")
 
     contract.emit(data, args.json, human)
 

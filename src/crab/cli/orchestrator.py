@@ -56,11 +56,14 @@ def load_environment_config(
 
     if preset_arg not in all_presets:
         folders, package, overrides = preset_sources(Path(root))
-        raise KeyError(
+        message = (
             f"The preset '{preset_arg}' was not found in the shared presets "
             f"({', '.join(str(folder) for folder in folders) or 'no folder'}), the package presets "
             f"({package}) or your overrides ({overrides})."
         )
+        if not any(folder.is_dir() for folder in folders):
+            message += " No shared presets folder exists: run `crab update` to fetch crab-wrappers."
+        raise KeyError(message)
 
     target_preset = all_presets[preset_arg]
 

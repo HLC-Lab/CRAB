@@ -3,13 +3,15 @@ override files, resolved by `resolve_presets` (ADR-041)."""
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
 import pytest
 
 from crab import paths
-from crab.cli.contract import gather_info
+from crab.cli import contract, main
+from crab.cli.contract import gather_info, gather_nodes
 from crab.cli.orchestrator import load_environment_config
 from crab.cli.presets import load_all_presets
 
@@ -227,4 +229,163 @@ def test_crab_info_parses_the_presets_of_the_root_it_is_given(
         "scheduler": "local",
         "launcher": "mpirun",
         "hosts": ["ws1"],
+        "needs": [],
+        "notes": [],
     }
+
+
+# --- crab info: needs, notes, sources, loader errors -------------------------------------------
+
+MARKED_LAB = {
+    "lab": {
+        "description": "lab cluster",
+        "scheduler": "slurm",
+        "sbatch": ["--account=<YOUR_ACCOUNT>"],
+        "notes": ["one"],
+    }
+}
+
+
+def test_crab_info_lists_a_preset_with_unset_marks_and_what_it_needs(
+    tmp_path: Path, wrappers: Path, overrides: Path
+) -> None:
+    _write(wrappers / "presets", "lab.json", MARKED_LAB)
+    lab = next(p for p in gather_info(tmp_path)["presets"] if p["name"] == "lab")
+    assert lab["needs"] == ["--account"]
+    assert lab["notes"] == ["one"]
+    assert lab["scheduler"] == "slurm"
+    assert "launcher" in lab
+    assert lab["hosts"] == []
+    assert "error" not in lab
+
+
+def test_crab_info_needs_is_empty_once_an_override_fills_the_mark(
+    tmp_path: Path, wrappers: Path, overrides: Path
+) -> None:
+    _write(wrappers / "presets", "lab.json", MARKED_LAB)
+    _write(overrides, "mine.json", {"lab": {"sbatch": ["--account=REAL"]}})
+    lab = next(p for p in gather_info(tmp_path)["presets"] if p["name"] == "lab")
+    assert lab["needs"] == []
+    assert lab["notes"] == ["one"]
+
+
+def test_every_crab_info_preset_has_needs_and_notes(
+    tmp_path: Path, wrappers: Path, overrides: Path
+) -> None:
+    _write(wrappers / "presets", "odd.json", {"odd": {"scheduler": "local", "notes": ["a", 3]}})
+    _write(wrappers / "presets", "bad.json", {"bad": {"scheduler": "nope", "notes": ["why"]}})
+    presets = {p["name"]: p for p in gather_info(tmp_path)["presets"]}
+    assert presets["odd"]["notes"] == ["a"]
+    assert presets["odd"]["needs"] == []
+    assert "error" in presets["bad"]
+    assert presets["bad"]["notes"] == ["why"]
+    assert presets["bad"]["needs"] == []
+    assert all("needs" in p and "notes" in p for p in presets.values())
+    assert presets["leonardo"]["notes"] == []
+
+
+def test_crab_info_reports_the_shared_folders_searched_and_the_overrides_dir(
+    tmp_path: Path, overrides: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    found = tmp_path / "found"
+    (found / "presets").mkdir(parents=True)
+    missing = tmp_path / "missing"
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", f"{found}:{missing}")
+    info = gather_info(tmp_path)
+    assert info["presets_sources"] == [
+        {"path": str(found / "presets"), "exists": True},
+        {"path": str(missing / "presets"), "exists": False},
+    ]
+    assert info["presets_overrides"] == str(overrides)
+    assert "presets_error" not in info
+
+
+def test_crab_info_reports_why_the_presets_cannot_load(tmp_path: Path, overrides: Path) -> None:
+    old = _write(tmp_path / "local", "presets.json", {"leonardo": {"description": "old"}})
+    info = gather_info(tmp_path)
+    assert info["presets"] == []
+    assert str(old) in info["presets_error"]
+    assert info["presets_overrides"] == str(overrides)
+
+
+def test_crab_info_reports_a_duplicate_preset_name(tmp_path: Path, wrappers: Path) -> None:
+    _write(wrappers / "presets", "a.json", {"dup": {"scheduler": "local"}})
+    _write(wrappers / "presets", "b.json", {"dup": {"scheduler": "local"}})
+    info = gather_info(tmp_path)
+    assert info["presets"] == []
+    assert "defined twice" in info["presets_error"]
+
+
+def test_nodes_for_a_preset_with_unset_marks_still_refuses(tmp_path: Path, wrappers: Path) -> None:
+    _write(wrappers / "presets", "lab.json", MARKED_LAB)
+    data = gather_nodes(preset="lab", crab_root=tmp_path)
+    assert set(data) == {"schema", "error"}
+    assert "--account" in data["error"]
+
+
+def test_a_missing_preset_says_to_run_crab_update_when_no_shared_folder_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(tmp_path / "no-clone"))
+    with pytest.raises(KeyError, match="crab update"):
+        load_environment_config("nope", tmp_path)
+
+
+def test_a_missing_preset_does_not_say_crab_update_when_a_shared_folder_exists(
+    tmp_path: Path, wrappers: Path
+) -> None:
+    (wrappers / "presets").mkdir()
+    with pytest.raises(KeyError) as exc:
+        load_environment_config("nope", tmp_path)
+    assert "crab update" not in str(exc.value)
+
+
+@pytest.fixture
+def info_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """`crab info` reads the root of the module; point it at an empty temp root."""
+    root = tmp_path / "root"
+    root.mkdir()
+    monkeypatch.setattr(contract, "_CRAB_ROOT", root)
+    monkeypatch.setattr(paths, "config_dir", lambda: tmp_path / "config")
+    return root
+
+
+def _info_output(capsys: pytest.CaptureFixture[str]) -> str:
+    main.handle_info(argparse.Namespace(json=False))
+    return capsys.readouterr().out
+
+
+def test_crab_info_prints_the_overrides_dir_and_marks_a_preset_that_needs_setup(
+    tmp_path: Path,
+    wrappers: Path,
+    overrides: Path,
+    info_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write(wrappers / "presets", "lab.json", MARKED_LAB)
+    out = _info_output(capsys)
+    assert f"overrides: {overrides}" in out
+    assert "(needs setup: --account)" in out
+    lab_line = next(line for line in out.splitlines() if line.strip().startswith("lab "))
+    assert "lab cluster" in lab_line
+    assert "crab update" not in out
+
+
+def test_crab_info_prints_the_loader_error(
+    tmp_path: Path, overrides: Path, info_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    old = _write(info_root / "local", "presets.json", {"leonardo": {"description": "old"}})
+    out = _info_output(capsys)
+    assert str(old) in out
+    assert "1.2" in out
+
+
+def test_crab_info_tells_to_run_crab_update_when_no_shared_folder_exists(
+    tmp_path: Path,
+    overrides: Path,
+    info_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(tmp_path / "no-clone"))
+    assert "crab update" in _info_output(capsys)
