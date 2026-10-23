@@ -35,26 +35,27 @@ def load_environment_config(preset_arg: str, crab_root: str | Path | None = None
     The presets are read from `crab_root` (default: this checkout).
 
     Raises:
-        FileNotFoundError: the shipped presets file is missing.
+        FileNotFoundError: the package presets file is missing.
         KeyError: the preset does not exist.
         ValueError: `_common` holds an execution field, the preset's execution fields are invalid, or a dropped `CRAB_*` launch key
             is in `env` (the preset's or `_common`'s).
     """
-    from crab.cli.presets import load_all_presets, preset_locations
+    from crab.cli.presets import load_all_presets, preset_sources
     from crab.core.execution.settings import from_preset
 
     root = str(crab_root) if crab_root is not None else CRAB_ROOT
     try:
         all_presets = load_all_presets(Path(root))
     except FileNotFoundError:
-        shipped = preset_locations(Path(root))[0]
+        shipped = preset_sources(Path(root))[1]
         raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
 
     if preset_arg not in all_presets:
-        shipped, user, local = preset_locations(Path(root))
+        folders, package, overrides = preset_sources(Path(root))
         raise KeyError(
-            f"The preset '{preset_arg}' was not found in {shipped} (shipped), {user} (user) "
-            f"or {local} (local)."
+            f"The preset '{preset_arg}' was not found in the shared presets "
+            f"({', '.join(str(folder) for folder in folders) or 'no folder'}), the package presets "
+            f"({package}) or your overrides ({overrides})."
         )
 
     # Carica _common e il preset specifico

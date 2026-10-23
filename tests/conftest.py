@@ -15,12 +15,15 @@ The autouse ``_isolated_state_home`` fixture points ``XDG_STATE_HOME`` at a per-
 directory, so the local scheduler's job records (``$XDG_STATE_HOME/crab/jobs/``) never reach the
 real ``~/.local/state``. A test that wants its own location sets the variable again.
 
-The autouse ``_no_user_presets`` fixture makes the user presets file resolve to a path that does not
-exist (``CRAB_PATH_PRESETS`` unset, the user config dir under ``tmp_path``), so a developer's real user
-file never leaks into a test. ``CRAB_PATH_PRESETS`` is deleted rather than pointed at a missing file
-because the mpirun launcher exports every ``CRAB_*`` variable of the environment with ``-x``, which
-would change the launch lines the launcher tests expect. A test of the user layer writes a file and
-sets the variable itself.
+The autouse ``_no_user_presets`` fixture keeps a developer's real preset folders out of every test:
+the shared preset folders resolve to none (``crab.cli.presets.shared_preset_folders`` returns ``[]``)
+and the override dir to a path that does not exist (``paths.user_presets_dir``); the user config dir
+sits under ``tmp_path``. Until the package presets file is removed every test therefore
+resolves presets from the package file alone. ``CRAB_PATH_PRESETS`` and ``CRAB_PATH_WRAPPERS`` are not
+set for this because the mpirun launcher exports every ``CRAB_*`` variable of the environment with
+``-x``, which would change the launch lines the launcher tests expect. The ``real_preset_dirs``
+fixture puts the two real functions back for the tests that exercise them; such a test then writes
+its folders and sets the variables itself.
 """
 
 from __future__ import annotations
@@ -31,12 +34,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from crab import paths
+from crab.cli import presets
 from signal_guard import REAL_KILL, REAL_KILLPG, guarded
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
+REAL_SHARED_PRESET_FOLDERS = presets.shared_preset_folders
+REAL_USER_PRESETS_DIR = paths.user_presets_dir
 REPO = Path(__file__).resolve().parent.parent
 FIXTURE_WRAPPERS = Path(__file__).resolve().parent / "fixtures" / "wrappers"
 
@@ -74,3 +81,12 @@ def _isolated_state_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
 def _no_user_presets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("CRAB_PATH_PRESETS", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-user-config"))
+    monkeypatch.setattr(presets, "shared_preset_folders", lambda crab_root: [])
+    monkeypatch.setattr(paths, "user_presets_dir", lambda root: tmp_path / "no-user-presets")
+
+
+@pytest.fixture
+def real_preset_dirs(monkeypatch: pytest.MonkeyPatch, _no_user_presets: None) -> None:
+    """Undo the isolation of the shared presets folders and the override dir for one test."""
+    monkeypatch.setattr(presets, "shared_preset_folders", REAL_SHARED_PRESET_FOLDERS)
+    monkeypatch.setattr(paths, "user_presets_dir", REAL_USER_PRESETS_DIR)

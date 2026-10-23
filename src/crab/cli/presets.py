@@ -1,24 +1,23 @@
-"""Loading presets: the shipped file, the user's file and the checkout's `local/presets.json`.
+"""Loading presets: the shared folders, the package file and the user's override files.
 
-Three layers, each merged over the one before: the presets that ship inside the package
-(`paths.shipped_presets()`), the user's file (`paths.user_presets()`), then `<root>/local/presets.json`.
-`local/` is git-ignored, so accounts and cluster tweaks written in the user or local file survive
-`git pull` without conflicts. Merge rules, per layer: a preset replaces the earlier preset of the same
-name as a whole; for `_common`, `env` merges key by key and any other key replaces the earlier one.
+The shared layers come first: `presets/*.json` in each shared wrapper folder (`CRAB_PATH_WRAPPERS`
+entries, else `<root>/wrappers`; the first folder wins a name), then the package's own
+`presets.json` as the lowest layer. The user's override layer is every `*.json` in
+`paths.user_presets_dir()`. `resolve_presets` below merges the layers; the two single-file overrides
+CRAB read before 1.2 are refused.
 """
 
 from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from crab import paths
-
-LOCAL_PRESETS = Path("local") / "presets.json"
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -31,36 +30,56 @@ def _read(path: Path) -> dict[str, Any]:
     return data
 
 
-def preset_locations(crab_root: Path) -> tuple[Path, Path, Path]:
-    """The shipped, user and local presets files, in merge order."""
-    return paths.shipped_presets(), paths.user_presets(), Path(crab_root) / LOCAL_PRESETS
+def shared_preset_folders(crab_root: Path) -> list[Path]:
+    """The shared presets folders in search order: `<wrapper folder>/presets` for each folder.
+
+    The wrapper folders are the non-empty `CRAB_PATH_WRAPPERS` entries, else `<crab_root>/wrappers`.
+    """
+    entries = [
+        entry for entry in os.environ.get("CRAB_PATH_WRAPPERS", "").split(os.pathsep) if entry
+    ]
+    if entries:
+        return [Path(entry) / "presets" for entry in entries]
+    return [Path(crab_root) / "wrappers" / "presets"]
 
 
-def _merge(presets: dict[str, Any], layer: dict[str, Any]) -> None:
-    for name, body in layer.items():
-        if name == "_common" and isinstance(body, dict):
-            common = dict(presets.get("_common", {}))
-            env = {**common.get("env", {}), **body.get("env", {})}
-            common.update({k: v for k, v in body.items() if k != "env"})
-            common["env"] = env
-            presets["_common"] = common
-        else:
-            presets[name] = body
+def preset_sources(crab_root: Path) -> tuple[list[Path], Path, Path]:
+    """Where presets are read from: the shared folders, the package file and the overrides dir."""
+    return (
+        shared_preset_folders(crab_root),
+        paths.shipped_presets(),
+        paths.user_presets_dir(Path(crab_root)),
+    )
+
+
+def _read_folder(folder: Path) -> list[PresetFile]:
+    """The `*.json` files of a presets folder in name order; a missing folder is an empty layer."""
+    if not folder.is_dir():
+        return []
+    return [(file, _read(file)) for file in sorted(folder.glob("*.json"))]
 
 
 def load_all_presets(crab_root: Path) -> dict[str, Any]:
-    """All presets: the shipped file, then the user file, then `<crab_root>/local/presets.json`.
+    """All presets, resolved: shared folders, then the package file, patched by the override files.
 
     Raises:
-        FileNotFoundError: if the shipped presets file is missing.
-        ValueError: if any file that exists is not a JSON object (the message names the file).
+        FileNotFoundError: if the package presets file is missing.
+        ValueError: an old single-file override exists, a preset file is not a JSON object (the
+            message names the file) or `resolve_presets` rejects the layers.
     """
-    shipped, user, local = preset_locations(crab_root)
-    presets = _read(shipped)
-    for layer_file in (user, local):
-        if layer_file.exists():
-            _merge(presets, _read(layer_file))
-    return presets
+    root = Path(crab_root)
+    overrides_dir = paths.user_presets_dir(root)
+    for old in paths.old_preset_files(root):
+        if old.exists():
+            raise ValueError(
+                f"{old}: single-file preset overrides were removed in CRAB 1.2. Move your presets "
+                f"into {overrides_dir}/ (any *.json name); a preset with a shared name now patches "
+                "it instead of replacing it. See the Presets page of the docs."
+            )
+    shared = [_read_folder(folder) for folder in shared_preset_folders(root)]
+    package = paths.shipped_presets()
+    shared.append([(package, _read(package))])
+    return resolve_presets(shared, _read_folder(overrides_dir))
 
 
 PresetFile = tuple[Path, Mapping[str, Any]]

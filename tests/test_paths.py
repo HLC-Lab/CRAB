@@ -13,6 +13,8 @@ import pytest
 import crab.cli.contract
 from crab import paths
 
+pytestmark = pytest.mark.usefixtures("real_preset_dirs")
+
 OLD_WALK_UP = Path(crab.cli.contract.__file__).resolve().parents[3]
 
 
