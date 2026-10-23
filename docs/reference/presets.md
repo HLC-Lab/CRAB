@@ -28,8 +28,8 @@ preset says to run `crab update` to fetch crab-wrappers.
 The two single files CRAB read before 1.2 are not read any more: `local/presets.json` in CRAB's
 home, and `presets.json` in the per-user config folder (`~/.config/crab/presets.json`, or
 `$CRAB_HOME/config/presets.json`). While one exists, CRAB stops with a message that names it and
-the new folder. A `CRAB_PATH_PRESETS` that still names a file is not read either, and is not
-reported. The package no longer contains `src/crab/presets.json`.
+the new folder. A `CRAB_PATH_PRESETS` that still names a file is refused the same way: the message
+names it and says to move it into a folder. The package no longer contains `src/crab/presets.json`.
 
 ## Structure
 

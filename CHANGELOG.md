@@ -23,7 +23,7 @@ This release changes the presets format and where presets live, inside the 1.x l
   longer read. While one exists, every command that loads presets stops with a message that names
   the file. Move your presets into the overrides folder, `local/presets/` in a checkout or
   `~/.config/crab/presets/` in an install, as any `*.json` file. `CRAB_PATH_PRESETS` now names that
-  folder, not a file; one that still names a file is not read.
+  folder, not a file; one that still names a file is refused with a message that names it.
 - A preset in your overrides with the name of a shared preset now patches it. Before, it replaced
   it whole. A copy of a whole preset that you moved over still loads, but it repeats the shared
   `header` lines and any flag not written as `--name=value`: cut it down to the lines you changed.

@@ -200,6 +200,10 @@ into a `.json` file in the folder the message names. A preset that has the name 
 now patches it, so a copy of a whole shared preset can shrink to the few values you changed. See
 [Your overrides](presets.md#your-overrides).
 
+The same stop happens when `CRAB_PATH_PRESETS` names a file instead of a folder: the message starts
+with that path and says it must be a folder of `*.json` override files. Move the file into a folder
+and point `CRAB_PATH_PRESETS` at the folder.
+
 ### The preset needs your own value
 
 ```text

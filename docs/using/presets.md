@@ -61,7 +61,8 @@ every `*.json` file of one folder, in name order, and a file may hold several pr
 | either, with `CRAB_PATH_PRESETS` set | the folder that variable names |
 
 `crab info` prints the folder in use on its `overrides:` line. `CRAB_PATH_PRESETS` names a
-folder: a path to a single file is not read. The folder does not exist until you make it.
+folder: a path to a single file is refused with a message that names it. The folder does not exist
+until you make it.
 
 An entry with the name of a shared preset **patches** it: only the lines you write change, and
 everything else stays as crab-wrappers has it. So the account of a cluster is two lines of yours:
@@ -172,6 +173,7 @@ or `~/.config/crab/presets.json` (`$CRAB_HOME/config/presets.json` with `CRAB_HO
 entry replaced the shared preset of the same name. Those files are no longer read. While one
 exists, every command that loads presets stops with a message that names the file and the new
 folder. `CRAB_PATH_PRESETS` used to name a file too: it names a folder now, so point it at one.
+While it names a file, CRAB stops with a message that says so.
 
 To move to the new folder:
 
