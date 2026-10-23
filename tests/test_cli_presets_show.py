@@ -28,15 +28,6 @@ LEONARDO = {
 DCGP = {"extends": "leonardo", "sbatch": ["--partition=dcgp"]}
 
 
-@pytest.fixture(autouse=True)
-def _shipped_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The package layer is an empty fixture file."""
-    shipped = tmp_path / "shipped" / "presets.json"
-    shipped.parent.mkdir()
-    shipped.write_text("{}")
-    monkeypatch.setattr(paths, "shipped_presets", lambda: shipped)
-
-
 @pytest.fixture
 def overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     directory = tmp_path / "overrides"

@@ -28,17 +28,13 @@ from crab.core.execution.scheduler.local_state import (
 # --------------------------------------------------------------------------- #
 # info
 # --------------------------------------------------------------------------- #
-def test_gather_info_parses_and_filters_presets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    shipped = tmp_path / "shipped-presets.json"
-    monkeypatch.setattr(paths, "shipped_presets", lambda: shipped)
-    shipped.write_text(
-        json.dumps(
-            {
-                "example_preset": {"description": "skip me"},
-                "leonardo": {"description": "Leonardo @ CINECA"},
-                "alps": {"description": "ALPS"},
-            }
-        )
+def test_gather_info_parses_and_filters_presets(tmp_path: Path, shared_presets):
+    shared_presets(
+        {
+            "example_preset": {"description": "skip me"},
+            "leonardo": {"description": "Leonardo @ CINECA"},
+            "alps": {"description": "ALPS"},
+        }
     )
     data = contract.gather_info(crab_root=tmp_path)
 
@@ -50,7 +46,6 @@ def test_gather_info_parses_and_filters_presets(tmp_path: Path, monkeypatch: pyt
 
 
 def test_gather_info_reports_the_install_layout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(paths, "shipped_presets", lambda: tmp_path / "absent.json")
     for name in ("checkout", "installed"):
         monkeypatch.setattr(paths, "layout", lambda name=name: name)
         data = contract.gather_info(crab_root=tmp_path)
@@ -70,7 +65,13 @@ def test_the_contract_schema_is_2():
     assert contract.CONTRACT_SCHEMA == 2
 
 
-def test_gather_info_gives_each_shipped_preset_its_execution_fields():
+def test_gather_info_gives_each_preset_its_execution_fields(shared_presets):
+    shared_presets(
+        {
+            "local": {"scheduler": "local", "launcher": "mpirun"},
+            "leonardo": {"scheduler": "slurm", "launcher": "srun"},
+        }
+    )
     presets = {p["name"]: p for p in contract.gather_info()["presets"]}
 
     assert presets["local"]["scheduler"] == "local"
@@ -82,8 +83,10 @@ def test_gather_info_gives_each_shipped_preset_its_execution_fields():
     assert all("error" not in p for p in presets.values())
 
 
-def test_gather_info_lists_the_hosts_of_a_local_preset():
+def test_gather_info_lists_the_hosts_of_a_local_preset(shared_presets):
     from crab.core.execution.settings import from_preset
+
+    shared_presets({"local": {"scheduler": "local"}})
 
     settings = from_preset({"scheduler": "local", "hosts": ["ws1:32", "ws2:16"]}, "lab")
     with patch(
@@ -94,8 +97,15 @@ def test_gather_info_lists_the_hosts_of_a_local_preset():
     assert next(p for p in presets if p["name"] == "local")["hosts"] == ["ws1", "ws2"]
 
 
-def test_gather_info_keeps_a_preset_that_does_not_parse_and_says_why():
+def test_gather_info_keeps_a_preset_that_does_not_parse_and_says_why(shared_presets):
     from crab.core.execution.settings import SLURM_DEFAULT
+
+    shared_presets(
+        {
+            "local": {"description": "Local (no Slurm, dev/testing only)", "scheduler": "local"},
+            "leonardo": {"scheduler": "slurm"},
+        }
+    )
 
     def load(name: str, root: Path, *, allow_unset_marks: bool = False):
         if name == "local":

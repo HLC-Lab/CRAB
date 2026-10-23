@@ -169,6 +169,7 @@ def test_old_preset_files_installed(installed: Path) -> None:
     )
 
 
+@pytest.mark.usefixtures("real_shipped_presets")
 def test_shipped_presets_sits_in_the_package_dir() -> None:
     assert paths.shipped_presets() == Path(paths.__file__).resolve().parent / "presets.json"
 

@@ -24,17 +24,22 @@ for this (see below).
 The autouse ``_no_user_presets`` fixture keeps a developer's real preset folders out of every test:
 the shared preset folders resolve to none (``crab.cli.presets.shared_preset_folders`` returns ``[]``)
 and the override dir to a path that does not exist (``paths.user_presets_dir``); the user config dir
-sits under ``tmp_path``. Until the package presets file is removed every test therefore
-resolves presets from the package file alone. ``CRAB_PATH_PRESETS`` and ``CRAB_PATH_WRAPPERS`` are not
-set for this because the mpirun launcher exports every ``CRAB_*`` variable of the environment with
-``-x``, which would change the launch lines the launcher tests expect. The ``real_preset_dirs``
-fixture puts the two real functions back for the tests that exercise them; such a test then writes
-its folders and sets the variables itself.
+sits under ``tmp_path``. The package layer is empty too: ``paths.shipped_presets`` returns a
+per-test file holding ``{}`` (outside ``tmp_path``), so no test reads the package's own presets
+file. A test that needs fixture presets takes the ``shared_presets`` fixture:
+``shared_presets(presets, filename)`` writes them into one temporary shared folder, the only shared
+folder of that test. ``CRAB_PATH_PRESETS`` and ``CRAB_PATH_WRAPPERS`` are not set for this because
+the mpirun launcher exports every ``CRAB_*`` variable of the environment with ``-x``, which would
+change the launch lines the launcher tests expect. The ``real_preset_dirs`` fixture puts the two
+real folder functions back for the tests that exercise them; such a test then writes its folders and
+sets the variables itself. ``real_shipped_presets`` puts back the real ``paths.shipped_presets``.
 """
 
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -50,6 +55,7 @@ if TYPE_CHECKING:
 
 REAL_SHARED_PRESET_FOLDERS = presets.shared_preset_folders
 REAL_USER_PRESETS_DIR = paths.user_presets_dir
+REAL_SHIPPED_PRESETS = paths.shipped_presets
 REPO = Path(__file__).resolve().parent.parent
 FIXTURE_WRAPPERS = Path(__file__).resolve().parent / "fixtures" / "wrappers"
 
@@ -110,11 +116,35 @@ def _isolated_state_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
 
 
 @pytest.fixture(autouse=True)
-def _no_user_presets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def _no_user_presets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
     monkeypatch.delenv("CRAB_PATH_PRESETS", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-user-config"))
     monkeypatch.setattr(presets, "shared_preset_folders", lambda crab_root: [])
     monkeypatch.setattr(paths, "user_presets_dir", lambda root: tmp_path / "no-user-presets")
+    # Outside tmp_path: tests that list their tmp_path must not see the file.
+    empty_package = tmp_path_factory.mktemp("no-package-presets") / "presets.json"
+    empty_package.write_text("{}")
+    monkeypatch.setattr(paths, "shipped_presets", lambda: empty_package)
+
+
+@pytest.fixture
+def shared_presets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Callable[..., Path]:
+    """A writer for fixture presets: `write(presets, filename="fixture.json")` returns the file.
+
+    The files land in one temporary folder that becomes the only shared presets folder.
+    """
+    folder = tmp_path / "shared-presets"
+    monkeypatch.setattr(presets, "shared_preset_folders", lambda crab_root: [folder])
+
+    def write(fixture_presets: dict[str, Any], filename: str = "fixture.json") -> Path:
+        folder.mkdir(exist_ok=True)
+        file = folder / filename
+        file.write_text(json.dumps(fixture_presets))
+        return file
+
+    return write
 
 
 @pytest.fixture
@@ -122,3 +152,9 @@ def real_preset_dirs(monkeypatch: pytest.MonkeyPatch, _no_user_presets: None) ->
     """Undo the isolation of the shared presets folders and the override dir for one test."""
     monkeypatch.setattr(presets, "shared_preset_folders", REAL_SHARED_PRESET_FOLDERS)
     monkeypatch.setattr(paths, "user_presets_dir", REAL_USER_PRESETS_DIR)
+
+
+@pytest.fixture
+def real_shipped_presets(monkeypatch: pytest.MonkeyPatch, _no_user_presets: None) -> None:
+    """Undo the empty package layer for one test (the path of the package file itself)."""
+    monkeypatch.setattr(paths, "shipped_presets", REAL_SHIPPED_PRESETS)

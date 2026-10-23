@@ -17,9 +17,9 @@ from crab.cli.presets import load_all_presets
 
 pytestmark = pytest.mark.usefixtures("real_preset_dirs")
 
-SHIPPED = {
+BASE = {
     "leonardo": {
-        "description": "shipped",
+        "description": "base",
         "scheduler": "slurm",
         "env": {"X": "1"},
         "sbatch": ["--account=PLACEHOLDER", "--exclusive"],
@@ -28,13 +28,14 @@ SHIPPED = {
 }
 
 
-@pytest.fixture(autouse=True)
-def _shipped_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The package layer is a fixture file, not the package's real presets."""
-    shipped = tmp_path / "shipped" / "presets.json"
-    shipped.parent.mkdir()
-    shipped.write_text(json.dumps(SHIPPED))
-    monkeypatch.setattr(paths, "shipped_presets", lambda: shipped)
+@pytest.fixture
+def package_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The package layer holds BASE, in a fixture file."""
+    package = tmp_path / "package" / "presets.json"
+    package.parent.mkdir()
+    package.write_text(json.dumps(BASE))
+    monkeypatch.setattr(paths, "shipped_presets", lambda: package)
+    return package
 
 
 @pytest.fixture
@@ -55,6 +56,12 @@ def wrappers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return folder
 
 
+@pytest.fixture
+def base_in_wrappers(wrappers: Path) -> Path:
+    """BASE as a file of the shared wrapper folder."""
+    return _write(wrappers / "presets", "base.json", BASE)
+
+
 def _write(folder: Path, name: str, body: dict | str) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / name
@@ -62,10 +69,12 @@ def _write(folder: Path, name: str, body: dict | str) -> Path:
     return path
 
 
+@pytest.mark.usefixtures("package_file")
 def test_without_shared_folders_or_overrides_the_package_presets_are_used(tmp_path: Path) -> None:
-    assert load_all_presets(tmp_path) == SHIPPED
+    assert load_all_presets(tmp_path) == BASE
 
 
+@pytest.mark.usefixtures("package_file")
 def test_a_shared_preset_wins_over_the_package_one_as_a_whole(
     tmp_path: Path, wrappers: Path
 ) -> None:
@@ -74,7 +83,7 @@ def test_a_shared_preset_wins_over_the_package_one_as_a_whole(
     presets = load_all_presets(tmp_path)
     assert presets["leonardo"] == shared
     assert presets["added"] == shared
-    assert presets["local"] == SHIPPED["local"]
+    assert presets["local"] == BASE["local"]
 
 
 def test_the_first_shared_folder_wins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,14 +120,16 @@ def test_without_the_env_var_the_checkout_wrappers_folder_is_read_not_local_wrap
     assert "hidden" not in presets
 
 
+@pytest.mark.usefixtures("base_in_wrappers")
 def test_an_override_file_patches_the_shared_preset(tmp_path: Path, overrides: Path) -> None:
     _write(overrides, "mine.json", {"leonardo": {"sbatch": ["--account=REAL"]}})
     leonardo = load_all_presets(tmp_path)["leonardo"]
     assert leonardo["sbatch"] == ["--account=REAL", "--exclusive"]
-    assert leonardo["description"] == "shipped"
+    assert leonardo["description"] == "base"
     assert leonardo["env"] == {"X": "1"}
 
 
+@pytest.mark.usefixtures("base_in_wrappers")
 def test_override_files_are_read_in_name_order(tmp_path: Path, overrides: Path) -> None:
     _write(overrides, "b.json", {"leonardo": {"description": "from b"}})
     _write(overrides, "a.json", {"mine": {"scheduler": "local", "description": "from a"}})
@@ -128,6 +139,7 @@ def test_override_files_are_read_in_name_order(tmp_path: Path, overrides: Path) 
     assert list(presets)[-1] == "mine"
 
 
+@pytest.mark.usefixtures("base_in_wrappers")
 def test_the_same_name_in_two_override_files_names_both(tmp_path: Path, overrides: Path) -> None:
     one = _write(overrides, "a.json", {"leonardo": {"description": "a"}})
     two = _write(overrides, "b.json", {"leonardo": {"description": "b"}})
@@ -192,13 +204,13 @@ def test_a_bad_override_file_names_that_file(tmp_path: Path, overrides: Path) ->
 
 
 def test_a_missing_preset_message_names_every_place_searched(
-    tmp_path: Path, wrappers: Path, overrides: Path
+    tmp_path: Path, wrappers: Path, overrides: Path, package_file: Path
 ) -> None:
     with pytest.raises(KeyError) as exc:
         load_environment_config("nope", tmp_path)
     message = str(exc.value)
     assert str(wrappers / "presets") in message
-    assert str(tmp_path / "shipped" / "presets.json") in message
+    assert str(package_file) in message
     assert str(overrides) in message
 
 
@@ -270,7 +282,7 @@ def test_crab_info_needs_is_empty_once_an_override_fills_the_mark(
 
 
 def test_every_crab_info_preset_has_needs_and_notes(
-    tmp_path: Path, wrappers: Path, overrides: Path
+    tmp_path: Path, wrappers: Path, overrides: Path, base_in_wrappers: Path
 ) -> None:
     _write(wrappers / "presets", "odd.json", {"odd": {"scheduler": "local", "notes": ["a", 3]}})
     _write(wrappers / "presets", "bad.json", {"bad": {"scheduler": "nope", "notes": ["why"]}})

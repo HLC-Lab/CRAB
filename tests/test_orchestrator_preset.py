@@ -9,7 +9,6 @@ from unittest.mock import patch
 
 import pytest
 
-from crab import paths
 from crab.cli.orchestrator import execute_orchestrator, load_environment_config
 from crab.core.execution.settings import SLURM_DEFAULT
 from settings_fixtures import LOCAL_DIRECT
@@ -99,9 +98,10 @@ def _completion_lines(stderr: str) -> list[str]:
 
 
 def test_a_wrappers_path_from_the_process_env_is_not_replaced_by_the_shipped_default(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, shared_presets
 ):
-    # The shipped presets, with no local layer (CRAB_ROOT points at an empty folder).
+    # A preset without env (CRAB_ROOT points at an empty folder).
+    shared_presets({"local": {"scheduler": "local"}})
     monkeypatch.setattr("crab.cli.orchestrator.CRAB_ROOT", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/x")
@@ -117,17 +117,10 @@ def test_a_wrappers_path_from_the_process_env_is_not_replaced_by_the_shipped_def
     assert not str(environment.get("CRAB_PATH_WRAPPERS", "")).endswith("/wrappers")
 
 
-def test_a_preset_that_sets_the_wrappers_path_still_puts_it_in_the_job_env(tmp_path, monkeypatch):
-    shipped = tmp_path / "shipped" / "presets.json"
-    shipped.parent.mkdir()
-    shipped.write_text(
-        json.dumps(
-            {
-                "lab": {"scheduler": "local", "env": {"CRAB_PATH_WRAPPERS": "/mine"}},
-            }
-        )
-    )
-    monkeypatch.setattr(paths, "shipped_presets", lambda: shipped)
+def test_a_preset_that_sets_the_wrappers_path_still_puts_it_in_the_job_env(
+    tmp_path, monkeypatch, shared_presets
+):
+    shared_presets({"lab": {"scheduler": "local", "env": {"CRAB_PATH_WRAPPERS": "/mine"}}})
     monkeypatch.setattr("crab.cli.orchestrator.CRAB_ROOT", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/x")
@@ -184,12 +177,9 @@ def marked_lab(tmp_path, monkeypatch, real_preset_dirs):
     (shared / "presets" / "lab.json").write_text(
         json.dumps({"lab": {"scheduler": "slurm", "sbatch": ["--account=<YOUR_ACCOUNT>"]}})
     )
-    package = tmp_path / "package.json"
-    package.write_text("{}")
     overrides = tmp_path / "overrides"
     monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(shared))
     monkeypatch.setenv("CRAB_PATH_PRESETS", str(overrides))
-    monkeypatch.setattr(paths, "shipped_presets", lambda: package)
     return overrides
 
 

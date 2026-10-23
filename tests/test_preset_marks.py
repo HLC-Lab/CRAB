@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from crab import paths
 from crab.cli import presets
 from crab.cli.preset_marks import check_file_marks, override_snippet, unset_marks
 from crab.cli.presets import load_all_presets
@@ -117,10 +116,7 @@ def test_the_loader_checks_each_shared_file(
     folder.mkdir(parents=True)
     bad = folder / "lab.json"
     bad.write_text('{"lab": {"scheduler": "slurm", "header": ["# <YOUR_ACCOUNT>"]}}')
-    shipped = tmp_path / "shipped.json"
-    shipped.write_text("{}")
     monkeypatch.setattr(presets, "shared_preset_folders", lambda root: [folder])
-    monkeypatch.setattr(paths, "shipped_presets", lambda: shipped)
     with pytest.raises(ValueError) as exc:
         load_all_presets(tmp_path)
     assert str(bad) in str(exc.value)

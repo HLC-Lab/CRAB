@@ -323,7 +323,6 @@ def test_a_preset_env_wrapper_folder_applies_with_the_preset_only(
 def test_a_preset_with_an_unset_mark_is_a_validation_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_preset_dirs: None
 ) -> None:
-    from crab import paths
     from crab.cli.validate import validate_file
 
     shared = tmp_path / "shared"
@@ -331,11 +330,8 @@ def test_a_preset_with_an_unset_mark_is_a_validation_error(
     (shared / "presets" / "lab.json").write_text(
         json.dumps({"lab": {"scheduler": "slurm", "sbatch": ["--account=<YOUR_ACCOUNT>"]}})
     )
-    package = tmp_path / "package.json"
-    package.write_text("{}")
     monkeypatch.setenv("CRAB_PATH_WRAPPERS", f"{shared}:{tmp_path / 'wrapper-folder'}")
     monkeypatch.setenv("CRAB_PATH_PRESETS", str(tmp_path / "overrides"))
-    monkeypatch.setattr(paths, "shipped_presets", lambda: package)
 
     errors, _ = validate_file(_config(tmp_path, _experiment()), preset="lab")
 
