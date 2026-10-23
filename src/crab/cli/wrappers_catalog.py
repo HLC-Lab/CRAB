@@ -86,7 +86,7 @@ def _wrapper_files(folder: Path) -> list[Path]:
 def _crab_root_env() -> Iterator[None]:
     """Give wrapper code the CRAB_ROOT a run has, and restore the environment after.
 
-    A run always has CRAB_ROOT (the presets' _common block sets it); older wrappers build binary
+    A run always has CRAB_ROOT (the engine sets it); older wrappers build binary
     paths from it.
     """
     from crab.core import wrapper_paths

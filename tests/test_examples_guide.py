@@ -113,7 +113,7 @@ def test_nothing_in_the_repo_still_names_the_old_folder() -> None:
 def _settings_of(preset: str):
     presets = json.loads(paths.shipped_presets().read_text())
     body = dict(presets[preset])
-    body["env"] = {**presets["_common"].get("env", {}), **body.get("env", {})}
+    body["env"] = {"CRAB_ROOT": "__CWD__", **body.get("env", {})}
     return from_preset(body, preset)
 
 

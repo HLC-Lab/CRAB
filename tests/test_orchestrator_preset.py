@@ -70,16 +70,22 @@ def test_orchestrator_passes_the_preset_settings_to_the_engine(tmp_path, monkeyp
     assert mock_run.call_args.kwargs["settings"] is LOCAL_DIRECT
 
 
-def test_execution_fields_in_common_are_refused() -> None:
-    presets = {
-        "_common": {"env": {}, "scheduler": "slurm"},
-        "lab": {"scheduler": "slurm"},
-    }
-    with (
-        patch("crab.cli.presets.load_all_presets", return_value=presets),
-        pytest.raises(ValueError, match="_common.*scheduler.*each preset"),
-    ):
-        load_environment_config("lab")
+def test_a_preset_without_env_gets_the_engine_default_crab_root() -> None:
+    presets = {"lab": {"scheduler": "slurm"}}
+    with patch("crab.cli.presets.load_all_presets", return_value=presets):
+        config = load_environment_config("lab")
+
+    assert config["env"] == {"CRAB_ROOT": "__CWD__", "CRAB_SYSTEM": "lab"}
+    assert config["sbatch"] == []
+    assert config["header"] == []
+
+
+def test_a_preset_crab_root_wins_over_the_engine_default() -> None:
+    presets = {"lab": {"scheduler": "slurm", "env": {"CRAB_ROOT": "/mine"}}}
+    with patch("crab.cli.presets.load_all_presets", return_value=presets):
+        config = load_environment_config("lab")
+
+    assert config["env"]["CRAB_ROOT"] == "/mine"
 
 
 def _empty_run_config(tmp_path):
@@ -117,7 +123,6 @@ def test_a_preset_that_sets_the_wrappers_path_still_puts_it_in_the_job_env(tmp_p
     shipped.write_text(
         json.dumps(
             {
-                "_common": {"env": {"CRAB_ROOT": "__CWD__"}},
                 "lab": {"scheduler": "local", "env": {"CRAB_PATH_WRAPPERS": "/mine"}},
             }
         )

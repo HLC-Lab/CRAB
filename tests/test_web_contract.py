@@ -34,7 +34,6 @@ def test_gather_info_parses_and_filters_presets(tmp_path: Path, monkeypatch: pyt
     shipped.write_text(
         json.dumps(
             {
-                "_common": {"description": "shared"},
                 "example_preset": {"description": "skip me"},
                 "leonardo": {"description": "Leonardo @ CINECA"},
                 "alps": {"description": "ALPS"},
@@ -47,7 +46,7 @@ def test_gather_info_parses_and_filters_presets(tmp_path: Path, monkeypatch: pyt
     assert isinstance(data["crab_version"], str) and data["crab_version"]
     assert data["crab_root"] == str(tmp_path)
     names = [p["name"] for p in data["presets"]]
-    assert names == ["alps", "leonardo"]  # sorted; _common/example excluded
+    assert names == ["alps", "leonardo"]  # sorted; example excluded
 
 
 def test_gather_info_reports_the_install_layout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

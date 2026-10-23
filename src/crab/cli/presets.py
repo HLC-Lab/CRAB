@@ -199,6 +199,10 @@ class _Resolver:
             if not isinstance(data, Mapping):
                 raise ValueError(f"{path}: must contain a JSON object of presets.")
             for name, body in data.items():
+                if name == "_common":
+                    raise ValueError(
+                        f'{path}: "_common" was removed in CRAB 1.2; put its env in each preset.'
+                    )
                 if not isinstance(body, Mapping):
                     raise ValueError(f"{path}: preset {name!r} must be an object.")
                 if name in names:

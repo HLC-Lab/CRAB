@@ -411,3 +411,17 @@ def test_layer_file_that_is_not_an_object_names_the_file() -> None:
     with pytest.raises(ValueError) as error:
         resolve_presets([], [(OVERRIDE_FILE, ["not", "an", "object"])])  # type: ignore[list-item]
     assert str(OVERRIDE_FILE) in str(error.value)
+
+
+@pytest.mark.parametrize("layer", ["shared", "override"])
+def test_a_common_entry_in_any_file_is_refused_naming_the_file(layer: str) -> None:
+    common = {"_common": {"env": {"CRAB_ROOT": "__CWD__"}}}
+    if layer == "shared":
+        files = ([[(SHARED_FILE, common)]], [])
+        bad = SHARED_FILE
+    else:
+        files = ([shared(leonardo=LEONARDO)], [(OVERRIDE_FILE, common)])
+        bad = OVERRIDE_FILE
+    with pytest.raises(ValueError, match="_common.*removed in CRAB 1.2.*each preset") as error:
+        resolve_presets(*files)
+    assert str(bad) in str(error.value)

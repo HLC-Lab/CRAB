@@ -113,7 +113,7 @@ def _local_preset_settings():
 
     presets = json.loads(paths.shipped_presets().read_text())
     body = dict(presets["local"])
-    body["env"] = {**presets["_common"].get("env", {}), **body.get("env", {})}
+    body["env"] = {"CRAB_ROOT": "__CWD__", **body.get("env", {})}
     return from_preset(body, "local")
 
 

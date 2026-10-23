@@ -15,7 +15,7 @@ from crab.core.execution.launcher import Placement, dialect, launch_line, launch
 from crab.core.execution.settings import ExecutionSettings, from_preset, resolve_launcher
 
 _PRESETS_PATH = paths.shipped_presets()
-_NOT_EXECUTION_PRESETS = ("_common", "example_preset")
+_NOT_EXECUTION_PRESETS = ("example_preset",)
 _SLIMFLY_MPIRUN = "YOUR_OPENMPI_DIR/bin/mpirun"
 
 _PROBED = {"local": "openmpi5"}
@@ -48,7 +48,7 @@ def _presets() -> dict:
 def _settings(name: str) -> ExecutionSettings:
     presets = _presets()
     body = dict(presets[name])
-    body["env"] = {**presets["_common"].get("env", {}), **body.get("env", {})}
+    body["env"] = {"CRAB_ROOT": "__CWD__", **body.get("env", {})}
     return from_preset(body, name)
 
 

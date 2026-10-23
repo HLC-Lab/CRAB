@@ -320,7 +320,7 @@ def test_new_can_target_the_local_folder_and_refuses_to_overwrite(
 
 
 def test_list_sees_crab_root_like_a_run_does(root, monkeypatch, capsys) -> None:
-    """Runs always have CRAB_ROOT (the presets' _common block sets it), so wrappers that
+    """Runs always have CRAB_ROOT (the engine sets it), so wrappers that
     build paths from it must not show up as broken in the listing."""
     monkeypatch.delenv("CRAB_ROOT", raising=False)
     path = root / "wrappers" / "old" / "envpath.py"

@@ -1,12 +1,4 @@
 {
-    "_common": {
-        "description": "Common settings shared across all presets. Put your accounts and per-machine changes in local/presets.json (same format, git-ignored), not here.",
-        "env": {
-            "CRAB_ROOT": "__CWD__"
-        },
-        "sbatch": [],
-        "header": []
-    },
     "alps": {
         "description": "ALPS Cluster Environment",
         "scheduler": "slurm",

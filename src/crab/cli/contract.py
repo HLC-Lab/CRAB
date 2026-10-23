@@ -55,7 +55,7 @@ def _preset_settings(name: str, root: Path) -> ExecutionSettings:
 
     Raises:
         KeyError: no such preset.
-        ValueError: the preset or `_common` is invalid.
+        ValueError: a presets file is invalid.
         OSError: a presets file or hostfile cannot be read.
     """
     # Imported when called: the orchestrator pulls in the receipts memory and is not needed by
@@ -83,7 +83,7 @@ def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
     try:
         raw = load_all_presets(root)
         for name, body in raw.items():
-            if name in ("_common", "example_preset"):
+            if name in ("example_preset",):
                 continue
             desc = body.get("description", "") if isinstance(body, dict) else ""
             entry: dict[str, Any] = {"name": name, "description": desc}
