@@ -174,3 +174,46 @@ def test_the_completion_log_names_slurm_for_a_slurm_preset(tmp_path, monkeypatch
     assert len(done) == 1
     assert "Slurm" in done[0]
     assert "—" not in done[0]
+
+
+@pytest.fixture
+def marked_lab(tmp_path, monkeypatch, real_preset_dirs):
+    """A shared `lab` preset with an unset `--account` mark; returns the overrides dir (not made)."""
+    shared = tmp_path / "shared"
+    (shared / "presets").mkdir(parents=True)
+    (shared / "presets" / "lab.json").write_text(
+        json.dumps({"lab": {"scheduler": "slurm", "sbatch": ["--account=<YOUR_ACCOUNT>"]}})
+    )
+    package = tmp_path / "package.json"
+    package.write_text("{}")
+    overrides = tmp_path / "overrides"
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(shared))
+    monkeypatch.setenv("CRAB_PATH_PRESETS", str(overrides))
+    monkeypatch.setattr(paths, "shipped_presets", lambda: package)
+    return overrides
+
+
+def test_an_unset_mark_refuses_the_preset_with_a_paste_ready_snippet(tmp_path, marked_lab):
+    with pytest.raises(ValueError) as exc:
+        load_environment_config("lab", tmp_path)
+
+    message = str(exc.value)
+    assert "Preset 'lab' needs your own value for --account." in message
+    assert f"{marked_lab}/" in message
+    snippet = json.loads(message[message.index("{") :])
+    assert snippet == {"lab": {"sbatch": ["--account=<YOUR_ACCOUNT>"]}}
+
+
+def test_an_override_of_the_mark_lets_the_preset_load(tmp_path, marked_lab):
+    marked_lab.mkdir()
+    (marked_lab / "mine.json").write_text(json.dumps({"lab": {"sbatch": ["--account=REAL"]}}))
+
+    config = load_environment_config("lab", tmp_path)
+
+    assert config["sbatch"] == ["--account=REAL"]
+
+
+def test_allow_unset_marks_loads_the_preset_with_the_mark_in_place(tmp_path, marked_lab):
+    config = load_environment_config("lab", tmp_path, allow_unset_marks=True)
+
+    assert config["sbatch"] == ["--account=<YOUR_ACCOUNT>"]

@@ -27,18 +27,23 @@ from crab.core.wrapper_paths import (  # noqa: E402 -- same
 )
 
 
-def load_environment_config(preset_arg: str, crab_root: str | Path | None = None) -> dict[str, Any]:
+def load_environment_config(
+    preset_arg: str, crab_root: str | Path | None = None, *, allow_unset_marks: bool = False
+) -> dict[str, Any]:
     """Build env, sbatch, header and the parsed execution settings of one preset.
 
     The presets are read from `crab_root` (default: this checkout). `CRAB_ROOT=__CWD__` is the
-    default env value; a preset's own `CRAB_ROOT` wins.
+    default env value; a preset's own `CRAB_ROOT` wins. A preset that still holds a `<YOUR_...>`
+    mark is refused, unless `allow_unset_marks` (for listing presets, not for running them).
 
     Raises:
         FileNotFoundError: the package presets file is missing.
         KeyError: the preset does not exist.
-        ValueError: a presets file holds `_common`, the preset's execution fields are invalid, or a
-            dropped `CRAB_*` launch key is in its `env`.
+        ValueError: a presets file holds `_common` or a mark no override can patch, the preset
+            holds a mark the user has not overridden (the message holds the override snippet), its
+            execution fields are invalid, or a dropped `CRAB_*` launch key is in its `env`.
     """
+    from crab.cli.preset_marks import override_snippet, unset_marks
     from crab.cli.presets import load_all_presets, preset_sources
     from crab.core.execution.settings import from_preset
 
@@ -58,6 +63,16 @@ def load_environment_config(preset_arg: str, crab_root: str | Path | None = None
         )
 
     target_preset = all_presets[preset_arg]
+
+    missing = unset_marks(target_preset)
+    if missing and not allow_unset_marks:
+        overrides_dir = preset_sources(Path(root))[2]
+        snippet = json.dumps(override_snippet(preset_arg, target_preset), indent=2)
+        raise ValueError(
+            f"Preset '{preset_arg}' needs your own value for {', '.join(missing)}. Add this to a "
+            f".json file in {overrides_dir}/ (merge it into your entry for '{preset_arg}' if you "
+            f"already have one), replacing each <YOUR_...>:\n{snippet}"
+        )
 
     final_env = {"CRAB_ROOT": "__CWD__", **target_preset.get("env", {})}
 

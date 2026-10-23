@@ -318,3 +318,26 @@ def test_a_preset_env_wrapper_folder_applies_with_the_preset_only(
     assert with_preset == ([], [])
     assert len(without_preset[0]) == 1
     assert "wrapper blink/only_here.py not found" in without_preset[0][0]
+
+
+def test_a_preset_with_an_unset_mark_is_a_validation_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, real_preset_dirs: None
+) -> None:
+    from crab import paths
+    from crab.cli.validate import validate_file
+
+    shared = tmp_path / "shared"
+    (shared / "presets").mkdir(parents=True)
+    (shared / "presets" / "lab.json").write_text(
+        json.dumps({"lab": {"scheduler": "slurm", "sbatch": ["--account=<YOUR_ACCOUNT>"]}})
+    )
+    package = tmp_path / "package.json"
+    package.write_text("{}")
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", f"{shared}:{tmp_path / 'wrapper-folder'}")
+    monkeypatch.setenv("CRAB_PATH_PRESETS", str(tmp_path / "overrides"))
+    monkeypatch.setattr(paths, "shipped_presets", lambda: package)
+
+    errors, _ = validate_file(_config(tmp_path, _experiment()), preset="lab")
+
+    assert len(errors) == 1
+    assert "Preset 'lab' needs your own value for --account." in errors[0]

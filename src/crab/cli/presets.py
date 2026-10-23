@@ -12,12 +12,12 @@ from __future__ import annotations
 import copy
 import json
 import os
-import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from crab import paths
+from crab.cli.preset_marks import KEYED_ITEM, check_file_marks
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -85,14 +85,12 @@ def load_all_presets(crab_root: Path) -> dict[str, Any]:
 PresetFile = tuple[Path, Mapping[str, Any]]
 """One preset file: its path (for error messages) and its parsed JSON object."""
 
-_KEYED_ITEM = re.compile(r"--[^=\s]+=")
-
 
 def _merge_flags(base: list[Any], patch: list[Any]) -> list[Any]:
     """`--name=value` items replace the first base item with the same `--name=`; others append."""
     result = list(base)
     for item in patch:
-        match = _KEYED_ITEM.match(item) if isinstance(item, str) else None
+        match = KEYED_ITEM.match(item) if isinstance(item, str) else None
         if match is not None:
             prefix = match.group(0)
             for index, existing in enumerate(result):
@@ -205,6 +203,7 @@ class _Resolver:
                     )
                 if not isinstance(body, Mapping):
                     raise ValueError(f"{path}: preset {name!r} must be an object.")
+                check_file_marks(path, name, body)
                 if name in names:
                     raise ValueError(
                         f"preset {name!r} is defined twice: {names[name][0]} and {path}."
