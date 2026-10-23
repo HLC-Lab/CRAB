@@ -1,6 +1,6 @@
 # Leonardo examples
 
-Configs written for Leonardo, the Slurm cluster at CINECA, and for the shipped `leonardo` preset.
+Configs written for Leonardo, the Slurm cluster at CINECA, and for the shared `leonardo` preset.
 They are templates: they are complete and valid, but the node counts, the time limits and (in one
 file) the network card names fit Leonardo. To use one on your own cluster, follow [Adapt an example to your cluster](../README.md#adapt-an-example-to-your-cluster).
 
@@ -12,11 +12,12 @@ file) the network card names fit Leonardo. To use one on your own cluster, follo
 
 ## What you need
 
-- A Slurm cluster. Leonardo itself works after the two edits below.
+- A Slurm cluster. Leonardo itself works once you have set your account.
 - Blink built on the cluster (`crab setup`) and the wrappers folder.
-- A preset. On Leonardo, use `-p leonardo`. The shipped preset holds the placeholders
-  `YOUR_PROJECT_ACCOUNT` and `YOUR_UCX_LIB_DIR`. Put your values in `local/presets.json`, which
-  Git ignores. [Configuring your cluster](../../docs/using/presets.md) shows how.
+- A preset. On Leonardo, use `-p leonardo`. The shared preset holds the mark
+  `<YOUR_ACCOUNT>` in its `--account` option, and `crab run` refuses to start until you set it.
+  Put your value in an override file in `local/presets/`, which Git ignores.
+  [Your overrides](../../docs/using/presets.md#your-overrides) shows how.
 - For the large runs, an account that may use the nodes and the time. Check
   `crab nodes -p leonardo` first.
 

@@ -14,6 +14,8 @@ with the same `vX.Y.Z` as the CRAB release it pairs with, whichever line that re
 "Tags and updates" paragraph below is the original text; read "each partner release is tagged on
 both lines" as the usual case, not a rule.
 
+**Amendment (2026-10-23):** preset overrides are now files in `local/presets/` (an install: `~/.config/crab/presets/`), not `local/presets.json`, and the shared presets live in crab-wrappers ([ADR-041](adr-041-presets-in-crab-wrappers.md)). The rule that per-machine files stay out of git is unchanged.
+
 ## Context
 
 Partners are about to install CRAB from the `sbatchman` branch and keep files produced by it on

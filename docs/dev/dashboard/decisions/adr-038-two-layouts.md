@@ -1,7 +1,7 @@
 # ADR-038 · Two layouts: in-repo state for checkouts, user dirs for installs
 
 - **Date:** 2026-10-21
-- **Status:** accepted
+- **Status:** accepted; the preset parts are superseded by [ADR-041](adr-041-presets-in-crab-wrappers.md) (2026-10-23)
 
 ## Context
 

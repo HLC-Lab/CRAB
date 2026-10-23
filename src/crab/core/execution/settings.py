@@ -29,6 +29,8 @@ ALLOWED_PRESET_KEYS = (
     "env",
     "sbatch",
     "header",
+    "extends",
+    "notes",
 )
 DROPPED_KEYS: dict[str, str] = {
     "CRAB_WL_MANAGER": "launcher",
@@ -169,8 +171,8 @@ def from_preset(
 ) -> ExecutionSettings:
     """Validate the execution fields of one preset body and build `ExecutionSettings`.
 
-    `description`, `sbatch` and `header` are allowed and not checked here. `read_file` reads a
-    hostfile and is the only IO.
+    `description`, `sbatch`, `header`, `notes` and `extends` are allowed and not checked here.
+    `read_file` reads a hostfile and is the only IO.
 
     Raises:
         ValueError: a field is invalid, a key is unknown or a dropped `CRAB_*` key is in `env`.

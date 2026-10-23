@@ -16,7 +16,6 @@ REQUIRED_MEMBERS = [
     "crab/crab_dashboard.html",
     "crab/wrappers/base.py",
     "crab/setup/recipes/__init__.py",
-    "crab/presets.json",
 ]
 
 # A member is forbidden when any directory component of its path is one of these.

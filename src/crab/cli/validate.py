@@ -55,7 +55,7 @@ def _preset_settings(config: Any, preset: str) -> tuple[Any, dict[str, str]]:
     managed-directive check reads them there.
 
     Raises:
-        KeyError, FileNotFoundError, ValueError: from `load_environment_config`.
+        KeyError, ValueError: from `load_environment_config`.
     """
     from crab.cli import orchestrator
 
@@ -83,7 +83,7 @@ def validate_file(path: str, preset: str | None = None) -> tuple[list[str], list
             settings, execution_env = _preset_settings(config, preset)
         except KeyError as error:
             return [str(error.args[0])], []
-        except (FileNotFoundError, ValueError) as error:
+        except ValueError as error:
             return [str(error)], []
     errors, warnings = check_config_problems(config, settings)
     if isinstance(config, dict):

@@ -15,10 +15,10 @@ with a victim and an aggressor, `crab run`, the results layout, and `crab export
     - A [preset](using/presets.md) for your cluster. The commands below use `leonardo` as the
       example; **substitute your own preset name**. If your cluster isn't defined yet, create a
       preset first.
-    - Your project account in that preset. The shipped presets carry the placeholder
-      `--account=YOUR_PROJECT_ACCOUNT`, which `sbatch` refuses: copy your preset's block into
-      your presets file (`local/presets.json` in a checkout) and put your account there
-      ([how](using/presets.md#keep-your-presets-out-of-git)).
+    - Your project account in that preset. The shared presets carry the mark
+      `--account=<YOUR_ACCOUNT>`, and `crab run` refuses to start until you set it: write an
+      override file (`local/presets/<name>.json` in a checkout) with your account
+      ([how](using/presets.md#your-overrides)).
 
 It helps to skim [System-dependent vs system-independent](concepts/system-dependent-vs-independent.md)
 and the [victim/aggressor](glossary.md#victim) idea first, but you can follow along without them.

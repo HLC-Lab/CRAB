@@ -54,7 +54,7 @@ Slurm needs `--exclusive` for `cpus`, and the config sets it.
 ## Warnings
 
 `crab validate -p leonardo examples/leonardo/congestion/corun_nics.json` gives three warnings,
-one for each experiment: the launcher flag `--cpu-bind=socket` is replaced by CRAB's core
+one for each experiment: the launcher flag `--cpu-bind=verbose,socket` is replaced by CRAB's core
 binding for apps that set `cpus`. This is intended. The `leonardo` preset passes that flag to
 every `srun`, and in this file CRAB binds each app to its own cores instead. The other four
 files give no warning.

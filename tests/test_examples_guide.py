@@ -15,14 +15,14 @@ from pathlib import Path
 
 import pytest
 
-from crab import paths
+from conftest import WRAPPERS_PRESETS, requires_wrappers_presets, wrappers_presets
 from crab.core.config_checks import check_config
 from crab.core.execution.settings import from_preset
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples"
 
-# The shipped preset each set is meant to run with. A set not listed here is checked without one.
+# The crab-wrappers preset each set is meant to run with. A set not listed here is checked without one.
 _PRESET_OF_SET = {
     "local": "local",
     "cluster_di": "cluster_di",
@@ -32,7 +32,7 @@ _PRESET_OF_SET = {
 # Warnings an example may give, with the reason its README states. Everything else must be silent.
 _EXPECTED_WARNINGS: dict[str, list[str]] = {
     "examples/leonardo/congestion/corun_nics.json": [
-        f"experiment {exp}: launcher flag '--cpu-bind=socket' is replaced by CRAB's core binding "
+        f"experiment {exp}: launcher flag '--cpu-bind=verbose,socket' is replaced by CRAB's core binding "
         "for apps that share nodes or set cpus"
         for exp in ("01_victim_alone", "02_corun_separate_nics", "03_corun_same_nic")
     ],
@@ -111,9 +111,8 @@ def test_nothing_in_the_repo_still_names_the_old_folder() -> None:
 
 
 def _settings_of(preset: str):
-    presets = json.loads(paths.shipped_presets().read_text())
-    body = dict(presets[preset])
-    body["env"] = {**presets["_common"].get("env", {}), **body.get("env", {})}
+    body = dict(wrappers_presets()[preset])
+    body["env"] = {"CRAB_ROOT": "__CWD__", **body.get("env", {})}
     return from_preset(body, preset)
 
 
@@ -127,6 +126,8 @@ def test_every_config_checks_clean_under_its_sets_preset(
 ) -> None:
     rel = str(path.relative_to(REPO))
     preset = _PRESET_OF_SET.get(path.relative_to(EXAMPLES).parts[0])
+    if preset and WRAPPERS_PRESETS is None:
+        pytest.skip(requires_wrappers_presets.kwargs["reason"])
     monkeypatch.setattr("os.cpu_count", lambda: 8)  # a small laptop; the local set must fit it
     settings = _settings_of(preset) if preset else None
 

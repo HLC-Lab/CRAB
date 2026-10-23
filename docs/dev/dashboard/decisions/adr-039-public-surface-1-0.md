@@ -1,7 +1,7 @@
 # ADR-039 · The public surface CRAB 1.0 keeps stable: the CLI, its data contracts and the wrapper base class
 
 - **Date:** 2026-10-21
-- **Status:** accepted
+- **Status:** accepted; the preset parts are superseded by [ADR-041](adr-041-presets-in-crab-wrappers.md) (2026-10-23)
 
 ## Context
 

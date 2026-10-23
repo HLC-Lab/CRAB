@@ -15,28 +15,44 @@ The autouse ``_isolated_state_home`` fixture points ``XDG_STATE_HOME`` at a per-
 directory, so the local scheduler's job records (``$XDG_STATE_HOME/crab/jobs/``) never reach the
 real ``~/.local/state``. A test that wants its own location sets the variable again.
 
-The autouse ``_no_user_presets`` fixture makes the user presets file resolve to a path that does not
-exist (``CRAB_PATH_PRESETS`` unset, the user config dir under ``tmp_path``), so a developer's real user
-file never leaks into a test. ``CRAB_PATH_PRESETS`` is deleted rather than pointed at a missing file
-because the mpirun launcher exports every ``CRAB_*`` variable of the environment with ``-x``, which
-would change the launch lines the launcher tests expect. A test of the user layer writes a file and
-sets the variable itself.
+``WRAPPERS_PRESETS`` is the presets folder of a crab-wrappers checkout: ``wrappers/presets`` when
+that clone is on ``main`` (CI), else the sibling ``../crab-wrappers/presets``, else ``None``. Tests of
+the real presets use ``wrappers_presets()`` (the folder resolved as one shared layer) and carry
+``requires_wrappers_presets``, which skips them without a folder. ``CRAB_PATH_WRAPPERS`` is not used
+for this (see below).
+
+The autouse ``_no_user_presets`` fixture keeps a developer's real preset folders out of every test:
+the shared preset folders resolve to none (``crab.cli.presets.shared_preset_folders`` returns ``[]``)
+and the override dir to a path that does not exist (``paths.user_presets_dir``); the user config dir
+sits under ``tmp_path``. A test that needs fixture presets takes the ``shared_presets`` fixture:
+``shared_presets(presets, filename)`` writes them into one temporary shared folder, the only shared
+folder of that test. ``CRAB_PATH_PRESETS`` and ``CRAB_PATH_WRAPPERS`` are not set for this because
+the mpirun launcher exports every ``CRAB_*`` variable of the environment with ``-x``, which would
+change the launch lines the launcher tests expect. The ``real_preset_dirs`` fixture puts the two
+real folder functions back for the tests that exercise them; such a test then writes its folders and
+sets the variables itself.
 """
 
 from __future__ import annotations
 
+import json
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from crab import paths
+from crab.cli import presets
 from signal_guard import REAL_KILL, REAL_KILLPG, guarded
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
+REAL_SHARED_PRESET_FOLDERS = presets.shared_preset_folders
+REAL_USER_PRESETS_DIR = paths.user_presets_dir
 REPO = Path(__file__).resolve().parent.parent
 FIXTURE_WRAPPERS = Path(__file__).resolve().parent / "fixtures" / "wrappers"
 
@@ -46,6 +62,32 @@ requires_wrappers_checkout = pytest.mark.skipif(
     not (REPO / "wrappers").is_dir(),
     reason="needs the crab-wrappers checkout in wrappers/ (crab update clones it)",
 )
+
+_PRESET_FOLDER_CANDIDATES = (
+    REPO / "wrappers" / "presets",
+    REPO.parent / "crab-wrappers" / "presets",
+)
+WRAPPERS_PRESETS: Path | None = next(
+    (folder for folder in _PRESET_FOLDER_CANDIDATES if folder.is_dir()), None
+)
+requires_wrappers_presets = pytest.mark.skipif(
+    WRAPPERS_PRESETS is None,
+    reason=(
+        "needs crab-wrappers with presets/: wrappers/ on main (crab update --head) "
+        "or a sibling ../crab-wrappers checkout"
+    ),
+)
+
+
+def wrappers_presets() -> dict[str, dict[str, Any]]:
+    """The real presets of the crab-wrappers checkout, resolved as one shared layer.
+
+    Raises:
+        RuntimeError: no checkout with presets/ was found (tests carry `requires_wrappers_presets`).
+    """
+    if WRAPPERS_PRESETS is None:
+        raise RuntimeError("no crab-wrappers presets folder found")
+    return presets.resolve_presets([presets._read_folder(WRAPPERS_PRESETS)], [])
 
 
 def auth_client(app: FastAPI, **kwargs) -> TestClient:
@@ -74,3 +116,30 @@ def _isolated_state_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
 def _no_user_presets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("CRAB_PATH_PRESETS", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "no-user-config"))
+    monkeypatch.setattr(presets, "shared_preset_folders", lambda crab_root: [])
+    monkeypatch.setattr(paths, "user_presets_dir", lambda root: tmp_path / "no-user-presets")
+
+
+@pytest.fixture
+def shared_presets(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Callable[..., Path]:
+    """A writer for fixture presets: `write(presets, filename="fixture.json")` returns the file.
+
+    The files land in one temporary folder that becomes the only shared presets folder.
+    """
+    folder = tmp_path / "shared-presets"
+    monkeypatch.setattr(presets, "shared_preset_folders", lambda crab_root: [folder])
+
+    def write(fixture_presets: dict[str, Any], filename: str = "fixture.json") -> Path:
+        folder.mkdir(exist_ok=True)
+        file = folder / filename
+        file.write_text(json.dumps(fixture_presets))
+        return file
+
+    return write
+
+
+@pytest.fixture
+def real_preset_dirs(monkeypatch: pytest.MonkeyPatch, _no_user_presets: None) -> None:
+    """Undo the isolation of the shared presets folders and the override dir for one test."""
+    monkeypatch.setattr(presets, "shared_preset_folders", REAL_SHARED_PRESET_FOLDERS)
+    monkeypatch.setattr(paths, "user_presets_dir", REAL_USER_PRESETS_DIR)

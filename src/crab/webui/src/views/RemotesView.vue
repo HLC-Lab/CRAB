@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRemotesStore } from "@/stores/remotes";
 import { crabCommandNote, crabCommandView, crabDir } from "@/lib/remoteCrab";
+import { needsLabel, presetsHint } from "@/lib/presetSetup";
 import type { Profile, StepResult } from "@/api/types";
 
 const store = useRemotesStore();
@@ -225,9 +226,26 @@ function confirmRemove(name: string) {
         <div v-if="store.info[r.name]" class="info">
           CRAB {{ store.info[r.name].crab_version }} · {{ store.info[r.name].crab_root }}
           <span class="presets">
-            presets: {{ store.info[r.name].presets.map((p) => p.name).join(", ") || "none" }}
+            presets:
+            <template v-for="(p, i) in store.info[r.name].presets" :key="p.name"
+              >{{ p.name
+              }}<span
+                v-if="needsLabel(p)"
+                class="needs"
+                :title="`${needsLabel(p)}. Run \`crab presets show ${p.name}\` on the cluster to see what to set.`"
+                >{{ needsLabel(p) }}</span
+              ><template v-if="i < store.info[r.name].presets.length - 1">, </template>
+            </template>
+            <template v-if="!store.info[r.name].presets.length">none</template>
           </span>
         </div>
+        <p
+          v-if="store.info[r.name] && presetsHint(store.info[r.name])"
+          class="banner small"
+          :class="presetsHint(store.info[r.name])?.kind"
+        >
+          {{ presetsHint(store.info[r.name])?.text }}
+        </p>
         <p v-if="store.skew[r.name]" class="banner warn small">{{ store.skew[r.name] }}</p>
 
         <!-- Connected, but CRAB isn't installed there. Offer a guided install. -->
@@ -459,6 +477,16 @@ select {
 .presets {
   margin-left: 0.5rem;
   color: var(--text3);
+}
+.needs {
+  margin-left: 0.25rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--warn);
+  border-radius: var(--r);
+  background: rgba(237, 137, 54, 0.12);
+  color: var(--warn);
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 .banner {
   padding: 0.5rem 0.75rem;
