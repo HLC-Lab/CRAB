@@ -83,7 +83,7 @@ nav:
   - Reference:
       - CLI commands: reference/cli.md
       - Configuration schema: reference/configuration.md
-      - presets.json format: reference/presets.md
+      - Presets format: reference/presets.md
       - Supported benchmarks: reference/supported-benchmarks.md
       - Wrapper & Recipe API: reference/api.md
   - Contributing: contributing.md

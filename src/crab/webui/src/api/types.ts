@@ -41,7 +41,15 @@ export interface CrabInfo {
     launcher?: "srun" | "mpirun" | "direct";
     hosts?: string[];
     error?: string;
+    /** Option labels (e.g. "--account") still holding a `<YOUR_...>` value; absent on older clusters. */
+    needs?: string[];
+    notes?: string[];
   }[];
+  /** Shared presets folders the cluster searched; absent on older clusters. */
+  presets_sources?: { path: string; exists: boolean }[];
+  presets_overrides?: string;
+  /** Present only when the presets failed to load. */
+  presets_error?: string;
 }
 
 /** POST /api/remotes/{name}/connect */

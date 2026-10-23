@@ -30,7 +30,7 @@ crab run [-p PRESET] [--log-level LEVEL] [--json] [--only KEYS] <config.json>
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `config.json` | Path to the [experiment config](configuration.md). Required. Tab-completes `.json` files. | none |
-| `-p`, `--preset` | Preset name from the shipped presets or your own presets file. Tab-completes known presets. See [resolution order](../using/presets.md#selecting-your-preset). | the `CRAB_PRESET` environment variable; with neither, `crab run` stops with an error |
+| `-p`, `--preset` | Preset name from the shared presets (crab-wrappers) or your own [override files](../using/presets.md#your-overrides). Tab-completes known presets. A preset that still holds an unset `<YOUR_...>` mark is refused with the override to write. See [resolution order](../using/presets.md#selecting-your-preset). | the `CRAB_PRESET` environment variable; with neither, `crab run` stops with an error |
 | `--log-level` | `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`. Any other value counts as `INFO`. | `INFO` |
 | `--json` | Print the submit result as JSON on stdout: `job_id`, `data_dir` and `system`. Logs go to stderr. | off |
 | `--only` | Comma-separated experiment keys of the config to run. The other experiments are skipped. A key the config does not have is an error. | the whole config |
@@ -60,7 +60,7 @@ crab validate [-p PRESET] [--json] <config.json>
 | Argument | Description | Default |
 |----------|-------------|---------|
 | `config.json` | Path to the [experiment config](configuration.md). Required. | none |
-| `-p`, `--preset` | Also check the config against this preset. | none: config-only checks |
+| `-p`, `--preset` | Also check the config against this preset. A preset with an unset `<YOUR_...>` mark is refused, as in `crab run`. | none: config-only checks |
 | `--json` | Print `{"ok": bool, "errors": [...], "warnings": [...]}` on stdout instead of text. The exit status is the same. | off |
 
 Every app's wrapper `path` must name a file on this machine's wrapper search path. Otherwise the
@@ -133,7 +133,8 @@ use it instead of the dashboard.
 
 ## `crab info`
 
-Shows the installed version, the CRAB home, the install layout and the presets CRAB can use.
+Shows the installed version, the CRAB home, the install layout, where presets are read from and
+the presets CRAB can use.
 
 ```bash
 crab info [--json]
@@ -143,12 +144,25 @@ crab info [--json]
 |------|---------|---------|
 | `--json` | Print JSON instead of text. | off |
 
-With `--json` the answer carries `schema`, `crab_version`, `crab_root`, `layout` and `presets`.
-`layout` is `"checkout"` when CRAB runs from a git checkout and `"installed"` for a pip or pipx
-install. Each entry of `presets` has the preset's `name` and `description`, plus its `scheduler`
-(`"slurm"` or `"local"`), its `launcher` and its `hosts` (the host names; an empty list under
-Slurm). A preset that does not parse keeps its `name` and `description` and gets an `error`
-message in place of those three fields. `_common` and `example_preset` are not listed.
+The text has the version and contract schema, `root:`, `layout:`, `overrides:` (the folder of your
+[override files](../using/presets.md#your-overrides)) and one line per preset, with `(needs setup:
+...)` after the ones that still hold an unset mark. When none of the shared presets folders
+exists it adds a line that says so and to run `crab update`, and when the presets cannot be loaded
+it adds a `presets error:` line with the reason.
+
+With `--json` the answer carries `schema`, `crab_version`, `crab_root`, `layout`, `presets`,
+`presets_sources` and `presets_overrides`, and `presets_error` in one case. `layout` is
+`"checkout"` when CRAB runs from a git checkout and `"installed"` for a pip or pipx install.
+
+| Key | Meaning |
+|-----|---------|
+| `presets` | One entry per preset, sorted by name. Each has `name`, `description`, `needs` and `notes`, plus `scheduler` (`"slurm"` or `"local"`), `launcher` and `hosts` (the host names; an empty list under Slurm). |
+| `presets[].needs` | The values still unset, as labels: an `env` key, an option name such as `--account`, or `launchers.<kind>.command`. Always present, empty when nothing is unset. A preset with `needs` is listed anyway: `crab run` is what refuses it. |
+| `presets[].notes` | The preset's `notes` (strings). Always present, empty when it has none. |
+| `presets[].error` | Present when the preset does not parse. The entry keeps `name`, `description`, `needs` and `notes`, and has this message in place of `scheduler`, `launcher` and `hosts`. |
+| `presets_sources` | The shared presets folders CRAB searched, in order, as `{"path", "exists"}`. Always present, also when none exists, so a missing crab-wrappers clone shows. |
+| `presets_overrides` | The folder of your override files. Always present, whether or not it exists yet. |
+| `presets_error` | Present only when the preset files cannot be loaded at all (an unreadable file, an old override file, a duplicate name). It holds the message, and `presets` is then an empty list. |
 
 ```bash
 crab info
@@ -196,7 +210,7 @@ crab nodes [-p PRESET] [--json]
 
 | Flag | Meaning | Default |
 |------|---------|---------|
-| `-p`, `--preset` | Show this preset's nodes (for a local preset, its hosts). | none: ask Slurm |
+| `-p`, `--preset` | Show this preset's nodes (for a local preset, its hosts). A preset with an unset `<YOUR_...>` mark is refused, as in `crab run`. | none: ask Slurm |
 | `--json` | Print JSON instead of text. | off |
 
 - Without `-p`, or with a Slurm preset, CRAB runs `sinfo` and lists the partitions and the node
@@ -455,6 +469,55 @@ crab receipts set mybench --binary /scratch/me/mybench/bin/mybench --launcher mp
 
 See [Receipts](../extending/receipts.md#registering-an-installed-binary-with-crab-receipts-set).
 
+## `crab presets`
+
+Inspects presets. It has one subcommand, `show`.
+
+### `crab presets show`
+
+Explains one preset: the preset as CRAB will use it, the file each value came from, what is still
+unset and what to write to set it.
+
+```bash
+crab presets show [--json] NAME
+```
+
+| Argument | Meaning | Default |
+|----------|---------|---------|
+| `NAME` | The preset to explain: a shared preset, one of your own, or a variant that extends one. Required. Tab-completes known presets. | none |
+| `--json` | Print JSON instead of text. | off |
+
+The text starts with the name, and `(extends <name>, ...)` when the preset is a variant. Then each
+field follows with `(from <file>)`: the shared file, or the file of your overrides that last set
+it. A list that several files built, such as `header`, names all of them. The next line is `needs
+setup:` with what is unset, then the snippet to paste into `<overrides folder>/<name>.json`; when
+nothing is unset it says so and names that file as the place for personal changes. `notes`, when
+the preset has them, are printed after the fields.
+
+With `--json` the answer is an object with these keys:
+
+| Key | Meaning |
+|-----|---------|
+| `schema` | The `--json` contract version. |
+| `name` | The preset name. |
+| `preset` | The resolved preset, as an object. `extends` is not in it. |
+| `sources` | Where each value came from, as file paths. The keys are a top-level field (`scheduler`), `env.<KEY>`, `sbatch --<option>`, `launchers.<kind>.<field>` and `launchers.<kind>.flags --<option>`. A value that several files built (`header`, `notes`, `launchers.<kind>.export`, flag items without `--name=value`) is a list of paths. |
+| `extends` | The names the preset extends, nearest first; empty when it extends none. |
+| `needs` | The unset marks, as labels (see [`crab info`](#crab-info)). |
+| `notes` | The preset's `notes`; empty when it has none. |
+| `override` | `path`, the file to write (`<overrides folder>/<name>.json`), and `snippet`, the override to put in it: the marked items when something is unset, otherwise `{"<name>": {}}`. |
+
+Unlike `crab run`, it does not refuse a preset with an unset mark. An unknown name, an invalid
+preset file or an old override file is an error: the message goes to stderr and the exit status is
+1, or with `--json`, `{"schema": 2, "error": "..."}` on stdout and the same exit status.
+
+```bash
+crab presets show leonardo
+crab presets show leonardo --json
+```
+
+See [Your overrides](../using/presets.md#your-overrides).
+
 ## `crab update`
 
 Updates this install and its wrappers checkout. By default it goes to the release; `--head`
@@ -492,8 +555,14 @@ crab update [--head | --to-release] [--json]
   (the name before `crab-hpc`) is uninstalled first.
 - It stops without changing anything if tracked files have local edits, in the CRAB checkout or
   in the wrappers clone. Keep per-machine changes
-  in `local/`. If the edited file is `config/presets.json`, which moved to
-  `src/crab/presets.json`, the message gives the exact steps to migrate it.
+  in `local/`. If the edited file is `config/presets.json` or `src/crab/presets.json`, which
+  CRAB 1.2 removed because the presets moved to crab-wrappers, the message gives the steps to
+  migrate it: put your changes as patches in `local/presets/<name>.json`, run `git checkout` on the
+  edited file, then run `crab update` again.
+- Presets. The shared presets are `presets/*.json` in the wrappers clone, so they move with it, to
+  the tag of the CRAB version the update ends on (or to the branch with `--head`). A clone left on
+  a tag from before presets moved has no presets until `crab update` moves it. Your own override
+  files are not touched; see [Your overrides](../using/presets.md#your-overrides).
 - The wrappers folder is cloned if it is missing, and left alone if it is part of the CRAB
   checkout or holds files of its own.
 

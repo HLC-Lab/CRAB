@@ -31,10 +31,12 @@ _VERSION_LINE = re.compile(r'^__version__ = "([^"]+)"', re.MULTILINE)
 
 PIP_HINT = "pipx upgrade crab-hpc"
 
-# The checkout's old presets file moved into the package; edits to it need a manual migration.
+# The presets moved to crab-wrappers; edits to a tracked presets file this release no longer has
+# need a manual migration.
+_OLD_PRESET_FILES = ("config/presets.json", "src/crab/presets.json")
 _PRESETS_MOVED = (
-    "config/presets.json moved to src/crab/presets.json in this version: copy your edits to "
-    "local/presets.json, run `git checkout config/presets.json`, then `crab update` again"
+    "The presets moved to crab-wrappers in this version, and {file} is gone: put your changes as "
+    "patches in local/presets/<name>.json, run `git checkout {file}`, then `crab update` again"
 )
 
 # One error type: a git failure and a refusal both stop the update, and `except UpdateError`
@@ -79,8 +81,9 @@ def _crab_version_after(root: Path, crab: dict[str, Any]) -> str:
 def _refuse_local_edits(root: Path) -> None:
     edited = git(root, "diff", "--name-only", "HEAD")
     if edited:
-        if "config/presets.json" in edited.splitlines():
-            raise UpdateError(_PRESETS_MOVED)
+        for file in _OLD_PRESET_FILES:
+            if file in edited.splitlines():
+                raise UpdateError(_PRESETS_MOVED.format(file=file))
         files = ", ".join(edited.splitlines())
         raise UpdateError(
             f"Local edits to tracked files would be overwritten: {files}. Move per-machine "

@@ -567,11 +567,14 @@ def _run_config(tmp_path: Path) -> str:
     return str(path)
 
 
-def test_execute_orchestrator_ensures_the_wrappers_once(ensure_spy, tmp_path, monkeypatch) -> None:
+def test_execute_orchestrator_ensures_the_wrappers_once(
+    ensure_spy, tmp_path, monkeypatch, shared_presets
+) -> None:
     from unittest.mock import patch
 
     from crab.cli.orchestrator import execute_orchestrator
 
+    shared_presets({"local": {"scheduler": "local"}})
     monkeypatch.chdir(tmp_path)
     with (
         patch("crab.setup.memory.get_all_receipts", return_value={}),
@@ -581,11 +584,14 @@ def test_execute_orchestrator_ensures_the_wrappers_once(ensure_spy, tmp_path, mo
     assert ensure_spy == [1]
 
 
-def test_execute_orchestrator_skips_it_for_json(ensure_spy, tmp_path, monkeypatch) -> None:
+def test_execute_orchestrator_skips_it_for_json(
+    ensure_spy, tmp_path, monkeypatch, shared_presets
+) -> None:
     from unittest.mock import patch
 
     from crab.cli.orchestrator import execute_orchestrator
 
+    shared_presets({"local": {"scheduler": "local"}})
     monkeypatch.chdir(tmp_path)
     with (
         patch("crab.setup.memory.get_all_receipts", return_value={}),

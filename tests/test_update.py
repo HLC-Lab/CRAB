@@ -310,24 +310,28 @@ def test_pip_install_without_an_old_distribution_only_installs(monkeypatch) -> N
     assert [c[3] for c in run.commands] == ["install"]
 
 
-# --- the presets file moved: tell the owner exactly what to do --------------------------------
-
-PRESETS_MOVED = (
-    "config/presets.json moved to src/crab/presets.json in this version: copy your edits to "
-    "local/presets.json, run `git checkout config/presets.json`, then `crab update` again"
-)
+# --- the presets files moved: tell the owner exactly what to do -------------------------------
 
 
-def test_an_edited_old_presets_file_gets_the_migration_message(crab, tmp_path) -> None:
+def _presets_moved(file: str) -> str:
+    return (
+        f"The presets moved to crab-wrappers in this version, and {file} is gone: put your "
+        "changes as patches in local/presets/<name>.json, run "
+        f"`git checkout {file}`, then `crab update` again"
+    )
+
+
+@pytest.mark.parametrize("file", ["config/presets.json", "src/crab/presets.json"])
+def test_an_edited_old_presets_file_gets_the_migration_message(crab, tmp_path, file) -> None:
     work, install = crab
-    (work / "config").mkdir()
-    _commit(work, "config/presets.json", "{}\n")
+    (work / file).parent.mkdir(parents=True, exist_ok=True)
+    _commit(work, file, "{}\n")
     git(install, "pull", "-q")
-    (install / "config" / "presets.json").write_text('{"mine": 1}\n')
+    (install / file).write_text('{"mine": 1}\n')
     (install / "a.py").write_text("my edit\n")
     with pytest.raises(UpdateError) as caught:
         _update(install, tmp_path, Pip())
-    assert str(caught.value) == PRESETS_MOVED
+    assert str(caught.value) == _presets_moved(file)
 
 
 def test_other_edited_files_keep_the_generic_refusal(crab, tmp_path) -> None:

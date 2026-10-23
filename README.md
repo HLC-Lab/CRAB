@@ -103,7 +103,7 @@ pages are in `docs/` in this repository.
   [adding a build recipe](docs/extending/recipes.md).
 - Reference: [CLI commands](docs/reference/cli.md),
   [configuration schema](docs/reference/configuration.md),
-  [presets.json format](docs/reference/presets.md),
+  [presets format](docs/reference/presets.md),
   [supported benchmarks](docs/reference/supported-benchmarks.md).
 - [Changelog](CHANGELOG.md) and [contributing](docs/contributing.md).
 

@@ -19,8 +19,7 @@ def _preset_completer(prefix, parsed_args, **kwargs):
     base_dir = paths.crab_home()
     try:
         all_presets = load_all_presets(Path(base_dir))
-        valid_presets = [k for k in all_presets.keys() if k not in ["_common", "example_preset"]]
-        return [p for p in valid_presets if p.startswith(prefix)]
+        return [name for name in all_presets if name.startswith(prefix)]
     except Exception:
         return []
 
@@ -50,9 +49,15 @@ def handle_info(args):
         print(f"CRAB {d['crab_version']}  (contract schema v{d['schema']})")
         print(f"root: {d['crab_root']}")
         print(f"layout: {d['layout']}")
+        print(f"overrides: {d['presets_overrides']}")
+        if not any(source["exists"] for source in d["presets_sources"]):
+            print("no shared presets folder exists: run `crab update` to fetch crab-wrappers")
+        if "presets_error" in d:
+            print(f"presets error: {d['presets_error']}")
         print("presets:")
         for p in d["presets"]:
-            print(f"  {p['name']:<14} {p['description']}")
+            needs = f"  (needs setup: {', '.join(p['needs'])})" if p["needs"] else ""
+            print(f"  {p['name']:<14} {p['description']}{needs}")
 
     contract.emit(data, args.json, human)
 
@@ -283,7 +288,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,validate,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update,sbatchman-preset}",
+        metavar="{setup,run,validate,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,presets,update,sbatchman-preset}",
     )
     subparsers.required = True
 
@@ -313,6 +318,10 @@ def cli_router():
     from crab.cli import validate
 
     validate.register(subparsers, _preset_completer)
+
+    from crab.cli import presets_show
+
+    presets_show.register(subparsers, _preset_completer)
 
     # 3. Web Command
     parser_web = subparsers.add_parser("web", help="Launch the local web dashboard")

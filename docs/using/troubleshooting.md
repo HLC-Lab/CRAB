@@ -172,17 +172,50 @@ directory. See [Selecting your preset](presets.md#selecting-your-preset).
 ### Preset not found
 
 ```text
-The preset '<name>' was not found in <shipped file> (shipped), <user file> (user) or <local file> (local).
+The preset '<name>' was not found in the shared presets (<folders>) or your overrides (<folder>). No shared presets folder exists: run `crab update` to fetch crab-wrappers.
 ```
 
-None of the three presets files defines that name. The message gives the full path of each, so you
-can open them. Check the spelling against `crab info`, which lists the presets CRAB can see. To
-add your own, put it in the user file, or in `local/presets.json` on a checkout. See
-[Keep your presets out of git](presets.md#keep-your-presets-out-of-git) and
+No shared preset file and no override file defines that name. The message gives the folders it
+searched, so you can open them. If it ends with the `crab update` sentence, the crab-wrappers
+clone is missing or has no `presets/` folder (a clone left on a tag from before the presets moved
+looks the same): run `crab update`. Otherwise check the spelling
+against `crab info`, which lists the presets CRAB can see. To add your own, put it in a `.json`
+file in your overrides folder (`local/presets/` on a checkout, `~/.config/crab/presets/` on an
+install). See [Your overrides](presets.md#your-overrides) and
 [where presets are read from](../reference/presets.md#where-presets-are-read-from).
 
 A presets file that exists but is damaged stops CRAB with `<file> is not valid JSON: <error>` or
-`<file> must contain a JSON object of presets.`, and the message names the file.
+`<file> must contain a JSON object of presets.`, and the message names the file. The other
+refusals name the file too: a name defined twice, an `extends` that does not exist or loops, and
+an override with no shared preset to patch.
+
+### Your presets file from before 1.2 is refused
+
+```text
+<file>: single-file preset overrides were removed in CRAB 1.2. Move your presets into <folder>/ (any *.json name); a preset with a shared name now patches it instead of replacing it. See the Presets page of the docs.
+```
+
+`~/.config/crab/presets.json` and `local/presets.json` are no longer read. Move what is in them
+into a `.json` file in the folder the message names. A preset that has the name of a shared one
+now patches it, so a copy of a whole shared preset can shrink to the few values you changed. See
+[Your overrides](presets.md#your-overrides).
+
+The same stop happens when `CRAB_PATH_PRESETS` names a file instead of a folder: the message starts
+with that path and says it must be a folder of `*.json` override files. Move the file into a folder
+and point `CRAB_PATH_PRESETS` at the folder.
+
+### The preset needs your own value
+
+```text
+Preset '<name>' needs your own value for <YOUR_...>. Add this to a .json file in <folder>/ (merge it into your entry for '<name>' if you already have one), replacing each <YOUR_...>:
+{ ... }
+```
+
+The shared preset has a mark, such as `--account=<YOUR_ACCOUNT>`, that only you can fill in.
+`crab run`, `crab validate` and `crab nodes` stop until it is set. Paste the printed JSON into a
+file in the folder the message names and replace each `<YOUR_...>` with your value.
+`crab presets show <name>` prints the same snippet, the resolved preset and the file each value
+came from.
 
 ### A config from a newer CRAB
 
@@ -209,13 +242,14 @@ Local edits to tracked files would be overwritten: <files>. Move per-machine cha
 You edited files that belong to CRAB. Move per-machine changes to `local/`, or commit or stash
 them, then run `crab update` again.
 
-Edits to the old presets file, which moved into the package:
+Edits to an old presets file, which moved into crab-wrappers:
 
 ```text
-config/presets.json moved to src/crab/presets.json in this version: copy your edits to local/presets.json, run `git checkout config/presets.json`, then `crab update` again
+The presets moved to crab-wrappers in this version, and <file> is gone: put your changes as patches in local/presets/<name>.json, run `git checkout <file>`, then `crab update` again
 ```
 
-Do what the message says. See [Configuring your cluster](presets.md#keep-your-presets-out-of-git).
+`<file>` is `config/presets.json` or `src/crab/presets.json`. Do what the message says. See
+[Your overrides](presets.md#your-overrides).
 
 `--head` on a release tag:
 
@@ -261,9 +295,10 @@ This is printed by `crab run` (the dashboard shows it as the submit error) when 
 the job, and the reason is Slurm's own text. The usual causes are an account or partition that
 Slurm does not accept, a time limit above the partition's limit, or a QOS that does not exist.
 
-The shipped presets carry the placeholder `--account=YOUR_PROJECT_ACCOUNT`; copy the preset into
-your own presets file and put your account there (see
-[Installation](installation.md#next-steps)). Partitions, accounts and time limits can also be set
+A shared preset with an account holds the mark `--account=<YOUR_ACCOUNT>`, and CRAB refuses it
+before `sbatch` is called (see [The preset needs your own value](#the-preset-needs-your-own-value)),
+so a refusal here means the value you set is wrong: set your real account in an override file
+(see [Your overrides](presets.md#your-overrides)). Partitions, accounts and time limits can also be set
 per config with
 [`sbatch_directives`](../reference/configuration.md#sbatch-directives). Slurm tools such as
 `sacctmgr show assoc user=$USER` and `sinfo` show what your account may use.

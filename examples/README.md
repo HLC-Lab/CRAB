@@ -62,7 +62,7 @@ A config says what to run. A preset says how your cluster runs it. Keep the two 
 examples hold no account, no partition and no module names.
 
 1. Pick or write a preset for your cluster. [Configuring your cluster](../docs/using/presets.md)
-   shows how. Your account and partition go in the preset's `sbatch` list, in `local/presets.json`.
+   shows how. Your account and partition go in the preset's `sbatch` list, set through an override file in `local/presets/`.
    Run the example with `-p <your preset>`.
 2. Change these keys in the config:
 

@@ -63,7 +63,7 @@ def _derived_dirs() -> dict[str, str]:
         "contract root": str(contract._CRAB_ROOT),
         "contract data": str(contract._CRAB_ROOT / "data"),
         "private wrappers": str(paths.local_path(Path(wrapper_paths._CRAB_ROOT), "wrappers")),
-        "user presets": str(paths.user_presets()),
+        "user presets": str(paths.user_presets_dir(Path(wrapper_paths._CRAB_ROOT))),
         **{
             f"wrapper search {i}": folder
             for i, folder in enumerate(wrapper_paths.wrapper_search_path())

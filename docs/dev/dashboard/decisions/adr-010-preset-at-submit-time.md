@@ -3,6 +3,8 @@
 - **Date:** 2026-06-19
 - **Status:** accepted
 
+**Amendment (2026-10-23):** presets are no longer `config/presets.json` entries. They are files in the crab-wrappers repository, patched by per-user override files ([ADR-041](adr-041-presets-in-crab-wrappers.md)). The decision here, that the preset is chosen at submit time, is unchanged.
+
 ## Context
 
 A preset (`config/presets.json` entry) describes a cluster environment: env vars, sbatch

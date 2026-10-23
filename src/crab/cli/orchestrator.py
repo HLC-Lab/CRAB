@@ -26,66 +26,58 @@ from crab.core.wrapper_paths import (  # noqa: E402 -- same
     config_wrapper_path_problems,
 )
 
-COMMON_KEYS = ("description", "env", "sbatch", "header")
 
+def load_environment_config(
+    preset_arg: str, crab_root: str | Path | None = None, *, allow_unset_marks: bool = False
+) -> dict[str, Any]:
+    """Build env, sbatch, header and the parsed execution settings of one preset.
 
-def load_environment_config(preset_arg: str, crab_root: str | Path | None = None) -> dict[str, Any]:
-    """Merge `_common` and one preset into env, sbatch, header and the parsed execution settings.
-
-    The presets are read from `crab_root` (default: this checkout).
+    The presets are read from `crab_root` (default: this checkout). `CRAB_ROOT=__CWD__` is the
+    default env value; a preset's own `CRAB_ROOT` wins. A preset that still holds a `<YOUR_...>`
+    mark is refused, unless `allow_unset_marks` (for listing presets, not for running them).
 
     Raises:
-        FileNotFoundError: the shipped presets file is missing.
         KeyError: the preset does not exist.
-        ValueError: `_common` holds an execution field, the preset's execution fields are invalid, or a dropped `CRAB_*` launch key
-            is in `env` (the preset's or `_common`'s).
+        ValueError: a presets file holds `_common` or a mark no override can patch, the preset
+            holds a mark the user has not overridden (the message holds the override snippet), its
+            execution fields are invalid, or a dropped `CRAB_*` launch key is in its `env`.
     """
-    from crab.cli.presets import load_all_presets, preset_locations
+    from crab.cli.preset_marks import override_snippet, unset_marks
+    from crab.cli.presets import load_all_presets, preset_not_found_message, preset_sources
     from crab.core.execution.settings import from_preset
 
     root = str(crab_root) if crab_root is not None else CRAB_ROOT
-    try:
-        all_presets = load_all_presets(Path(root))
-    except FileNotFoundError:
-        shipped = preset_locations(Path(root))[0]
-        raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
+    all_presets = load_all_presets(Path(root))
 
     if preset_arg not in all_presets:
-        shipped, user, local = preset_locations(Path(root))
-        raise KeyError(
-            f"The preset '{preset_arg}' was not found in {shipped} (shipped), {user} (user) "
-            f"or {local} (local)."
-        )
+        raise KeyError(preset_not_found_message(preset_arg, Path(root)))
 
-    # Carica _common e il preset specifico
-    common_preset = all_presets.get("_common", {})
-    for key in common_preset:
-        if key not in COMMON_KEYS:
-            raise ValueError(
-                f"_common: unknown key {key!r}; only {', '.join(COMMON_KEYS)} are shared. "
-                "Execution fields (scheduler, launcher, ...) belong in each preset."
-            )
     target_preset = all_presets[preset_arg]
 
-    # 1. Merge Environment Variables (Dict update)
-    final_env = common_preset.get("env", {}).copy()
-    final_env.update(target_preset.get("env", {}))
+    missing = unset_marks(target_preset)
+    if missing and not allow_unset_marks:
+        overrides_dir = preset_sources(Path(root))[1]
+        snippet = json.dumps(override_snippet(preset_arg, target_preset), indent=2)
+        raise ValueError(
+            f"Preset '{preset_arg}' needs your own value for {', '.join(missing)}. Add this to a "
+            f".json file in {overrides_dir}/ (merge it into your entry for '{preset_arg}' if you "
+            f"already have one), replacing each <YOUR_...>:\n{snippet}"
+        )
 
-    # Parsed before CRAB_SYSTEM is added, so a dropped key in `_common` is caught too.
+    final_env = {"CRAB_ROOT": "__CWD__", **target_preset.get("env", {})}
+
+    # Parsed before CRAB_SYSTEM is added, so it sees only what the preset itself set.
     settings = from_preset({**target_preset, "env": final_env}, preset_arg)
 
     # Make sure CRAB_SYSTEM is set
     if "CRAB_SYSTEM" not in final_env:
         final_env["CRAB_SYSTEM"] = preset_arg
 
-    # 2. Merge SBATCH directives (List extend)
-    # Order: Common -> Preset. (The engine then adds the experiment overrides.)
-    final_sbatch = common_preset.get("sbatch", []) + target_preset.get("sbatch", [])
+    # (The engine then adds the experiment overrides to sbatch.)
+    final_sbatch = list(target_preset.get("sbatch", []))
+    final_header = list(target_preset.get("header", []))
 
-    # 3. Merge Header commands (List extend)
-    final_header = common_preset.get("header", []) + target_preset.get("header", [])
-
-    # Return the fully merged configuration
+    # Return the resolved configuration
     return {
         "env": final_env,
         "sbatch": final_sbatch,

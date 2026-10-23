@@ -13,6 +13,8 @@ import pytest
 import crab.cli.contract
 from crab import paths
 
+pytestmark = pytest.mark.usefixtures("real_preset_dirs")
+
 OLD_WALK_UP = Path(crab.cli.contract.__file__).resolve().parents[3]
 
 
@@ -102,27 +104,50 @@ def test_crab_home_is_read_at_import(xdg: Path, monkeypatch: pytest.MonkeyPatch)
 # --------------------------------------------------------------------------- #
 # presets
 # --------------------------------------------------------------------------- #
-def test_user_presets_default_is_under_config_dir(installed: Path) -> None:
-    assert paths.user_presets() == paths.config_dir() / "presets.json"
+def test_user_presets_dir_checkout_is_root_local_presets(xdg: Path) -> None:
+    importlib.reload(paths)
+    root = xdg / "somewhere"
+    assert paths.user_presets_dir(root) == root / "local" / "presets"
 
 
-def test_user_presets_env_wins(installed: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    custom = installed / "mine.json"
+def test_user_presets_dir_installed_is_under_config_dir(installed: Path) -> None:
+    assert paths.user_presets_dir(installed / "ignored") == paths.config_dir() / "presets"
+
+
+def test_user_presets_dir_installed_with_crab_home(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = xdg / "h"
+    _installed_with_home(xdg, monkeypatch, home, checkout=False)
+    assert paths.user_presets_dir(xdg / "ignored") == home / "config" / "presets"
+
+
+def test_user_presets_dir_env_wins_in_both_layouts(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    custom = xdg / "mine"
     monkeypatch.setenv("CRAB_PATH_PRESETS", str(custom))
-    assert paths.user_presets() == custom
+    importlib.reload(paths)
+    assert paths.user_presets_dir(xdg / "root") == custom
+    monkeypatch.setattr(paths, "is_checkout", lambda: False)
+    assert paths.user_presets_dir(xdg / "root") == custom
 
 
-def test_user_presets_env_wins_with_crab_home(xdg: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _installed_with_home(xdg, monkeypatch, xdg / "h", checkout=False)
-    custom = xdg / "mine.json"
-    monkeypatch.setenv("CRAB_PATH_PRESETS", str(custom))
-    assert paths.user_presets() == custom
-    monkeypatch.delenv("CRAB_PATH_PRESETS")
-    assert paths.user_presets() == xdg / "h" / "config" / "presets.json"
+def test_old_preset_files_checkout(xdg: Path) -> None:
+    importlib.reload(paths)
+    root = xdg / "somewhere"
+    assert paths.old_preset_files(root) == (
+        paths.config_dir() / "presets.json",
+        root / "local" / "presets.json",
+    )
 
 
-def test_shipped_presets_sits_in_the_package_dir() -> None:
-    assert paths.shipped_presets() == Path(paths.__file__).resolve().parent / "presets.json"
+def test_old_preset_files_installed(installed: Path) -> None:
+    root = installed / "ignored"
+    assert paths.old_preset_files(root) == (
+        paths.config_dir() / "presets.json",
+        root / "local" / "presets.json",
+    )
 
 
 # --------------------------------------------------------------------------- #

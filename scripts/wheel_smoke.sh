@@ -84,8 +84,8 @@ git_status > "$tmp/git.before"
 # --- run CRAB from an empty directory with a private home ---------------------------------------
 
 home="$tmp/home"
-mkdir -p "$home" "$tmp/cwd"
-cat > "$tmp/p.json" << JSON
+mkdir -p "$home" "$tmp/cwd" "$tmp/presets"
+cat > "$tmp/presets/p.json" << JSON
 {
     "smoke": {
         "description": "Wheel smoke test: local scheduler, direct launcher",
@@ -101,7 +101,7 @@ run_crab() {
     (
         cd "$tmp/cwd"
         unset VIRTUAL_ENV PYTHONPATH
-        export CRAB_HOME="$home" CRAB_PATH_PRESETS="$tmp/p.json"
+        export CRAB_HOME="$home" CRAB_PATH_PRESETS="$tmp/presets"
         export CRAB_PATH_WRAPPERS="$repo/tests/fixtures/wrappers" XDG_STATE_HOME="$tmp/state"
         "$crab" "$@"
     )

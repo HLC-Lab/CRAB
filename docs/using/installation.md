@@ -47,14 +47,15 @@ it holds the files that belong to this machine and never conflict with an update
 
 | Path | What it is | Who creates it |
 |------|------------|----------------|
-| `local/presets.json` | Your presets, merged over the shipped presets in `src/crab/presets.json` (see [Configuring your cluster](presets.md#keep-your-presets-out-of-git)). | You: run `mkdir -p local` in the checkout, then create the file. |
+| `local/presets/` | Your override files: `*.json` files that patch the shared presets from the crab-wrappers clone (see [Your overrides](presets.md#your-overrides)). | You: run `mkdir -p local/presets` in the checkout, then add a file. |
 | `local/receipts/` | One receipt per configured benchmark. | `crab setup` |
 | `local/wrappers/` | Private or in-progress wrappers, searched before `wrappers/`. | You, if you need it. |
 
-Before the first `crab run` on a cluster that needs a Slurm account, create
-`local/presets.json` with your account. The shipped presets carry the placeholder
-`--account=YOUR_PROJECT_ACCOUNT`, which `sbatch` refuses. The
-[presets page](presets.md#keep-your-presets-out-of-git) has a complete example.
+Before the first `crab run` on a cluster that needs a Slurm account, add an override file in
+`local/presets/` with your account. The shared presets carry the mark `--account=<YOUR_ACCOUNT>`,
+and `crab run` refuses to start while a mark is unset. It prints the file to write, and
+`crab presets show <name>` prints it too. The [presets page](presets.md#your-overrides) has a
+complete example. The shared presets themselves are the files in `wrappers/presets/`.
 
 Once installed, activate the environment before using the `crab` command (this also enables
 shell tab-completion, registered during install):
@@ -104,17 +105,18 @@ are described in [ADR-038](../dev/dashboard/decisions/adr-038-two-layouts.md); t
 
 | Folder | What it holds |
 |--------|---------------|
-| `~/.local/share/crab` (the home) | `data/` (results), `benchmarks/` (source builds) and `wrappers/` (the wrappers clone). |
-| `~/.config/crab` | `presets.json` (your presets), `receipts/` and `wrappers/` (private or in-progress wrappers, searched before the shared ones). |
+| `~/.local/share/crab` (the home) | `data/` (results), `benchmarks/` (source builds) and `wrappers/` (the crab-wrappers clone: the wrappers and the shared presets in `presets/`). |
+| `~/.config/crab` | `presets/` (your override files), `receipts/` and `wrappers/` (private or in-progress wrappers, searched before the shared ones). |
 
 These are the places on Linux; other systems use their own user data and config folders. Two
 variables move them:
 
 - `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`.
-- `CRAB_PATH_PRESETS` sets the path of your presets file.
+- `CRAB_PATH_PRESETS` sets the folder of your override files.
 
-The shipped presets come inside the package. Your own presets go in `~/.config/crab/presets.json`
-(see [Configuring your cluster](presets.md#keep-your-presets-out-of-git)).
+The package ships no presets: the shared ones come from the crab-wrappers clone, with the
+wrappers. Your own override files go in `~/.config/crab/presets/` (see
+[Your overrides](presets.md#your-overrides)).
 
 The wrappers are not part of the package. The first time a command needs them (`crab run`,
 `crab setup`, `crab wrappers ...`), CRAB prints one line and clones
@@ -224,10 +226,11 @@ Two cases need a little more:
 
 - It stops with "Local edits to tracked files would be overwritten". The message lists the
   files. Move per-machine changes to `local/`, or commit or stash them. One old case has its own
-  message: the shipped presets used to be `config/presets.json`, and if you put your account
-  there, the update tells you to copy your edits to `local/presets.json` (see
-  [Configuring your cluster](presets.md#keep-your-presets-out-of-git)), run
-  `git checkout config/presets.json`, and run `crab update` again.
+  message: the presets used to be tracked files in CRAB (`config/presets.json`, later
+  `src/crab/presets.json`), and if you put your account there, the update tells you to move
+  your changes into an override file in `local/presets/` (see
+  [Your overrides](presets.md#your-overrides)), run `git checkout <that file>`, and run
+  `crab update` again.
 - You come from v0.4.0 or older. Run `crab update` twice. The first run still executes the old
   update code, which does not know how to fetch the wrappers. The second run uses the new code and
   clones them.
@@ -239,15 +242,15 @@ folders). A `wrappers/` folder with anything else in it is left alone. Running `
 clones them when `wrappers/` is missing.
 
 Keep per-machine changes out of the tracked files so updates never conflict: the git-ignored
-`local/` folder holds `local/presets.json` (merged over the shipped presets, see
-[Configuring your cluster](presets.md)), `local/receipts/`, and `local/wrappers/` for private
+`local/` folder holds `local/presets/` (your override files, see
+[Your overrides](presets.md#your-overrides)), `local/receipts/`, and `local/wrappers/` for private
 wrappers.
 
 ## Next steps
 
 - On a cluster CRAB already knows (such as `leonardo`), set your project account before the first
-  run: the shipped presets carry the placeholder `--account=YOUR_PROJECT_ACCOUNT`. Copy the
-  preset's block into `local/presets.json` and change the account
-  ([how](presets.md#keep-your-presets-out-of-git)).
+  run: the shared presets carry the mark `--account=<YOUR_ACCOUNT>`. Write an override file in
+  `local/presets/` that sets your account
+  ([how](presets.md#your-overrides)).
 - On a cluster CRAB doesn't already know, define a preset: [Configuring your cluster](presets.md).
 - Then write an experiment: [Configuration schema](../reference/configuration.md).
