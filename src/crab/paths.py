@@ -83,3 +83,16 @@ def user_presets() -> Path:
     if override:
         return Path(override)
     return config_dir() / "presets.json"
+
+
+def user_presets_dir(root: Path) -> Path:
+    """The directory of the user's override preset files: CRAB_PATH_PRESETS, else `local_path(root, "presets")`."""
+    override = os.environ.get("CRAB_PATH_PRESETS")
+    if override:
+        return Path(override)
+    return local_path(root, "presets")
+
+
+def old_preset_files(root: Path) -> tuple[Path, Path]:
+    """The single-file overrides read before 1.2, now refused: `config_dir()/presets.json` and `<root>/local/presets.json`."""
+    return config_dir() / "presets.json", root / "local" / "presets.json"
