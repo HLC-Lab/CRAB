@@ -118,9 +118,24 @@ else `global_options.ppn`; see [Ranks per node](reference/configuration.md#ranks
 ### Preset
 
 A named, [system-dependent](concepts/system-dependent-vs-independent.md) environment definition in
-the shipped `src/crab/presets.json` or in your own presets file: scheduler, launcher and its
-flags, CPU pinning, modules (`header`), and Slurm directives (`sbatch`). Selected at run time with `-p <name>`. The `_common` block is merged under
-every preset.
+a file of the crab-wrappers clone (`presets/<cluster>.json`) or in your own [override](#override)
+files: scheduler, launcher and its flags, CPU pinning, modules (`header`), and Slurm directives
+(`sbatch`). Selected at run time with `-p <name>`. CRAB itself sets `CRAB_ROOT` in every preset's
+environment, so a preset does not write it.
+
+### Override
+
+A JSON file in your own presets folder (`local/presets/` in a checkout, `~/.config/crab/presets/`
+in an install) that patches a shared [preset](#preset) instead of replacing it, or adds a new
+preset with `"extends"`. It is the place for values only you know, such as your account. See
+[Your overrides](using/presets.md#your-overrides).
+
+### Mark
+
+A value only you can supply, written in a shared preset as `<YOUR_NAME>` (for example
+`--account=<YOUR_ACCOUNT>`). `crab run`, `crab validate` and `crab nodes` refuse a preset while a
+mark is unset, and print the [override](#override) to paste. `crab presets show <name>` lists the
+marks that are unset.
 
 ### Receipt
 

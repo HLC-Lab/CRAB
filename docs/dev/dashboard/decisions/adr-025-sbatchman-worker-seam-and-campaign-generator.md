@@ -3,6 +3,8 @@
 - **Date:** 2026-09-01
 - **Status:** accepted
 
+**Amendment (2026-10-23):** `config/presets.json` and its `__CWD__` placeholder are gone. `CRAB_ROOT=__CWD__` is now an engine default set when the environment config is loaded, and a preset does not write it ([ADR-041](adr-041-presets-in-crab-wrappers.md)). The worker seam described here is unchanged.
+
 ## Context
 
 CRAB and SbatchMan stay independent tools (see `docs/dev/roadmap.md`, "Relationship with

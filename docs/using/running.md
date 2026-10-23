@@ -18,7 +18,7 @@ crab run <config.json> -p <preset>
 | Argument | Meaning |
 |----------|---------|
 | `<config.json>` | Path to the [experiment config](../reference/configuration.md). |
-| `-p`, `--preset` | Preset name from the shipped presets or your own presets file. Optional. See [preset resolution](presets.md#selecting-your-preset). |
+| `-p`, `--preset` | Preset name from the shared presets or your own override files. Optional. See [preset resolution](presets.md#selecting-your-preset). |
 | `--log-level` | `DEBUG` / `INFO` / `WARNING` / `ERROR` / `CRITICAL` (default `INFO`). |
 
 Example:
