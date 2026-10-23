@@ -63,8 +63,31 @@ receipt points at an old Blink build: run `crab setup` again and rebuild Blink.
 
 ## 2. Preset
 
-Put a preset for the cluster in `local/presets.json` (git-ignored, merged over the shipped presets;
-see `docs/using/presets.md`). A starting point for a Slurm cluster with Open MPI built with PMIx:
+CRAB ships no preset for the NPLB clusters: you put one in your overrides folder (see
+`docs/using/presets.md#your-overrides`). It is any `*.json` file there, and a file may hold several
+presets. In a checkout the folder is `local/presets/` (git-ignored); in a pip install it is
+`~/.config/crab/presets/`; `crab info` prints the one in use on its `overrides:` line.
+
+### The H100 test cluster
+
+`examples/nplb/presets/nplb_h100.json` is the complete preset of the 4-node H100 test cluster
+(partition `h100_4nodes`, Open MPI's own `mpirun` over UCX, see
+[below](#clusters-where-srun-cannot-start-mpi)). Copy it into the overrides folder, then check
+that CRAB reads it:
+
+```bash
+mkdir -p local/presets                            # make the overrides folder (it does not exist yet)
+cp examples/nplb/presets/nplb_h100.json local/presets/   # the preset is now found by name: -p nplb_h100
+.venv/bin/crab presets show nplb_h100             # the preset as CRAB will use it, and the file it came from
+```
+
+`bringup.sh` runs its jobs with `-p nplb_h100`, so keep that name for this cluster. For another
+cluster, copy the file under a new file name, rename the preset in it and change the partition
+(and the launcher advice below), for example `local/presets/mycluster.json`.
+
+### Another cluster
+
+A starting point for a Slurm cluster with Open MPI built with PMIx, as `local/presets/mycluster.json`:
 
 ```json
 {
