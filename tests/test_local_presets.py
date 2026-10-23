@@ -166,6 +166,38 @@ def test_the_old_user_config_presets_file_is_refused_with_the_move_message(
     assert str(overrides) in str(exc.value)
 
 
+def test_a_crab_path_presets_that_names_a_file_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old = _write(tmp_path, "my-presets.json", {"leonardo": {"description": "old"}})
+    monkeypatch.setenv("CRAB_PATH_PRESETS", str(old))
+    with pytest.raises(ValueError) as exc:
+        load_all_presets(tmp_path)
+    message = str(exc.value)
+    assert str(old) in message
+    assert "CRAB_PATH_PRESETS" in message
+    assert "folder of *.json" in message
+    assert "1.2" in message
+    assert "move" in message.lower()
+
+
+def test_a_layout_default_overrides_path_that_is_a_file_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CRAB_PATH_PRESETS", raising=False)
+    monkeypatch.setattr(paths, "is_checkout", lambda: True)
+    (tmp_path / "local").mkdir()
+    clash = tmp_path / "local" / "presets"
+    clash.write_text("{}")
+    with pytest.raises(ValueError) as exc:
+        load_all_presets(tmp_path)
+    message = str(exc.value)
+    assert str(clash) in message
+    assert "folder of *.json" in message
+    assert "1.2" in message
+    assert "CRAB_PATH_PRESETS" not in message
+
+
 def test_a_file_that_is_not_json_names_that_file(tmp_path: Path, wrappers: Path) -> None:
     bad = _write(wrappers / "presets", "bad.json", "{not json")
     with pytest.raises(ValueError, match="not valid JSON") as exc:

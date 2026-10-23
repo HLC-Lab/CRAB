@@ -71,8 +71,8 @@ def preset_layers(crab_root: Path) -> tuple[list[list[PresetFile]], list[PresetF
     """The files `resolve_presets` merges: (shared layers in search order, the override layer).
 
     Raises:
-        ValueError: an old single-file override exists or a preset file is not a JSON object (the
-            message names the file).
+        ValueError: an old single-file override exists, the overrides location is a file, or a
+            preset file is not a JSON object (the message names the file).
     """
     root = Path(crab_root)
     overrides_dir = paths.user_presets_dir(root)
@@ -83,6 +83,17 @@ def preset_layers(crab_root: Path) -> tuple[list[list[PresetFile]], list[PresetF
                 f"into {overrides_dir}/ (any *.json name); a preset with a shared name now patches "
                 "it instead of replacing it. See the Presets page of the docs."
             )
+    if overrides_dir.exists() and not overrides_dir.is_dir():
+        if os.environ.get("CRAB_PATH_PRESETS"):
+            what = "CRAB_PATH_PRESETS"
+            fix = "Move the file into a folder (any *.json name) and point CRAB_PATH_PRESETS at it."
+        else:
+            what = "The overrides location"
+            fix = "Move the file into a folder (any *.json name) and put that folder at this path."
+        raise ValueError(
+            f"{overrides_dir}: {what} must be a folder of *.json override files since CRAB 1.2, "
+            f"and this is a file. {fix} See the Presets page of the docs."
+        )
     shared = [_read_folder(folder) for folder in shared_preset_folders(root)]
     return shared, _read_folder(overrides_dir)
 
