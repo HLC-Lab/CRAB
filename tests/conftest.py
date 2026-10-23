@@ -15,6 +15,12 @@ The autouse ``_isolated_state_home`` fixture points ``XDG_STATE_HOME`` at a per-
 directory, so the local scheduler's job records (``$XDG_STATE_HOME/crab/jobs/``) never reach the
 real ``~/.local/state``. A test that wants its own location sets the variable again.
 
+``WRAPPERS_PRESETS`` is the presets folder of a crab-wrappers checkout: ``wrappers/presets`` when
+that clone is on ``main`` (CI), else the sibling ``../crab-wrappers/presets``, else ``None``. Tests of
+the real presets use ``wrappers_presets()`` (the folder resolved as one shared layer) and carry
+``requires_wrappers_presets``, which skips them without a folder. ``CRAB_PATH_WRAPPERS`` is not used
+for this (see below).
+
 The autouse ``_no_user_presets`` fixture keeps a developer's real preset folders out of every test:
 the shared preset folders resolve to none (``crab.cli.presets.shared_preset_folders`` returns ``[]``)
 and the override dir to a path that does not exist (``paths.user_presets_dir``); the user config dir
@@ -30,7 +36,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -53,6 +59,32 @@ requires_wrappers_checkout = pytest.mark.skipif(
     not (REPO / "wrappers").is_dir(),
     reason="needs the crab-wrappers checkout in wrappers/ (crab update clones it)",
 )
+
+_PRESET_FOLDER_CANDIDATES = (
+    REPO / "wrappers" / "presets",
+    REPO.parent / "crab-wrappers" / "presets",
+)
+WRAPPERS_PRESETS: Path | None = next(
+    (folder for folder in _PRESET_FOLDER_CANDIDATES if folder.is_dir()), None
+)
+requires_wrappers_presets = pytest.mark.skipif(
+    WRAPPERS_PRESETS is None,
+    reason=(
+        "needs crab-wrappers with presets/: wrappers/ on main (crab update --head) "
+        "or a sibling ../crab-wrappers checkout"
+    ),
+)
+
+
+def wrappers_presets() -> dict[str, dict[str, Any]]:
+    """The real presets of the crab-wrappers checkout, resolved as one shared layer.
+
+    Raises:
+        RuntimeError: no checkout with presets/ was found (tests carry `requires_wrappers_presets`).
+    """
+    if WRAPPERS_PRESETS is None:
+        raise RuntimeError("no crab-wrappers presets folder found")
+    return presets.resolve_presets([presets._read_folder(WRAPPERS_PRESETS)], [])
 
 
 def auth_client(app: FastAPI, **kwargs) -> TestClient:

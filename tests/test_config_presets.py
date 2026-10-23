@@ -1,22 +1,23 @@
-"""Regression coverage for the real shipped `src/crab/presets.json` (not a fixture).
+"""Regression coverage for CRAB's real presets, read from crab-wrappers' `presets/` (not a fixture).
 
-Every shipped preset must parse as execution settings (no dropped `CRAB_*` launch key left in
-`env`) and build the launch line it built before the settings existed.
+Every preset must parse as execution settings (no dropped `CRAB_*` launch key left in `env`) and
+build the launch line it built before the settings existed. The tests skip when no crab-wrappers
+checkout with `presets/` is found (see `WRAPPERS_PRESETS` in conftest.py).
 """
 
-import json
 from pathlib import Path
 
 import pytest
 
+from conftest import requires_wrappers_presets, wrappers_presets
 from crab import paths
 from crab.cli import presets
 from crab.core.execution.launcher import Placement, dialect, launch_line, launcher_for
 from crab.core.execution.settings import ExecutionSettings, from_preset, resolve_launcher
 
-_PRESETS_PATH = paths.shipped_presets()
-_NOT_EXECUTION_PRESETS = ("example_preset",)
-_SLIMFLY_MPIRUN = "YOUR_OPENMPI_DIR/bin/mpirun"
+pytestmark = requires_wrappers_presets
+
+_SLIMFLY_MPIRUN = "<YOUR_OPENMPI_DIR>/bin/mpirun"
 
 _PROBED = {"local": "openmpi5"}
 # The local preset runs on its own host; the others are given a node name.
@@ -27,7 +28,7 @@ _LAUNCH_LINES = {
     "cluster_di": "srun --export=ALL --nodelist n1 -n 1 -N 1 ./app",
     "lumi": "srun --export=ALL --nodelist n1 -n 1 -N 1 ./app",
     "haicgu": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
-    "leonardo": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
+    "leonardo": "srun --export=ALL --nodelist n1 --cpu-bind=verbose,socket -n 1 -N 1 ./app",
     "cresco8": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nanjing": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "slimfly": (
@@ -41,31 +42,23 @@ _LAUNCH_LINES = {
 }
 
 
-def _presets() -> dict:
-    return json.loads(_PRESETS_PATH.read_text())
-
-
 def _settings(name: str) -> ExecutionSettings:
-    presets = _presets()
-    body = dict(presets[name])
+    body = dict(wrappers_presets()[name])
     body["env"] = {"CRAB_ROOT": "__CWD__", **body.get("env", {})}
     return from_preset(body, name)
 
 
-_EXECUTION_NAMES = [name for name in _presets() if name not in _NOT_EXECUTION_PRESETS]
-
-
-@pytest.mark.parametrize("name", _EXECUTION_NAMES)
-def test_every_shipped_preset_parses_as_execution_settings(name: str) -> None:
+@pytest.mark.parametrize("name", sorted(_LAUNCH_LINES))
+def test_every_wrappers_preset_parses_as_execution_settings(name: str) -> None:
     _settings(name)
 
 
-def test_the_table_covers_every_shipped_preset() -> None:
-    assert sorted(_LAUNCH_LINES) == sorted(_EXECUTION_NAMES)
+def test_the_table_covers_every_wrappers_preset() -> None:
+    assert sorted(_LAUNCH_LINES) == sorted(wrappers_presets())
 
 
 @pytest.mark.parametrize("name", sorted(_LAUNCH_LINES))
-def test_shipped_preset_builds_its_launch_line(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_wrappers_preset_builds_its_launch_line(name: str, monkeypatch: pytest.MonkeyPatch) -> None:
     # The dialect of slimfly (its mpirun path does not exist on this machine) and of the local
     # preset (the dialect depends on the MPI installed here) is auto: answer the probe with the
     # Open MPI each runs on. An empty environment keeps the lines free of `-x` options.
