@@ -9,6 +9,73 @@ Each product-line release is listed here. The SbatchMan partner line is tagged `
 usually alongside the product release. A SbatchMan-only release has only the `+sbatchman` tag, and
 its notes live in the tag and the GitHub release.
 
+## [Unreleased]
+
+Planned as 1.2.0.
+
+### Breaking: read before upgrading
+
+This release changes the presets format and where presets live, inside the 1.x line
+([ADR-041](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-041-presets-in-crab-wrappers/)).
+
+- The single-file overrides are refused. `local/presets.json` (in CRAB's home) and `presets.json`
+  in the config folder (`~/.config/crab/presets.json` or `$CRAB_HOME/config/presets.json`) are no
+  longer read. While one exists, every command that loads presets stops with a message that names
+  the file. Move your presets into the overrides folder, `local/presets/` in a checkout or
+  `~/.config/crab/presets/` in an install, as any `*.json` file. `CRAB_PATH_PRESETS` now names that
+  folder, not a file; one that still names a file is not read.
+- A preset in your overrides with the name of a shared preset now patches it. Before, it replaced
+  it whole. A copy of a whole preset that you moved over still loads, but it repeats the shared
+  `header` lines and any flag not written as `--name=value`: cut it down to the lines you changed.
+  A patch cannot remove a shared flag or header line. To drop one, write a complete preset under a
+  new name.
+- `_common` is removed. A `_common` key in any presets file is an error. CRAB now sets
+  `CRAB_ROOT=__CWD__` for every preset on its own, and a preset's own `CRAB_ROOT` wins.
+- CRAB ships no presets. They are `presets/<cluster>.json` in the crab-wrappers clone, so CRAB 1.2.0
+  needs a clone at the tag `v1.2.0`, which `crab update` checks out. A clone left on an older tag
+  has no `presets/` folder and offers no presets: run `crab update`. CRAB says so when it finds
+  none.
+- A checkout with local edits to the tracked `src/crab/presets.json` (or `config/presets.json`) is
+  refused by `crab update`, with the steps to move the edits into `local/presets/`.
+- The shared presets write the account of a cluster as a required mark, `--account=<YOUR_ACCOUNT>`.
+  `crab run`, `crab validate -p` and `crab nodes -p` refuse such a preset until your overrides set
+  it.
+
+### Added
+
+- Presets live in crab-wrappers and move with it: `crab update` brings the presets of the release
+  you run, and `crab update --head` the newest ones. Each folder of `CRAB_PATH_WRAPPERS` can hold a
+  `presets/` folder, and the first folder that has a name wins.
+- `extends`: a preset can start from another one (`"extends": "leonardo"`) and set only what
+  differs, for a variant such as a GPU or a CPU partition.
+- `notes`: a short list of remarks on a preset.
+- Required marks, `<YOUR_NAME>`, for values only the user knows. They are allowed in `env` values,
+  in `--name=value` flags and in a launcher `command`, and not in `header` lines.
+- `crab presets show <name> [--json]` prints a preset as CRAB will use it, the file each value
+  came from, what is still unset and the override to write.
+- `crab info --json` gains, per preset, `needs` (the unset marks) and `notes`, and at the top level
+  `presets_sources` (the shared folders searched), `presets_overrides` (the overrides folder) and
+  `presets_error` (the reason when no presets can be loaded). The contract schema stays `2`. The
+  text output of `crab info` prints the overrides folder and marks the presets that need setup.
+- The Remotes card of the dashboard flags the presets that need setup.
+
+### Changed
+
+- The merge rules are by field. `env` merges by key and `null` removes a key. `sbatch` and launcher
+  `flags` replace a shared item by its `--name=` and append every other item. `header` and `notes`
+  add to the shared ones. The mpirun `export` list is a union. Everything else is replaced. See the
+  [presets format](https://hlc-crab.readthedocs.io/en/latest/reference/presets/).
+- Preset errors name the file: a name defined twice in one folder, an `extends` that points nowhere
+  or loops, an override with no base preset.
+- The documentation covers the four kinds of per-user values (account, a choice the cluster
+  offers, your own environment, a cluster gotcha), with recipes for your own UCX or OpenMPI build, a
+  virtual environment or modules, and a QoS.
+
+### Removed
+
+- `src/crab/presets.json` and the `_common` block.
+- The `example_preset` entry, and its exclusion from tab-completion.
+
 ## [1.1.0] - 2026-10-21
 
 ### Changed

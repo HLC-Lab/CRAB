@@ -1,47 +1,76 @@
-# `presets.json` format
+# Presets format
 
-The presets file defines the [system-dependent](../concepts/system-dependent-vs-independent.md)
-environments CRAB can run in. The shipped one is `src/crab/presets.json`, inside the package (a pip
-install has it as `crab/presets.json`). This is the field-level reference; for the practical
-walkthrough of adding a cluster, see [Configuring your cluster](../using/presets.md).
+A preset defines the [system-dependent](../concepts/system-dependent-vs-independent.md)
+environment CRAB can run in. CRAB ships none: the shared presets are files of the
+[crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) repository, and a user's own files patch
+them. This is the field-level reference; for the practical walkthrough of adding a cluster, see
+[Configuring your cluster](../using/presets.md). The decision behind it is
+[ADR-041](../dev/dashboard/decisions/adr-041-presets-in-crab-wrappers.md).
 
 ## Where presets are read from
 
-CRAB reads up to three files and merges them in this order, each over the one before:
+CRAB reads two kinds of folder and merges them:
 
-1. The shipped file, `src/crab/presets.json`.
-2. The user file: `~/.config/crab/presets.json`, or the path in `CRAB_PATH_PRESETS` when it is set.
-3. In a git checkout, `local/presets.json`.
+1. The shared presets: `presets/*.json` in each shared wrapper folder. The shared wrapper folders
+   are the entries of `CRAB_PATH_WRAPPERS` (separated by `:`), or `wrappers/` in CRAB's home when
+   the variable is not set. `local/wrappers/` is not searched for presets. The variable is read
+   from the environment of the `crab` command, not from a preset's `env`. When two folders define
+   the same preset name, the first folder wins and the other definition is ignored.
+2. The user's overrides: every `*.json` file of the overrides folder, in name order. The folder is
+   `local/presets/` in a git checkout, `~/.config/crab/presets/` in a pip install
+   (`$CRAB_HOME/config/presets/` when `CRAB_HOME` is set), or the folder that `CRAB_PATH_PRESETS`
+   names. The variable names a folder, not a file. `crab info` prints the folder.
 
-Per layer, a preset with the name of an earlier one replaces it as a whole. In `_common`, `env`
-is merged key by key and any other key replaces the earlier value. A file that exists but is not
-a JSON object stops CRAB with an error that names the file.
+A missing folder is an empty layer. A file that is not valid JSON, or not a JSON object, stops CRAB
+with an error that names the file. When no shared presets folder exists, the error for an unknown
+preset says to run `crab update` to fetch crab-wrappers.
+
+The two single files CRAB read before 1.2 are not read any more: `local/presets.json` in CRAB's
+home, and `presets.json` in the per-user config folder (`~/.config/crab/presets.json`, or
+`$CRAB_HOME/config/presets.json`). While one exists, CRAB stops with a message that names it and
+the new folder. A `CRAB_PATH_PRESETS` that still names a file is not read either, and is not
+reported. The package no longer contains `src/crab/presets.json`.
 
 ## Structure
 
-A single JSON object. Each top-level key is a preset name, plus the special `_common` block:
+A file is a single JSON object. Each top-level key is a preset name, and one file may hold several
+presets. A preset name appears once per layer: the same name in two files of one folder is an
+error that names both files.
 
 ```json
 {
-    "_common":  { "description": "...", "env": { ... }, "sbatch": [ ... ], "header": [ ... ] },
     "leonardo": { "description": "...", "scheduler": "slurm", "launcher": "srun", ... },
-    "local":    { "description": "...", "scheduler": "local", "launcher": "mpirun", ... }
+    "leonardo_short": { "extends": "leonardo", "sbatch": [ ... ] }
 }
 ```
 
-A preset has the fields below. `_common` is not a preset: it holds only `description`, `env`,
-`sbatch` and `header`, which every preset inherits. An execution field (`scheduler`, `launcher`
-and so on) in `_common` stops CRAB with an error, because each machine states its own.
+A preset has the fields below. A `_common` key is an error: it held the one setting every preset
+shares, which is now an engine default (see [Special tokens](#special-tokens)).
 
 | Field | Type | Meaning |
 |-------|------|---------|
 | `description` | string | Human-readable label. |
-| `env` | object | Environment variables exported to the applications. They carry no launch settings. |
+| `env` | object | Environment variables exported to the applications. They carry no launch settings. A value of `null` removes the key, in an override. |
 | `sbatch` | array of strings | `#SBATCH` directives added to the generated job script. Slurm only. |
 | `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only; see [Module flow](../using/presets.md#module-flow). |
+| `extends` | string | The name of a preset to start from: this preset is that preset's resolved form, changed by the fields written here. See [`extends`](#extends). |
+| `notes` | array of strings | Short remarks about the cluster, printed by `crab presets show` and carried by `crab info --json`. The crab-wrappers guide asks for at most 3 one-line entries in a shared preset. |
 
 The execution fields, which say how this machine schedules and launches work, are listed next. A
-key that appears in neither table stops CRAB with an error that lists the allowed keys.
+key that appears in neither table stops CRAB with an error that lists the allowed keys. The resolved
+preset never holds `extends`.
+
+### `extends`
+
+`"extends": "<name>"` makes a new preset out of an existing one, shared or yours. The new preset
+starts as the parent's resolved form, so a patch of the parent in your overrides also reaches it,
+and then the fields written beside `extends` are merged on top with the
+[rules below](#merge-semantics). Chains are allowed (a preset may extend a preset that extends
+another). An entry that has the name of a shared preset patches that preset and cannot also set
+`extends`.
+
+A preset that is not a patch and not a variant must be complete: it needs a `scheduler`. An entry
+with neither a shared preset of that name nor `extends` nor a `scheduler` is an error.
 
 ## Execution fields
 
@@ -74,16 +103,16 @@ A few details:
 - A receipt's `launcher_override` can switch one benchmark to `srun` or `mpirun`; see
   [Receipts](../extending/receipts.md).
 
-A Slurm preset and a local one, from the shipped file:
+A Slurm preset and a local one, from the shared presets (shortened):
 
 ```json
 "leonardo": {
     "description": "Leonardo Cluster @ CINECA",
     "scheduler": "slurm",
     "launcher": "srun",
-    "launchers": { "srun": { "flags": ["--cpu-bind=socket"] } },
+    "launchers": { "srun": { "flags": ["--cpu-bind=verbose,socket"] } },
     "env": { "CRAB_IB_DEVICES": "mlx5_0#mlx5_1#mlx5_2#mlx5_3" },
-    "sbatch": ["--account=YOUR_PROJECT_ACCOUNT", "--partition=boost_usr_prod"],
+    "sbatch": ["--account=<YOUR_ACCOUNT>", "--partition=boost_usr_prod"],
     "header": ["module purge"]
 },
 "local": {
@@ -171,34 +200,116 @@ Binding report. CRAB always asks `mpirun` for the `<report>` option above. The r
 whatever the ranks write to their own standard error); see
 [What a run records about its launches](../using/running-without-slurm.md#what-a-run-records-about-its-launches).
 
+
 ## Merge semantics
 
-When a preset is selected, it is combined with `_common`:
+A preset is built in layers. The shared preset (the first folder that has the name) is the base.
+Your override of the same name is merged onto it. A preset with `extends` is its parent's
+resolved form with the preset's own fields merged onto it. The same rules apply in each step, per
+field:
 
-- `env`: `_common.env` is the base; the selected preset's `env` is merged on top (preset wins
-  on conflicts).
-- `sbatch`: `_common.sbatch` + preset `sbatch` (concatenated). Your experiment config's
-  own `sbatch_directives` are applied later with higher priority; see
-  [Configuration schema → sbatch directives](configuration.md#sbatch-directives).
-- `header`: `_common.header` + preset `header` (concatenated).
+| Field | Rule |
+|---|---|
+| `env` | Merged by key: the patch's value wins, and a value of `null` removes the key. |
+| `sbatch`, launcher `flags` | An item written as `--name=value` replaces, in place, the first base item that starts with `--name=`, or is appended when there is none. Any other item is appended: a bare option such as `--exclusive`, a short form such as `-A`, or an option and its value written as two items (as mpirun flags often are). |
+| `launchers.mpirun.export` | The names are added to the base list, without duplicates. |
+| `header` | The patch's lines run after the base lines. |
+| `notes` | The patch's notes are added after the base ones (a note already there is not repeated). |
+| `scheduler`, `launcher`, `exclusive`, `hosts`, `hostfile`, `launchers.<kind>.command`, `launchers.<kind>.dialect`, `description` | Replaced by the patch's value. |
 
-If the selected preset does not define `CRAB_SYSTEM`, it defaults to the preset's name. It is used
-in the results path (`data/<CRAB_SYSTEM>/…`).
+A `launchers` object is merged per launcher kind and then per field, so a patch that sets only
+`launchers.mpirun.command` keeps the shared `flags`. A launcher kind the base does not have is
+added as written.
+
+Two consequences follow. Only `--name=value` items match by name, so a short form such as `-A`
+does not match `--account`; shared presets use long options only. And a patch cannot remove a
+shared flag or header line: to drop one, write a complete preset under a new name that no shared
+preset has, or use `null` for an `env` key.
+
+A preset with no `extends` and no shared base is taken as written (its `env` keys with a `null`
+value are dropped).
+
+The preset a job runs with is resolved once, when the job is submitted: it is saved in the run
+directory as `execution.json`, so editing a preset file never changes a job that was already
+submitted. The final steps then apply to the resolved preset:
+
+- `CRAB_ROOT=__CWD__` is the default of `env`. A preset's own `CRAB_ROOT` wins.
+- `sbatch`: your experiment config's own `sbatch_directives` are applied later with higher
+  priority; see [Configuration schema → sbatch directives](configuration.md#sbatch-directives).
+- If the preset does not define `CRAB_SYSTEM`, it defaults to the preset's name. It is used in the
+  results path (`data/<CRAB_SYSTEM>/…`).
+
+## Required marks
+
+A value that only the user knows is written as a mark, `<YOUR_NAME>`: `<YOUR_`, then capital
+letters, digits and underscores, then `>`. For example `--account=<YOUR_ACCOUNT>`, or
+`<YOUR_OPENMPI_DIR>/bin/mpirun`.
+
+- Where a mark may be written: in an `env` value, in a `sbatch` or launcher `flags` item written as
+  `--name=<YOUR_NAME>`, and in a launcher's `command`. It may be part of a longer value.
+- Where it may not: in a `header` line, which a patch cannot address by key, and in a flag item that
+  is not `--name=value`. A file that does this stops CRAB with an error that names the file and the
+  preset.
+- A mark is always required. `crab run`, `crab validate -p` and `crab nodes -p` refuse a preset
+  that still holds one after the merge, and print the override to write, in the shape of an override
+  file:
+
+  ```text
+  Preset 'leonardo' needs your own value for --account. Add this to a .json file in <your
+  overrides folder>/ (merge it into your entry for 'leonardo' if you already have one), replacing
+  each <YOUR_...>:
+  {
+    "leonardo": {
+      "sbatch": [
+        "--account=<YOUR_ACCOUNT>"
+      ]
+    }
+  }
+  ```
+
+  The names after "value for" are what is unset: an `env` key, an option name such as `--account`,
+  or `launchers.<kind>.command`.
+- Listing is not refused: `crab info` shows such a preset with its unset names in `needs`, and
+  `crab presets show` explains it.
+
+## Errors
+
+Each of these stops the command and names the file where it can:
+
+| Message (shortened) | Cause | Fix |
+|---|---|---|
+| `single-file preset overrides were removed in CRAB 1.2` | `local/presets.json` or the config folder's `presets.json` exists. | Move the presets into the overrides folder; see [Moving from the old override files](../using/presets.md#moving-from-the-old-override-files). |
+| `"_common" was removed in CRAB 1.2` | A presets file has a `_common` key. | Put its `env` in each preset. |
+| `preset '<name>' is defined twice: <file> and <file>` | Two files of one folder define the name. | Keep one definition. |
+| `preset '<name>' extends '<other>', which does not exist` | `extends` names an unknown preset. | Fix the name, or run `crab update` if the base is a shared preset. |
+| `extends cycle <a> -> <b> -> <a>` | Presets extend each other in a loop. | Break the loop. |
+| `preset '<name>' has no shared preset to patch` | An override with an unknown name and no `scheduler` or `extends`. It is also what a missing or outdated crab-wrappers clone looks like. | Run `crab update`, or make it a complete preset with a `scheduler`. |
+| `cannot set "extends"` | An entry that patches a shared name also sets `extends`. | Write the variant under a new name. |
+| `header lines cannot be overridden, so they cannot hold a <YOUR_...> mark` | A mark in `header`. | Put the value in an `env` value or a `--name=<YOUR_...>` flag. |
+| `holds a <YOUR_...> mark but is not a --name=value item` | A mark in a flag item that is not keyed. | Write it as `--name=<YOUR_...>`. |
+| `The preset '<name>' was not found in the shared presets (...) or your overrides (...)` | No layer has the name. It lists the folders searched, and says to run `crab update` when no shared presets folder exists. | Check the spelling against `crab info`, or run `crab update`. |
+| `unknown key '<key>'; allowed keys: ...`, `scheduler: must be one of ...` and the other field messages | A field is invalid; see [Execution fields](#execution-fields). | Correct the field. |
 
 ## Special tokens
 
 - `__CWD__`: replaced with CRAB's home (`CRAB_ROOT`: the repository root in a checkout, the
-  data directory of a pip install) wherever it appears in an `env` value. Used in `_common` for `CRAB_ROOT`.
+  data directory of a pip install) wherever it appears in an `env` value. CRAB itself sets
+  `CRAB_ROOT=__CWD__` for every preset, so a preset needs no entry for it.
 
 ## Recognized environment variables
 
 These are the variables CRAB itself reads. You can also define any other variables your benchmarks
 or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 
+An `env` value is expanded when the job starts, with `$NAME` and `${NAME}` read from the
+environment the job was given (after the `header` lines ran). A name that is not set stays as
+written, `~` is not expanded, and a value cannot refer to another key of the same `env`.
+
 | Variable | Read by | Notes |
 |----------|---------|-------|
-| `CRAB_ROOT` | framework | CRAB's home: the repository root in a checkout, `~/.local/share/crab` (or `CRAB_HOME`) in a pip install. Set in `_common` via `__CWD__`. |
-| `CRAB_PATH_WRAPPERS` | runner | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/` (`~/.config/crab/wrappers` in a pip install). Default: `wrappers/` in CRAB's home. The shipped presets do not set it, so a value you export reaches the jobs; set it in a preset's `env` to override that. |
+| `CRAB_ROOT` | framework | CRAB's home: the repository root in a checkout, `~/.local/share/crab` (or `CRAB_HOME`) in a pip install. Set by CRAB for every preset via `__CWD__`. |
+| `CRAB_PATH_WRAPPERS` | runner, presets | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/` (`~/.config/crab/wrappers` in a pip install). Default: `wrappers/` in CRAB's home. The same folders, with `presets/` added, are searched for shared presets (see [Where presets are read from](#where-presets-are-read-from)). The shared presets do not set it, so a value you export reaches the jobs; set it in a preset's `env` to override that for the wrappers (presets are not found that way). |
+| `CRAB_PATH_PRESETS` | presets | The folder of your override files. Default: `local/presets/` in a checkout, `~/.config/crab/presets/` in a pip install. |
 | `CRAB_SYSTEM` | engine | System label for the output path. Defaults to the preset name. |
 | `CRAB_PRESET` | CLI | If set, selects the preset (overridden by `-p`). |
 | `CRAB_PATH_<ID>` | wrappers | Injected automatically from each receipt's `binary_path` at run time, not set by hand. |
@@ -206,8 +317,8 @@ or libraries require (e.g. `LD_LIBRARY_PATH`, `UCX_*`, `NCCL_*`).
 ## Removed keys
 
 Launch settings used to be `CRAB_*` variables in a preset's `env`. They are now preset fields and
-the old keys are no longer read. If one is still in a preset's `env`, in `_common`'s `env`, or in
-the environment a worker starts with, CRAB stops with an error that names the replacement.
+the old keys are no longer read. If one is still in a preset's `env`, or in the environment a
+worker starts with, CRAB stops with an error that names the replacement.
 
 | Old key | Use instead |
 |---------|-------------|
@@ -227,11 +338,5 @@ To migrate a preset, add `scheduler` (`"slurm"` for a cluster), set `launcher`, 
 1. `-p` / `--preset` flag
 2. `CRAB_PRESET` environment variable
 3. A `.env` file in the working directory (its contents = the preset name)
+
 If none of these names a preset, `crab run` stops with an error; it never picks one for you.
-
-## A note on `example_preset`
-
-The shipped presets file contains an `example_preset` entry. It is a structural placeholder only:
-it has no `scheduler`, so CRAB refuses it, and it is excluded from
-`-p` tab-completion. Use it as a shape reference if you like, but build real presets by copying a
-working one (see [Configuring your cluster](../using/presets.md)).
