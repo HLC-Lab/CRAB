@@ -1,0 +1,7 @@
+{
+    "local": {
+        "description": "Local (no Slurm, dev/testing only)",
+        "scheduler": "local",
+        "launcher": "mpirun"
+    }
+}

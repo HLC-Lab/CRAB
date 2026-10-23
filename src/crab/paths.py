@@ -72,19 +72,6 @@ def local_path(root: Path, *parts: str) -> Path:
     return config_dir().joinpath(*parts)
 
 
-def shipped_presets() -> Path:
-    """The presets file that ships inside the package."""
-    return Path(__file__).resolve().parent / "presets.json"
-
-
-def user_presets() -> Path:
-    """The user's presets file: CRAB_PATH_PRESETS, else `config_dir()/presets.json`."""
-    override = os.environ.get("CRAB_PATH_PRESETS")
-    if override:
-        return Path(override)
-    return config_dir() / "presets.json"
-
-
 def user_presets_dir(root: Path) -> Path:
     """The directory of the user's override preset files: CRAB_PATH_PRESETS, else `local_path(root, "presets")`."""
     override = os.environ.get("CRAB_PATH_PRESETS")

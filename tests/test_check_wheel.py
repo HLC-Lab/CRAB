@@ -26,7 +26,6 @@ REQUIRED = [
     "crab/crab_dashboard.html",
     "crab/wrappers/base.py",
     "crab/setup/recipes/__init__.py",
-    "crab/presets.json",
 ]
 
 

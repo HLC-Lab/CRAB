@@ -161,12 +161,11 @@ def show(crab_root: Path, name: str) -> dict[str, Any]:
 
     Raises:
         KeyError: no preset has that name.
-        FileNotFoundError: the package presets file is missing.
         ValueError: the preset files are rejected; the message names the file.
     """
     shared, overrides = preset_layers(crab_root)
     resolved, chain, parents = explain_preset(shared, overrides, name)
-    overrides_dir = preset_sources(crab_root)[2]
+    overrides_dir = preset_sources(crab_root)[1]
     notes = resolved.get("notes")
     return {
         "name": name,
@@ -269,7 +268,7 @@ def handle_presets_show(args: argparse.Namespace) -> None:
         data = show(root, args.name)
     except KeyError:
         message = preset_not_found_message(args.name, root)
-    except (ValueError, FileNotFoundError) as exc:
+    except ValueError as exc:
         message = str(exc)
     else:
         contract.emit({"schema": contract.CONTRACT_SCHEMA, **data}, args.json, _print_human)

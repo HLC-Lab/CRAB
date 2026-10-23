@@ -37,7 +37,6 @@ def load_environment_config(
     mark is refused, unless `allow_unset_marks` (for listing presets, not for running them).
 
     Raises:
-        FileNotFoundError: the package presets file is missing.
         KeyError: the preset does not exist.
         ValueError: a presets file holds `_common` or a mark no override can patch, the preset
             holds a mark the user has not overridden (the message holds the override snippet), its
@@ -48,11 +47,7 @@ def load_environment_config(
     from crab.core.execution.settings import from_preset
 
     root = str(crab_root) if crab_root is not None else CRAB_ROOT
-    try:
-        all_presets = load_all_presets(Path(root))
-    except FileNotFoundError:
-        shipped = preset_sources(Path(root))[1]
-        raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
+    all_presets = load_all_presets(Path(root))
 
     if preset_arg not in all_presets:
         raise KeyError(preset_not_found_message(preset_arg, Path(root)))
@@ -61,7 +56,7 @@ def load_environment_config(
 
     missing = unset_marks(target_preset)
     if missing and not allow_unset_marks:
-        overrides_dir = preset_sources(Path(root))[2]
+        overrides_dir = preset_sources(Path(root))[1]
         snippet = json.dumps(override_snippet(preset_arg, target_preset), indent=2)
         raise ValueError(
             f"Preset '{preset_arg}' needs your own value for {', '.join(missing)}. Add this to a "

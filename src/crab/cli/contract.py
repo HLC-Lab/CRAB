@@ -100,8 +100,6 @@ def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
     try:
         raw = load_all_presets(root)
         for name, body in raw.items():
-            if name in ("example_preset",):
-                continue
             desc = body.get("description", "") if isinstance(body, dict) else ""
             entry: dict[str, Any] = {
                 "name": name,
@@ -122,7 +120,7 @@ def gather_info(crab_root: Path | None = None) -> dict[str, Any]:
         presets = []
         presets_error = str(exc)
 
-    folders, _package, overrides = preset_sources(root)
+    folders, overrides = preset_sources(root)
     info: dict[str, Any] = {
         "schema": CONTRACT_SCHEMA,
         "crab_version": _crab_version(),

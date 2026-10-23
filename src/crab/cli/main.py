@@ -19,8 +19,7 @@ def _preset_completer(prefix, parsed_args, **kwargs):
     base_dir = paths.crab_home()
     try:
         all_presets = load_all_presets(Path(base_dir))
-        valid_presets = [k for k in all_presets.keys() if k not in ["example_preset"]]
-        return [p for p in valid_presets if p.startswith(prefix)]
+        return [name for name in all_presets if name.startswith(prefix)]
     except Exception:
         return []
 

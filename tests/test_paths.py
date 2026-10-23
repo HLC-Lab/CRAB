@@ -104,25 +104,6 @@ def test_crab_home_is_read_at_import(xdg: Path, monkeypatch: pytest.MonkeyPatch)
 # --------------------------------------------------------------------------- #
 # presets
 # --------------------------------------------------------------------------- #
-def test_user_presets_default_is_under_config_dir(installed: Path) -> None:
-    assert paths.user_presets() == paths.config_dir() / "presets.json"
-
-
-def test_user_presets_env_wins(installed: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    custom = installed / "mine.json"
-    monkeypatch.setenv("CRAB_PATH_PRESETS", str(custom))
-    assert paths.user_presets() == custom
-
-
-def test_user_presets_env_wins_with_crab_home(xdg: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _installed_with_home(xdg, monkeypatch, xdg / "h", checkout=False)
-    custom = xdg / "mine.json"
-    monkeypatch.setenv("CRAB_PATH_PRESETS", str(custom))
-    assert paths.user_presets() == custom
-    monkeypatch.delenv("CRAB_PATH_PRESETS")
-    assert paths.user_presets() == xdg / "h" / "config" / "presets.json"
-
-
 def test_user_presets_dir_checkout_is_root_local_presets(xdg: Path) -> None:
     importlib.reload(paths)
     root = xdg / "somewhere"
@@ -167,11 +148,6 @@ def test_old_preset_files_installed(installed: Path) -> None:
         paths.config_dir() / "presets.json",
         root / "local" / "presets.json",
     )
-
-
-@pytest.mark.usefixtures("real_shipped_presets")
-def test_shipped_presets_sits_in_the_package_dir() -> None:
-    assert paths.shipped_presets() == Path(paths.__file__).resolve().parent / "presets.json"
 
 
 # --------------------------------------------------------------------------- #

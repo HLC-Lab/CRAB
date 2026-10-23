@@ -1,10 +1,9 @@
-"""Loading presets: the shared folders, the package file and the user's override files.
+"""Loading presets: the shared folders and the user's override files.
 
-The shared layers come first: `presets/*.json` in each shared wrapper folder (`CRAB_PATH_WRAPPERS`
-entries, else `<root>/wrappers`; the first folder wins a name), then the package's own
-`presets.json` as the lowest layer. The user's override layer is every `*.json` in
-`paths.user_presets_dir()`. `resolve_presets` below merges the layers; the two single-file overrides
-CRAB read before 1.2 are refused.
+CRAB ships no presets of its own. The shared layers are `presets/*.json` in each shared wrapper
+folder (`CRAB_PATH_WRAPPERS` entries, else `<root>/wrappers`; the first folder wins a name). The
+user's override layer is every `*.json` in `paths.user_presets_dir()`. `resolve_presets` below
+merges the layers; the two single-file overrides CRAB read before 1.2 are refused.
 """
 
 from __future__ import annotations
@@ -43,22 +42,18 @@ def shared_preset_folders(crab_root: Path) -> list[Path]:
     return [Path(crab_root) / "wrappers" / "presets"]
 
 
-def preset_sources(crab_root: Path) -> tuple[list[Path], Path, Path]:
-    """Where presets are read from: the shared folders, the package file and the overrides dir."""
-    return (
-        shared_preset_folders(crab_root),
-        paths.shipped_presets(),
-        paths.user_presets_dir(Path(crab_root)),
-    )
+def preset_sources(crab_root: Path) -> tuple[list[Path], Path]:
+    """Where presets are read from: the shared folders and the overrides dir."""
+    return shared_preset_folders(crab_root), paths.user_presets_dir(Path(crab_root))
 
 
 def preset_not_found_message(name: str, crab_root: Path) -> str:
     """The text for a preset name that no layer defines: the places searched and how to fix it."""
-    folders, package, overrides = preset_sources(crab_root)
+    folders, overrides = preset_sources(crab_root)
     message = (
         f"The preset '{name}' was not found in the shared presets "
-        f"({', '.join(str(folder) for folder in folders) or 'no folder'}), the package presets "
-        f"({package}) or your overrides ({overrides})."
+        f"({', '.join(str(folder) for folder in folders) or 'no folder'}) or your overrides "
+        f"({overrides})."
     )
     if not any(folder.is_dir() for folder in folders):
         message += " No shared presets folder exists: run `crab update` to fetch crab-wrappers."
@@ -76,7 +71,6 @@ def preset_layers(crab_root: Path) -> tuple[list[list[PresetFile]], list[PresetF
     """The files `resolve_presets` merges: (shared layers in search order, the override layer).
 
     Raises:
-        FileNotFoundError: if the package presets file is missing.
         ValueError: an old single-file override exists or a preset file is not a JSON object (the
             message names the file).
     """
@@ -90,16 +84,13 @@ def preset_layers(crab_root: Path) -> tuple[list[list[PresetFile]], list[PresetF
                 "it instead of replacing it. See the Presets page of the docs."
             )
     shared = [_read_folder(folder) for folder in shared_preset_folders(root)]
-    package = paths.shipped_presets()
-    shared.append([(package, _read(package))])
     return shared, _read_folder(overrides_dir)
 
 
 def load_all_presets(crab_root: Path) -> dict[str, Any]:
-    """All presets, resolved: shared folders, then the package file, patched by the override files.
+    """All presets, resolved: the shared folders' presets patched by the override files.
 
     Raises:
-        FileNotFoundError: if the package presets file is missing.
         ValueError: an old single-file override exists, a preset file is not a JSON object (the
             message names the file) or `resolve_presets` rejects the layers.
     """

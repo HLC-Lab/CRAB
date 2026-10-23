@@ -89,5 +89,3 @@ def test_the_preset_folders_are_isolated_from_the_real_machine(tmp_path: Path) -
     assert presets.shared_preset_folders(tmp_path) == []
     assert not paths.user_presets_dir(tmp_path).exists()
     assert tmp_path in paths.user_presets_dir(tmp_path).parents
-    assert not paths.user_presets().exists()
-    assert tmp_path in paths.user_presets().parents

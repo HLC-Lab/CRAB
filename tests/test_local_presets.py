@@ -1,5 +1,5 @@
-"""Preset layers on disk: the shared folders' `presets/*.json`, the package file, then the user's
-override files, resolved by `resolve_presets` (ADR-041)."""
+"""Preset layers on disk: the shared folders' `presets/*.json`, then the user's override files,
+resolved by `resolve_presets` (ADR-041)."""
 
 from __future__ import annotations
 
@@ -26,16 +26,6 @@ BASE = {
     },
     "local": {"description": "no slurm", "scheduler": "local"},
 }
-
-
-@pytest.fixture
-def package_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """The package layer holds BASE, in a fixture file."""
-    package = tmp_path / "package" / "presets.json"
-    package.parent.mkdir()
-    package.write_text(json.dumps(BASE))
-    monkeypatch.setattr(paths, "shipped_presets", lambda: package)
-    return package
 
 
 @pytest.fixture
@@ -69,21 +59,8 @@ def _write(folder: Path, name: str, body: dict | str) -> Path:
     return path
 
 
-@pytest.mark.usefixtures("package_file")
-def test_without_shared_folders_or_overrides_the_package_presets_are_used(tmp_path: Path) -> None:
-    assert load_all_presets(tmp_path) == BASE
-
-
-@pytest.mark.usefixtures("package_file")
-def test_a_shared_preset_wins_over_the_package_one_as_a_whole(
-    tmp_path: Path, wrappers: Path
-) -> None:
-    shared = {"description": "shared", "scheduler": "slurm"}
-    _write(wrappers / "presets", "x.json", {"leonardo": shared, "added": shared})
-    presets = load_all_presets(tmp_path)
-    assert presets["leonardo"] == shared
-    assert presets["added"] == shared
-    assert presets["local"] == BASE["local"]
+def test_without_shared_folders_or_overrides_there_are_no_presets(tmp_path: Path) -> None:
+    assert load_all_presets(tmp_path) == {}
 
 
 def test_the_first_shared_folder_wins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -204,22 +181,24 @@ def test_a_bad_override_file_names_that_file(tmp_path: Path, overrides: Path) ->
 
 
 def test_a_missing_preset_message_names_every_place_searched(
-    tmp_path: Path, wrappers: Path, overrides: Path, package_file: Path
+    tmp_path: Path, wrappers: Path, overrides: Path
 ) -> None:
     with pytest.raises(KeyError) as exc:
         load_environment_config("nope", tmp_path)
     message = str(exc.value)
     assert str(wrappers / "presets") in message
-    assert str(package_file) in message
     assert str(overrides) in message
+    assert "package" not in message
 
 
-def test_a_missing_package_file_is_still_reported(
+def test_crab_info_without_any_preset_source_lists_none_and_is_not_an_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(paths, "shipped_presets", lambda: tmp_path / "absent.json")
-    with pytest.raises(FileNotFoundError, match="absent.json"):
-        load_environment_config("leonardo", tmp_path)
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(tmp_path / "no-clone"))
+    info = gather_info(tmp_path)
+    assert info["presets"] == []
+    assert "presets_error" not in info
+    assert not any(source["exists"] for source in info["presets_sources"])
 
 
 def test_crab_info_lists_override_presets_too(tmp_path: Path, overrides: Path) -> None:

@@ -28,10 +28,9 @@ from crab.core.execution.scheduler.local_state import (
 # --------------------------------------------------------------------------- #
 # info
 # --------------------------------------------------------------------------- #
-def test_gather_info_parses_and_filters_presets(tmp_path: Path, shared_presets):
+def test_gather_info_parses_and_sorts_presets(tmp_path: Path, shared_presets):
     shared_presets(
         {
-            "example_preset": {"description": "skip me"},
             "leonardo": {"description": "Leonardo @ CINECA"},
             "alps": {"description": "ALPS"},
         }
@@ -42,7 +41,7 @@ def test_gather_info_parses_and_filters_presets(tmp_path: Path, shared_presets):
     assert isinstance(data["crab_version"], str) and data["crab_version"]
     assert data["crab_root"] == str(tmp_path)
     names = [p["name"] for p in data["presets"]]
-    assert names == ["alps", "leonardo"]  # sorted; example excluded
+    assert names == ["alps", "leonardo"]  # sorted
 
 
 def test_gather_info_reports_the_install_layout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -55,10 +54,10 @@ def test_gather_info_reports_the_install_layout(tmp_path: Path, monkeypatch: pyt
         assert data["crab_root"] == str(tmp_path)
 
 
-def test_gather_info_missing_presets_is_graceful(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(paths, "shipped_presets", lambda: tmp_path / "absent.json")
-    data = contract.gather_info(crab_root=tmp_path)  # no shipped presets file
+def test_gather_info_without_a_shared_folder_is_graceful(tmp_path: Path):
+    data = contract.gather_info(crab_root=tmp_path)  # no shared folder, no overrides
     assert data["presets"] == []
+    assert "presets_error" not in data
 
 
 def test_the_contract_schema_is_2():
