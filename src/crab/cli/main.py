@@ -280,7 +280,7 @@ def cli_router():
     subparsers = parser.add_subparsers(
         title="commands",
         dest="command",
-        metavar="{setup,run,validate,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,update}",
+        metavar="{setup,run,validate,web,export,info,list-benchmarks,nodes,status,history,cancel,logs,parse,wrappers,receipts,presets,update}",
     )
     subparsers.required = True
 
@@ -310,6 +310,10 @@ def cli_router():
     from crab.cli import validate
 
     validate.register(subparsers, _preset_completer)
+
+    from crab.cli import presets_show
+
+    presets_show.register(subparsers, _preset_completer)
 
     # 3. Web Command
     parser_web = subparsers.add_parser("web", help="Launch the local web dashboard")

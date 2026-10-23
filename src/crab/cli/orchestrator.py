@@ -44,7 +44,7 @@ def load_environment_config(
             execution fields are invalid, or a dropped `CRAB_*` launch key is in its `env`.
     """
     from crab.cli.preset_marks import override_snippet, unset_marks
-    from crab.cli.presets import load_all_presets, preset_sources
+    from crab.cli.presets import load_all_presets, preset_not_found_message, preset_sources
     from crab.core.execution.settings import from_preset
 
     root = str(crab_root) if crab_root is not None else CRAB_ROOT
@@ -55,15 +55,7 @@ def load_environment_config(
         raise FileNotFoundError(f"The presets file '{shipped}' was not found.") from None
 
     if preset_arg not in all_presets:
-        folders, package, overrides = preset_sources(Path(root))
-        message = (
-            f"The preset '{preset_arg}' was not found in the shared presets "
-            f"({', '.join(str(folder) for folder in folders) or 'no folder'}), the package presets "
-            f"({package}) or your overrides ({overrides})."
-        )
-        if not any(folder.is_dir() for folder in folders):
-            message += " No shared presets folder exists: run `crab update` to fetch crab-wrappers."
-        raise KeyError(message)
+        raise KeyError(preset_not_found_message(preset_arg, Path(root)))
 
     target_preset = all_presets[preset_arg]
 

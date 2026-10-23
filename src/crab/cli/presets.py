@@ -52,6 +52,19 @@ def preset_sources(crab_root: Path) -> tuple[list[Path], Path, Path]:
     )
 
 
+def preset_not_found_message(name: str, crab_root: Path) -> str:
+    """The text for a preset name that no layer defines: the places searched and how to fix it."""
+    folders, package, overrides = preset_sources(crab_root)
+    message = (
+        f"The preset '{name}' was not found in the shared presets "
+        f"({', '.join(str(folder) for folder in folders) or 'no folder'}), the package presets "
+        f"({package}) or your overrides ({overrides})."
+    )
+    if not any(folder.is_dir() for folder in folders):
+        message += " No shared presets folder exists: run `crab update` to fetch crab-wrappers."
+    return message
+
+
 def _read_folder(folder: Path) -> list[PresetFile]:
     """The `*.json` files of a presets folder in name order; a missing folder is an empty layer."""
     if not folder.is_dir():
@@ -59,13 +72,13 @@ def _read_folder(folder: Path) -> list[PresetFile]:
     return [(file, _read(file)) for file in sorted(folder.glob("*.json"))]
 
 
-def load_all_presets(crab_root: Path) -> dict[str, Any]:
-    """All presets, resolved: shared folders, then the package file, patched by the override files.
+def preset_layers(crab_root: Path) -> tuple[list[list[PresetFile]], list[PresetFile]]:
+    """The files `resolve_presets` merges: (shared layers in search order, the override layer).
 
     Raises:
         FileNotFoundError: if the package presets file is missing.
-        ValueError: an old single-file override exists, a preset file is not a JSON object (the
-            message names the file) or `resolve_presets` rejects the layers.
+        ValueError: an old single-file override exists or a preset file is not a JSON object (the
+            message names the file).
     """
     root = Path(crab_root)
     overrides_dir = paths.user_presets_dir(root)
@@ -79,7 +92,19 @@ def load_all_presets(crab_root: Path) -> dict[str, Any]:
     shared = [_read_folder(folder) for folder in shared_preset_folders(root)]
     package = paths.shipped_presets()
     shared.append([(package, _read(package))])
-    return resolve_presets(shared, _read_folder(overrides_dir))
+    return shared, _read_folder(overrides_dir)
+
+
+def load_all_presets(crab_root: Path) -> dict[str, Any]:
+    """All presets, resolved: shared folders, then the package file, patched by the override files.
+
+    Raises:
+        FileNotFoundError: if the package presets file is missing.
+        ValueError: an old single-file override exists, a preset file is not a JSON object (the
+            message names the file) or `resolve_presets` rejects the layers.
+    """
+    shared, overrides = preset_layers(crab_root)
+    return resolve_presets(shared, overrides)
 
 
 PresetFile = tuple[Path, Mapping[str, Any]]
@@ -246,6 +271,33 @@ class _Resolver:
         self.done[name] = effective
         return effective
 
+    def chain(self, name: str) -> list[PresetFile]:
+        """The entries `resolve` applied for `name`, in order: ancestors first, the override last.
+
+        Call it after `resolve(name)` succeeded: it does not re-check the layers.
+        """
+        shared = self.shared.get(name)
+        override = self.overrides.get(name)
+        if shared is not None:
+            return [*self._definition_chain(shared), *([override] if override is not None else [])]
+        if override is None:
+            raise KeyError(name)
+        return self._definition_chain(override)
+
+    def _definition_chain(self, entry: PresetFile) -> list[PresetFile]:
+        body = entry[1]
+        if "extends" not in body:
+            return [entry]
+        return [*self.chain(body["extends"]), entry]
+
+    def parents(self, name: str) -> list[str]:
+        """The names `name` extends, nearest first (from its shared entry, else its override)."""
+        entry = self.shared.get(name) or self.overrides.get(name)
+        if entry is None or "extends" not in entry[1]:
+            return []
+        parent = entry[1]["extends"]
+        return [parent, *self.parents(parent)]
+
     def _file_of(self, name: str) -> Path:
         entry = self.shared.get(name) or self.overrides[name]
         return entry[0]
@@ -280,3 +332,25 @@ def resolve_presets(
     """
     resolver = _Resolver(shared_layers, override_layer)
     return {name: resolver.resolve(name) for name in resolver.names()}
+
+
+def explain_preset(
+    shared_layers: Sequence[Sequence[PresetFile]],
+    override_layer: Sequence[PresetFile],
+    name: str,
+) -> tuple[dict[str, Any], list[PresetFile], list[str]]:
+    """One preset with its history: (resolved preset, entries applied in order, extended names).
+
+    The resolved preset is what `resolve_presets` returns for `name`. The entries are the preset
+    files' bodies that built it, ancestors first and the user's override of `name` last; the names
+    are the presets it extends, nearest first.
+
+    Raises:
+        KeyError: no preset has that name.
+        ValueError: the layers are rejected, as in `resolve_presets`.
+    """
+    resolver = _Resolver(shared_layers, override_layer)
+    if name not in resolver.names():
+        raise KeyError(name)
+    resolved = resolver.resolve(name)
+    return resolved, resolver.chain(name), resolver.parents(name)
