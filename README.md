@@ -19,4 +19,5 @@ Remove: `rm -rf ~/crab/lab`.
 | `diag3.sh` | Two nodes: UCX RoCE settings, policy routing, barrier algorithm vs one port per rank, all2all with one port per rank. |
 | `pw.sh` | Blink pairwise alone at 1/4/8 ranks per node, per UCX variant and size: Gb/s per rank on screen, CSV in `out/`. |
 | `diag4.sh` | Two nodes: UCX RoCE reachability check off (all2all with one port per rank), which campaign UCX variable matters, the CRAB checkout. |
+| `pw2.sh` | Blink pairwise alone at 1/4/8 ranks per node, one port per rank: slowest/fastest rank and node total per size, 1000 iterations. |
 | `lib.sh` | Shared helpers (sourced). |

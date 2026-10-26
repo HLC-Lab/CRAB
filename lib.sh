@@ -51,7 +51,10 @@ timing() {
     local bytes=${1:-$SIZE}
     awk -F, 'NF >= 4 && $1 ~ /^[0-9.eE+-]+$/ && $3 ~ /^[0-9.eE+-]+$/ {print $3}' "$TMP/run" >"$TMP/max"
     awk -F, 'NF >= 4 && $1 ~ /^[0-9.eE+-]+$/ && $3 ~ /^[0-9.eE+-]+$/ {print $1}' "$TMP/run" >"$TMP/avg"
-    T_MAX=$(median <"$TMP/max") T_AVG=$(median <"$TMP/avg")
+    awk -F, 'NF >= 4 && $1 ~ /^[0-9.eE+-]+$/ && $3 ~ /^[0-9.eE+-]+$/ {print $2}' "$TMP/run" >"$TMP/min"
+    T_MAX=$(median <"$TMP/max") T_AVG=$(median <"$TMP/avg") T_MIN=$(median <"$TMP/min")
+    GBPS_FAST=$(awk -v s="$bytes" -v t="$T_MIN" 'BEGIN { if (t + 0 <= 0) { print "-"; exit }
+        g = s * 8 / t / 1e9; printf (g < 10) ? "%.2f" : (g < 100) ? "%.1f" : "%.0f", g }')
     GBPS=$(awk -v s="$bytes" -v t="$T_MAX" 'BEGIN { if (t + 0 <= 0) { print "-"; exit }
         g = s * 8 / t / 1e9; printf (g < 10) ? "%.2f" : (g < 100) ? "%.1f" : "%.0f", g }')
 }
