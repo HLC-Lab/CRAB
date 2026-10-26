@@ -22,4 +22,6 @@ Remove: `rm -rf ~/crab/lab`.
 | `pw2.sh` | Blink pairwise alone at 1/4/8 ranks per node, one port per rank: slowest/fastest rank and node total per size, 1000 iterations. |
 | `wb.sh` | ib_write_bw between the two nodes, no MPI: one port, 4 ports of one socket, 2 + 2, all 8, one and both directions. |
 | `gpu_check.sh` | Read-only: GPUs, driver, CUDA, NCCL, GPUDirect module, GPU NUMA nodes and nearby ports. |
+| `pp.sh` | pairwise_b vs ping-pong per pair (pingpong_pairwise_b) vs pairwise_nb, with and without put_zcopy, 1/4/8 ranks per node, 128 MiB and 2 MiB. |
+| `pcie.sh` | Read-only: PCIe path and link speed/width from the CPU to every network port and GPU. |
 | `lib.sh` | Shared helpers (sourced). |
