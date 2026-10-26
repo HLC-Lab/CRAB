@@ -9,7 +9,7 @@
 #    of node B, for every i, j.
 # D  the first test again (mpirun -np 4, default placement and pairing) and three variants, with
 #    where each rank ran, whom it paired with, and the time.
-# Keeps going past failures. Short summary on screen, everything in $OUT/diag1_<time>.log.
+# Keeps going past failures. Summary fits one screen (~32 lines), all output in $OUT/diag1_<time>.log.
 # Env: BLINK (dir with pairwise_b), DEVS (ports to test), OUT, STEP_TIMEOUT (s per mpirun),
 #      MPIRUN_FLAGS (C and D3-D4), SIZE (bytes, D).
 set -u
@@ -52,8 +52,7 @@ run_mpi() {
     fi
 }
 
-say "diag1 A=$A B=$B ports: $DEVS"
-say "log: $LOG"
+say "diag1 A=$A B=$B ports: $DEVS | log: $LOG"
 say "mpirun $(mpirun --version 2>/dev/null | head -1 | awk '{print $NF}')" \
     "ucx $(ucx_info -v 2>/dev/null | grep -o -m1 'version=[^ ]*' | cut -d= -f2)" \
     "| srun --mpi: $(srun --mpi=list 2>&1 | grep -v -i 'mpi plugin types' | awk '{print $NF}' | tr '\n' ' ')"
@@ -82,22 +81,24 @@ done
 
 # --- B: routes --------------------------------------------------------------------------------
 grid_header() { local h="  $1" d; for d in $DEVS; do h+=$(printf ' %-8s' "$d"); done; say "$h"; }
+: >"$TMP/routes"
 for pair in "$A $B" "$B $A"; do
     read -r src dst <<<"$pair"
     peers=""
     for d in $DEVS; do peers+="$d=${ADDR[$dst:$d]} "; done
-    on "$src" bash "$HERE/facts.sh" routes "$DEVS" "$peers" >"$TMP/routes" 2>&1
-    log <"$TMP/routes"
-    say "B route $(letter "$src") port (rows) -> $(letter "$dst") port address (cols): OK = a route exists"
-    grid_header "        "
-    for l in $DEVS; do
-        row=$(printf '  %-8s' "$l")
-        for p in $DEVS; do
-            v=$(awk -v l="$l" -v p="$p" '$1 == "route" && $3 == l && $4 == p {print $5}' "$TMP/routes")
-            row+=$(printf ' %-8s' "${v:-?}")
-        done
-        say "$row"
+    on "$src" bash "$HERE/facts.sh" routes "$DEVS" "$peers" >>"$TMP/routes" 2>&1
+done
+log <"$TMP/routes"
+say "B route: cell = A port (row) -> B port address (col) / B port (col) -> A port address (row)"
+grid_header "        "
+for l in $DEVS; do
+    row=$(printf '  %-8s' "$l")
+    for p in $DEVS; do
+        ab=$(awk -v h="$A" -v l="$l" -v p="$p" '$1 == "route" && $2 == h && $3 == l && $4 == p {print $5}' "$TMP/routes")
+        ba=$(awk -v h="$B" -v l="$p" -v p="$l" '$1 == "route" && $2 == h && $3 == l && $4 == p {print $5}' "$TMP/routes")
+        row+=$(printf ' %-8s' "${ab:-?}/${ba:-?}")
     done
+    say "$row"
 done
 
 # --- C: MPI reachability, one rank per node -----------------------------------------------------
