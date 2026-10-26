@@ -45,12 +45,31 @@ run_cmd() {
         ERRLINE=$(grep -m1 -i -E 'error|unreachable|not routable|abort' "$TMP/run" | cut -c1-110)
 }
 
-# timing of the last run: T_MAX (median over iterations of the slowest rank), GBPS per rank
-# from it (pairwise: each rank sends $SIZE per iteration)
+# timing of the last run: T_MAX and T_AVG (medians over iterations of the slowest rank and of
+# the rank average), GBPS per rank from T_MAX; $1 = bytes one rank sends per sample (default $SIZE)
 timing() {
+    local bytes=${1:-$SIZE}
     awk -F, 'NF >= 4 && $1 ~ /^[0-9.eE+-]+$/ && $3 ~ /^[0-9.eE+-]+$/ {print $3}' "$TMP/run" >"$TMP/max"
-    T_MAX=$(median <"$TMP/max")
-    GBPS=$(awk -v s="$SIZE" -v t="$T_MAX" 'BEGIN { if (t + 0 > 0) printf "%.0f", s * 8 / t / 1e9; else print "-" }')
+    awk -F, 'NF >= 4 && $1 ~ /^[0-9.eE+-]+$/ && $3 ~ /^[0-9.eE+-]+$/ {print $1}' "$TMP/run" >"$TMP/avg"
+    T_MAX=$(median <"$TMP/max") T_AVG=$(median <"$TMP/avg")
+    GBPS=$(awk -v s="$bytes" -v t="$T_MAX" 'BEGIN { if (t + 0 <= 0) { print "-"; exit }
+        g = s * 8 / t / 1e9; printf (g < 10) ? "%.2f" : (g < 100) ? "%.1f" : "%.0f", g }')
+}
+
+# ports and cores per rank for 1, 4 or 8 ranks per node: one port per card, each rank on a core
+# of the card's socket (the 10-14 probe: mlx5_0/2/4/8 on socket 0, mlx5_10/12/14/16 on socket 1)
+PORTS1=${PORTS1:-mlx5_0:1} CORES1=${CORES1:-0}
+PORTS4=${PORTS4:-mlx5_0:1,mlx5_4:1,mlx5_10:1,mlx5_14:1} CORES4=${CORES4:-0,2,40,42}
+PORTS8=${PORTS8:-mlx5_0:1,mlx5_2:1,mlx5_4:1,mlx5_8:1,mlx5_10:1,mlx5_12:1,mlx5_14:1,mlx5_16:1}
+CORES8=${CORES8:-0,1,2,3,40,41,42,43}
+ports_for() { local v=PORTS$1; echo "${!v}"; }
+cores_for() { local v=CORES$1; echo "${!v}"; }
+
+# mpirun with N ranks per node on both nodes, bound to cores_for N; rest of the args as given
+mpi_ppn() {
+    local n=$1; shift
+    run_cmd mpirun -n $((2 * n)) -H "$(hosts "$n")" --cpu-list "$(cores_for "$n")" \
+        --bind-to cpu-list:ordered "${UCX_FLAGS[@]}" "$@"
 }
 
 # ports UCX used for inter-node traffic, per rank of node A (needs UCX_LOG_LEVEL=info and nic.sh):
