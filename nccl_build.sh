@@ -33,6 +33,9 @@ lib=$(ldconfig -p 2>/dev/null | awk "/libnccl.so.2 / {print \$NF; exit}")
 echo "nvcc=${nvcc:-none} driver_cuda=${drv:-?} cuda_dir=$(readlink -f /usr/local/cuda) nccl=$(readlink -f "${lib:-/none}")"
 nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv,noheader 2>/dev/null |
     awk -F", " "{n++; name[\$2]++} END {printf \"gpu processes: %d\", n; for (p in name) printf \" | %s x%d\", p, name[p]; print \"\"}"
+nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null |
+    awk -F", " "{u += \$1; if (\$1 > m) m = \$1; mu += \$2; mt += \$3}
+        END {if (NR) printf \"gpu load now: util avg %.0f%% max %d%% | memory used %.0f of %.0f GiB\n\", u / NR, m, mu / 1024, mt / 1024}"
 '
 declare -A NVCC DRV
 for n in "$A" "$B"; do
@@ -57,9 +60,28 @@ else
     git clone --depth 1 "$REPO" "$HERE/nccl-tests" >>"$LOG" 2>&1 || { say "git clone failed (see log)"; exit 1; }
 fi
 say "nccl-tests at $(git -C "$HERE/nccl-tests" log -1 --format='%h %ad' --date=short)"
+
+# the system has only libnccl.so.2 (no libnccl.so to link with -lnccl), and its header may sit
+# apart from it: link against a small NCCL_HOME of symlinks to the installed library and header
+NH=$HERE/nccl-home
+lib=$(ldconfig -p | awk '/libnccl.so.2 / {print $NF; exit}')
+lib=$(readlink -f "$lib")
+hdr=$(ls "$(dirname "$(dirname "$lib")")/include/nccl.h" /usr/local/include/nccl.h /usr/include/nccl.h 2>/dev/null | head -1)
+[[ -f $lib && -f $hdr ]] || { say "NCCL library ($lib) or header ($hdr) not found"; exit 1; }
+mkdir -p "$NH/include" "$NH/lib"
+ln -sfn "$hdr" "$NH/include/nccl.h"
+ln -sfn "$lib" "$NH/lib/libnccl.so"
+ln -sfn "$lib" "$NH/lib/libnccl.so.2"
+say "NCCL_HOME=$NH: lib $(basename "$lib"), header $hdr $(awk '/define NCCL_(MAJOR|MINOR|PATCH) / {printf "%s.", $3}' "$hdr" | sed 's/\.$//')"
+
 $SSH "$BUILD" "cd '$HERE/nccl-tests' && make -j$JOBS MPI=1 MPI_HOME='$MPI_HOME' CUDA_HOME=/usr/local/cuda \
-    NVCC_GENCODE='-gencode=arch=compute_90,code=sm_90'" >>"$LOG" 2>&1 \
-    && say "build OK" || { say "build FAILED: $(grep -m1 -i error "$LOG" | cut -c1-110)"; exit 1; }
+    NCCL_HOME='$NH' NVCC_GENCODE='-gencode=arch=compute_90,code=sm_90'" >>"$LOG" 2>&1 \
+    && say "build OK" || {
+        say "build FAILED, first errors:"
+        grep -i -E 'cannot find|undefined reference|error' "$LOG" | grep -v collect2 | sort -u | head -4 |
+            cut -c1-140 | while IFS= read -r l; do say "  $l"; done
+        exit 1
+    }
 for n in "$A" "$B"; do
     miss=$($SSH "$n" "ldd '$HERE/nccl-tests/build/sendrecv_perf' 2>&1 | grep -c 'not found'")
     libs=$($SSH "$n" "ldd '$HERE/nccl-tests/build/sendrecv_perf' 2>&1 | awk '/libnccl|libcudart|libmpi\\./ {print \$3}' | tr '\n' ' '")
