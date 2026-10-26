@@ -24,4 +24,6 @@ Remove: `rm -rf ~/crab/lab`.
 | `gpu_check.sh` | Read-only: GPUs, driver, CUDA, NCCL, GPUDirect module, GPU NUMA nodes and nearby ports. |
 | `pp.sh` | pairwise_b vs ping-pong per pair (pingpong_pairwise_b) vs pairwise_nb, with and without put_zcopy, 1/4/8 ranks per node, 128 MiB and 2 MiB. |
 | `pcie.sh` | Read-only: PCIe path and link speed/width from the CPU to every network port and GPU. |
+| `nccl_build.sh` | Checks both nodes (CUDA, NCCL, GPU processes) and builds nccl-tests with MPI into `nccl-tests/`. |
+| `nccl_run.sh` | GPU g on one node with GPU g on the other, one port per GPU: 1, 4 (one socket), 2 + 2, 8 pairs at once; sendrecv and broadcast. |
 | `lib.sh` | Shared helpers (sourced). |
