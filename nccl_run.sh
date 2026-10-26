@@ -55,6 +55,10 @@ MGMT=${MGMT:-$(ip -4 route show default | awk '{for (i = 1; i < NF; i++) if ($i 
 say "nccl A=$A B=$B gid ${GID:-?} bootstrap ${MGMT:-?} iter $ITER warmup $WARMUP | Gibit/s per pair | log: $LOG"
 [[ -n $GID ]] || die "no RoCE v2 IPv4 GID on mlx5_0 (set GID=)"
 
+# nccl-tests links libmpi without an rpath: give the ranks Open MPI's library directory
+MPI_HOME=$(dirname "$(dirname "$(command -v mpirun)")")
+export LD_LIBRARY_PATH="$MPI_HOME/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
 gib() { awk -v g="$1" 'BEGIN { if (g == "") print "?"; else printf "%.0f", g * 8e9 / 2^30 }'; }
 
 # run_test LABEL PROG GPU...

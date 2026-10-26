@@ -82,9 +82,11 @@ $SSH "$BUILD" "cd '$HERE/nccl-tests' && make -j$JOBS MPI=1 MPI_HOME='$MPI_HOME' 
             cut -c1-140 | while IFS= read -r l; do say "  $l"; done
         exit 1
     }
+# nccl_run.sh puts $MPI_HOME/lib in LD_LIBRARY_PATH (nvcc links libmpi without an rpath)
 for n in "$A" "$B"; do
-    miss=$($SSH "$n" "ldd '$HERE/nccl-tests/build/sendrecv_perf' 2>&1 | grep -c 'not found'")
-    libs=$($SSH "$n" "ldd '$HERE/nccl-tests/build/sendrecv_perf' 2>&1 | awk '/libnccl|libcudart|libmpi\\./ {print \$3}' | tr '\n' ' '")
-    say "$n: missing libraries $miss | $libs"
+    libs=$($SSH "$n" "LD_LIBRARY_PATH='$MPI_HOME/lib' ldd '$HERE/nccl-tests/build/sendrecv_perf' 2>&1 |
+        awk '/not found/ {miss = miss \" \" \$1} /libnccl|libcudart|libmpi\\./ && !/not found/ {print \$3}
+            END {print \"missing:\" (miss == \"\" ? \" none\" : miss)}' | tr '\n' ' '")
+    say "$n: $libs"
 done
 say "done: $LOG"
