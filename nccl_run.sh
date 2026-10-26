@@ -66,7 +66,7 @@ run_test() {
     local label=$1 prog=$2; shift 2
     local g pids=() s row gdr=0
     for g in "$@"; do
-        timeout -k 10 300 mpirun --mca plm rsh -n 2 -H "$A,$B" --allow-run-as-root --bind-to none \
+        timeout -k 10 300 mpirun --prefix "$MPI_HOME" --mca plm rsh -n 2 -H "$A,$B" --allow-run-as-root --bind-to none \
             -x CUDA_VISIBLE_DEVICES="$g" -x NCCL_IB_HCA="=${PORT[g]}:1" -x NCCL_IB_GID_INDEX="$GID" \
             ${MGMT:+-x NCCL_SOCKET_IFNAME="=$MGMT"} -x NCCL_DEBUG=INFO -x NCCL_DEBUG_SUBSYS=INIT,NET \
             -x LD_LIBRARY_PATH -x PATH \
