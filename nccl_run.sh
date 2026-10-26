@@ -8,10 +8,12 @@
 # Tests:     G1 GPU0 | G4 GPU0-3 (socket 0) | G22 GPU0,1,4,5 (2 + 2 sockets) | G8 GPU0-7
 # Screen: algbw of each pair (out-of-place, nccl-tests average over -n iterations) in Gibit/s, per
 # message size, and how many pairs NCCL ran with GPUDirect RDMA (GDRDMA: the card reads and writes
-# GPU memory directly). Full NCCL output in $OUT/nccl_<time>.log.
+# GPU memory directly). nccl-tests output in $OUT/nccl_<time>.log, NCCL's own log per process in
+# $OUT/nccl_<time>_debug/.
 # Refuses to run while other processes use the GPUs, unless BUSY_OK=1.
 # Env: TESTS ("G1 G4 G22 G8"), PROGS ("sendrecv broadcast"), ITER (100), WARMUP (20), GID (auto),
-#      MGMT (interface of the default route), BUSY_OK, OUT, SSH.
+#      MGMT (interface of the default route), NCCL_EXTRA ("NAME=value ..." passed to every rank),
+#      BUSY_OK, OUT, SSH.
 set -u
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 OUT=${OUT:-$HERE/out}
@@ -28,7 +30,12 @@ mapfile -t NODES < <(scontrol show hostnames "$SLURM_JOB_NODELIST")
 A=${NODES[0]} B=${NODES[1]}
 [[ -x $NT/sendrecv_perf ]] || die "no $NT/sendrecv_perf: run nccl_build.sh first"
 mkdir -p "$OUT" || die "cannot create $OUT"
-LOG=$OUT/nccl_$(date +%Y%m%d_%H%M%S).log
+STAMP=$(date +%Y%m%d_%H%M%S)
+LOG=$OUT/nccl_$STAMP.log
+DBG=$OUT/nccl_${STAMP}_debug
+mkdir -p "$DBG" || die "cannot create $DBG"
+EXTRA=()
+for kv in ${NCCL_EXTRA:-}; do EXTRA+=(-x "$kv"); done
 TMP=$(mktemp -d) || die "mktemp failed"
 trap 'rm -rf "$TMP"' EXIT
 say() { echo "$*" | tee -a "$LOG"; }
@@ -52,7 +59,7 @@ GID=${GID:-$(for t in /sys/class/infiniband/mlx5_0/ports/1/gid_attrs/types/*; do
         { echo "$i"; break; }
 done)}
 MGMT=${MGMT:-$(ip -4 route show default | awk '{for (i = 1; i < NF; i++) if ($i == "dev") {print $(i + 1); exit}}')}
-say "nccl A=$A B=$B gid ${GID:-?} bootstrap ${MGMT:-?} iter $ITER warmup $WARMUP | Gibit/s per pair | log: $LOG"
+say "nccl A=$A B=$B gid ${GID:-?} bootstrap ${MGMT:-?} iter $ITER warmup $WARMUP${NCCL_EXTRA:+ | $NCCL_EXTRA} | Gibit/s per pair | log: $LOG"
 [[ -n $GID ]] || die "no RoCE v2 IPv4 GID on mlx5_0 (set GID=)"
 
 # nccl-tests links libmpi without an rpath: give the ranks Open MPI's library directory
@@ -66,9 +73,11 @@ run_test() {
     local label=$1 prog=$2; shift 2
     local g pids=() s row gdr=0
     for g in "$@"; do
+        # NCCL's INFO lines go to files (NCCL_DEBUG_FILE): on stdout they land inside the result rows
         timeout -k 10 300 mpirun --prefix "$MPI_HOME" --mca plm rsh -n 2 -H "$A,$B" --allow-run-as-root --bind-to none \
             -x CUDA_VISIBLE_DEVICES="$g" -x NCCL_IB_HCA="=${PORT[g]}:1" -x NCCL_IB_GID_INDEX="$GID" \
             ${MGMT:+-x NCCL_SOCKET_IFNAME="=$MGMT"} -x NCCL_DEBUG=INFO -x NCCL_DEBUG_SUBSYS=INIT,NET \
+            -x NCCL_DEBUG_FILE="$DBG/${label}_${prog}_gpu$g.%h.%p" "${EXTRA[@]}" \
             -x LD_LIBRARY_PATH -x PATH \
             "$NT/${prog}_perf" -b 2M -e 128M -f 64 -g 1 -w "$WARMUP" -n "$ITER" -c 0 \
             >"$TMP/$g.out" 2>&1 &
@@ -77,7 +86,7 @@ run_test() {
     for g in "${pids[@]}"; do wait "$g"; done
     for g in "$@"; do
         { echo "#### $label $prog GPU$g port ${PORT[g]}"; cat "$TMP/$g.out"; } >>"$LOG"
-        grep -q 'GDRDMA' "$TMP/$g.out" && gdr=$((gdr + 1))
+        cat "$DBG/${label}_${prog}_gpu$g".* 2>/dev/null | grep -q 'GDRDMA' && gdr=$((gdr + 1))
     done
     for s in 2097152 134217728; do
         row=$(printf '  %-4s %-9s %4s ' "$label" "$prog" "$((s / 1048576))M")
