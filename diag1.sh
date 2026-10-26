@@ -54,7 +54,7 @@ run_mpi() {
 
 say "diag1 A=$A B=$B ports: $DEVS | log: $LOG"
 say "mpirun $(mpirun --version 2>/dev/null | head -1 | awk '{print $NF}')" \
-    "ucx $(ucx_info -v 2>/dev/null | grep -o -m1 'version=[^ ]*' | cut -d= -f2)" \
+    "ucx $(ucx_info -v 2>/dev/null | awk '/[Vv]ersion/ {print $NF; exit}')" \
     "| srun --mpi: $(srun --mpi=list 2>&1 | grep -v -i 'mpi plugin types' | awk '{print $NF}' | tr '\n' ' ')"
 ucx_vars=$(env | grep '^UCX_' | tr '\n' ' ')
 say "UCX vars in this shell: ${ucx_vars:-none}"

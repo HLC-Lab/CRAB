@@ -14,5 +14,5 @@ elif [[ -n ${LAB_NICS:-} ]]; then
     export UCX_NET_DEVICES=${list[lrank % ${#list[@]}]}
 fi
 cpus=$(awk '/^Cpus_allowed_list/ {print $2}' /proc/self/status 2>/dev/null)
-echo "lab: rank=$rank host=$(hostname -s) local=$lrank dev=${UCX_NET_DEVICES:--} cpus=${cpus:--}" >&2
+echo "lab: rank=$rank host=$(hostname -s) local=$lrank dev=${UCX_NET_DEVICES:--} cpus=${cpus:--} pid=$$" >&2
 exec "$@"
