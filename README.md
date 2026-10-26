@@ -20,4 +20,6 @@ Remove: `rm -rf ~/crab/lab`.
 | `pw.sh` | Blink pairwise alone at 1/4/8 ranks per node, per UCX variant and size: Gb/s per rank on screen, CSV in `out/`. |
 | `diag4.sh` | Two nodes: UCX RoCE reachability check off (all2all with one port per rank), which campaign UCX variable matters, the CRAB checkout. |
 | `pw2.sh` | Blink pairwise alone at 1/4/8 ranks per node, one port per rank: slowest/fastest rank and node total per size, 1000 iterations. |
+| `wb.sh` | ib_write_bw between the two nodes, no MPI: one port, 4 ports of one socket, 2 + 2, all 8, one and both directions. |
+| `gpu_check.sh` | Read-only: GPUs, driver, CUDA, NCCL, GPUDirect module, GPU NUMA nodes and nearby ports. |
 | `lib.sh` | Shared helpers (sourced). |
