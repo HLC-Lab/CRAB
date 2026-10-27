@@ -5,8 +5,10 @@ Source: `src/crab/wrappers/base.py` and `src/crab/setup/recipes/base.py`.
 
 ## Stability
 
-From 1.0, a change that breaks existing use needs a new major version, after a minor release that
-warns about it. This holds for the CLI commands and flags (not their human-readable output: use
+CRAB 1.x is not declared stable yet: a 1.x minor release may change the surfaces below, and the
+[changelog](https://github.com/HLC-Lab/CRAB/blob/develop/CHANGELOG.md) lists every such change under
+the release that makes it. From 2.0, a change that breaks existing use needs a new major version,
+after a minor release that warns about it. This will hold for the CLI commands and flags (not their human-readable output: use
 `--json`), the `--json` answers, `crab worker`, the config and presets file formats, the result
 CSV columns and `crab_run.json`, receipts, the `CRAB_*` environment variables, and the wrapper
 base class on this page. Each versioned format carries its number: `schema` in `--json` answers,

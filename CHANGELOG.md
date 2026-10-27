@@ -1,9 +1,13 @@
 # Changelog
 
 All notable changes to CRAB are listed here, newest first. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.0.0 the versions follow
-[semantic versioning](https://semver.org/), as defined in
-[ADR-039](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-039-public-surface-1-0/).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.0.0 the version numbers follow
+[semantic versioning](https://semver.org/), but the stability promise starts at 2.0: 1.x releases
+may contain breaking changes to the public surface, and each one is listed in that release under a
+"Breaking" note. The surfaces and what stable means for each are in
+[ADR-039](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-039-public-surface-1-0/);
+the decision to promise them from 2.0 is
+[ADR-042](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-042-stable-from-2-0/).
 
 Each product-line release is listed here. The SbatchMan partner line is tagged `vX.Y.Z+sbatchman`,
 usually alongside the product release. A SbatchMan-only release has only the `+sbatchman` tag, and
