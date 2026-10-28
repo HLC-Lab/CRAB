@@ -32,8 +32,7 @@ def wrapper_search_path() -> list[str]:
     folder in CRAB_PATH_WRAPPERS (an os.pathsep-separated list), or the checkout's `wrappers/`
     when CRAB_PATH_WRAPPERS is unset.
     """
-    configured = os.environ.get("CRAB_PATH_WRAPPERS")
-    shared = [d for d in configured.split(os.pathsep) if d] if configured else []
+    shared = paths.env_path_list("CRAB_PATH_WRAPPERS")
     return [str(paths.local_path(pathlib.Path(_CRAB_ROOT), "wrappers"))] + (
         shared or [os.path.join(_CRAB_ROOT, "wrappers")]
     )
@@ -85,9 +84,9 @@ def resolve_wrapper_path(path: str) -> str:
     moved = _moved_match(path)
     if moved is not None:
         return moved
-    configured = os.environ.get("CRAB_PATH_WRAPPERS")
+    configured = paths.env_path_list("CRAB_PATH_WRAPPERS")
     if configured:
-        return os.path.join(configured.split(os.pathsep)[0], path)
+        return os.path.join(configured[0], path)
     return path
 
 

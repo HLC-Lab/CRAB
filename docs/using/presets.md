@@ -61,8 +61,8 @@ every `*.json` file of one folder, in name order, and a file may hold several pr
 | either, with `CRAB_PATH_PRESETS` set | the folder that variable names |
 
 `crab info` prints the folder in use on its `overrides:` line. `CRAB_PATH_PRESETS` names a
-folder: a path to a single file is refused with a message that names it. The folder does not exist
-until you make it.
+folder, as an absolute path (`~` is fine): a path to a single file is refused with a message that
+names it. The folder does not exist until you make it.
 
 An entry with the name of a shared preset **patches** it: only the lines you write change, and
 everything else stays as crab-wrappers has it. So the account of a cluster is two lines of yours:

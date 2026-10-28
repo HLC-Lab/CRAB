@@ -36,8 +36,8 @@ A config names a wrapper by `path`, for example `blink/alltoall/alltoall_b.py`. 
 these folders, and the first match wins:
 
 1. `local/wrappers/` in the CRAB checkout;
-2. each folder in `CRAB_PATH_WRAPPERS` (separate several with `:`), or the checkout's `wrappers/`
-   when the variable is not set.
+2. each folder in `CRAB_PATH_WRAPPERS` (separate several with `:`; each must be an absolute path),
+   or the checkout's `wrappers/` when the variable is not set.
 
 An absolute `path` is used as is. `crab wrappers list` shows the search path and every wrapper
 found on it.

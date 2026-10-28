@@ -28,8 +28,8 @@ ENV_PATH_NAMES = (
 ENV_PATH_LIST_NAMES = ("CRAB_PATH_WRAPPERS",)
 
 
-def _checked_path(name: str, raw: str) -> Path:
-    """`raw` (a value of variable `name`) as a Path, with `~` expanded; relative is refused.
+def _checked_value(name: str, raw: str) -> str:
+    """`raw` (a value of variable `name`) with `~` expanded, otherwise as typed; relative is refused.
 
     A value that still holds a `$` is a template that is expanded later (a job never aborts on
     it), so it is returned as it is.
@@ -39,7 +39,7 @@ def _checked_path(name: str, raw: str) -> Path:
     """
     value = os.path.expanduser(raw)
     if "$" in value or os.path.isabs(value):
-        return Path(value)
+        return value
     try:
         example = f" (for example {os.path.abspath(value)})"
     except OSError:  # the current directory was deleted
@@ -54,12 +54,24 @@ def env_path(name: str) -> Path | None:
     """The folder named by environment variable `name`: None when unset or empty.
 
     Raises:
-        ValueError: the value is a relative path (see `_checked_path`).
+        ValueError: the value is a relative path (see `_checked_value`).
     """
     raw = os.environ.get(name)
     if not raw:
         return None
-    return _checked_path(name, raw)
+    return Path(_checked_value(name, raw))
+
+
+def env_path_list(name: str) -> list[str]:
+    """The folders named by list variable `name` (`os.pathsep` separated), empty entries dropped.
+
+    Entries are strings with `~` expanded and otherwise exactly as typed.
+
+    Raises:
+        ValueError: an entry is a relative path (see `_checked_value`).
+    """
+    raw = os.environ.get(name, "")
+    return [_checked_value(name, entry) for entry in raw.split(os.pathsep) if entry]
 
 
 def validate_env_paths() -> None:
@@ -71,9 +83,7 @@ def validate_env_paths() -> None:
     for name in ENV_PATH_NAMES:
         env_path(name)
     for name in ENV_PATH_LIST_NAMES:
-        for entry in os.environ.get(name, "").split(os.pathsep):
-            if entry:
-                _checked_path(name, entry)
+        env_path_list(name)
 
 
 def _env_home() -> Path | None:
@@ -137,9 +147,9 @@ def local_path(root: Path, *parts: str) -> Path:
 
 def user_presets_dir(root: Path) -> Path:
     """The directory of the user's override preset files: CRAB_PATH_PRESETS, else `local_path(root, "presets")`."""
-    override = os.environ.get("CRAB_PATH_PRESETS")
-    if override:
-        return Path(override)
+    override = env_path("CRAB_PATH_PRESETS")
+    if override is not None:
+        return override
     return local_path(root, "presets")
 
 

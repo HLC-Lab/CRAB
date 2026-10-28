@@ -113,7 +113,8 @@ variables move them:
 
 - `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`. It must be an
   absolute path (`~` is fine): a relative value stops the command with an error.
-- `CRAB_PATH_PRESETS` sets the folder of your override files.
+- `CRAB_PATH_PRESETS` sets the folder of your override files. It must be an absolute path
+  (`~` is fine), like `CRAB_HOME`.
 
 The package ships no presets: the shared ones come from the crab-wrappers clone, with the
 wrappers. Your own override files go in `~/.config/crab/presets/` (see

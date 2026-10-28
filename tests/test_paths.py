@@ -354,3 +354,78 @@ def test_checkout_relative_crab_home_refuses_config_dir_only(
     with pytest.raises(ValueError, match="CRAB_HOME"):
         paths.config_dir()
     assert paths.crab_home() == OLD_WALK_UP
+
+
+# --------------------------------------------------------------------------- #
+# env_path_list and the readers of CRAB_PATH_PRESETS
+# --------------------------------------------------------------------------- #
+def test_env_path_list_unset_and_empty_are_an_empty_list(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == []
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == []
+
+
+def test_env_path_list_keeps_order_and_drops_empty_entries(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/a:/b")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["/a", "/b"]
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/a::/b")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["/a", "/b"]
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", ":/b:")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["/b"]
+
+
+def test_env_path_list_expands_the_tilde_to_a_string(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "~/w")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == [str(tmp_path / "home" / "w")]
+
+
+def test_env_path_list_keeps_a_dollar_entry_and_a_trailing_slash_as_typed(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "$X/w:/abs/dir/")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["$X/w", "/abs/dir/"]
+
+
+@pytest.mark.parametrize("value", ["/a:rel/b", "rel/b:/a", "./x"])
+def test_env_path_list_refuses_a_relative_entry(
+    value: str, clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", value)
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        paths.env_path_list("CRAB_PATH_WRAPPERS")
+
+
+def test_user_presets_dir_unset_is_the_local_presets_folder(
+    clean_env: None, tmp_path: Path
+) -> None:
+    assert paths.user_presets_dir(tmp_path) == tmp_path / "local" / "presets"
+
+
+def test_user_presets_dir_absolute_is_used(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_PRESETS", "/abs/presets")
+    assert paths.user_presets_dir(Path("/root")) == Path("/abs/presets")
+
+
+def test_user_presets_dir_expands_the_tilde(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_PATH_PRESETS", "~/p")
+    assert paths.user_presets_dir(tmp_path) == tmp_path / "home" / "p"
+
+
+def test_user_presets_dir_relative_is_refused(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_PRESETS", "rel/p")
+    with pytest.raises(ValueError, match="CRAB_PATH_PRESETS"):
+        paths.user_presets_dir(tmp_path)

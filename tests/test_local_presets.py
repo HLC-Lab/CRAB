@@ -412,3 +412,32 @@ def test_crab_info_tells_to_run_crab_update_when_no_shared_folder_exists(
 ) -> None:
     monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(tmp_path / "no-clone"))
     assert "crab update" in _info_output(capsys)
+
+
+def test_shared_preset_folders_refuse_a_relative_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from crab.cli import presets
+
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", f"{tmp_path / 'w'}:rel/b")
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        presets.shared_preset_folders(tmp_path)
+
+
+def test_shared_preset_folders_expand_the_tilde(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from crab.cli import presets
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "~/w")
+    assert presets.shared_preset_folders(tmp_path) == [tmp_path / "home" / "w" / "presets"]
+
+
+def test_shared_preset_folders_keep_a_dollar_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from crab.cli import presets
+
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "$NO_SUCH_VARIABLE_FOR_CRAB/w")
+    assert presets.shared_preset_folders(tmp_path) == [Path("$NO_SUCH_VARIABLE_FOR_CRAB/w/presets")]

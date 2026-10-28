@@ -197,3 +197,30 @@ def test_the_runner_warns_once_with_the_new_path_for_an_old_flat_path(
     warnings = [c.args[0] for c in runner.log.warning.call_args_list]
     assert len(warnings) == 1
     assert "blink/alltoall/alltoall_b.py" in warnings[0]
+
+
+def test_a_relative_crab_path_wrappers_entry_is_refused(root: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", f"{root / 'wrappers'}{os.pathsep}rel/b")
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        wp.wrapper_search_path()
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        wp.resolve_wrapper_path("blink/nope.py")
+
+
+def test_a_tilde_entry_becomes_an_absolute_path_under_home(
+    root: Path, monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "~/w")
+    assert wp.wrapper_search_path() == [str(root / "local/wrappers"), str(tmp_path / "home" / "w")]
+    assert wp.resolve_wrapper_path("blink/nope.py") == str(
+        tmp_path / "home" / "w" / "blink/nope.py"
+    )
+
+
+def test_a_dollar_entry_stays_unexpanded(root: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "$NO_SUCH_VARIABLE_FOR_CRAB/w")
+    assert wp.wrapper_search_path() == [
+        str(root / "local/wrappers"),
+        "$NO_SUCH_VARIABLE_FOR_CRAB/w",
+    ]
