@@ -3,3 +3,6 @@ nccl-tests/
 nccl-home/
 blink-gpu/
 cmake-venv/
+ompi-cuda/
+openmpi-*/
+openmpi-*.tar.bz2

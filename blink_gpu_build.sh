@@ -27,6 +27,7 @@ fi
 mkdir -p "$OUT" || die "cannot create $OUT"
 LOG=$OUT/blink_gpu_build_$(date +%Y%m%d_%H%M%S).log
 say() { echo "$*" | tee -a "$LOG"; }
+[[ -x $HERE/ompi-cuda/bin/mpirun ]] && export PATH=$HERE/ompi-cuda/bin:$PATH
 MPI_HOME=$(dirname "$(dirname "$(command -v mpirun)")")
 say "blink_gpu_build on $A | MPI_HOME=$MPI_HOME CUDA_ROOT=$CUDA_ROOT | log: $LOG"
 

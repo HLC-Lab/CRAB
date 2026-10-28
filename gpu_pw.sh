@@ -12,11 +12,13 @@
 # 8/node, 4/node 2 + 2 sockets, 4/node on socket 0, 1/node; Gibit/s per rank, slowest/fastest (medians over the
 # iterations). The command line of every run and Blink's output are in $OUT/gpu_pw_<time>.log, one CSV line per
 # cell in the .csv next to it.
-# Env: BLINK (~/crab/lab/blink-gpu/build-cuda/bin), SIZES ("134217728 2097152"), PROGS ("pairwise_b
+# Env: BLINK_GPU_BIN (~/crab/lab/blink-gpu/build-cuda/bin; not BLINK, which env.sh points at the old CRAB build), SIZES ("134217728 2097152"), PROGS ("pairwise_b
 #      pingpong_pairwise_b"), STEP_TIMEOUT (180), OUT.
 set -u
 NAME=gpu_pw
-BLINK=${BLINK:-$HOME/crab/lab/blink-gpu/build-cuda/bin}
+HERE_LAB=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+BLINK=${BLINK_GPU_BIN:-$HOME/crab/lab/blink-gpu/build-cuda/bin}
+[[ -x $HERE_LAB/ompi-cuda/bin/mpirun ]] && export PATH=$HERE_LAB/ompi-cuda/bin:$PATH
 STEP_TIMEOUT=${STEP_TIMEOUT:-180}
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 MODE=${1:-main}
