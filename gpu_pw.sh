@@ -61,8 +61,9 @@ cell() {
     run_blink "$lay" "$prog" "$mem" "$var" "${args[@]}"
     if [[ $VERDICT == OK ]]; then
         timing "$size"
-        CELL="$GBPS/$GBPS_FAST"
-        echo "$lay,$prog,$mem,$var,$size,OK,$T_MAX,$T_MIN,$GBPS,$GBPS_FAST" >>"$CSV"
+        local gs gf; gs=$(gib "$size" "$T_MAX"); gf=$(gib "$size" "$T_MIN")
+        CELL="$gs/$gf"
+        echo "$lay,$prog,$mem,$var,$size,OK,$T_MAX,$T_MIN,$gs,$gf" >>"$CSV"
     else
         CELL=$VERDICT
         echo "$lay,$prog,$mem,$var,$size,$VERDICT,,,," >>"$CSV"
@@ -92,10 +93,10 @@ smoke() {
     # default offset (w_size/2) against the explicit one, 8 per node, 128 MiB, host memory
     for prog in pairwise_b; do
         run_blink L8 "$prog" host base -msgsize 134217728 -iter 100 -warmup 50
-        timing 134217728; local d="$GBPS/$GBPS_FAST"
+        timing 134217728; local d="$(gib 134217728 "$T_MAX")/$(gib 134217728 "$T_MIN")"
         run_blink L8 "$prog" host base -offset 8 -msgsize 134217728 -iter 100 -warmup 50
         timing 134217728
-        say "S 8/node $prog host, default offset $d vs -offset 8 $GBPS/$GBPS_FAST Gibit/s"
+        say "S 8/node $prog host, default offset $d vs -offset 8 $(gib 134217728 "$T_MAX")/$(gib 134217728 "$T_MIN") Gibit/s"
     done
     say "done: $LOG"
 }
@@ -107,6 +108,10 @@ main() {
     cell L8 pairwise_b host base 134217728 100 50; local h=$CELL
     cell L8 pairwise_b gpu base 134217728 100 50
     say "D 8/node pairwise_b 128M: host $h | gpu $CELL"
+    if [[ $CELL != */* ]]; then
+        say "the 8/node -gpu cell failed ($CELL): every GPU row would fail the same way; see the log, stopping"
+        exit 1
+    fi
     local size prog row spec mem var head lay
     for size in $SIZES; do
         read -r it warm <<<"$(iters "$size")"

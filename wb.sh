@@ -72,8 +72,8 @@ run_test() {
     for d in "$@"; do
         p=$((18500 + ${d#mlx5_}))
         [[ ${USE_CUDA:-0} == 1 ]] && cflag="--use_cuda=${GPU[$d]}"
-        scmd+="taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag $cflag -s $size -D $DUR --report_gbits -p $p >/tmp/wb_s_$d.txt 2>&1 & "
-        ccmd+="taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag $cflag -s $size -D $DUR --report_gbits -p $p ${IP[$d]:-missing} >/tmp/wb_c_$d.txt 2>&1 & "
+        scmd+="CUDA_DEVICE_ORDER=PCI_BUS_ID taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag $cflag -s $size -D $DUR --report_gbits -p $p >/tmp/wb_s_$d.txt 2>&1 & "
+        ccmd+="CUDA_DEVICE_ORDER=PCI_BUS_ID taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag $cflag -s $size -D $DUR --report_gbits -p $p ${IP[$d]:-missing} >/tmp/wb_c_$d.txt 2>&1 & "
     done
     timeout $((DUR + 60)) $SSH "$B" "$scmd wait" >/dev/null 2>&1 &
     spid=$!

@@ -17,7 +17,7 @@ elif [[ -n ${LAB_NICS:-} ]]; then
 fi
 if [[ -n ${LAB_GPUS:-} ]]; then
     IFS=, read -ra glist <<<"$LAB_GPUS"
-    export CUDA_VISIBLE_DEVICES=${glist[lrank % ${#glist[@]}]}
+    export CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES=${glist[lrank % ${#glist[@]}]}
 fi
 cpus=$(awk '/^Cpus_allowed_list/ {print $2}' /proc/self/status 2>/dev/null)
 echo "lab: rank=$rank host=$(hostname -s) local=$lrank dev=${UCX_NET_DEVICES:--} cpus=${cpus:--} pid=$$ gpu=${CUDA_VISIBLE_DEVICES:--}" >&2
