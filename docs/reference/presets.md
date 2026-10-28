@@ -52,7 +52,7 @@ shares, which is now an engine default (see [Special tokens](#special-tokens)).
 | `description` | string | Human-readable label. |
 | `env` | object | Environment variables exported to the applications. They carry no launch settings. A value of `null` removes the key, in an override. |
 | `sbatch` | array of strings | `#SBATCH` directives added to the generated job script. Slurm only. |
-| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only; see [Module flow](../using/presets.md#module-flow). |
+| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only; see [Module flow](../using/presets.md#module-flow). The script starts in the job's data folder, not in the folder you ran `crab run` from, so use absolute paths for anything a line sources or loads. |
 | `extends` | string | The name of a preset to start from: this preset is that preset's resolved form, changed by the fields written here. See [`extends`](#extends). |
 | `notes` | array of strings | Short remarks about the cluster, printed by `crab presets show` and carried by `crab info --json`. The crab-wrappers guide asks for at most 3 one-line entries in a shared preset. |
 

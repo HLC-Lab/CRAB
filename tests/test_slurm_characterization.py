@@ -335,7 +335,10 @@ def test_submit_result_and_sbatch_argv(tmp_path, crab_root, sbatch):
     assert result == {"job_id": "4242", "data_dir": data_dir, "system": "testsys"}
     assert Path(data_dir).parent == tmp_path / "data" / "testsys"
     assert sbatch.calls == [
-        (["sbatch", f"{data_dir}/crab_job.sh"], {"text": True, "stderr": subprocess.STDOUT})
+        (
+            ["sbatch", f"{data_dir}/crab_job.sh"],
+            {"text": True, "stderr": subprocess.STDOUT, "cwd": data_dir},
+        )
     ]
 
 

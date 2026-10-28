@@ -271,7 +271,10 @@ Put the lines in `header`:
 
 Your header lines run after the shared ones, at the top of the job script and before `crab worker`
 starts, so the worker and the applications inherit what they set. This is the order of the
-[module flow](#module-flow). Header lines are shell lines, so `~` and `$HOME` work in them. Under
+[module flow](#module-flow). Header lines are shell lines, so `~` and `$HOME` work in them. They
+run inside the job script, which starts in the job's data folder and not in the folder you ran
+`crab run` from, so use absolute paths (or variables such as `$HOME`) for anything a header line
+sources or loads. Under
 the `local` scheduler there is no job script and `header` does not apply.
 
 ### A QoS

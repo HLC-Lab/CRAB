@@ -60,6 +60,9 @@ absolute.
   checkout), not to the folder you run `crab` from. `~` and `$VAR` are expanded, and the results
   folder is always absolute. An empty or null `datapath`, or one that uses a variable that is not
   set, is refused before anything is submitted.
+- Slurm jobs start in their data folder instead of the folder `crab run` was typed in. A preset
+  `header` line with a relative path (`source ./env.sh`) must become absolute. A preset's own
+  `--chdir` directive still wins.
 
 ### Added
 
