@@ -152,6 +152,7 @@ class LocalScheduler:
                     start_new_session=True,
                     pass_fds=(fd,),
                     env=_supervisor_env(),
+                    cwd=job_dir,  # `python -m` puts the cwd first on sys.path, ahead of PYTHONPATH
                 )
         finally:
             os.close(fd)  # the supervisor's copy keeps the lock

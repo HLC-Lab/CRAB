@@ -93,6 +93,8 @@ absolute.
   a deleted folder when you started it from inside: CRAB steps out first.
 - `crab update`, the dashboard's dependency installer and the `crab setup` module and search steps
   no longer depend on the folder you started them from (they failed when it had been deleted).
+- Local jobs and the dashboard's local connection no longer pick up a `crab` package (or `crab.py`)
+  from the folder you started them in: they start from a folder CRAB chooses.
 
 ## [1.1.0] - 2026-10-21
 

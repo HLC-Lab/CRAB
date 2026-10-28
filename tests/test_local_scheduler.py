@@ -221,6 +221,22 @@ def test_the_supervisor_runs_this_same_crab_package(
     assert fake.kwargs["env"]["PYTHONPATH"] == f"{root}{os.pathsep}/somewhere/else"
 
 
+def test_the_supervisor_starts_in_the_job_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`python -m` puts the current folder first on `sys.path`, so the supervisor must not
+    start in the caller's folder (a `crab/` there would shadow the real package)."""
+    job_dir = _job_dir(tmp_path)
+    fake = _FakePopen(tmp_path)
+    monkeypatch.setattr(subprocess, "Popen", fake)
+    monkeypatch.chdir(tmp_path)
+
+    _scheduler(tmp_path).submit(str(job_dir), {})
+
+    assert fake.kwargs["cwd"] == str(job_dir)
+    assert os.path.isabs(fake.kwargs["cwd"]) and os.path.isdir(fake.kwargs["cwd"])
+
+
 def test_submit_locks_the_first_numnodes_hosts_of_execution_json(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

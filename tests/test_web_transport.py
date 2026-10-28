@@ -16,12 +16,17 @@ there too.
 from __future__ import annotations
 
 import asyncio
+import os
+import shlex
 import shutil
 import sys
 from pathlib import Path
 
 import asyncssh
 import pytest
+
+import crab
+from crab import paths
 
 pytest.importorskip("fastapi", reason="web extra not installed")
 
@@ -417,3 +422,35 @@ def test_local_transport_fetch_tree_failed_refetch_keeps_the_cache(tmp_path: Pat
 
     assert (dest / "top.csv").read_text() == "a,b\n3,4\n"
     assert sorted(p.name for p in dest.parent.iterdir()) == ["dest"]
+
+
+# --------------------------------------------------------------------------- #
+# LocalTransport.run starts its commands in a folder CRAB chose, not in the
+# caller's current folder.
+# --------------------------------------------------------------------------- #
+async def test_local_transport_run_starts_in_the_neutral_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    result = await LocalTransport().run("pwd")
+
+    assert result.rc == 0
+    assert os.path.realpath(result.stdout.strip()) == os.path.realpath(paths.neutral_dir())
+
+
+async def test_local_transport_run_ignores_a_crab_package_in_the_current_folder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    decoy = tmp_path / "decoy"
+    (decoy / "crab").mkdir(parents=True)
+    (decoy / "crab" / "__init__.py").write_text('raise RuntimeError("decoy crab imported")\n')
+    monkeypatch.chdir(decoy)
+
+    command = f"{shlex.quote(sys.executable)} -c 'import crab; print(crab.__file__)'"
+    result = await LocalTransport().run(command)
+
+    assert result.rc == 0, result.stderr
+    assert result.stdout.strip() == crab.__file__
