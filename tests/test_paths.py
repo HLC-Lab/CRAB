@@ -94,11 +94,11 @@ def test_crab_home_env_sets_home_and_config_when_installed(
     assert paths.config_dir() == home / "config"
 
 
-def test_crab_home_is_read_at_import(xdg: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_crab_home_is_read_at_call_time(xdg: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     importlib.reload(paths)
     monkeypatch.setattr(paths, "is_checkout", lambda: False)
     monkeypatch.setenv("CRAB_HOME", str(xdg / "late"))
-    assert paths.crab_home() == xdg / "xdg-data" / "crab"
+    assert paths.crab_home() == xdg / "late"
 
 
 # --------------------------------------------------------------------------- #
@@ -204,3 +204,279 @@ def test_detection_requires_the_src_file_to_be_this_file(tmp_path: Path) -> None
     other.parent.mkdir(parents=True)
     other.write_text("# another copy\n")
     assert paths._checkout_root_of(other) is None
+
+
+# --------------------------------------------------------------------------- #
+# env_path and validate_env_paths
+# --------------------------------------------------------------------------- #
+LIST_AND_SCALAR_NAMES = [
+    "CRAB_HOME",
+    "CRAB_PATH_PRESETS",
+    "CRAB_WEB_CONFIG_DIR",
+    "CRAB_WEB_DATA_DIR",
+    "CRAB_WEB_LIBRARY_DIR",
+]
+
+
+@pytest.fixture
+def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """None of the folder variables set."""
+    for name in [*LIST_AND_SCALAR_NAMES, "CRAB_PATH_WRAPPERS"]:
+        monkeypatch.delenv(name, raising=False)
+
+
+def test_env_path_unset_and_empty_are_none(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert paths.env_path("CRAB_TEST_X") is None
+    monkeypatch.setenv("CRAB_TEST_X", "")
+    assert paths.env_path("CRAB_TEST_X") is None
+
+
+def test_env_path_absolute_is_returned(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CRAB_TEST_X", "/abs/dir")
+    assert paths.env_path("CRAB_TEST_X") == Path("/abs/dir")
+
+
+def test_env_path_expands_the_tilde(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_TEST_X", "~/x")
+    assert paths.env_path("CRAB_TEST_X") == tmp_path / "home" / "x"
+
+
+@pytest.mark.parametrize("raw", ["rel/home", "./x", "../x"])
+def test_env_path_relative_is_refused(
+    raw: str, clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_TEST_X", raw)
+    with pytest.raises(ValueError) as caught:
+        paths.env_path("CRAB_TEST_X")
+    message = str(caught.value)
+    assert "CRAB_TEST_X" in message
+    assert raw in message
+    assert "absolute" in message
+    assert "\n" not in message
+
+
+def test_env_path_with_a_dollar_is_a_template_not_refused(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_TEST_X", "$SCRATCH/w")
+    assert paths.env_path("CRAB_TEST_X") == Path("$SCRATCH/w")
+
+
+def test_env_path_relative_with_a_deleted_cwd_still_raises_value_error(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    monkeypatch.chdir(gone)
+    gone.rmdir()
+    monkeypatch.setenv("CRAB_TEST_X", "rel/home")
+    with pytest.raises(ValueError) as caught:
+        paths.env_path("CRAB_TEST_X")
+    assert "CRAB_TEST_X" in str(caught.value)
+
+
+def test_validate_env_paths_passes_with_nothing_set(clean_env: None) -> None:
+    paths.validate_env_paths()
+
+
+@pytest.mark.parametrize("name", LIST_AND_SCALAR_NAMES)
+def test_validate_env_paths_refuses_each_relative_name(
+    name: str, clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(name, "rel/x")
+    with pytest.raises(ValueError, match=name):
+        paths.validate_env_paths()
+
+
+def test_validate_env_paths_accepts_absolute_values(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in LIST_AND_SCALAR_NAMES:
+        monkeypatch.setenv(name, "/abs/x")
+    paths.validate_env_paths()
+
+
+def test_validate_env_paths_checks_every_wrappers_entry(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/abs/a:rel/b")
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        paths.validate_env_paths()
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "rel/b:/abs/a")
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        paths.validate_env_paths()
+
+
+@pytest.mark.parametrize("value", ["/abs/a::/abs/b", "/abs/a:$SCRATCH/w", ":/abs/a:", "~/w"])
+def test_validate_env_paths_accepts_valid_wrappers_lists(
+    value: str, clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", value)
+    paths.validate_env_paths()
+
+
+@pytest.mark.parametrize("name", ["CRAB_PATH_BLINK", "CRAB_PATH_WRAPPERSX", "CRAB_HOMEX"])
+def test_validate_env_paths_never_matches_a_prefix(
+    name: str, clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(name, "bin/x")
+    paths.validate_env_paths()
+
+
+def test_installed_relative_crab_home_is_refused(
+    installed: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_HOME", "rel/home")
+    with pytest.raises(ValueError, match="CRAB_HOME"):
+        paths.crab_home()
+    with pytest.raises(ValueError, match="CRAB_HOME"):
+        paths.config_dir()
+
+
+def test_installed_absolute_crab_home_keeps_working(
+    installed: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_HOME", "/abs/h")
+    assert paths.crab_home() == Path("/abs/h")
+    assert paths.config_dir() == Path("/abs/h/config")
+
+
+def test_checkout_relative_crab_home_refuses_config_dir_only(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_HOME", "rel/home")
+    assert paths.is_checkout()
+    with pytest.raises(ValueError, match="CRAB_HOME"):
+        paths.config_dir()
+    assert paths.crab_home() == OLD_WALK_UP
+
+
+# --------------------------------------------------------------------------- #
+# env_path_list and the readers of CRAB_PATH_PRESETS
+# --------------------------------------------------------------------------- #
+def test_env_path_list_unset_and_empty_are_an_empty_list(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == []
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == []
+
+
+def test_env_path_list_keeps_order_and_drops_empty_entries(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/a:/b")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["/a", "/b"]
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/a::/b")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["/a", "/b"]
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", ":/b:")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["/b"]
+
+
+def test_env_path_list_expands_the_tilde_to_a_string(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "~/w")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == [str(tmp_path / "home" / "w")]
+
+
+def test_env_path_list_keeps_a_dollar_entry_and_a_trailing_slash_as_typed(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "$X/w:/abs/dir/")
+    assert paths.env_path_list("CRAB_PATH_WRAPPERS") == ["$X/w", "/abs/dir/"]
+
+
+@pytest.mark.parametrize("value", ["/a:rel/b", "rel/b:/a", "./x"])
+def test_env_path_list_refuses_a_relative_entry(
+    value: str, clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", value)
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        paths.env_path_list("CRAB_PATH_WRAPPERS")
+
+
+def test_user_presets_dir_unset_is_the_local_presets_folder(
+    clean_env: None, tmp_path: Path
+) -> None:
+    assert paths.user_presets_dir(tmp_path) == tmp_path / "local" / "presets"
+
+
+def test_user_presets_dir_absolute_is_used(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_PRESETS", "/abs/presets")
+    assert paths.user_presets_dir(Path("/root")) == Path("/abs/presets")
+
+
+def test_user_presets_dir_expands_the_tilde(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_PATH_PRESETS", "~/p")
+    assert paths.user_presets_dir(tmp_path) == tmp_path / "home" / "p"
+
+
+def test_user_presets_dir_relative_is_refused(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_PRESETS", "rel/p")
+    with pytest.raises(ValueError, match="CRAB_PATH_PRESETS"):
+        paths.user_presets_dir(tmp_path)
+
+
+# --------------------------------------------------------------------------- #
+# neutral_dir: the folder subprocesses get instead of the caller's current folder
+# --------------------------------------------------------------------------- #
+def test_neutral_dir_is_an_existing_crab_home_when_installed(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = xdg / "my-home"
+    home.mkdir()
+    _installed_with_home(xdg, monkeypatch, home, checkout=False)
+    assert paths.neutral_dir() == str(home)
+
+
+def test_neutral_dir_falls_back_to_the_user_home_when_crab_home_is_missing(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (xdg / "home").mkdir()
+    _installed_with_home(xdg, monkeypatch, xdg / "not-there", checkout=False)
+    assert not (xdg / "not-there").exists()
+    assert paths.neutral_dir() == str(xdg / "home")
+    assert not (xdg / "not-there").exists()  # nothing is created
+
+
+def test_neutral_dir_falls_back_to_the_root_when_the_home_is_unusable(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _installed_with_home(xdg, monkeypatch, xdg / "not-there", checkout=False)
+    monkeypatch.setattr(paths.os.path, "expanduser", lambda _p: str(xdg / "no-home"))
+    assert paths.neutral_dir() == "/"
+
+
+def test_neutral_dir_is_the_checkout_root_in_a_checkout(xdg: Path) -> None:
+    importlib.reload(paths)
+    assert paths.neutral_dir() == str(OLD_WALK_UP)
+
+
+def test_neutral_dir_survives_a_deleted_current_folder(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = xdg / "my-home"
+    home.mkdir()
+    _installed_with_home(xdg, monkeypatch, home, checkout=False)
+    monkeypatch.chdir(xdg)  # first, so the teardown restores the real current folder
+    doomed = xdg / "doomed"
+    doomed.mkdir()
+    monkeypatch.chdir(doomed)
+    doomed.rmdir()
+    result = paths.neutral_dir()
+    assert result == str(home)
+    assert Path(result).is_absolute() and Path(result).is_dir()

@@ -1,7 +1,7 @@
 """Wrappers are looked up along a search path: the untracked `local/wrappers` first (private or
 in-progress wrappers), then each folder in CRAB_PATH_WRAPPERS (a `:`-separated list), or the
-checkout's `wrappers/` when it is unset. A path found nowhere resolves as it did before the
-search path existed, so old configs behave the same."""
+checkout's `wrappers/` when it is unset. A relative path found nowhere on it resolves to nothing:
+the current folder is never consulted."""
 
 from __future__ import annotations
 
@@ -55,14 +55,25 @@ def test_crab_path_wrappers_may_list_several_folders(root: Path, monkeypatch) ->
     ]
 
 
-def test_not_found_keeps_the_old_answer(root: Path, monkeypatch) -> None:
-    assert wp.resolve_wrapper_path("blink/nope.py") == "blink/nope.py"  # cwd-relative, as before
+def test_a_path_found_nowhere_resolves_to_nothing(root: Path, monkeypatch) -> None:
+    assert wp.resolve_wrapper_path("blink/nope.py") is None
     monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(root / "wrappers"))
-    assert wp.resolve_wrapper_path("blink/nope.py") == str(root / "wrappers/blink/nope.py")
+    assert wp.resolve_wrapper_path("blink/nope.py") is None
+
+
+def test_the_current_folder_is_never_consulted(
+    root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    here = tmp_path / "elsewhere"
+    _touch(here / "suite/missing.py")
+    monkeypatch.chdir(here)
+    assert wp.resolve_wrapper_path("suite/missing.py") is None
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(root / "wrappers"))
+    assert wp.resolve_wrapper_path("suite/missing.py") is None
 
 
 def test_absolute_paths_are_untouched(root: Path) -> None:
-    assert wp.resolve_wrapper_path("/opt/w.py") == "/opt/w.py"
+    assert wp.resolve_wrapper_path("/opt/w.py") == "/opt/w.py"  # even when it does not exist
 
 
 def test_list_benchmarks_walks_the_search_path_first_match_wins(root: Path) -> None:
@@ -121,13 +132,13 @@ def test_no_note_for_a_direct_hit_an_absolute_path_or_a_miss(root: Path) -> None
     assert wp.moved_wrapper_note("blink/nope.py") is None
 
 
-def test_two_subfolder_matches_are_ambiguous_so_no_fallback(root: Path, monkeypatch) -> None:
+def test_two_subfolder_matches_are_ambiguous_so_nothing_resolves(root: Path, monkeypatch) -> None:
     _touch(root / "wrappers/blink/a/x.py")
     _touch(root / "wrappers/blink/b/x.py")
-    assert wp.resolve_wrapper_path("blink/x.py") == "blink/x.py"  # the plain miss answer
+    assert wp.resolve_wrapper_path("blink/x.py") is None
     assert wp.moved_wrapper_note("blink/x.py") is None
     monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(root / "wrappers"))
-    assert wp.resolve_wrapper_path("blink/x.py") == str(root / "wrappers/blink/x.py")
+    assert wp.resolve_wrapper_path("blink/x.py") is None
 
 
 def test_a_direct_hit_wins_over_a_subfolder_copy(root: Path) -> None:
@@ -143,10 +154,10 @@ def test_the_fallback_looks_one_level_down_only(root: Path) -> None:
     _touch(root / "wrappers/blink/deep/er/y.py")
     for path in ("blink/alltoall/missing.py", "x.py", "blink/y.py"):
         assert wp.moved_wrapper_note(path) is None
-    assert wp.resolve_wrapper_path("blink/y.py") == "blink/y.py"
+    assert wp.resolve_wrapper_path("blink/y.py") is None
     # a bare filename that is not in the search path: no fallback into subfolders either
     _touch(root / "wrappers/blink/z.py")
-    assert wp.resolve_wrapper_path("z.py") == "z.py"
+    assert wp.resolve_wrapper_path("z.py") is None
     assert wp.moved_wrapper_note("z.py") is None
 
 
@@ -163,7 +174,7 @@ def test_the_first_folder_with_a_match_decides_even_when_it_is_ambiguous(root: P
     _touch(root / "local/wrappers/blink/a/x.py")
     _touch(root / "local/wrappers/blink/b/x.py")
     _touch(root / "wrappers/blink/c/x.py")
-    assert wp.resolve_wrapper_path("blink/x.py") == "blink/x.py"
+    assert wp.resolve_wrapper_path("blink/x.py") is None
     assert wp.moved_wrapper_note("blink/x.py") is None
 
 
@@ -197,3 +208,69 @@ def test_the_runner_warns_once_with_the_new_path_for_an_old_flat_path(
     warnings = [c.args[0] for c in runner.log.warning.call_args_list]
     assert len(warnings) == 1
     assert "blink/alltoall/alltoall_b.py" in warnings[0]
+
+
+def test_a_relative_crab_path_wrappers_entry_is_refused(root: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", f"{root / 'wrappers'}{os.pathsep}rel/b")
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        wp.wrapper_search_path()
+    with pytest.raises(ValueError, match="CRAB_PATH_WRAPPERS"):
+        wp.resolve_wrapper_path("blink/nope.py")
+
+
+def test_a_tilde_entry_becomes_an_absolute_path_under_home(
+    root: Path, monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "~/w")
+    assert wp.wrapper_search_path() == [str(root / "local/wrappers"), str(tmp_path / "home" / "w")]
+    found = _touch(tmp_path / "home" / "w" / "blink/x.py")
+    assert wp.resolve_wrapper_path("blink/x.py") == str(found)
+    assert wp.resolve_wrapper_path("blink/nope.py") is None
+
+
+def test_a_dollar_entry_stays_unexpanded(root: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "$NO_SUCH_VARIABLE_FOR_CRAB/w")
+    assert wp.wrapper_search_path() == [
+        str(root / "local/wrappers"),
+        "$NO_SUCH_VARIABLE_FOR_CRAB/w",
+    ]
+
+
+def _wrapper_config() -> dict:
+    return {"experiments": {"e1": {"apps": {"0": {"path": "blink/nope.py"}}}}}
+
+
+def test_a_preset_wrappers_value_that_expands_to_a_relative_path_is_a_problem(
+    root: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("REL", "rel")
+    problems = wp.config_wrapper_path_problems(
+        _wrapper_config(), env={"CRAB_PATH_WRAPPERS": "$REL/w"}
+    )
+    assert len(problems) == 1
+    assert "CRAB_PATH_WRAPPERS" in problems[0]
+    assert "absolute" in problems[0]
+    assert "CRAB_PATH_WRAPPERS" not in os.environ
+
+
+def test_a_preset_wrappers_value_that_expands_to_an_absolute_path_is_checked(
+    root: Path, monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("REL", str(tmp_path / "folder"))
+    problems = wp.config_wrapper_path_problems(
+        _wrapper_config(), env={"CRAB_PATH_WRAPPERS": "$REL/w"}
+    )
+    assert len(problems) == 1
+    assert "not found on the wrapper search path" in problems[0]
+    assert str(tmp_path / "folder" / "w") in problems[0]
+    assert "CRAB_PATH_WRAPPERS" not in os.environ
+
+
+def test_a_preset_wrappers_value_with_an_unset_variable_is_skipped(root: Path, monkeypatch) -> None:
+    monkeypatch.delenv("REL", raising=False)
+    assert (
+        wp.config_wrapper_path_problems(_wrapper_config(), env={"CRAB_PATH_WRAPPERS": "$REL/w"})
+        == []
+    )
+    assert "CRAB_PATH_WRAPPERS" not in os.environ

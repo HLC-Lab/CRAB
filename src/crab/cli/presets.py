@@ -34,9 +34,7 @@ def shared_preset_folders(crab_root: Path) -> list[Path]:
 
     The wrapper folders are the non-empty `CRAB_PATH_WRAPPERS` entries, else `<crab_root>/wrappers`.
     """
-    entries = [
-        entry for entry in os.environ.get("CRAB_PATH_WRAPPERS", "").split(os.pathsep) if entry
-    ]
+    entries = paths.env_path_list("CRAB_PATH_WRAPPERS")
     if entries:
         return [Path(entry) / "presets" for entry in entries]
     return [Path(crab_root) / "wrappers" / "presets"]

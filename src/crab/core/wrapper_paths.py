@@ -32,8 +32,7 @@ def wrapper_search_path() -> list[str]:
     folder in CRAB_PATH_WRAPPERS (an os.pathsep-separated list), or the checkout's `wrappers/`
     when CRAB_PATH_WRAPPERS is unset.
     """
-    configured = os.environ.get("CRAB_PATH_WRAPPERS")
-    shared = [d for d in configured.split(os.pathsep) if d] if configured else []
+    shared = paths.env_path_list("CRAB_PATH_WRAPPERS")
     return [str(paths.local_path(pathlib.Path(_CRAB_ROOT), "wrappers"))] + (
         shared or [os.path.join(_CRAB_ROOT, "wrappers")]
     )
@@ -67,28 +66,22 @@ def _moved_match(path: str) -> str | None:
     return None
 
 
-def resolve_wrapper_path(path: str) -> str:
+def resolve_wrapper_path(path: str) -> str | None:
     """The file a config's wrapper `path` names: the first match along the search path.
 
-    Absolute paths are returned unchanged. A relative `<suite>/<name>.py` found nowhere but
-    present once in a subfolder (`<suite>/<group>/<name>.py`) resolves to that file: wrappers
-    moved into groups and old configs keep working (`moved_wrapper_note` says so). Any other
-    relative path found nowhere resolves the way it did before the search path existed (under
-    the first CRAB_PATH_WRAPPERS folder, else relative to the working directory), so old
-    configs and error messages stay the same.
+    Absolute paths are returned unchanged, found or not. A relative `<suite>/<name>.py` found
+    nowhere but present once in a subfolder (`<suite>/<group>/<name>.py`) resolves to that file:
+    wrappers moved into groups and old configs keep working (`moved_wrapper_note` says so).
+    Any other relative path is not on the search path and gives None: the working directory is
+    never consulted, because it differs per launch mode (a login node, a job folder, web over
+    SSH).
     """
     if os.path.isabs(path):
         return path
     direct = _direct_hit(path)
     if direct is not None:
         return direct
-    moved = _moved_match(path)
-    if moved is not None:
-        return moved
-    configured = os.environ.get("CRAB_PATH_WRAPPERS")
-    if configured:
-        return os.path.join(configured.split(os.pathsep)[0], path)
-    return path
+    return _moved_match(path)
 
 
 def moved_wrapper_note(path: str) -> str | None:
@@ -171,7 +164,8 @@ def wrapper_path_problem(path: str) -> str | None:
     A direct hit, a moved match and an existing absolute path are all fine. A known old name gets
     its rename note; any other miss gets `missing_wrappers_hint()` when there is one.
     """
-    if os.path.isfile(resolve_wrapper_path(path)):
+    resolved = resolve_wrapper_path(path)
+    if resolved is not None and os.path.isfile(resolved):
         return None
     message = (
         f"wrapper {path} not found on the wrapper search path ({', '.join(wrapper_search_path())})"
@@ -190,7 +184,8 @@ def config_wrapper_path_problems(
     `only` limits the check to those experiment keys (a `crab run --only` rerun). `env` is the
     job's execution environment (a preset's `env`): a CRAB_PATH_WRAPPERS set there wins over this
     process's, as it does in the job. Its bash variables are expanded here; a value that still
-    holds a `$` after that is not guessed at, and the check is skipped. Placeholder paths
+    holds a `$` after that is not guessed at, and the check is skipped; a relative entry is one
+    problem line. Placeholder paths
     (`{var}`) are skipped: they are only known once a sweep expands them. A config shape that
     holds no experiments or apps yields nothing (the schema checks own that). The legacy
     `applications` form counts as one experiment, as the engine reads it.
@@ -201,6 +196,12 @@ def config_wrapper_path_problems(
     expanded = os.path.expandvars(preset_value)
     if "$" in expanded:
         return []
+    try:
+        for entry in expanded.split(os.pathsep):
+            if entry:
+                paths.check_env_value("CRAB_PATH_WRAPPERS", entry)
+    except ValueError as error:
+        return [str(error)]
     saved = os.environ.get("CRAB_PATH_WRAPPERS")
     os.environ["CRAB_PATH_WRAPPERS"] = expanded
     try:

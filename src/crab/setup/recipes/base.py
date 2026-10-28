@@ -114,6 +114,21 @@ class BenchmarkRecipe(ABC):
 
         return None
 
+    def clone_parent(self, target_dir: str) -> str:
+        """Returns the existing absolute folder above target_dir, creating it if missing.
+
+        A `git clone` runs from here: the process's own folder may have been removed.
+
+        Raises:
+            ValueError: target_dir is not an absolute path. The clone command would resolve
+                it against the parent folder, not the caller's.
+        """
+        if not os.path.isabs(target_dir):
+            raise ValueError(f"The target folder must be an absolute path, got {target_dir!r}.")
+        parent = os.path.dirname(target_dir)
+        os.makedirs(parent, exist_ok=True)
+        return parent
+
     def run_command_streamed(
         self,
         cmd: list[str],
@@ -122,7 +137,15 @@ class BenchmarkRecipe(ABC):
         env: dict[str, str] | None,
         log_callback: Callable[[str, str], None] | None,
     ) -> bool:
-        """Runs a command natively and streams output using an explicit environment map."""
+        """Runs a command natively and streams output using an explicit environment map.
+
+        Raises:
+            ValueError: cwd is not an absolute path. A relative folder resolves against the
+                process's own folder, which can be gone.
+        """
+        if not os.path.isabs(cwd):
+            raise ValueError(f"The working folder must be an absolute path, got {cwd!r}.")
+
         if log_callback:
             log_callback("step", step_name)
 

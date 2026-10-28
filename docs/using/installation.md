@@ -111,8 +111,10 @@ are described in [ADR-038](../dev/dashboard/decisions/adr-038-two-layouts.md); t
 These are the places on Linux; other systems use their own user data and config folders. Two
 variables move them:
 
-- `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`.
-- `CRAB_PATH_PRESETS` sets the folder of your override files.
+- `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`. It must be an
+  absolute path (`~` is fine): a relative value stops the command with an error.
+- `CRAB_PATH_PRESETS` sets the folder of your override files. It must be an absolute path
+  (`~` is fine), like `CRAB_HOME`.
 
 The package ships no presets: the shared ones come from the crab-wrappers clone, with the
 wrappers. Your own override files go in `~/.config/crab/presets/` (see
@@ -204,8 +206,15 @@ An application that is already installed does not need the wizard:
 - If its wrapper declares an `executable` and that program is on `PATH` when the job runs (for
   example after a `module load` in your preset), CRAB finds it with no setup at all.
 - Otherwise record where it is: `crab receipts set <benchmark_id> --binary /path/to/program`,
-  optionally with `--pre-run "module load ..."` (repeatable) and `--launcher srun|mpirun`.
-- A config can also name the binary for one app directly, with a `binary` key next to `path`.
+  optionally with `--pre-run "module load ..."` (repeatable) and `--launcher srun|mpirun`. Give
+  a command name on `PATH` (stored as typed, such as `xhpl`), or the full path: `~` is expanded,
+  and a relative path is made absolute from the folder you run the command in, so the receipt
+  works from any folder. A receipt that holds a relative path, for example one written by an
+  older CRAB, is not used: `crab wrappers list` shows it as missing, so register it again.
+- A config can also name the binary for one app directly, with a `binary` key next to `path`:
+  the full path (`~` and `$VAR` are expanded where the job runs) or a command name on `PATH`. A
+  relative path such as `bin/xhpl` is refused by `crab validate` and `crab run`, because it would
+  mean a different file depending on the folder the job starts in.
 
 `crab wrappers list` shows every wrapper CRAB can see and where each one's binary comes from.
 

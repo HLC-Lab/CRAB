@@ -239,7 +239,9 @@ def handle_web(args):
                 install_args = _local_install_args("web")
                 if install_args is None:
                     raise RuntimeError("no CRAB checkout found to install from")
-                subprocess.check_call(install_args)
+                from crab import paths
+
+                subprocess.check_call(install_args, cwd=paths.neutral_dir())
                 print("[+] Installation successful. Launching dashboard...")
                 importlib.invalidate_caches()
                 from crab.web.run import run_server
@@ -412,6 +414,14 @@ def cli_router():
 
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
+
+    from crab import paths
+
+    try:
+        paths.validate_env_paths()
+    except ValueError as exc:
+        print(f"crab: {exc}", file=sys.stderr)
+        sys.exit(2)
 
     from crab.setup.memory import ReceiptError
 

@@ -329,6 +329,22 @@ def test_a_relative_job_dir_still_runs_the_worker_in_its_own_dir(
     assert (tmp_path / "rel" / "out.txt").read_text() == "x\n"
 
 
+def test_a_crab_package_in_the_callers_folder_does_not_replace_the_real_one(
+    harness: Harness, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`python -m` puts the cwd first on sys.path: the supervisor starts with cwd=job_dir, so a
+    `crab/` folder in the caller's current folder is never imported (the decoy raises)."""
+    decoy = tmp_path / "caller" / "crab"
+    decoy.mkdir(parents=True)
+    (decoy / "__init__.py").write_text('raise RuntimeError("decoy crab imported")\n')
+    monkeypatch.chdir(decoy.parent)
+
+    job_id, job_dir = harness.submit("job", ["sh", "-c", "echo $$ > worker.pid; sleep 1"])
+
+    assert _final(harness, job_id) == JobStatus(job_id, "COMPLETED", "local", "0")
+    assert "decoy crab imported" not in (job_dir / "slurm_error.log").read_text()
+
+
 def _write_spec(job_dir: Path, argv: list[str], walltime_seconds: object = 600) -> None:
     spec = {
         "argv": argv,

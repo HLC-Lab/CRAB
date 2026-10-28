@@ -71,7 +71,11 @@ class QERecipeV7(BenchmarkRecipe):
     ) -> tuple[bool, BuildResult | None, str]:
         repo_url = "https://gitlab.com/QEF/q-e.git"
         if not self.run_command_streamed(
-            ["git", "clone", repo_url, target_dir], ".", "Cloning Q-E v7...", env, log_callback
+            ["git", "clone", repo_url, target_dir],
+            self.clone_parent(target_dir),
+            "Cloning Q-E v7...",
+            env,
+            log_callback,
         ):
             return False, None, "Clone failed."
 

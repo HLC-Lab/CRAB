@@ -24,6 +24,8 @@ from pathlib import Path
 
 import platformdirs
 
+from crab import paths
+
 APP_NAME = "crab"
 APP_AUTHOR = "crab"
 
@@ -95,8 +97,8 @@ class Settings:
 
 
 def _resolve_dir(env_var: str, fallback: str) -> Path:
-    override = os.environ.get(env_var)
-    return Path(override).expanduser() if override else Path(fallback)
+    override = paths.env_path(env_var)
+    return override if override is not None else Path(fallback)
 
 
 @lru_cache(maxsize=1)
@@ -106,8 +108,7 @@ def get_settings() -> Settings:
         "CRAB_WEB_CONFIG_DIR", platformdirs.user_config_dir(APP_NAME, APP_AUTHOR)
     )
     data_dir = _resolve_dir("CRAB_WEB_DATA_DIR", platformdirs.user_data_dir(APP_NAME, APP_AUTHOR))
-    library_raw = os.environ.get("CRAB_WEB_LIBRARY_DIR")
-    library_dir = Path(library_raw).expanduser() if library_raw else None
+    library_dir = paths.env_path("CRAB_WEB_LIBRARY_DIR")
     port_raw = os.environ.get("CRAB_WEB_PORT")
     try:
         port = int(port_raw) if port_raw else DEFAULT_PORT

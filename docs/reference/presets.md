@@ -52,7 +52,7 @@ shares, which is now an engine default (see [Special tokens](#special-tokens)).
 | `description` | string | Human-readable label. |
 | `env` | object | Environment variables exported to the applications. They carry no launch settings. A value of `null` removes the key, in an override. |
 | `sbatch` | array of strings | `#SBATCH` directives added to the generated job script. Slurm only. |
-| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only; see [Module flow](../using/presets.md#module-flow). |
+| `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only; see [Module flow](../using/presets.md#module-flow). The script starts in the job's data folder, not in the folder you ran `crab run` from, so use absolute paths for anything a line sources or loads. |
 | `extends` | string | The name of a preset to start from: this preset is that preset's resolved form, changed by the fields written here. See [`extends`](#extends). |
 | `notes` | array of strings | Short remarks about the cluster, printed by `crab presets show` and carried by `crab info --json`. The crab-wrappers guide asks for at most 3 one-line entries in a shared preset. |
 
@@ -233,7 +233,8 @@ The preset a job runs with is resolved once, when the job is submitted: it is sa
 directory as `execution.json`, so editing a preset file never changes a job that was already
 submitted. The final steps then apply to the resolved preset:
 
-- `CRAB_ROOT=__CWD__` is the default of `env`. A preset's own `CRAB_ROOT` wins.
+- `CRAB_ROOT=__CWD__` is the default of `env`. A preset's own `CRAB_ROOT` wins; it must be an
+  absolute path (`~` and `__CWD__` are fine), and a relative one is refused.
 - `sbatch`: your experiment config's own `sbatch_directives` are applied later with higher
   priority; see [Configuration schema → sbatch directives](configuration.md#sbatch-directives).
 - If the preset does not define `CRAB_SYSTEM`, it defaults to the preset's name. It is used in the
@@ -308,7 +309,7 @@ written, `~` is not expanded, and a value cannot refer to another key of the sam
 | Variable | Read by | Notes |
 |----------|---------|-------|
 | `CRAB_ROOT` | framework | CRAB's home: the repository root in a checkout, `~/.local/share/crab` (or `CRAB_HOME`) in a pip install. Set by CRAB for every preset via `__CWD__`. |
-| `CRAB_PATH_WRAPPERS` | runner, presets | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/` (`~/.config/crab/wrappers` in a pip install). Default: `wrappers/` in CRAB's home. The same folders, with `presets/` added, are searched for shared presets (see [Where presets are read from](#where-presets-are-read-from)). The shared presets do not set it, so a value you export reaches the jobs; set it in a preset's `env` to override that for the wrappers (presets are not found that way). |
+| `CRAB_PATH_WRAPPERS` | runner, presets | Folders searched for relative wrapper `path`s, separated by `:`, after `local/wrappers/` (`~/.config/crab/wrappers` in a pip install). Each entry must be an absolute path (`~` is fine; a relative one is refused). Default: `wrappers/` in CRAB's home. The same folders, with `presets/` added, are searched for shared presets (see [Where presets are read from](#where-presets-are-read-from)). The shared presets do not set it, so a value you export reaches the jobs; set it in a preset's `env` to override that for the wrappers (presets are not found that way). |
 | `CRAB_PATH_PRESETS` | presets | The folder of your override files. Default: `local/presets/` in a checkout, `~/.config/crab/presets/` in a pip install. |
 | `CRAB_SYSTEM` | engine | System label for the output path. Defaults to the preset name. |
 | `CRAB_PRESET` | CLI | If set, selects the preset (overridden by `-p`). |
@@ -337,6 +338,8 @@ To migrate a preset, add `scheduler` (`"slurm"` for a cluster), set `launcher`, 
 
 1. `-p` / `--preset` flag
 2. `CRAB_PRESET` environment variable
-3. A `.env` file in the working directory (its contents = the preset name)
+3. A `.env` file in CRAB's home (its contents = the preset name): the repository root in a
+   checkout, `~/.local/share/crab` (or `$CRAB_HOME`) in a pip install; the folder you run `crab`
+   from is not read
 
 If none of these names a preset, `crab run` stops with an error; it never picks one for you.

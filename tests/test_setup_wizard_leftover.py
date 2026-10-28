@@ -140,3 +140,33 @@ def test_symlinked_leftover_is_never_deleted(monkeypatch, tmp_path):
     assert recipe.built_in == []
     assert (elsewhere / "keep.txt").read_text() == "x"
     assert saved == {}
+
+
+def test_cwd_inside_the_leftover_is_left_before_it_is_removed(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    leftover = _leftover(tmp_path)
+    os.chdir(leftover)
+    recipe = _FakeRecipe()
+
+    saved, _ = _drive(monkeypatch, tmp_path, recipe, [True])
+
+    assert recipe.built_in == [str(leftover)]
+    assert "demo" in saved
+    assert os.getcwd() == os.path.realpath(tmp_path)
+
+
+def test_handle_cleanup_leaves_the_folder_it_removes(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    leftover = _leftover(tmp_path)
+    nested = leftover / "build"
+    nested.mkdir()
+    os.chdir(nested)
+    receipt = {"id": "demo", "type": "source", "binary_path": str(leftover / "bin")}
+    monkeypatch.setattr(wizard, "BENCHMARKS_DIR", str(tmp_path))
+    monkeypatch.setattr(wizard.Confirm, "ask", lambda *a, **k: True)
+    monkeypatch.setattr(wizard.memory, "get_receipt", lambda _id: receipt)
+
+    wizard.handle_cleanup("demo")
+
+    assert not leftover.exists()
+    assert os.getcwd() == os.path.realpath(tmp_path)

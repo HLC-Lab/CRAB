@@ -378,7 +378,7 @@ crab parse [--stderr FILE] [--dir DIR] [--args ARGS] [--set KEY=VALUE ...] [--js
 
 | Argument | Meaning | Default |
 |----------|---------|---------|
-| `WRAPPER` | The wrapper file. A relative path is looked up under the wrappers folder (`CRAB_PATH_WRAPPERS`). Required. | none |
+| `WRAPPER` | The wrapper file. A relative path is looked up on the wrapper search path first (`local/wrappers/`, then `CRAB_PATH_WRAPPERS` or `wrappers/`); when nothing there matches, the file you typed is used, relative to the folder you run `crab parse` in. Required. | none |
 | `OUTPUT` | A file holding the application's stdout. Required. | none |
 | `--stderr` | A file holding its stderr. | none |
 | `--dir` | The folder holding files the application wrote. | the folder of `OUTPUT` |
@@ -454,13 +454,16 @@ crab receipts set --binary PATH [--pre-run CMD ...] [--launcher srun|mpirun] [--
 | Argument | Meaning | Default |
 |----------|---------|---------|
 | `ID` | The wrapper's `benchmark_id`. Required. | none |
-| `--binary` | Path to the executable. Required. | none |
+| `--binary` | A command name on `PATH` (stored as typed), or the full path to the executable. Required. | none |
 | `--pre-run` | A command to run before each launch. Repeatable. | none |
 | `--launcher` | `srun` or `mpirun`. Sets this benchmark's launcher kind, which overrides the preset's `launcher` for this benchmark. Any other value is refused. | the preset's launcher |
 | `--allow-missing` | Record the path even if it does not exist here. Without it, a `PATH` that does not exist is refused. | off |
 | `--json` | Print the saved receipt as JSON. | off |
 
-It writes `local/receipts/ID.json`.
+It writes `local/receipts/ID.json`. The path is stored absolute: `~` is expanded and a relative
+path is made absolute from the folder you run the command in, before the existence check. A
+command name such as `xhpl` that is found on `PATH` is stored as typed; a name that is a file in the
+current folder means that file. In a launcher line of several words, every path is made absolute.
 
 ```bash
 crab receipts set mybench --binary /scratch/me/mybench/bin/mybench

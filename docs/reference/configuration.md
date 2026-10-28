@@ -100,7 +100,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `numnodes` | int | required | Total nodes: allocated for the Slurm job, or the first `numnodes` hosts of a local preset. |
 | `ppn` | int | `1` | Ranks per node, for every app that does not set its own. Drives the launcher's total task count. See [Ranks per node](#ranks-per-node-ppn). |
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
-| `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
+| `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. `~` and `$VAR` are expanded; a relative path is relative to CRAB's home (the repository root in a checkout), not to the folder you run `crab` from. |
 | `allocation` | object | `{"mode":"linear"}` | Node-to-app mapping strategy. See [Allocation](#allocation-fields). |
 | `minruns` | int | `10` | Minimum successful runs before convergence is checked. A failed run does not count. |
 | `maxruns` | int | `20` | Hard cap on runs, failed ones included. |
@@ -354,8 +354,8 @@ application:
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `path` | string | required | Path to the [wrapper](../glossary.md#wrapper) module. A relative path is looked up in `local/wrappers/`, then in each folder of `CRAB_PATH_WRAPPERS` (or `wrappers/`); see [Where CRAB looks for wrappers](../extending/wrappers.md#where-crab-looks-for-wrappers). `crab validate` and `crab run` refuse a path that names no file there. |
-| `binary` | string | none | Path to the application's executable for this app. Takes precedence over the wrapper's receipt and `PATH` lookup. |
+| `path` | string | required | Path to the [wrapper](../glossary.md#wrapper) module. A relative path is looked up in `local/wrappers/`, then in each folder of `CRAB_PATH_WRAPPERS` (or `wrappers/`); see [Where CRAB looks for wrappers](../extending/wrappers.md#where-crab-looks-for-wrappers). Nothing is looked up relative to the working directory, and `~` is not expanded. `crab validate` and `crab run` refuse a path that names no file. |
+| `binary` | string | none | The application's executable for this app: a full path (`~` and `$VAR` are expanded where the job runs) or a command name on `PATH`. A relative path such as `bin/xhpl` is refused by `crab validate` and `crab run`. Takes precedence over the wrapper's receipt and `PATH` lookup. |
 | `args` | string | `""` | Command-line arguments passed to the executable. |
 | `collect` | bool | `false` | Whether to parse and store this app's metrics. |
 | `start` | string | `"0"` | When to start the app. See [Scheduling](#scheduling-start-and-end). |

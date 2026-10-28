@@ -337,3 +337,34 @@ def test_a_preset_with_an_unset_mark_is_a_validation_error(
 
     assert len(errors) == 1
     assert "Preset 'lab' needs your own value for --account." in errors[0]
+
+
+@pytest.mark.parametrize(
+    ("key", "value"), [("CRAB_PATH_WRAPPERS", "/abs/a:rel/b"), ("CRAB_ROOT", "rel/root")]
+)
+def test_a_relative_folder_in_the_preset_env_is_an_error_line(
+    tmp_path: Path, key: str, value: str
+) -> None:
+    from crab.cli.validate import validate_file
+
+    presets = {"p": {"scheduler": "slurm", "env": {key: value}}}
+    with patch("crab.cli.presets.load_all_presets", return_value=presets):
+        errors, warnings = validate_file(_config(tmp_path, _experiment()), "p")
+
+    assert len(errors) == 1
+    assert "Preset 'p'" in errors[0]
+    assert key in errors[0]
+    assert "absolute" in errors[0]
+    assert warnings == []
+
+
+def test_a_relative_binary_is_an_error_line_and_an_absolute_one_is_not() -> None:
+    from crab.cli.validate import check_config_problems
+
+    config = _experiment()
+    config["experiments"]["e1"]["apps"]["0"]["binary"] = "bin/xhpl"
+    errors, _warnings = check_config_problems(config)
+    assert len(errors) == 1 and "experiment e1: app 0" in errors[0] and "'bin/xhpl'" in errors[0]
+
+    config["experiments"]["e1"]["apps"]["0"]["binary"] = "/opt/hpl/bin/xhpl"
+    assert check_config_problems(config)[0] == []

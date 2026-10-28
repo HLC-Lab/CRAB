@@ -192,6 +192,7 @@ class SlurmScheduler:
         Raises:
             RuntimeError: if sbatch refuses the job; the message carries Slurm's reason.
         """
+        job_dir = os.path.abspath(job_dir)
         sbatch_headers = self.generate_header(global_opts, job_dir, tasks_per_node)
 
         script_path = os.path.join(job_dir, "crab_job.sh")
@@ -226,7 +227,7 @@ class SlurmScheduler:
         job_id = None
         try:
             out = subprocess.check_output(
-                ["sbatch", script_path], text=True, stderr=subprocess.STDOUT
+                ["sbatch", script_path], text=True, stderr=subprocess.STDOUT, cwd=job_dir
             )
             m = re.search(r"Submitted batch job (\d+)", out)
             job_id = m.group(1) if m else None

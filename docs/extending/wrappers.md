@@ -36,8 +36,8 @@ A config names a wrapper by `path`, for example `blink/alltoall/alltoall_b.py`. 
 these folders, and the first match wins:
 
 1. `local/wrappers/` in the CRAB checkout;
-2. each folder in `CRAB_PATH_WRAPPERS` (separate several with `:`), or the checkout's `wrappers/`
-   when the variable is not set.
+2. each folder in `CRAB_PATH_WRAPPERS` (separate several with `:`; each must be an absolute path),
+   or the checkout's `wrappers/` when the variable is not set.
 
 An absolute `path` is used as is. `crab wrappers list` shows the search path and every wrapper
 found on it.
@@ -121,7 +121,9 @@ app that declares no metrics is the only exception).
 For a wrapper that uses the default launch (`binary + " " + args`), CRAB takes the binary from, in
 order:
 
-1. the app's `binary` key in the experiment config;
+1. the app's `binary` key in the experiment config: a full path or a command name. `~` and `$VAR`
+   are expanded when the job runs; a relative path such as `bin/xhpl` is refused before anything is
+   submitted, and a `$VAR` that is not set on the node is an error that names it;
 2. the wrapper's receipt (`get_binary_path()`, which reads the receipt named by `benchmark_id`);
 3. `executable`, looked up on `PATH` in the job's environment.
 
@@ -129,7 +131,7 @@ A receipt path or a wrapper's built-in default counts only when the file exists.
 prefix command followed by the binary (`/opt/select_nic /opt/bin/x`), and then every path in it
 must exist; a bare command name has no path to check and is kept. When a path is absent, CRAB goes
 on to the next source, and the error names that path. The app's `binary` key is your explicit
-choice and is used even when the file is absent.
+choice and is used even when the file is absent; it never falls back to the receipt or `PATH`.
 
 When none of them gives a binary, the experiment fails before its first run, with a message listing
 what was tried. A wrapper whose receipt stores a directory rather than the executable can override
