@@ -16,6 +16,7 @@ pytest.importorskip("fastapi", reason="web extra not installed")
 from conftest import auth_client  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
+from crab.web.errors import InputError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from test_web_catalog import _INFO, _leonardo  # noqa: E402
@@ -360,3 +361,35 @@ def test_the_old_cluster_only_urls_are_gone(client_and_fake) -> None:
     posted = client.post("/api/remotes/leonardo/receipts", json=_BODY)
     assert posted.status_code == 405
     assert len(fake.calls) == before
+
+
+def test_receipt_import_refuses_a_relative_binary_before_any_command(client_and_fake) -> None:
+    """The cluster's folder is not the person's: a relative path cannot be resolved there."""
+    client, fake = client_and_fake
+    before = len(fake.calls)
+    resp = client.post("/api/wrappers/leonardo/receipts", json={**_BODY, "binary": "rel/dir/x"})
+    # The app's own envelope (the web client reads `code` and `message`), not FastAPI's list.
+    assert resp.status_code == InputError.http_status
+    assert resp.json()["code"] == "input_error"
+    assert "full path" in resp.json()["message"]
+    assert len(fake.calls) == before
+
+
+@pytest.mark.parametrize(
+    ("binary", "sent"),
+    [
+        ("/abs/x", "/abs/x"),
+        ("xhpl", "xhpl"),
+        ("/opt/select_nic rel/x", "/opt/select_nic rel/x"),
+        # A leading ~ is left for the cluster's shell to expand, as for every remote path.
+        ("~/x", "$HOME/x"),
+    ],
+)
+def test_receipt_import_passes_other_binaries_through_unchanged(
+    client_and_fake, binary, sent
+) -> None:
+    client, fake = client_and_fake
+    resp = client.post("/api/wrappers/leonardo/receipts", json={**_BODY, "binary": binary})
+    assert resp.status_code == 200
+    words = _crab_words(fake.calls[-1], local=False)
+    assert words[words.index("--binary") + 1] == sent

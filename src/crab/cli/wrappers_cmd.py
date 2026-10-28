@@ -12,6 +12,7 @@ import csv
 import json
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -47,12 +48,23 @@ def _read(path: str) -> bytes:
 def handle_parse(args: argparse.Namespace) -> None:
     from crab.cli.wrappers_catalog import parse_saved_output
     from crab.core.data.parse import ParseError
-    from crab.core.wrapper_paths import missing_wrappers_hint, resolve_wrapper_path
+    from crab.core.wrapper_paths import (
+        missing_wrappers_hint,
+        renamed_wrapper_note,
+        resolve_wrapper_path,
+        wrapper_search_path,
+    )
 
+    # The search path first, then the file as typed, relative to the folder `crab parse` runs in.
     path = resolve_wrapper_path(args.wrapper)
-    if not os.path.isfile(path):
-        hint = missing_wrappers_hint()
-        _fail(f"wrapper not found: {path}" + (f". {hint}" if hint else ""))
+    if path is None and os.path.isfile(args.wrapper):
+        path = os.path.abspath(args.wrapper)
+    if path is None or not os.path.isfile(path):
+        searched = (
+            "" if os.path.isabs(args.wrapper) else f" (searched {', '.join(wrapper_search_path())})"
+        )
+        detail = renamed_wrapper_note(args.wrapper) or missing_wrappers_hint()
+        _fail(f"wrapper not found: {args.wrapper}{searched}" + (f". {detail}" if detail else ""))
 
     settings = dict(_setting(raw) for raw in args.set or [])
     stderr = _read(args.stderr) if args.stderr else b""
@@ -89,10 +101,17 @@ def handle_parse(args: argparse.Namespace) -> None:
 def handle_receipts_set(args: argparse.Namespace) -> None:
     import crab.setup.memory as memory
     from crab.cli.contract import CONTRACT_SCHEMA
+    from crab.fsutil import absolute_binary
 
     if not _RECEIPT_ID.match(args.id):
         _fail(f"receipt id {args.id!r} may only use letters, digits, '_', '-' and '.'")
-    if not args.allow_missing and not os.path.exists(args.binary):
+    try:
+        # A bare name that is a file in this folder means that file; any other stays a command.
+        args.binary = absolute_binary(args.binary, bare_is_path=os.path.exists(args.binary))
+    except ValueError as error:
+        _fail(str(error))
+    on_path = os.sep not in args.binary and shutil.which(args.binary) is not None
+    if not args.allow_missing and not os.path.exists(args.binary) and not on_path:
         _fail(f"binary {args.binary} does not exist (use --allow-missing to record it anyway)")
 
     receipt = {
@@ -359,7 +378,12 @@ def register(subparsers: Any) -> None:
     receipts_sub = parser_receipts.add_subparsers(dest="receipts_command", required=True)
     parser_set = receipts_sub.add_parser("set", help="Record where a benchmark's binary lives")
     parser_set.add_argument("id", help="The wrapper's benchmark_id.")
-    parser_set.add_argument("--binary", required=True, help="Path to the executable.")
+    parser_set.add_argument(
+        "--binary",
+        required=True,
+        help="Full path to the executable (~ is expanded; a relative path is made absolute "
+        "from where you run this), or a command name on PATH (stored as typed).",
+    )
     parser_set.add_argument(
         "--pre-run",
         action="append",

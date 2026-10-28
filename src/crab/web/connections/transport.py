@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from crab import paths
 from crab.web.errors import AuthError, RemoteCommandError, RemoteConnectionError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -325,6 +326,7 @@ class LocalTransport(Transport):
                 command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                cwd=paths.neutral_dir(),  # a `crab/` in the caller's folder must not shadow ours
             )
             out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:

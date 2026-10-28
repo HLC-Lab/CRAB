@@ -47,6 +47,7 @@ deleted.
 | [036](adr-036-corun-srun-and-app-ranks.md) | Co-runs under srun get explicit step flags; `ppn` is set per app | accepted |
 | [037](adr-037-blink-wrapper-folders.md) | Blink wrappers live in Blink's own source folders | accepted |
 | [038](adr-038-two-layouts.md) | Two layouts: in-repo state for checkouts, user dirs for installs | accepted; presets part superseded by 041 |
-| [039](adr-039-public-surface-1-0.md) | The public surface CRAB 1.0 keeps stable: the CLI, its data contracts and the wrapper base class | accepted; presets part superseded by 041 |
+| [039](adr-039-public-surface-1-0.md) | The public surface CRAB 1.0 keeps stable: the CLI, its data contracts and the wrapper base class | accepted; presets part and the 1.0 timing superseded by 041 and 042 |
 | [040](adr-040-minruns-counts-successful-runs.md) | `minruns` counts successful runs; `maxruns` and `timeout` count every started run | accepted |
 | [041](adr-041-presets-in-crab-wrappers.md) | Cluster presets live in crab-wrappers; users patch them with per-user overrides | accepted |
+| [042](adr-042-stable-from-2-0.md) | CRAB is declared stable from 2.0; 1.x may change its public surface | accepted |

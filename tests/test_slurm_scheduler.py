@@ -307,3 +307,72 @@ def test_header_sizes_ntasks_per_node_from_tasks_per_node(tmp_path: Path) -> Non
 def test_header_keeps_the_global_ppn_without_tasks_per_node(tmp_path: Path) -> None:
     header = _scheduler(tmp_path).generate_header({"numnodes": 2, "ppn": 3}, str(tmp_path))
     assert "#SBATCH --ntasks-per-node=3" in header
+
+
+class _FakeSbatchCall:
+    """Stands in for `subprocess.check_output` in a submit; records argv and kwargs."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[str], dict[str, Any]]] = []
+
+    def __call__(self, cmd: list[str], **kwargs: Any) -> str:
+        self.calls.append((list(cmd), kwargs))
+        return "Submitted batch job 4242"
+
+
+def _submit_with_fake(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    job_dir: str,
+    global_opts: dict[str, Any] | None = None,
+) -> _FakeSbatchCall:
+    fake = _FakeSbatchCall()
+    monkeypatch.setattr(subprocess, "check_output", fake)
+    scheduler = SlurmScheduler(MagicMock(), crab_root=str(tmp_path))
+    assert scheduler.submit(job_dir, global_opts or {}) == "4242"
+    return fake
+
+
+def test_submit_runs_sbatch_in_the_job_folder(tmp_path, monkeypatch):
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    job_dir = tmp_path / "data" / "j1"
+    job_dir.mkdir(parents=True)
+    fake = _submit_with_fake(tmp_path, monkeypatch, str(job_dir))
+    cmd, kwargs = fake.calls[0]
+    assert cmd == ["sbatch", str(job_dir / "crab_job.sh")]
+    assert kwargs["cwd"] == str(job_dir)
+    assert (job_dir / "crab_job.sh").is_file()
+
+
+def test_submit_makes_a_relative_job_folder_absolute(tmp_path, monkeypatch):
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    (elsewhere / "jobs" / "j1").mkdir(parents=True)
+    absolute = str(elsewhere / "jobs" / "j1")
+    fake = _submit_with_fake(tmp_path, monkeypatch, "jobs/j1")
+    cmd, kwargs = fake.calls[0]
+    assert kwargs["cwd"] == absolute
+    assert cmd == ["sbatch", f"{absolute}/crab_job.sh"]
+    script = (elsewhere / "jobs" / "j1" / "crab_job.sh").read_text()
+    assert f"#SBATCH --output={absolute}/slurm_output.log\n" in script
+    assert f"#SBATCH --error={absolute}/slurm_error.log\n" in script
+    assert f"--workdir {absolute}\n" in script
+    assert "--output=jobs/" not in script
+    assert "--workdir jobs/" not in script
+
+
+def test_a_preset_chdir_directive_stays_in_the_script(tmp_path, monkeypatch):
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    job_dir = tmp_path / "data" / "j1"
+    job_dir.mkdir(parents=True)
+    fake = _submit_with_fake(
+        tmp_path, monkeypatch, str(job_dir), {"system_sbatch": ["--chdir=/some/where"]}
+    )
+    script = (job_dir / "crab_job.sh").read_text()
+    assert "#SBATCH --chdir=/some/where\n" in script
+    assert fake.calls[0][1]["cwd"] == str(job_dir)

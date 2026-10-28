@@ -83,6 +83,29 @@ def test_no_git_and_missing_files_are_recorded_as_unknown(
     assert data["apps"]["e1"]["0"]["sha256"] is None
 
 
+def test_an_app_path_on_no_search_folder_is_recorded_as_null_and_never_raises(
+    tmp_path: Path, wrappers: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A file of that name in the current folder is not looked at."""
+    launch = tmp_path / "launch"
+    (launch / "blink").mkdir(parents=True)
+    (launch / "blink" / "gone.py").write_text("class app: pass\n")
+    monkeypatch.chdir(launch)
+    config = {
+        "experiments": {
+            "e1": {"apps": {"0": {"path": "blink/a2a.py"}, "1": {"path": "blink/gone.py"}}}
+        }
+    }
+    write_provenance(str(tmp_path), config, [])
+    apps = json.loads((tmp_path / "crab_run.json").read_text())["apps"]["e1"]
+    wrapper_file = wrappers / "blink" / "a2a.py"
+    assert apps["0"] == {
+        "path": str(wrapper_file),
+        "sha256": hashlib.sha256(wrapper_file.read_bytes()).hexdigest(),
+    }
+    assert apps["1"] == {"path": None, "sha256": None}
+
+
 # --------------------------------------------------------------------------- #
 # crab_commit: only a checkout has one
 # --------------------------------------------------------------------------- #

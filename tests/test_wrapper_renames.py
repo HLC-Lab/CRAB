@@ -119,6 +119,19 @@ def test_a_missing_absolute_path_is_a_problem(wrappers: Path, tmp_path: Path) ->
     assert problem is not None and "gone.py" in problem
 
 
+def test_a_file_in_the_current_folder_does_not_make_a_relative_path_pass(
+    wrappers: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    here = tmp_path / "launch"
+    (here / "suite").mkdir(parents=True)
+    (here / "suite" / "w.py").write_text("class app: pass\n")
+    monkeypatch.chdir(here)
+    problem = wp.wrapper_path_problem("suite/w.py")
+    assert problem is not None
+    assert problem.startswith("wrapper suite/w.py not found on the wrapper search path (")
+    assert str(wrappers) in problem
+
+
 def test_placeholder_paths_are_skipped(wrappers: Path) -> None:
     assert wp.config_wrapper_path_problems(_config("blink/{name}.py")) == []
 

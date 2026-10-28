@@ -130,6 +130,64 @@ def test_env_var_sets_library_dir(tmp_path: Path, monkeypatch):
         get_settings.cache_clear()
 
 
+_WEB_DIR_VARS = ("CRAB_WEB_CONFIG_DIR", "CRAB_WEB_DATA_DIR", "CRAB_WEB_LIBRARY_DIR")
+
+
+@pytest.fixture
+def web_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """The three CRAB_WEB_*_DIR variables unset, a fake HOME, and a clean settings cache."""
+    from crab.web.settings import get_settings
+
+    for name in _WEB_DIR_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.mark.parametrize("name", _WEB_DIR_VARS)
+def test_a_relative_web_dir_variable_is_refused(name: str, web_env, monkeypatch) -> None:
+    from crab.web.settings import get_settings
+
+    monkeypatch.setenv(name, "rel/x")
+    with pytest.raises(ValueError, match=name):
+        get_settings()
+
+
+def test_web_dir_variables_expand_the_tilde(web_env, monkeypatch, tmp_path: Path) -> None:
+    from crab.web.settings import get_settings
+
+    for name in _WEB_DIR_VARS:
+        monkeypatch.setenv(name, "~/x-" + name)
+    settings = get_settings()
+    assert settings.config_dir == tmp_path / "home" / "x-CRAB_WEB_CONFIG_DIR"
+    assert settings.data_dir == tmp_path / "home" / "x-CRAB_WEB_DATA_DIR"
+    assert settings.library_dir == tmp_path / "home" / "x-CRAB_WEB_LIBRARY_DIR"
+
+
+def test_web_dir_variables_accept_absolute_paths(web_env, monkeypatch, tmp_path: Path) -> None:
+    from crab.web.settings import get_settings
+
+    monkeypatch.setenv("CRAB_WEB_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("CRAB_WEB_DATA_DIR", str(tmp_path / "data"))
+    settings = get_settings()
+    assert settings.config_dir == tmp_path / "cfg"
+    assert settings.data_dir == tmp_path / "data"
+    assert settings.library_dir is None
+
+
+def test_unset_web_dir_variables_fall_back_to_the_platform_dirs(web_env) -> None:
+    import platformdirs
+
+    from crab.web.settings import get_settings
+
+    settings = get_settings()
+    assert settings.config_dir == Path(platformdirs.user_config_dir("crab", "crab"))
+    assert settings.data_dir == Path(platformdirs.user_data_dir("crab", "crab"))
+    assert settings.library_dir is None
+
+
 # --------------------------------------------------------------------------- #
 # Save warnings (ADR-015)
 # --------------------------------------------------------------------------- #

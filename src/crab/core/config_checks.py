@@ -18,6 +18,7 @@ from crab.core.execution.launch_checks import (
 from crab.core.execution.placement_checks import allocate_on_paper, check_experiment
 from crab.core.execution.settings import ExecutionSettings
 from crab.core.execution.tokens import has_token
+from crab.fsutil import relative_path_word
 
 ALLOCATION_MODES = ("linear", "interleaved", "random", "shared")
 CORES_MODES = ("disjoint", "shared")
@@ -268,6 +269,29 @@ def _check_allocation(
             )
 
 
+def _check_binary(binary: Any, where: str) -> None:
+    """An app's `binary` is a full path (`~` and `$VAR` allowed) or a command name, never relative."""
+    if binary is None or binary == "":
+        return
+    if not isinstance(binary, str):
+        raise ValueError(f"{where}: binary must be a string, got {binary!r}")
+    word = relative_path_word(binary)
+    if word is not None:
+        raise ValueError(
+            f"{where}: binary {word!r} is a relative path; give the full path (~ is fine) "
+            "or a command name that is on PATH"
+        )
+
+
+def _check_datapath(global_opts: dict[str, Any]) -> None:
+    """`datapath`, when given, is a non-empty string; the engine expands it and makes it absolute."""
+    if "datapath" not in global_opts:
+        return
+    datapath = global_opts["datapath"]
+    if not isinstance(datapath, str) or not datapath.strip():
+        raise ValueError(f"global_options.datapath must be a non-empty string, got {datapath!r}")
+
+
 def check_config(config: dict[str, Any], settings: ExecutionSettings | None = None) -> list[str]:
     """Raise ValueError on the first value the engine would ignore or misread.
 
@@ -280,6 +304,7 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
     warnings: list[str] = []
     check_managed_directives(global_opts)
     check_ppn(global_opts, "global_options")
+    _check_datapath(global_opts)
     for exp_name, exp in _experiments(config).items():
         opts = {**global_opts, **(exp.get("local_options") or {})}
         _check_options(opts, exp_name)
@@ -315,4 +340,5 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
             if "collect" in app:
                 parse_bool(app["collect"], f"{where}: collect")
             _check_collected_end(app, where, warnings)
+            _check_binary(app.get("binary"), where)
     return warnings

@@ -134,7 +134,9 @@ def _locate(relpath: str) -> tuple[Path, Path]:
             found, owner = folder / relpath, folder
             break
     else:
-        moved = Path(resolve_wrapper_path(relpath)) if moved_wrapper_note(relpath) else None
+        resolved = resolve_wrapper_path(relpath) if moved_wrapper_note(relpath) else None
+        # `resolved` is never None here; the check only narrows the type.
+        moved = Path(resolved) if resolved is not None else None
         # A moved file sits at <folder>/<suite>/<group>/<name>.
         if moved is None or not moved.is_file() or moved.parents[2] not in folders:
             found = owner = None

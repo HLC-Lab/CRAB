@@ -41,7 +41,7 @@ A job that was accepted and then failed leaves its output in the job folder, und
 ### "wrappers/ is missing"
 
 ```text
-Wrapper not found: <path>. wrappers/ is missing: run `<command>` to clone the wrappers (<repository URL>)
+wrapper <path> not found on the wrapper search path (<folder>, <folder>). wrappers/ is missing: run `<command>` to clone the wrappers (<repository URL>)
 ```
 
 The wrappers are a separate repository, cloned next to CRAB. This message appears when the
@@ -62,8 +62,12 @@ wrapper <path> not found on the wrapper search path (<folder>, <folder>)
 
 `crab validate` prints this as an error, and `crab run` stops with it before it submits anything,
 when an app's `path` names no file on the wrapper search path. The folders in parentheses are the
-search path as this machine sees it: `local/wrappers/` first, then each folder of
-`CRAB_PATH_WRAPPERS`, or `wrappers/` when that variable is unset. A path that is still an old
+search path as this machine sees it: `local/wrappers/` first (`~/.config/crab/wrappers` on a pip
+install), then each folder of `CRAB_PATH_WRAPPERS`, or `wrappers/` when that variable is unset.
+Nothing is looked up relative to the working directory, so a wrapper next to the config or in the
+folder you launched from is not found: put it in one of those folders, or write its absolute path.
+The same message can appear in a job's logs when the wrappers differ between the submitting machine
+and the compute node. A path that is still an old
 Blink name gets a second sentence with the fix:
 
 ```text
@@ -83,20 +87,6 @@ only with `-p`. If the wrappers are on the cluster and not on this machine, vali
 `{name}` placeholder is skipped, because it is known only when the sweep expands. `crab worker`
 does not run this check up front, but it gives the same rename message when it reaches the
 wrapper.
-
-### "Wrapper not found" for a relative path
-
-```text
-Wrapper not found: <path>
-```
-
-A relative `path` in an app is looked up in `local/wrappers/` (`~/.config/crab/wrappers` on a pip
-install), then in each folder of `CRAB_PATH_WRAPPERS`, or in `wrappers/` when that variable is
-unset. If nothing matches, the message shows the path the lookup fell back to: under the first
-`CRAB_PATH_WRAPPERS` folder when that is set, else relative to the worker's working directory.
-`crab validate` and `crab run` catch a wrong path before they submit (see the entry above), so this
-message appears in a job's logs only when the wrappers differ between the submitting machine and
-the compute node.
 
 Check the path against `crab wrappers list`, which prints every wrapper CRAB can see with its path
 relative to the wrappers folders. Paths are relative to the folder, such as
@@ -166,8 +156,9 @@ No preset selected. Pass -p <preset> or set CRAB_PRESET (use -p local to run wit
 ```
 
 `crab run` never picks a preset for you, so a forgotten `-p` cannot run a benchmark on a login
-node. Pass `-p <name>`, set `CRAB_PRESET`, or put the name in a `.env` file in the working
-directory. See [Selecting your preset](presets.md#selecting-your-preset).
+node. Pass `-p <name>`, set `CRAB_PRESET`, or put the name in a `.env` file in CRAB's home (the
+repository root in a checkout, `~/.local/share/crab` or `$CRAB_HOME` in a pip install; not the
+folder you run `crab` from). See [Selecting your preset](presets.md#selecting-your-preset).
 
 ### Preset not found
 

@@ -628,3 +628,18 @@ def test_setup_ensures_the_wrappers(ensure_spy, monkeypatch) -> None:
     monkeypatch.setattr(wizard, "run", lambda: None)
     handle_setup(None)
     assert ensure_spy == [1]
+
+
+def test_clear_leftovers_steps_out_of_a_child_it_removes(tmp_path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    directory = tmp_path / "wrappers"
+    cache = directory / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "x.cpython-312.pyc").write_bytes(b"")
+    os.chdir(cache)
+
+    assert wrappers_clone._clear_leftovers(directory) is True
+
+    assert directory.is_dir()
+    assert list(directory.iterdir()) == []
+    assert os.getcwd() == os.path.realpath(directory)

@@ -25,9 +25,11 @@ CRAB 1.0 is a mature, installable product, not a feature milestone:
 - It runs on Slurm and without Slurm: a local backend, on one machine or several, is documented
   and supported like the Slurm one, with `srun` or `mpirun` as the launcher
   ([ADR-029](dashboard/decisions/adr-029-scheduler-and-launcher.md)).
-- A documented, semver-stable public surface: the CLI and its `--json` outputs, the `crab worker`
-  seam, the config and presets formats, the result files, and the wrapper base class
-  ([ADR-039](dashboard/decisions/adr-039-public-surface-1-0.md)). There is no Python API in
+- A documented public surface: the CLI and its `--json` outputs, the `crab worker` seam, the
+  config and presets formats, the result files, and the wrapper base class
+  ([ADR-039](dashboard/decisions/adr-039-public-surface-1-0.md)). The promise that it stays
+  stable starts at 2.0, not at 1.0
+  ([ADR-042](dashboard/decisions/adr-042-stable-from-2-0.md)). There is no Python API in
   1.0: `crab.run()` moved to 1.x.
 - A `crab validate` command that runs the pre-submit checks of `crab run` without submitting.
 - The wrapper contract is finished: the old `read_data()` return shape is an error and the stock
@@ -115,10 +117,12 @@ dashboard, SbatchMan-generated configs) pass one typed gate, moved to 1.x. The c
 stays JSON and carries `schema_version`.
 
 **M6 · Public surface.** Cut for 1.0 to a decision record,
-[ADR-039](dashboard/decisions/adr-039-public-surface-1-0.md), that names what the semver
-promise covers: the CLI, its `--json` outputs, the `crab worker` seam, the config and presets
-formats, the result files, the wrapper base class, receipts and the environment variables. A
-Python `crab.run()` API is not in 1.0 and moved to 1.x.
+[ADR-039](dashboard/decisions/adr-039-public-surface-1-0.md), that names the surfaces the
+public promise covers: the CLI, its `--json` outputs, the `crab worker` seam, the config and
+presets formats, the result files, the wrapper base class, receipts and the environment
+variables. The promise itself starts at 2.0
+([ADR-042](dashboard/decisions/adr-042-stable-from-2-0.md)), and 1.x releases may still change
+these surfaces. A Python `crab.run()` API is not in 1.0 and moved to 1.x.
 
 **M7 · Wrapper contract.** An explicit, documented wrapper base class that all shipped wrappers
 migrate to; an isolated working directory per app run; a hook that copies the files a benchmark
@@ -183,6 +187,10 @@ Ordering after 1.1 is tentative and is revisited at each release.
   schedulers (PBS, Flux) on the M2 interface; topology-aware placement; checkpointing,
   prolog/epilog hooks and live log streaming; per-experiment partition override and
   single-node reuse for sequential apps.
+- **2.0 is the first stable release.** The surfaces listed in
+  [ADR-039](dashboard/decisions/adr-039-public-surface-1-0.md) are promised from then on: a
+  breaking change to them needs a new major version. Until then 1.x releases may change them,
+  and the changelog lists each change ([ADR-042](dashboard/decisions/adr-042-stable-from-2-0.md)).
 - A terminal UI. The Textual TUI was removed in 1.0 (the web dashboard replaced it); bring one
   back only if users ask for it (see [Moved to 1.x](#moved-to-1x)).
 - The full intentionally-not-now list stays in [deferred.md](dashboard/deferred.md).

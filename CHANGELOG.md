@@ -1,9 +1,13 @@
 # Changelog
 
 All notable changes to CRAB are listed here, newest first. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.0.0 the versions follow
-[semantic versioning](https://semver.org/), as defined in
-[ADR-039](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-039-public-surface-1-0/).
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). From 1.0.0 the version numbers follow
+[semantic versioning](https://semver.org/), but the stability promise starts at 2.0: 1.x releases
+may contain breaking changes to the public surface, and each one is listed in that release under a
+"Breaking" note. The surfaces and what stable means for each are in
+[ADR-039](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-039-public-surface-1-0/);
+the decision to promise them from 2.0 is
+[ADR-042](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-042-stable-from-2-0/).
 
 Each product-line release is listed here. The SbatchMan partner line is tagged `vX.Y.Z+sbatchman`,
 usually alongside the product release. A SbatchMan-only release has only the `+sbatchman` tag, and
@@ -17,7 +21,12 @@ Planned as 1.2.0.
 
 This release changes the presets format and where presets live, inside the 1.x line
 ([ADR-041](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-041-presets-in-crab-wrappers/)).
+It also stops guessing folders from the current directory: a value that names a folder must be
+absolute.
 
+- `CRAB_HOME`, `CRAB_PATH_WRAPPERS` (each entry), `CRAB_PATH_PRESETS` and
+  `CRAB_WEB_CONFIG_DIR`/`_DATA_DIR`/`_LIBRARY_DIR` must be absolute paths (`~` is fine). A relative
+  value stops the command with an error that names the variable.
 - The single-file overrides are refused. `local/presets.json` (in CRAB's home) and `presets.json`
   in the config folder (`~/.config/crab/presets.json` or `$CRAB_HOME/config/presets.json`) are no
   longer read. While one exists, every command that loads presets stops with a message that names
@@ -40,6 +49,24 @@ This release changes the presets format and where presets live, inside the 1.x l
 - The shared presets write the account of a cluster as a required mark, `--account=<YOUR_ACCOUNT>`.
   `crab run`, `crab validate -p` and `crab nodes -p` refuse such a preset until your overrides set
   it.
+- A relative path in an app's `binary` key (`bin/xhpl`, `./xhpl`) is refused by `crab validate` and
+  `crab run` before anything is submitted. Use the full path (`~` and `$VAR` are fine, expanded
+  where the job runs) or a command name on `PATH`.
+- A relative wrapper `path` that is not on the wrapper search path is no longer looked for
+  relative to the current folder, or under the first `CRAB_PATH_WRAPPERS` folder. The run stops
+  with `wrapper <path> not found on the wrapper search path`. Put the wrapper in `local/wrappers/`
+  or in a `CRAB_PATH_WRAPPERS` folder, or use an absolute path.
+- A relative `global_options.datapath` is relative to CRAB's home (the repository root in a
+  checkout), not to the folder you run `crab` from. `~` and `$VAR` are expanded, and the results
+  folder is always absolute. An empty or null `datapath`, or one that uses a variable that is not
+  set, is refused before anything is submitted.
+- Slurm jobs start in their data folder instead of the folder `crab run` was typed in. A preset
+  `header` line with a relative path (`source ./env.sh`) must become absolute. A preset's own
+  `--chdir` directive still wins.
+- The `.env` preset file (just the preset name, used when neither `-p` nor `CRAB_PRESET` is given)
+  is read from CRAB's home, the repository root in a checkout and `~/.local/share/crab` (or
+  `$CRAB_HOME`) in a pip install, instead of the folder you run `crab` from. A `.env` in the
+  current folder is ignored.
 
 ### Added
 
@@ -61,6 +88,15 @@ This release changes the presets format and where presets live, inside the 1.x l
 
 ### Changed
 
+- `crab setup` and `crab receipts set` store the binary path as an absolute path: `~` is expanded
+  and a relative path is made absolute from where you type it. A bare command name (a module's
+  executable) stays as typed. In a launcher line of several words every path is made absolute. The
+  dashboard's receipt import refuses a relative path.
+- A receipt that holds a relative binary path (or one starting with `~`) is no longer used: it
+  meant a different file depending on the folder the job started in. Such a receipt is ignored and
+  the wrapper's own executable on `PATH` is tried; the run stops with an error naming the receipt
+  only when nothing else provides a binary. Register the binary again with `crab setup` or
+  `crab receipts set`.
 - The merge rules are by field. `env` merges by key and `null` removes a key. `sbatch` and launcher
   `flags` replace a shared item by its `--name=` and append every other item. `header` and `notes`
   add to the shared ones. The mpirun `export` list is a union. Everything else is replaced. See the
@@ -75,6 +111,17 @@ This release changes the presets format and where presets live, inside the 1.x l
 
 - `src/crab/presets.json` and the `_common` block.
 - The `example_preset` entry, and its exclusion from tab-completion.
+
+### Fixed
+
+- `crab setup` no longer fails to clone a benchmark when it is started from inside the leftover
+  folder it removes: recipes now clone from the folder above the target.
+- Removing a leftover folder (`crab setup`, `crab wrappers pull`) no longer strands the command in
+  a deleted folder when you started it from inside: CRAB steps out first.
+- `crab update`, the dashboard's dependency installer and the `crab setup` module and search steps
+  no longer depend on the folder you started them from (they failed when it had been deleted).
+- Local jobs and the dashboard's local connection no longer pick up a `crab` package (or `crab.py`)
+  from the folder you started them in: they start from a folder CRAB chooses.
 
 ## [1.1.0] - 2026-10-21
 

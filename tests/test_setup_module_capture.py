@@ -194,3 +194,38 @@ def test_working_module_line_builds_with_the_captured_env_and_saves_the_hook(
     assert recipe.built_with_env[0]["FAKE_MODULE_LOADED"] == "1"
     assert saved["alpha"]["type"] == "source"
     assert saved["alpha"]["hooks"]["pre_run"] == ["module load good"]
+
+
+# ── the capture does not depend on the current folder ─────────────────────────
+
+
+def test_capture_runs_bash_in_the_neutral_folder(fake_init, monkeypatch):
+    calls = []
+    real_run = wizard.subprocess.run
+
+    def spy(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(wizard.subprocess, "run", spy)
+
+    wizard.capture_module_environment("module load good")
+
+    assert [cmd[:2] for cmd, _ in calls] == [["bash", "-c"]]
+    assert calls[0][1]["cwd"] == wizard.paths.neutral_dir()
+
+
+def test_capture_works_when_the_current_folder_was_deleted(fake_init, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # first, so the teardown restores the real current folder
+    doomed = tmp_path / "doomed"
+    doomed.mkdir()
+    monkeypatch.chdir(doomed)
+    doomed.rmdir()
+
+    env = wizard.capture_module_environment("module load good && export DEMO_CAPTURE=1")
+    assert env["DEMO_CAPTURE"] == "1"
+
+    with pytest.raises(wizard.ModuleCaptureError) as excinfo:
+        wizard.capture_module_environment("echo oops >&2; false")
+    assert "oops" in str(excinfo.value)
+    assert "getcwd" not in str(excinfo.value)

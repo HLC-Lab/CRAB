@@ -10,7 +10,9 @@ which turns a folder into one HTML file you can send to someone.
 Results go under `<datapath>/<system>/<name>_<timestamp>/`.
 
 - `datapath` is the [`global_options`](../reference/configuration.md#global_options) key of that
-  name. It defaults to `data/` in the CRAB checkout.
+  name. It defaults to `data/` in the CRAB checkout. `~` and `$VAR` are expanded; a relative path
+  is relative to CRAB's home (the repository root in a checkout), not to the folder you run `crab`
+  from.
 - `system` is `CRAB_SYSTEM` from the [preset](presets.md). It defaults to the preset's name. A
   character other than a letter, digit, `_` or `-` becomes `_`.
 - `name` is `global_options.name`, with the same character rule. Without a name the folder is
@@ -153,6 +155,9 @@ The fields:
 - `wrappers` is the wrappers checkout: its folder, its commit, and `dirty`, which is `true` when it
   had local edits.
 - `apps` lists, for each experiment and app key, the wrapper file and the SHA-256 of its contents.
+  `path` and `sha256` are `null` for a wrapper that is on no wrapper search folder, for example a
+  `{placeholder}` path, a `--only` rerun, or a job on a machine whose wrappers differ from the
+  submitting one.
 - `execution` records the scheduler, the hosts and the default launcher. With the `mpirun`
   launcher and dialect `auto`, it also records the dialect found and the first line of
   `mpirun --version`.

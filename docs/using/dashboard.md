@@ -445,9 +445,9 @@ These variables, set before `crab web`, move them:
 
 | Variable | Moves |
 |---|---|
-| `CRAB_WEB_CONFIG_DIR` | The folder with `clusters.json`. |
-| `CRAB_WEB_DATA_DIR` | The data folder: library, jobs, caches and log. |
-| `CRAB_WEB_LIBRARY_DIR` | Only the library. Point it at a git repository or a synced folder to version or share your use cases. The first start copies the existing library there. |
+| `CRAB_WEB_CONFIG_DIR` | The folder with `clusters.json`. An absolute path (`~` is fine). |
+| `CRAB_WEB_DATA_DIR` | The data folder: library, jobs, caches and log. An absolute path (`~` is fine). |
+| `CRAB_WEB_LIBRARY_DIR` | Only the library. Point it at a git repository or a synced folder to version or share your use cases. The first start copies the existing library there. An absolute path (`~` is fine). |
 | `CRAB_WEB_PORT` | The default port. |
 
 To reset part of it, stop `crab web` and delete what you want gone:

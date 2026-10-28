@@ -4,6 +4,7 @@ SbatchMan's parser use), and `crab receipts set` registers a binary without the 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -207,3 +208,152 @@ def test_receipts_set_without_launcher_saves_no_override(
     )
     assert code == 0, err
     assert json.loads((receipts / "hpl.json").read_text())["launcher_override"] == ""
+
+
+def _workdir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A folder to type commands from; the first chdir makes teardown restore the real cwd."""
+    monkeypatch.chdir(tmp_path)
+    work = tmp_path / "work"
+    (work / "rel").mkdir(parents=True)
+    monkeypatch.chdir(work)
+    return work
+
+
+def test_receipts_set_stores_a_relative_binary_as_an_absolute_path(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    work = _workdir(tmp_path, monkeypatch)
+    (work / "rel" / "x").write_text("#!/bin/sh\n")
+    absolute = os.path.abspath("rel/x")
+    code, out, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "rel/x"
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == absolute
+    assert absolute in out
+    code, out, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "rel/x", "--json"
+    )
+    assert code == 0, err
+    assert json.loads(out)["receipt"]["binary_path"] == absolute
+
+
+def test_receipts_set_expands_a_tilde_binary(tmp_path, receipts, monkeypatch, capsys) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "x").write_text("#!/bin/sh\n")
+    monkeypatch.setenv("HOME", str(home))
+    _workdir(tmp_path, monkeypatch)
+    code, _, err = _crab_inprocess(monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "~/x")
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == f"{home}/x"
+
+
+def test_receipts_set_names_the_absolute_path_it_looked_for(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    _workdir(tmp_path, monkeypatch)
+    absolute = os.path.abspath("rel/missing")
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "rel/missing"
+    )
+    assert code == 2
+    assert absolute in err
+    assert not (receipts / "hpl.json").exists()
+
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "rel/missing", "--allow-missing"
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == absolute
+
+
+def test_receipts_set_keeps_a_bare_command_name(tmp_path, receipts, monkeypatch, capsys) -> None:
+    _workdir(tmp_path, monkeypatch)
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "xhpl", "--allow-missing"
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == "xhpl"
+
+
+def test_receipts_set_refuses_a_relative_binary_without_a_current_folder(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    work = _workdir(tmp_path, monkeypatch)
+    (work / "rel").rmdir()
+    work.rmdir()
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "rel/x", "--allow-missing"
+    )
+    assert code == 2
+    assert "current folder no longer exists" in err
+    assert "Traceback" not in err
+    assert not (receipts / "hpl.json").exists()
+
+
+def test_receipts_set_dot_is_stored_absolute(tmp_path, receipts, monkeypatch, capsys) -> None:
+    work = _workdir(tmp_path, monkeypatch)
+    code, _, err = _crab_inprocess(monkeypatch, capsys, "receipts", "set", "hpl", "--binary", ".")
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == str(work)
+
+
+def test_receipts_set_a_bare_name_that_exists_here_means_that_file(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    work = _workdir(tmp_path, monkeypatch)
+    (work / "build").write_text("#!/bin/sh\n")
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "build"
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == str(work / "build")
+
+
+def test_receipts_set_accepts_a_command_name_found_on_path(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    _workdir(tmp_path, monkeypatch)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    tool = tools / "xhpl_on_path"
+    tool.write_text("#!/bin/sh\n")
+    tool.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tools))
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "xhpl_on_path"
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == "xhpl_on_path"
+
+
+def test_receipts_set_refuses_an_unknown_command_name(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    _workdir(tmp_path, monkeypatch)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    code, _, err = _crab_inprocess(
+        monkeypatch, capsys, "receipts", "set", "hpl", "--binary", "xhpl_nowhere"
+    )
+    assert code == 2
+    assert "does not exist" in err
+    assert not (receipts / "hpl.json").exists()
+
+
+def test_receipts_set_makes_every_path_of_a_launcher_line_absolute(
+    tmp_path, receipts, monkeypatch, capsys
+) -> None:
+    work = _workdir(tmp_path, monkeypatch)
+    code, _, err = _crab_inprocess(
+        monkeypatch,
+        capsys,
+        "receipts",
+        "set",
+        "hpl",
+        "--binary",
+        "mpirun ./x",
+        "--allow-missing",
+    )
+    assert code == 0, err
+    assert json.loads((receipts / "hpl.json").read_text())["binary_path"] == f"mpirun {work}/x"

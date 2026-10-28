@@ -66,6 +66,7 @@ root, so the build does not write a `site/` folder into the tree.
 | Suite | Command | What it covers |
 |---|---|---|
 | Backend | `.venv/bin/python -m pytest -q` | Engine and core units, the execution backends, the CLI, and all web API routes. Web tests use fake SSH transports: no network and no cluster are needed |
+| Current-folder independence | `.venv/bin/python -m pytest -q tests/test_cwd_independence.py tests/test_cwd_tripwire.py` | Part of the backend suite. `test_cwd_independence.py` runs the installed `crab` console script from the repository root, from an unrelated folder and from a deleted folder: the read-only `--json` commands must exit 0 with equal output. `test_cwd_tripwire.py` parses `src/crab` and fails when a call is given `"."`, a `./` path or `.env`, or code reads or changes the current folder (`os.getcwd`, `Path.cwd`, `os.chdir`), outside a short allowlist with a reason per entry |
 | Real MPI | `.venv/bin/python -m pytest -q -m mpi -rs` | Real `mpirun` launches through CRAB's launcher, against every MPI found on the machine (or the paths in `CRAB_TEST_MPIRUNS`, `:`-separated). A binary that is unusable skips its test |
 | Frontend unit | `cd src/crab/webui && npx vitest run` | Pure logic, above all the **config round-trip suite**: engine JSON to UI draft to JSON must be lossless over handled fields, checked against synthetic fixtures and the real configs in `examples/` |
 | Frontend types | `cd src/crab/webui && npm run type-check` | Strict TypeScript across the SPA |

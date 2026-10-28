@@ -8,6 +8,7 @@ docs/extending/recipes.md. Also targets graph500_reference_bfs explicitly, not t
 "all" target, since the _sssp variant has an unrelated upstream bug.
 """
 
+import os
 import unittest
 from unittest.mock import patch
 
@@ -41,6 +42,30 @@ class TestG500BuildCommand(unittest.TestCase):
         self.assertIn("graph500_reference_bfs", build_cmd)
         self.assertNotIn("-j", build_cmd)
         self.assertNotIn("all", build_cmd)
+
+
+def test_clone_runs_from_the_folder_above_the_target(tmp_path):
+    parent = tmp_path / "benchmarks"
+    parent.mkdir()
+    recipe = G500Recipe()
+
+    with patch.object(recipe, "run_command_streamed", return_value=False) as mock_run:
+        recipe.download_and_build(str(parent / "g500"), {}, {}, None)
+
+    clone_cwd = mock_run.call_args_list[0].args[1]
+    assert clone_cwd == str(parent)
+    assert os.path.isabs(clone_cwd)
+
+
+def test_clone_folder_is_created_when_missing(tmp_path):
+    parent = tmp_path / "does" / "not" / "exist"
+    recipe = G500Recipe()
+
+    with patch.object(recipe, "run_command_streamed", return_value=False) as mock_run:
+        recipe.download_and_build(str(parent / "g500"), {}, {}, None)
+
+    assert parent.is_dir()
+    assert mock_run.call_args_list[0].args[1] == str(parent)
 
 
 if __name__ == "__main__":

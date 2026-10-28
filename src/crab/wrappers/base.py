@@ -3,6 +3,7 @@ import shlex
 import shutil
 
 import crab.setup.memory as memory
+from crab.fsutil import expand_binary, relative_path_word
 
 
 def sizeof_fmt(num, suffix="B"):
@@ -28,6 +29,7 @@ class base:
     executable = ""
     # Set by find_binary: the first path of a receipt or wrapper default that does not exist.
     _absent_binary: str | None = None
+    _bad_config_binary: str | None = None
     # Set by the runner before launch: the app's placed cores (None means the launcher's default),
     # whether it competes for shared cores with co-located apps, and the variables its ranks run
     # with.
@@ -104,17 +106,22 @@ class base:
 
     @staticmethod
     def _first_absent_path(command: str) -> str | None:
-        """The first token of `command` that names a path (has a separator) and is not a file.
+        """The first token of `command` that names a path (has a separator) and is unusable.
 
         A default may be a prefix command plus the binary ("/opt/select_nic /opt/bin/x"), so every
-        path-like token must exist. A bare command name has no path to check: None.
+        path-like token must be an existing file. A relative token ("bin/x", "./x", "~/x") is
+        unusable without looking at the disk: it would mean a different file for each current
+        folder, and receipts are stored absolute and expanded. A bare command name has no path to
+        check: None.
         """
         try:
             tokens = shlex.split(command)
         except ValueError:
             tokens = command.split()
         for token in tokens:
-            if os.sep in token and not os.path.isfile(token):
+            if os.sep not in token:
+                continue
+            if not os.path.isabs(token) or token.startswith("~") or not os.path.isfile(token):
                 return token
         return None
 
@@ -125,12 +132,20 @@ class base:
         A receipt or wrapper-default command counts only when every path in it exists (a bare
         command name cannot be checked and is kept); the first absent path is remembered in
         `_absent_binary` for the error message and the lookup goes on to PATH. The config
-        `binary` is the user's explicit choice and is returned even when absent.
+        `binary` is the user's explicit choice and is returned even when absent, with `~` and
+        `$VAR` expanded; one that still holds a relative path or an unset variable is
+        (None, "missing") with no fall-through, and the word is kept in `_bad_config_binary`.
         """
         self._absent_binary = None
+        self._bad_config_binary = None
         configured = getattr(self, "binary", None)
         if configured:
-            return str(configured), "config"
+            expanded = expand_binary(str(configured))
+            bad = relative_path_word(expanded) or self._first_unexpanded_word(expanded)
+            if bad is not None:
+                self._bad_config_binary = bad
+                return None, "missing"
+            return expanded, "config"
         from_receipt = self.get_binary_path()
         if from_receipt:
             absent = self._first_absent_path(from_receipt)
@@ -143,6 +158,27 @@ class base:
                 return found, "path"
         return None, "missing"
 
+    @staticmethod
+    def _first_unexpanded_word(command: str) -> str | None:
+        """The first word of `command` that still holds a `$` (a variable that is not set)."""
+        try:
+            tokens = shlex.split(command)
+        except ValueError:
+            tokens = command.split()
+        for token in tokens:
+            if "$" in token:
+                return token
+        return None
+
+    @staticmethod
+    def _is_relative_path(path: str) -> bool:
+        """True for a path word that depends on the current folder or was never expanded.
+
+        That is a word with a separator that is not absolute, or starts with `~`. A leftover
+        `$HOME/x` or `{dir}/x` counts: it is not absolute either.
+        """
+        return os.sep in path and (not os.path.isabs(path) or path.startswith("~"))
+
     def resolve_binary(self) -> str:
         """The binary to launch (see find_binary).
 
@@ -153,9 +189,28 @@ class base:
         if binary:
             return binary
 
+        if self._bad_config_binary:
+            word = self._bad_config_binary
+            problem = (
+                "holds an unset environment variable"
+                if "$" in word
+                else "is a relative path, give the full path"
+            )
+            raise MissingBinaryError(
+                f"No binary for {type(self).__module__} (app {self.id_num}). "
+                f"The app's 'binary' key in the config: {word!r} {problem} "
+                "(a configured binary is never replaced by a receipt or PATH)."
+            )
+
         tried = ["the app's 'binary' key in the config"]
         if self._absent_binary:
-            tried.append(f"receipt or wrapper default {self._absent_binary!r} (does not exist)")
+            if self._is_relative_path(self._absent_binary):
+                tried.append(
+                    f"receipt or wrapper default {self._absent_binary!r} (a relative or unexpanded "
+                    "path: register it again with crab setup or crab receipts set)"
+                )
+            else:
+                tried.append(f"receipt or wrapper default {self._absent_binary!r} (does not exist)")
         elif self.benchmark_id:
             tried.append(f"receipt {self.benchmark_id!r}")
         else:

@@ -37,7 +37,9 @@ At run time CRAB resolves which preset to use in this order:
 
 1. The `-p`/`--preset` flag: `crab run myconfig.json -p mycluster`
 2. The `CRAB_PRESET` environment variable
-3. A `.env` file in the working directory containing just the preset name
+3. A `.env` file in CRAB's home containing just the preset name: the repository root in a
+   checkout, `~/.local/share/crab` (or `$CRAB_HOME`) in a pip install. A `.env` in the folder you
+   run `crab` from is not read.
 
 If none of these names a preset, `crab run` stops with an error. It never picks one for you;
 to run without Slurm, ask for it explicitly with `-p local`.
@@ -46,6 +48,10 @@ CRAB sets `CRAB_ROOT` for every preset: the special token `__CWD__` in an `env` 
 with CRAB's home, the repository root in a checkout and the data directory of a pip install. A
 preset that sets its own `CRAB_ROOT` wins. If a preset doesn't set `CRAB_SYSTEM`, it defaults to
 the preset's name and is used in the output directory path.
+
+Keys that name folders, `CRAB_ROOT` and each entry of `CRAB_PATH_WRAPPERS`, must be absolute
+paths: a relative one would mean a different folder depending on where you run `crab`, so the
+preset is refused with a message naming the key. `~` and `__CWD__` are fine.
 
 ## Your overrides
 
@@ -61,8 +67,8 @@ every `*.json` file of one folder, in name order, and a file may hold several pr
 | either, with `CRAB_PATH_PRESETS` set | the folder that variable names |
 
 `crab info` prints the folder in use on its `overrides:` line. `CRAB_PATH_PRESETS` names a
-folder: a path to a single file is refused with a message that names it. The folder does not exist
-until you make it.
+folder, as an absolute path (`~` is fine): a path to a single file is refused with a message that
+names it. The folder does not exist until you make it.
 
 An entry with the name of a shared preset **patches** it: only the lines you write change, and
 everything else stays as crab-wrappers has it. So the account of a cluster is two lines of yours:
@@ -267,7 +273,10 @@ Put the lines in `header`:
 
 Your header lines run after the shared ones, at the top of the job script and before `crab worker`
 starts, so the worker and the applications inherit what they set. This is the order of the
-[module flow](#module-flow). Header lines are shell lines, so `~` and `$HOME` work in them. Under
+[module flow](#module-flow). Header lines are shell lines, so `~` and `$HOME` work in them. They
+run inside the job script, which starts in the job's data folder and not in the folder you ran
+`crab run` from, so use absolute paths (or variables such as `$HOME`) for anything a header line
+sources or loads. Under
 the `local` scheduler there is no job script and `header` does not apply.
 
 ### A QoS

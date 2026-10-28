@@ -232,9 +232,17 @@ def _pip_install(root: Path) -> None:
     except importlib.metadata.PackageNotFoundError:
         pass
     else:
-        subprocess.run([sys.executable, "-m", "pip", "uninstall", "-q", "-y", "crab"], check=True)
+        subprocess.run(
+            [sys.executable, "-m", "pip", "uninstall", "-q", "-y", "crab"],
+            cwd=paths.neutral_dir(),
+            check=True,
+        )
     target = f"{root}[web]" if importlib.util.find_spec("fastapi") else str(root)
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-e", target], check=True)
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "-q", "-e", target],
+        cwd=paths.neutral_dir(),
+        check=True,
+    )
 
 
 def handle_update(args: Any) -> None:

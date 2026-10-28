@@ -18,6 +18,7 @@ from rich.text import Text
 import crab.core.process.manager as manager
 import crab.setup.memory as memory
 from crab import paths
+from crab.fsutil import absolute_binary, leave_dir_before_remove
 from crab.setup.registry import discover_recipes
 
 console = Console()
@@ -70,7 +71,9 @@ def capture_module_environment(module_cmd: str) -> dict[str, str]:
     # `env -0` (NUL separated) keeps values that contain newlines intact.
     full_cmd = f"{init_snippet}{module_cmd} && env -0"
     try:
-        result = subprocess.run(["bash", "-c", full_cmd], capture_output=True, text=True)
+        result = subprocess.run(
+            ["bash", "-c", full_cmd], capture_output=True, text=True, cwd=paths.neutral_dir()
+        )
     except OSError as e:
         raise ModuleCaptureError(f"{module_cmd!r} failed: {e}") from e
     if result.returncode != 0:
@@ -100,6 +103,7 @@ def run_deep_search(recipe) -> str | None:
             ["find", home_dir, "-name", binary_name, "-type", "f", "-executable"],
             capture_output=True,
             text=True,
+            cwd=paths.neutral_dir(),
         )
         for path in result.stdout.strip().split("\n"):
             if path and recipe.verify_existing(os.path.dirname(path)):
@@ -120,6 +124,7 @@ def handle_cleanup(benchmark_id: str):
                     f"[yellow]Found old build path at {target_cleanup}. Clear layout directory?[/yellow]",
                     default=True,
                 ):
+                    leave_dir_before_remove(target_cleanup)
                     shutil.rmtree(target_cleanup)
                     console.print(f"[green]Cleaned up: {target_cleanup}[/green]")
 
@@ -157,6 +162,7 @@ def _clear_leftover_build(benchmark_id: str, name: str) -> bool:
     ):
         console.print(skip_message)
         return False
+    leave_dir_before_remove(target)
     shutil.rmtree(target)
     console.print(f"[green]Cleaned up: {target}[/green]")
     return True
@@ -195,15 +201,25 @@ def _ask_module_executable(recipe) -> str:
 
     The recipe id is not a command, so it is never offered; an empty answer is asked again.
     """
-    if recipe.module_executable:
-        return Prompt.ask(
-            "Enter the executable the module provides", default=recipe.module_executable
-        )
     while True:
-        answer = Prompt.ask("Enter the executable the module provides").strip()
-        if answer:
-            return answer
-        console.print("[red]An executable name is required.[/red]")
+        if recipe.module_executable:
+            answer = Prompt.ask(
+                "Enter the executable the module provides (a command name, or a full path; "
+                "~ is expanded)",
+                default=recipe.module_executable,
+            ).strip()
+        else:
+            answer = Prompt.ask(
+                "Enter the executable the module provides (a command name, or a full path; "
+                "~ is expanded)"
+            ).strip()
+        if not answer:
+            console.print("[red]An executable name is required.[/red]")
+            continue
+        try:
+            return absolute_binary(answer)
+        except ValueError as error:
+            console.print(f"[red]{error}[/red]")
 
 
 def _collect_pre_run_hooks() -> list[str]:
@@ -266,10 +282,15 @@ def _run_custom_benchmark_wizard(
     # ── Step 2: executable path ───────────────────────────────────────────────
     while True:
         path = Prompt.ask(
-            "\n[bold]Full path to the executable[/bold] (e.g. '/opt/hpl/bin/xhpl')"
+            "\n[bold]Full path to the executable[/bold] (e.g. '/opt/hpl/bin/xhpl'; ~ is expanded)"
         ).strip()
         if not path:
             console.print("[red]Path cannot be empty.[/red]")
+            continue
+        try:
+            path = absolute_binary(path, bare_is_path=True)
+        except ValueError as error:
+            console.print(f"[red]{error}[/red]")
             continue
         if not os.path.isfile(path):
             console.print(
@@ -453,10 +474,15 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
         elif choice == "2":
             while True:
                 user_path = Prompt.ask(
-                    "Enter the absolute path to executable/directory (or 'q' to exit)"
+                    "Enter the full path to executable/directory (~ is expanded; 'q' to exit)"
                 )
                 if user_path.lower() == "q":
                     break
+                try:
+                    user_path = absolute_binary(user_path.strip(), bare_is_path=True)
+                except ValueError as error:
+                    console.print(f"[red]{error}[/red]")
+                    continue
                 if recipe.verify_existing(user_path):
                     final_path = user_path
                     break
@@ -552,6 +578,13 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                 console.print(f"\n[bold red]Compilation Interrupted:[/bold red]\n{err_msg}")
                 console.input("\n[dim]Press [Enter] to continue...[/dim]")
                 continue
+
+        if final_path:
+            try:  # one save point: whatever a strategy found or typed is stored absolute
+                final_path = absolute_binary(final_path)
+            except ValueError as error:
+                console.print(f"[red]{error}[/red]")
+                final_path = None
 
         if final_path:
             new_receipt = {

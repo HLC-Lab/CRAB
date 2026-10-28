@@ -110,3 +110,19 @@ def test_invalid_json_in_execution_json_names_the_file(tmp_path: Path) -> None:
     assert exc.value.code == 1
     mock_run.assert_not_called()
     assert "execution.json: not valid JSON" in logger.critical.call_args.args[0]
+
+
+def test_a_relative_workdir_reaches_the_engine_as_an_absolute_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "job").mkdir()
+    _write_workdir(tmp_path / "job", {})
+    monkeypatch.chdir(tmp_path)
+    logger = MagicMock()
+    with (
+        patch("crab.log.get_logger", return_value=logger),
+        patch("crab.core.engine.Engine.run", return_value={}) as mock_run,
+    ):
+        execute_worker("job")
+    output_dir = mock_run.call_args.kwargs["output_dir"]
+    assert output_dir == str(tmp_path / "job")
