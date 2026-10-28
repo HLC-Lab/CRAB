@@ -28,6 +28,7 @@ Remove: `rm -rf ~/crab/lab`.
 | `nccl_run.sh` | GPU g on one node with GPU g on the other, one port per GPU: 1, 4 (one socket), 2 + 2, 8 pairs at once; sendrecv and broadcast. |
 | `gpu_pre.sh` | Read-only preflight for GPU memory tests: CUDA-aware Open MPI/UCX, cmake, libcudart, peermem, perftest `--use_cuda`, GitHub. |
 | `blink_gpu_build.sh` | Builds the GPU-capable Blink (`-gpu`) into `blink-gpu/` next to this folder; checks libraries on both nodes. |
+| `net_check.sh` | Read-only: what the proxy lets through (Open MPI tarball, GitHub) and which build tools exist; prints a verdict. |
 | `ompi_cuda_build.sh` | Builds a CUDA-aware Open MPI (system UCX) into `ompi-cuda/`; the installed Open MPIs have no CUDA, so Blink `-gpu` stops with "not GPU-aware". The GPU scripts use it automatically. |
 | `gpu_pw.sh` | `smoke` then `main`: Blink host vs `-gpu`, pairwise and ping-pong, 8/4/4/1 ranks per node, put_zcopy and GPUDirect off. |
 | `lib.sh` | Shared helpers (sourced). |
