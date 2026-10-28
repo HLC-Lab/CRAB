@@ -59,8 +59,8 @@ cell() {
     local args=(-msgsize "$size" -iter "$iter" -warmup "$warm")
     [[ $prog == pairwise* ]] && args=(-offset "${LN[$lay]}" "${args[@]}")
     run_blink "$lay" "$prog" "$mem" "$var" "${args[@]}"
+    [[ $VERDICT == OK ]] && { timing "$size"; [[ $T_MAX == - ]] && VERDICT=nodata; }
     if [[ $VERDICT == OK ]]; then
-        timing "$size"
         local gs gf; gs=$(gib "$size" "$T_MAX"); gf=$(gib "$size" "$T_MIN")
         CELL="$gs/$gf"
         echo "$lay,$prog,$mem,$var,$size,OK,$T_MAX,$T_MIN,$gs,$gf" >>"$CSV"
@@ -109,7 +109,8 @@ main() {
     cell L8 pairwise_b gpu base 134217728 100 50
     say "D 8/node pairwise_b 128M: host $h | gpu $CELL"
     if [[ $CELL != */* ]]; then
-        say "the 8/node -gpu cell failed ($CELL): every GPU row would fail the same way; see the log, stopping"
+        say "the 8/node -gpu cell failed ($CELL): every GPU row would fail the same way, stopping"
+        grep -m2 -i -E "error|abort|not gpu|no cuda|unreach" "$TMP/run" | cut -c1-140 | while IFS= read -r l; do say "  $l"; done
         exit 1
     fi
     local size prog row spec mem var head lay
