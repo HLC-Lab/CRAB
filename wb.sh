@@ -13,6 +13,8 @@
 #   T3b  4 ports split 2 + 2 over the sockets, both directions     (like R2)
 #   T5b  all 8 ports, both directions                              (like R3)
 #   T4b  T2b with 2 MiB messages
+# USE_CUDA=1: the buffer of every port lives in the GPU behind the same PCIe switch (--use_cuda=g, GPU g
+# next to port g; needs perftest built with CUDA): is the cap still there with GPU memory? Rows get "gpu ".
 # Screen: "BW average" per port as ib_write_bw reports it, and the sum. Full output in
 # $OUT/wb_<time>.log. Env: SIZE (134217728), DUR (10), OUT, SSH (ssh), TESTS (all).
 set -u
@@ -41,6 +43,10 @@ log() { cat >>"$LOG"; }
 
 # port -> core of its socket, as in the MPI runs
 declare -A CORE=([mlx5_0]=0 [mlx5_2]=1 [mlx5_4]=2 [mlx5_8]=3 [mlx5_10]=40 [mlx5_12]=41 [mlx5_14]=42 [mlx5_16]=43)
+declare -A GPU=([mlx5_0]=0 [mlx5_2]=1 [mlx5_4]=2 [mlx5_8]=3 [mlx5_10]=4 [mlx5_12]=5 [mlx5_14]=6 [mlx5_16]=7)
+if [[ ${USE_CUDA:-0} == 1 ]] && ! ib_write_bw --help 2>&1 | grep -q use_cuda; then
+    die "this ib_write_bw has no --use_cuda (perftest built without CUDA)"
+fi
 SOCKET0="mlx5_0 mlx5_2 mlx5_4 mlx5_8"
 SPLIT="mlx5_0 mlx5_4 mlx5_10 mlx5_14"
 ALL="mlx5_0 mlx5_2 mlx5_4 mlx5_8 mlx5_10 mlx5_12 mlx5_14 mlx5_16"
@@ -60,12 +66,14 @@ say "BW average per port in Gb/s as ib_write_bw reports it (with -b check T1b vs
 # run_test LABEL SIZE BIDIR(0|1) PORT...
 run_test() {
     local label=$1 size=$2 bi=$3; shift 3
-    local bflag="" scmd="" ccmd="" d p row sum spid
+    local bflag="" cflag="" scmd="" ccmd="" d p row sum spid
     ((bi)) && bflag=-b
+    [[ ${USE_CUDA:-0} == 1 ]] && label="gpu $label"
     for d in "$@"; do
         p=$((18500 + ${d#mlx5_}))
-        scmd+="taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag -s $size -D $DUR --report_gbits -p $p >/tmp/wb_s_$d.txt 2>&1 & "
-        ccmd+="taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag -s $size -D $DUR --report_gbits -p $p ${IP[$d]:-missing} >/tmp/wb_c_$d.txt 2>&1 & "
+        [[ ${USE_CUDA:-0} == 1 ]] && cflag="--use_cuda=${GPU[$d]}"
+        scmd+="taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag $cflag -s $size -D $DUR --report_gbits -p $p >/tmp/wb_s_$d.txt 2>&1 & "
+        ccmd+="taskset -c ${CORE[$d]} ib_write_bw -d $d -R $bflag $cflag -s $size -D $DUR --report_gbits -p $p ${IP[$d]:-missing} >/tmp/wb_c_$d.txt 2>&1 & "
     done
     timeout $((DUR + 60)) $SSH "$B" "$scmd wait" >/dev/null 2>&1 &
     spid=$!
@@ -88,7 +96,7 @@ run_test() {
         fi
         row+=$(printf '%s:%-7s ' "${d#mlx5_}" "$v")
     done
-    say "$(printf '%-34s' "$label") $row| sum $sum"
+    say "$(printf '%-38s' "$label") $row| sum $sum"
 }
 
 for t in $TESTS; do
