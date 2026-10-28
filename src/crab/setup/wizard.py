@@ -71,7 +71,9 @@ def capture_module_environment(module_cmd: str) -> dict[str, str]:
     # `env -0` (NUL separated) keeps values that contain newlines intact.
     full_cmd = f"{init_snippet}{module_cmd} && env -0"
     try:
-        result = subprocess.run(["bash", "-c", full_cmd], capture_output=True, text=True)
+        result = subprocess.run(
+            ["bash", "-c", full_cmd], capture_output=True, text=True, cwd=paths.neutral_dir()
+        )
     except OSError as e:
         raise ModuleCaptureError(f"{module_cmd!r} failed: {e}") from e
     if result.returncode != 0:
@@ -101,6 +103,7 @@ def run_deep_search(recipe) -> str | None:
             ["find", home_dir, "-name", binary_name, "-type", "f", "-executable"],
             capture_output=True,
             text=True,
+            cwd=paths.neutral_dir(),
         )
         for path in result.stdout.strip().split("\n"):
             if path and recipe.verify_existing(os.path.dirname(path)):

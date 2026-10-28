@@ -134,3 +134,19 @@ def test_failed_install_names_the_checkout_command_in_a_checkout(
     assert "Please run 'pip install -e .[web]' from your CRAB checkout to fix this." in out
     assert "pipx" not in out
     assert h.server_calls == []
+
+
+def test_the_installer_runs_in_an_existing_folder_not_the_current_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def check_call(cmd: list[str], *a: Any, **kw: Any) -> int:
+        calls.append(kw)
+        return 0
+
+    h = _install(monkeypatch, missing={"uvicorn"}, answer="y")
+    monkeypatch.setattr(cli_main.subprocess, "check_call", check_call)
+    cli_main.handle_web(_args())
+    assert h.server_calls != []
+    assert [kw.get("cwd") for kw in calls] == [paths.neutral_dir()]

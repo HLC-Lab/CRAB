@@ -631,3 +631,27 @@ def test_the_human_text_shows_the_kept_wrappers_line(pair, monkeypatch, capsys) 
     update.handle_update(argparse.Namespace(head=False, to_release=False, json=False))
     out = capsys.readouterr().out
     assert f"wrappers: kept (no wrappers tag v1.1.0 yet, left at {before[:12]})" in out
+
+
+@pytest.mark.parametrize("old_dist", [True, False])
+def test_pip_runs_in_an_existing_folder_not_the_current_one(monkeypatch, old_dist: bool) -> None:
+    calls: list[dict[str, Any]] = []
+
+    def run(command: list[str], **kwargs: Any) -> None:
+        calls.append(kwargs)
+
+    monkeypatch.setattr(update.subprocess, "run", run)
+    monkeypatch.setattr(
+        importlib.metadata,
+        "distribution",
+        lambda name: (
+            object()
+            if old_dist
+            else (_ for _ in ()).throw(importlib.metadata.PackageNotFoundError(name))
+        ),
+    )
+    update._pip_install(Path("/repo"))
+    assert len(calls) == (2 if old_dist else 1)
+    for kwargs in calls:
+        assert kwargs["cwd"] == paths.neutral_dir()
+        assert Path(kwargs["cwd"]).is_absolute() and Path(kwargs["cwd"]).is_dir()

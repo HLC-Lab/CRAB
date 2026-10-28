@@ -91,6 +91,8 @@ absolute.
   folder it removes: recipes now clone from the folder above the target.
 - Removing a leftover folder (`crab setup`, `crab wrappers pull`) no longer strands the command in
   a deleted folder when you started it from inside: CRAB steps out first.
+- `crab update`, the dashboard's dependency installer and the `crab setup` module and search steps
+  no longer depend on the folder you started them from (they failed when it had been deleted).
 
 ## [1.1.0] - 2026-10-21
 

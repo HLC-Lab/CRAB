@@ -429,3 +429,54 @@ def test_user_presets_dir_relative_is_refused(
     monkeypatch.setenv("CRAB_PATH_PRESETS", "rel/p")
     with pytest.raises(ValueError, match="CRAB_PATH_PRESETS"):
         paths.user_presets_dir(tmp_path)
+
+
+# --------------------------------------------------------------------------- #
+# neutral_dir: the folder subprocesses get instead of the caller's current folder
+# --------------------------------------------------------------------------- #
+def test_neutral_dir_is_an_existing_crab_home_when_installed(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = xdg / "my-home"
+    home.mkdir()
+    _installed_with_home(xdg, monkeypatch, home, checkout=False)
+    assert paths.neutral_dir() == str(home)
+
+
+def test_neutral_dir_falls_back_to_the_user_home_when_crab_home_is_missing(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (xdg / "home").mkdir()
+    _installed_with_home(xdg, monkeypatch, xdg / "not-there", checkout=False)
+    assert not (xdg / "not-there").exists()
+    assert paths.neutral_dir() == str(xdg / "home")
+    assert not (xdg / "not-there").exists()  # nothing is created
+
+
+def test_neutral_dir_falls_back_to_the_root_when_the_home_is_unusable(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _installed_with_home(xdg, monkeypatch, xdg / "not-there", checkout=False)
+    monkeypatch.setattr(paths.os.path, "expanduser", lambda _p: str(xdg / "no-home"))
+    assert paths.neutral_dir() == "/"
+
+
+def test_neutral_dir_is_the_checkout_root_in_a_checkout(xdg: Path) -> None:
+    importlib.reload(paths)
+    assert paths.neutral_dir() == str(OLD_WALK_UP)
+
+
+def test_neutral_dir_survives_a_deleted_current_folder(
+    xdg: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = xdg / "my-home"
+    home.mkdir()
+    _installed_with_home(xdg, monkeypatch, home, checkout=False)
+    monkeypatch.chdir(xdg)  # first, so the teardown restores the real current folder
+    doomed = xdg / "doomed"
+    doomed.mkdir()
+    monkeypatch.chdir(doomed)
+    doomed.rmdir()
+    result = paths.neutral_dir()
+    assert result == str(home)
+    assert Path(result).is_absolute() and Path(result).is_dir()

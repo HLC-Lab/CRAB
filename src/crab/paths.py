@@ -130,6 +130,24 @@ def crab_home() -> Path:
     return Path(platformdirs.user_data_dir(APP_NAME, APP_AUTHOR))
 
 
+def neutral_dir() -> str:
+    """The folder for subprocesses that must not depend on the caller's current folder.
+
+    `crab_home()` when it is a directory, else the user's home folder, else `/`. Never raises
+    and never creates anything.
+    """
+    try:
+        home: Path | None = crab_home()
+    except ValueError:  # a relative CRAB_HOME; the CLI refuses it at startup
+        home = None
+    if home is not None and home.is_dir():
+        return str(home)
+    user_home = os.path.expanduser("~")
+    if os.path.isabs(user_home) and os.path.isdir(user_home):
+        return user_home
+    return "/"
+
+
 def config_dir() -> Path:
     """The per-user config dir: `$CRAB_HOME/config` if CRAB_HOME is set, else the user config dir."""
     home = _env_home()

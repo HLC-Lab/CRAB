@@ -79,3 +79,20 @@ def test_blink_deep_search_rejects_a_directory_the_recipe_does_not_accept(monkey
     saved = _run_deep_search_install(monkeypatch, tmp_path, BlinkRecipe())
 
     assert saved == {}
+
+
+def test_find_runs_in_the_neutral_folder(monkeypatch, tmp_path):
+    _make_executable(tmp_path / "apps" / "qe" / "bin" / "pw.x")
+    calls = []
+    real_run = wizard.subprocess.run
+
+    def spy(cmd, **kwargs):
+        calls.append((cmd, kwargs))
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(wizard.subprocess, "run", spy)
+
+    _run_deep_search_install(monkeypatch, tmp_path, QERecipeV7())
+
+    assert [cmd[0] for cmd, _ in calls] == ["find"]
+    assert calls[0][1]["cwd"] == wizard.paths.neutral_dir()
