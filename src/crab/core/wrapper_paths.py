@@ -66,28 +66,22 @@ def _moved_match(path: str) -> str | None:
     return None
 
 
-def resolve_wrapper_path(path: str) -> str:
+def resolve_wrapper_path(path: str) -> str | None:
     """The file a config's wrapper `path` names: the first match along the search path.
 
-    Absolute paths are returned unchanged. A relative `<suite>/<name>.py` found nowhere but
-    present once in a subfolder (`<suite>/<group>/<name>.py`) resolves to that file: wrappers
-    moved into groups and old configs keep working (`moved_wrapper_note` says so). Any other
-    relative path found nowhere resolves the way it did before the search path existed (under
-    the first CRAB_PATH_WRAPPERS folder, else relative to the working directory), so old
-    configs and error messages stay the same.
+    Absolute paths are returned unchanged, found or not. A relative `<suite>/<name>.py` found
+    nowhere but present once in a subfolder (`<suite>/<group>/<name>.py`) resolves to that file:
+    wrappers moved into groups and old configs keep working (`moved_wrapper_note` says so).
+    Any other relative path is not on the search path and gives None: the working directory is
+    never consulted, because it differs per launch mode (a login node, a job folder, web over
+    SSH).
     """
     if os.path.isabs(path):
         return path
     direct = _direct_hit(path)
     if direct is not None:
         return direct
-    moved = _moved_match(path)
-    if moved is not None:
-        return moved
-    configured = paths.env_path_list("CRAB_PATH_WRAPPERS")
-    if configured:
-        return os.path.join(configured[0], path)
-    return path
+    return _moved_match(path)
 
 
 def moved_wrapper_note(path: str) -> str | None:
@@ -170,7 +164,8 @@ def wrapper_path_problem(path: str) -> str | None:
     A direct hit, a moved match and an existing absolute path are all fine. A known old name gets
     its rename note; any other miss gets `missing_wrappers_hint()` when there is one.
     """
-    if os.path.isfile(resolve_wrapper_path(path)):
+    resolved = resolve_wrapper_path(path)
+    if resolved is not None and os.path.isfile(resolved):
         return None
     message = (
         f"wrapper {path} not found on the wrapper search path ({', '.join(wrapper_search_path())})"

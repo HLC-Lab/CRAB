@@ -95,8 +95,12 @@ def build_provenance(
     apps: dict[str, dict[str, Any]] = {}
     for exp_name, exp in (config.get("experiments") or {}).items():
         for app_key, app in (exp.get("apps") or {}).items():
-            path = os.path.abspath(resolve_wrapper_path(str(app.get("path", ""))))
-            apps.setdefault(exp_name, {})[str(app_key)] = {"path": path, "sha256": _sha256(path)}
+            resolved = resolve_wrapper_path(str(app.get("path", "")))
+            path = os.path.abspath(resolved) if resolved is not None else None
+            apps.setdefault(exp_name, {})[str(app_key)] = {
+                "path": path,
+                "sha256": _sha256(path) if path is not None else None,
+            }
 
     provenance: dict[str, Any] = {
         "results_schema": RESULTS_SCHEMA,

@@ -378,7 +378,7 @@ crab parse [--stderr FILE] [--dir DIR] [--args ARGS] [--set KEY=VALUE ...] [--js
 
 | Argument | Meaning | Default |
 |----------|---------|---------|
-| `WRAPPER` | The wrapper file. A relative path is looked up under the wrappers folder (`CRAB_PATH_WRAPPERS`). Required. | none |
+| `WRAPPER` | The wrapper file. A relative path is looked up on the wrapper search path first (`local/wrappers/`, then `CRAB_PATH_WRAPPERS` or `wrappers/`); when nothing there matches, the file you typed is used, relative to the folder you run `crab parse` in. Required. | none |
 | `OUTPUT` | A file holding the application's stdout. Required. | none |
 | `--stderr` | A file holding its stderr. | none |
 | `--dir` | The folder holding files the application wrote. | the folder of `OUTPUT` |

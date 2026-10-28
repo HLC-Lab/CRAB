@@ -19,7 +19,6 @@ from crab.core.wrapper_paths import (
     load_module,
     missing_wrappers_hint,
     moved_wrapper_note,
-    renamed_wrapper_note,
     resolve_wrapper_path,
     wrapper_path_problem,
 )
@@ -103,14 +102,16 @@ class ExperimentRunner:
             if moved_note:
                 self.log.warning(moved_note)
             config_path = path
-            renamed_note = renamed_wrapper_note(config_path)
-            path = resolve_wrapper_path(path)
+            resolved = resolve_wrapper_path(path)
+            if resolved is None:
+                # `crab worker` reaches this point without the orchestrator's check.
+                problem = wrapper_path_problem(config_path)
+                self.log.error(problem)
+                raise FileNotFoundError(problem)
+            path = resolved
 
             if not os.path.exists(path):
                 self.log.error(f"Wrapper not found at: {path}")
-                if renamed_note:
-                    # `crab worker` reaches this point without the orchestrator's check.
-                    raise FileNotFoundError(wrapper_path_problem(config_path))
                 hint = missing_wrappers_hint()
                 raise FileNotFoundError(
                     f"Wrapper not found: {path}" + (f". {hint}" if hint else "")

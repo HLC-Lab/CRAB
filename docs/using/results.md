@@ -153,6 +153,9 @@ The fields:
 - `wrappers` is the wrappers checkout: its folder, its commit, and `dirty`, which is `true` when it
   had local edits.
 - `apps` lists, for each experiment and app key, the wrapper file and the SHA-256 of its contents.
+  `path` and `sha256` are `null` for a wrapper that is on no wrapper search folder, for example a
+  `{placeholder}` path, a `--only` rerun, or a job on a machine whose wrappers differ from the
+  submitting one.
 - `execution` records the scheduler, the hosts and the default launcher. With the `mpirun`
   launcher and dialect `auto`, it also records the dialect found and the first line of
   `mpirun --version`.

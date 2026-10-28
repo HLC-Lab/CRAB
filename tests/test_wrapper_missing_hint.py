@@ -1,6 +1,6 @@
 """When a wrapper is not found and the checkout has no `wrappers/` folder (a plain `git pull`
 removed the tracked files), the error says to run `crab update`. With a checkout, or with
-CRAB_PATH_WRAPPERS set, the messages stay as they were."""
+CRAB_PATH_WRAPPERS set, the error names only the searched folders."""
 
 from __future__ import annotations
 
@@ -121,18 +121,20 @@ def _runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ExperimentRunner
     )
 
 
-def test_the_runner_error_includes_the_hint_without_a_checkout(
+def test_the_runner_error_names_the_search_path_and_the_hint_without_a_checkout(
     root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     runner = _runner(root, monkeypatch)
     with pytest.raises(FileNotFoundError) as exc:
         runner.setup()
     msg = str(exc.value)
-    assert msg.startswith("Wrapper not found: blink/nope.py")
+    assert msg == wp.wrapper_path_problem("blink/nope.py")
+    assert msg.startswith("wrapper blink/nope.py not found on the wrapper search path (")
+    assert str(root / "wrappers") in msg
     assert "crab update" in msg and URL in msg
 
 
-def test_the_runner_error_is_unchanged_with_a_checkout(
+def test_the_runner_error_names_the_search_path_with_a_checkout(
     root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (root / "wrappers" / "blink").mkdir(parents=True)
@@ -140,4 +142,16 @@ def test_the_runner_error_is_unchanged_with_a_checkout(
     runner = _runner(root, monkeypatch)
     with pytest.raises(FileNotFoundError) as exc:
         runner.setup()
-    assert str(exc.value) == "Wrapper not found: blink/nope.py"
+    assert str(exc.value) == wp.wrapper_path_problem("blink/nope.py")
+    assert str(exc.value).endswith(f"({', '.join(wp.wrapper_search_path())})")
+
+
+def test_a_missing_absolute_path_keeps_the_runner_message(
+    root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gone = str(tmp_path / "gone.py")
+    runner = _runner(root, monkeypatch)
+    runner.config["apps"]["0"]["path"] = gone
+    with pytest.raises(FileNotFoundError) as exc:
+        runner.setup()
+    assert str(exc.value).startswith(f"Wrapper not found: {gone}")

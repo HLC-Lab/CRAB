@@ -48,12 +48,23 @@ def _read(path: str) -> bytes:
 def handle_parse(args: argparse.Namespace) -> None:
     from crab.cli.wrappers_catalog import parse_saved_output
     from crab.core.data.parse import ParseError
-    from crab.core.wrapper_paths import missing_wrappers_hint, resolve_wrapper_path
+    from crab.core.wrapper_paths import (
+        missing_wrappers_hint,
+        renamed_wrapper_note,
+        resolve_wrapper_path,
+        wrapper_search_path,
+    )
 
+    # The search path first, then the file as typed, relative to the folder `crab parse` runs in.
     path = resolve_wrapper_path(args.wrapper)
-    if not os.path.isfile(path):
-        hint = missing_wrappers_hint()
-        _fail(f"wrapper not found: {path}" + (f". {hint}" if hint else ""))
+    if path is None and os.path.isfile(args.wrapper):
+        path = os.path.abspath(args.wrapper)
+    if path is None or not os.path.isfile(path):
+        searched = (
+            "" if os.path.isabs(args.wrapper) else f" (searched {', '.join(wrapper_search_path())})"
+        )
+        detail = renamed_wrapper_note(args.wrapper) or missing_wrappers_hint()
+        _fail(f"wrapper not found: {args.wrapper}{searched}" + (f". {detail}" if detail else ""))
 
     settings = dict(_setting(raw) for raw in args.set or [])
     stderr = _read(args.stderr) if args.stderr else b""

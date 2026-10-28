@@ -52,6 +52,10 @@ absolute.
 - A relative path in an app's `binary` key (`bin/xhpl`, `./xhpl`) is refused by `crab validate` and
   `crab run` before anything is submitted. Use the full path (`~` and `$VAR` are fine, expanded
   where the job runs) or a command name on `PATH`.
+- A relative wrapper `path` that is not on the wrapper search path is no longer looked for
+  relative to the current folder, or under the first `CRAB_PATH_WRAPPERS` folder. The run stops
+  with `wrapper <path> not found on the wrapper search path`. Put the wrapper in `local/wrappers/`
+  or in a `CRAB_PATH_WRAPPERS` folder, or use an absolute path.
 
 ### Added
 
