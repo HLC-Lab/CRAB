@@ -3,8 +3,8 @@
 # /usr/mpi/gcc/openmpi-* are built without CUDA and Blink -gpu stops with "this MPI is not GPU-aware".
 # Run it on one node (it builds there; ~/crab is shared, so both nodes see the result):
 #   bash ~/crab/lab/ompi_cuda_build.sh
-# Needs the proxy of this shell (download.open-mpi.org). No internet for the tarball? Copy it by hand to
-# ~/crab/lab/openmpi-<ver>.tar.bz2 and run again. Takes about 10-15 minutes. Nothing outside ~/crab/lab is touched.
+# The tarball (4.1.6, sha256 checked against open-mpi.org) is in this branch, dist/: no download needed here. Takes about
+# 10-15 minutes. Nothing outside ~/crab/lab is touched.
 # Afterwards gpu_pw.sh and blink_gpu_build.sh put ompi-cuda/bin first in PATH by themselves; rebuild Blink once:
 #   bash ~/crab/lab/blink_gpu_build.sh
 # Env: OMPI_VER (4.1.6), CUDA_ROOT (/usr/local/cuda-12.3), UCX_ROOT (found from ucx_info), JOBS (16), OUT.
@@ -15,7 +15,8 @@ OMPI_VER=${OMPI_VER:-4.1.6}
 CUDA_ROOT=${CUDA_ROOT:-/usr/local/cuda-12.3}
 JOBS=${JOBS:-16}
 PREFIX=$HERE/ompi-cuda
-TARBALL=$HERE/openmpi-$OMPI_VER.tar.bz2
+TARBALL=$HERE/dist/openmpi-$OMPI_VER.tar.bz2
+[[ -f $TARBALL ]] || TARBALL=$HERE/openmpi-$OMPI_VER.tar.bz2
 SRC=$HERE/openmpi-$OMPI_VER
 mkdir -p "$OUT" || { echo "cannot create $OUT" >&2; exit 2; }
 LOG=$OUT/ompi_cuda_build_$(date +%Y%m%d_%H%M%S).log
