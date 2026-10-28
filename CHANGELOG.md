@@ -56,6 +56,10 @@ absolute.
   relative to the current folder, or under the first `CRAB_PATH_WRAPPERS` folder. The run stops
   with `wrapper <path> not found on the wrapper search path`. Put the wrapper in `local/wrappers/`
   or in a `CRAB_PATH_WRAPPERS` folder, or use an absolute path.
+- A relative `global_options.datapath` is relative to CRAB's home (the repository root in a
+  checkout), not to the folder you run `crab` from. `~` and `$VAR` are expanded, and the results
+  folder is always absolute. An empty or null `datapath`, or one that uses a variable that is not
+  set, is refused before anything is submitted.
 
 ### Added
 

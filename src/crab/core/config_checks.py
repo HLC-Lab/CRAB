@@ -283,6 +283,15 @@ def _check_binary(binary: Any, where: str) -> None:
         )
 
 
+def _check_datapath(global_opts: dict[str, Any]) -> None:
+    """`datapath`, when given, is a non-empty string; the engine expands it and makes it absolute."""
+    if "datapath" not in global_opts:
+        return
+    datapath = global_opts["datapath"]
+    if not isinstance(datapath, str) or not datapath.strip():
+        raise ValueError(f"global_options.datapath must be a non-empty string, got {datapath!r}")
+
+
 def check_config(config: dict[str, Any], settings: ExecutionSettings | None = None) -> list[str]:
     """Raise ValueError on the first value the engine would ignore or misread.
 
@@ -295,6 +304,7 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
     warnings: list[str] = []
     check_managed_directives(global_opts)
     check_ppn(global_opts, "global_options")
+    _check_datapath(global_opts)
     for exp_name, exp in _experiments(config).items():
         opts = {**global_opts, **(exp.get("local_options") or {})}
         _check_options(opts, exp_name)

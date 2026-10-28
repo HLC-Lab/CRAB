@@ -226,6 +226,7 @@ def execute_worker(work_dir: str, log_level_str: str = None):
     level = _parse_log_level(log_level_str) if log_level_str else None
     logger = get_logger(level=level)
     _watch_supervisor(logger)
+    work_dir = os.path.abspath(work_dir)
 
     try:
         config_file = os.path.join(work_dir, "config.json")

@@ -100,7 +100,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `numnodes` | int | required | Total nodes: allocated for the Slurm job, or the first `numnodes` hosts of a local preset. |
 | `ppn` | int | `1` | Ranks per node, for every app that does not set its own. Drives the launcher's total task count. See [Ranks per node](#ranks-per-node-ppn). |
 | `name` | string | `""` | Human-readable run name; prefixes the output directory (`<name>_<timestamp>`). |
-| `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. |
+| `datapath` | string | `<CRAB_ROOT>/data` | Root directory for results. `~` and `$VAR` are expanded; a relative path is relative to CRAB's home (the repository root in a checkout), not to the folder you run `crab` from. |
 | `allocation` | object | `{"mode":"linear"}` | Node-to-app mapping strategy. See [Allocation](#allocation-fields). |
 | `minruns` | int | `10` | Minimum successful runs before convergence is checked. A failed run does not count. |
 | `maxruns` | int | `20` | Hard cap on runs, failed ones included. |

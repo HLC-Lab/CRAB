@@ -9,6 +9,8 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from crab.core.engine import Engine
 from crab.core.execution.scheduler.slurm import SlurmScheduler
 from crab.core.execution.settings import from_json, from_preset, to_json
@@ -591,3 +593,99 @@ class TestSubmittedTasksPerNodeFallback(unittest.TestCase):
     def test_the_global_ppn_alone_does_not_warn_even_when_it_is_a_token(self):
         apps = {"0": {"path": "a.py"}}
         self._submit({"ex1": {"apps": apps}}, ppn="{p}").assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# `global_options.datapath` is relative to CRAB home, expanded, and always absolute
+# ---------------------------------------------------------------------------
+
+
+def _datapath_run(monkeypatch, tmp_path, datapath, environment=None):
+    """Run the orchestrator with CRAB home at tmp_path/crab and the cwd elsewhere.
+
+    Returns (result, fake scheduler). Nothing is submitted: the scheduler is a fake.
+    """
+    crab_home = tmp_path / "crab"
+    crab_home.mkdir(exist_ok=True)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir(exist_ok=True)
+    monkeypatch.chdir(elsewhere)
+    monkeypatch.setattr("crab.core.engine.CRAB_ROOT", str(crab_home))
+    fake = MagicMock()
+    fake.submit.return_value = "local-1"
+    monkeypatch.setattr("crab.core.engine.scheduler_for", lambda *args, **kwargs: fake)
+    config = {"global_options": {"numnodes": 1, "datapath": datapath}, "experiments": {}}
+    result = _make_engine()._run_orchestrator(
+        config, {"CRAB_SYSTEM": "sys"} | (environment or {}), settings=LOCAL_DIRECT
+    )
+    return result, fake
+
+
+def test_a_relative_datapath_is_relative_to_crab_home(monkeypatch, tmp_path):
+    result, _ = _datapath_run(monkeypatch, tmp_path, "results")
+    data_dir = result["data_dir"]
+    assert os.path.isabs(data_dir)
+    assert data_dir.startswith(str(tmp_path / "crab" / "results" / "sys") + os.sep)
+    assert os.path.isfile(os.path.join(data_dir, "config.json"))
+    assert not (tmp_path / "elsewhere" / "results").exists()
+
+
+def test_a_tilde_datapath_expands_under_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    result, _ = _datapath_run(monkeypatch, tmp_path, "~/x")
+    assert result["data_dir"].startswith(str(tmp_path / "home" / "x" / "sys") + os.sep)
+
+
+def test_a_variable_in_datapath_comes_from_the_preset_environment(monkeypatch, tmp_path):
+    monkeypatch.delenv("XDATA", raising=False)
+    target = tmp_path / "from-env-arg"
+    result, _ = _datapath_run(monkeypatch, tmp_path, "$XDATA/out", {"XDATA": str(target)})
+    assert result["data_dir"].startswith(str(target / "out" / "sys") + os.sep)
+    assert "XDATA" not in os.environ
+
+
+def test_a_variable_in_datapath_comes_from_the_process_environment(monkeypatch, tmp_path):
+    target = tmp_path / "from-os"
+    monkeypatch.setenv("XDATA", str(target))
+    result, _ = _datapath_run(monkeypatch, tmp_path, "${XDATA}/out")
+    assert result["data_dir"].startswith(str(target / "out" / "sys") + os.sep)
+
+
+def test_the_preset_environment_wins_over_the_process_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDATA", str(tmp_path / "from-os"))
+    target = tmp_path / "from-preset"
+    result, _ = _datapath_run(monkeypatch, tmp_path, "$XDATA/out", {"XDATA": str(target)})
+    assert result["data_dir"].startswith(str(target / "out" / "sys") + os.sep)
+    assert os.environ["XDATA"] == str(tmp_path / "from-os")
+
+
+def test_an_unset_variable_in_datapath_is_refused_and_nothing_is_created(monkeypatch, tmp_path):
+    monkeypatch.delenv("XDATA", raising=False)
+    with pytest.raises(ValueError, match=r"datapath.*environment variable that is not set"):
+        _datapath_run(monkeypatch, tmp_path, "$XDATA/out")
+    assert list((tmp_path / "crab").iterdir()) == []
+    assert list((tmp_path / "elsewhere").iterdir()) == []
+
+
+def test_an_absolute_datapath_is_kept_and_normalised(monkeypatch, tmp_path):
+    joined = os.path.join(str(tmp_path), "a", "..", "b")
+    result, _ = _datapath_run(monkeypatch, tmp_path, joined)
+    expected_root = os.path.normpath(joined)
+    assert expected_root == str(tmp_path / "b")
+    assert result["data_dir"].startswith(expected_root + os.sep)
+    assert ".." not in result["data_dir"]
+
+
+def test_the_scheduler_gets_an_absolute_job_folder(monkeypatch, tmp_path):
+    result, fake = _datapath_run(monkeypatch, tmp_path, "results")
+    job_dir = fake.submit.call_args.args[0]
+    assert os.path.isabs(job_dir)
+    assert job_dir == result["data_dir"]
+
+
+def test_a_home_folder_that_does_not_exist_in_datapath_is_refused(monkeypatch, tmp_path):
+    with pytest.raises(ValueError, match=r"datapath.*home folder"):
+        _datapath_run(monkeypatch, tmp_path, "~nosuchuser_zz/x")
+    assert not (tmp_path / "crab" / "~nosuchuser_zz").exists()
+    assert list((tmp_path / "crab").iterdir()) == []
+    assert list((tmp_path / "elsewhere").iterdir()) == []

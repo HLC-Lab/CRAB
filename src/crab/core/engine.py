@@ -18,6 +18,44 @@ from crab.log import CrabLogger
 
 CRAB_ROOT = str(paths.crab_home())
 
+_VARIABLE = re.compile(r"\$(\w+|\{[^}]*\})")
+
+
+def _expand_variables(text: str, variables: dict[str, str]) -> str:
+    """Replace `$VAR` and `${VAR}` that `variables` knows; an unknown one stays as typed."""
+
+    def replace(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name.startswith("{"):
+            name = name[1:-1]
+        return variables.get(name, match.group(0))
+
+    return _VARIABLE.sub(replace, text)
+
+
+def resolve_datapath(global_options: dict[str, Any], environment: dict[str, Any]) -> str:
+    """The absolute results folder: `datapath` expanded, relative to CRAB home, normalised.
+
+    `$VAR` is looked up in the process environment overlaid with the preset `environment`
+    (the preset wins); `~` is the home of the current user. Nothing in `os.environ` changes.
+
+    Raises:
+        ValueError: if the path keeps a `$` (a variable that is not set) or a `~user` it cannot expand.
+    """
+    if "datapath" not in global_options:
+        return os.path.join(CRAB_ROOT, "data")
+    raw = global_options["datapath"]
+    variables = {**os.environ, **{key: str(value) for key, value in environment.items()}}
+    expanded = os.path.expanduser(_expand_variables(raw, variables))
+    if "$" in expanded:
+        raise ValueError(
+            f"global_options.datapath {raw!r} uses an environment variable that is not set"
+        )
+    if expanded.startswith("~"):
+        raise ValueError(f"global_options.datapath {raw!r} names a home folder that does not exist")
+    return os.path.normpath(os.path.join(CRAB_ROOT, expanded))
+
+
 # Version of the config.json format this engine reads. A config without the field predates it
 # and is version 1. Bump only with a migration for the previous version.
 CONFIG_SCHEMA_VERSION = 2
@@ -91,7 +129,7 @@ class Engine:
             config["experiments"] = {k: v for k, v in config["experiments"].items() if k in only}
 
         g_opts = config.get("global_options", {})
-        data_path = g_opts.get("datapath", os.path.join(CRAB_ROOT, "data"))
+        data_path = resolve_datapath(g_opts, environment)
         if g_opts.get("numnodes") is None:
             raise ValueError("global_options.numnodes is required in the config file")
 

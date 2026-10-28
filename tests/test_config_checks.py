@@ -934,3 +934,31 @@ def test_a_non_string_binary_is_refused() -> None:
 
     with pytest.raises(ValueError, match=r"experiment e1: app 0: binary must be a string"):
         check_config(_binary_config(5))
+
+
+def _datapath_config(**global_options: object) -> dict:
+    return {
+        "global_options": dict(global_options),
+        "experiments": {"e1": {"apps": {"0": {"path": "a.py"}}}},
+    }
+
+
+@pytest.mark.parametrize("datapath", ["", None, 5])
+def test_an_empty_or_non_string_datapath_is_refused(datapath: object) -> None:
+    from crab.core.config_checks import check_config
+
+    with pytest.raises(ValueError, match=r"global_options\.datapath must be a non-empty string"):
+        check_config(_datapath_config(datapath=datapath))
+
+
+@pytest.mark.parametrize("datapath", ["results", "/abs/x", "~/x", "$SCRATCH/x"])
+def test_a_datapath_string_is_accepted(datapath: str) -> None:
+    from crab.core.config_checks import check_config
+
+    check_config(_datapath_config(datapath=datapath))
+
+
+def test_an_absent_datapath_is_accepted() -> None:
+    from crab.core.config_checks import check_config
+
+    check_config(_datapath_config())
