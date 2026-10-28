@@ -3,8 +3,7 @@
 #   salloc -N 2 --ntasks-per-node=8 --nodelist=<a>,<b>
 #   bash ~/crab/lab/gpu_pw.sh smoke     does -gpu run, which GPU each rank uses, how UCX moves device memory
 #   bash ~/crab/lab/gpu_pw.sh main      8/node pairwise_b host vs -gpu first, then the whole matrix
-#   bash ~/crab/lab/gpu_pw.sh best      long, repeated GPU runs at the best setting: stability (5000 iterations, 3 repeats),
-#                                       size sweep 1M-1G, pairwise_nb, PCI relaxed ordering, then ib_write_bw on GPU memory
+#   bash ~/crab/lab/gpu_pw.sh best      short GPU run at the best setting: pingpong and pairwise_b 2M-512M, pairwise_nb, PCI relaxed ordering
 # Placement as in the CPU runs R1-R5: one port per rank (LAB_NICS), each rank on a core of its card's socket,
 # rank r paired with the rank of the same local index on the other node (-offset = ranks per node), every rank
 # sees exactly one GPU (LAB_GPUS -> CUDA_VISIBLE_DEVICES, the GPU behind the same PCIe switch as its port).
@@ -15,8 +14,7 @@
 # iterations). The command line of every run and Blink's output are in $OUT/gpu_pw_<time>.log, one CSV line per
 # cell in the .csv next to it.
 # Env: BLINK_GPU_BIN (~/crab/lab/blink-gpu/build-cuda/bin; not BLINK, which env.sh points at the old CRAB build), SIZES ("134217728 2097152"), PROGS ("pairwise_b
-#      pingpong_pairwise_b"), STEP_TIMEOUT (180; best: BEST_TIMEOUT, 600), OUT.
-#      best only: EXPS (experiments to run, "1 2 3 4 5"), REPEATS (3), WB (1: ib_write_bw at the end, 0: skip).
+#      pingpong_pairwise_b"), STEP_TIMEOUT (180; best: BEST_TIMEOUT, 200), OUT.
 set -u
 NAME=gpu_pw
 HERE_LAB=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -144,78 +142,26 @@ main() {
 }
 
 # --------------------------------------------------------------------------------------------------------
-# best: long runs at the best setting (GPU memory, one port + one GPU per rank). Each experiment prints on its own,
-# in priority order, so a cut-off still leaves the useful ones. Cells show Gibit/s slowest/fastest rank (2^30, as the
-# other tables) and Gb/s of the slowest rank (decimal, comparable with ib_write_bw and the 400 Gb/s port).
+# best: short run at the best setting (8/node, GPU memory, one port + one GPU per rank), one run per cell, every
+# cell printed as soon as it finishes: Gibit/s slowest/fastest rank (2^30, as the other tables) | Gb/s slowest
+# (decimal, comparable with ib_write_bw and the 400 Gb/s port). 5000 iterations / 500 warmup, 512M: 1000 / 200.
 best() {
-    STEP_TIMEOUT=${BEST_TIMEOUT:-600}
-    local exps=${EXPS:-1 2 3 4 5} reps=${REPEATS:-3} prog size lay rep var mem row
-    say "gpu_pw best A=$A B=$B | experiments: $exps | Gibit/s slowest/fastest rank, Gb/s slowest | log: $LOG | $CSV"
-    cell L8 pingpong_pairwise_b gpu base 134217728 100 50
-    say "D 8/node pingpong gpu 128M: $CELL Gibit/s (expect about 349/350 as in main)"
-    if [[ $CELL != */* ]]; then
-        say "the sanity cell failed ($CELL), stopping"
-        grep -m2 -i -E "error|abort|not gpu|no cuda|unreach" "$TMP/run" | cut -c1-140 | while IFS= read -r l; do say "  $l"; done
-        exit 1
-    fi
-    if [[ " $exps " == *" 1 "* ]]; then
-        say "E1 stability, 8/node GPU, 5000 iterations, 500 warmup, $reps repeats"
-        for size in 134217728 536870912; do
-            for prog in pingpong_pairwise_b pairwise_b; do
-                local line="" lo="" hi="" g
-                for ((rep = 1; rep <= reps; rep++)); do
-                    cell L8 "$prog" gpu base "$size" 5000 500
-                    line+=$(printf ' %9s (%s Gb/s) |' "$CELL" "${CELL_GB%/*}")
-                    g=${CELL%%/*}
-                    if [[ $g =~ ^[0-9]+$ ]]; then
-                        [[ -z $lo || $g -lt $lo ]] && lo=$g
-                        [[ -z $hi || $g -gt $hi ]] && hi=$g
-                    fi
-                done
-                say "E1 $(printf '%-5s' "$(human "$size")") $(printf '%-9s' "${prog/pingpong_pairwise_b/pingpong}")$line slowest-rank range ${lo:--}..${hi:--} Gibit/s"
-            done
+    STEP_TIMEOUT=${BEST_TIMEOUT:-200}
+    local prog size mem it warm
+    say "gpu_pw best A=$A B=$B | 8/node, GPU memory | Gibit/s slowest/fastest | Gb/s slowest | log: $LOG | $CSV"
+    for prog in pingpong_pairwise_b pairwise_b; do
+        for size in 2097152 33554432 134217728 536870912; do
+            if ((size >= 536870912)); then it=1000 warm=200; else it=5000 warm=500; fi
+            cell L8 "$prog" gpu base "$size" "$it" "$warm"
+            say "B1 $(printf '%-9s' "${prog/pingpong_pairwise_b/pingpong}") $(printf '%-5s' "$(human "$size")") ${it}it: $CELL | ${CELL_GB%/*} Gb/s"
         done
-    fi
-    if [[ " $exps " == *" 2 "* ]]; then
-        local sizes=(1048576 2097152 4194304 8388608 33554432 134217728 536870912 1073741824)
-        row=$(printf '%-22s' "E2 size sweep (1000 it)")
-        for size in "${sizes[@]}"; do row+=$(printf ' %9s' "$(human "$size")"); done
-        say "$row"
-        for lay in L8 L1; do
-            for prog in pingpong_pairwise_b pairwise_b; do
-                row=$(printf '%-22s' "${LT[$lay]} ${prog/pingpong_pairwise_b/pingpong}")
-                for size in "${sizes[@]}"; do
-                    cell "$lay" "$prog" gpu base "$size" 1000 200
-                    row+=$(printf ' %9s' "$CELL")
-                done
-                say "$row"
-            done
-        done
-    fi
-    if [[ " $exps " == *" 3 "* ]]; then
-        say "E3 pairwise_nb, 8/node, 1000 iterations (Gibit/s slowest/fastest | Gb/s slowest)"
-        for size in 134217728 536870912; do
-            for mem in host gpu; do
-                cell L8 pairwise_nb "$mem" base "$size" 1000 100
-                say "E3 $(printf '%-5s' "$(human "$size")") pairwise_nb $mem: $CELL | ${CELL_GB%/*} Gb/s"
-            done
-        done
-    fi
-    if [[ " $exps " == *" 4 "* ]]; then
-        say "E4 UCX_IB_PCI_RELAXED_ORDERING, 8/node GPU, 128M, 1000 iterations"
-        for prog in pairwise_b pingpong_pairwise_b; do
-            local out=""
-            for var in base ro; do
-                cell L8 "$prog" gpu "$var" 134217728 1000 100
-                out+=$(printf ' %s: %s (%s Gb/s) |' "$var" "$CELL" "${CELL_GB%/*}")
-            done
-            say "E4 ${prog/pingpong_pairwise_b/pingpong}$out"
-        done
-    fi
-    if [[ " $exps " == *" 5 "* && ${WB:-1} == 1 && -f $HERE_LAB/wb.sh ]]; then
-        say "E5 ib_write_bw on GPU memory, same session (wb.sh, Gb/s as ib_write_bw reports)"
-        USE_CUDA=1 bash "$HERE_LAB/wb.sh" 2>&1 | tee -a "$LOG"
-    fi
+    done
+    for mem in gpu host; do
+        cell L8 pairwise_nb "$mem" base 134217728 5000 500
+        say "B2 pairwise_nb $mem 128M 5000it: $CELL | ${CELL_GB%/*} Gb/s"
+    done
+    cell L8 pairwise_b gpu ro 134217728 5000 500
+    say "B3 pairwise_b gpu 128M 5000it, UCX_IB_PCI_RELAXED_ORDERING=y: $CELL | ${CELL_GB%/*} Gb/s"
     say "done: $LOG | $CSV"
 }
 

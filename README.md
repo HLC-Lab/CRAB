@@ -32,5 +32,5 @@ Remove: `rm -rf ~/crab/lab`.
 | `net_check.sh` | Read-only: what the proxy lets through (Open MPI tarball, GitHub) and which build tools exist; prints a verdict. |
 | `ucx_cuda_build.sh` | Builds a UCX 1.20.0 with CUDA into `ucx-cuda/` (the system UCX has no CUDA module); `gpu_pw.sh` puts it first in LD_LIBRARY_PATH. Tarball in `dist/`. |
 | `ompi_cuda_build.sh` | Builds a CUDA-aware Open MPI (system UCX) into `ompi-cuda/`; the installed Open MPIs have no CUDA, so Blink `-gpu` stops with "not GPU-aware". The GPU scripts use it automatically. |
-| `gpu_pw.sh` | `smoke`, `main` or `best` (long GPU runs: stability at 128M/512M with 5000 iterations and 3 repeats, size sweep 1M-1G, pairwise_nb, PCI relaxed ordering, ib_write_bw on GPU memory; prints Gibit/s and Gb/s). `smoke` then `main`: Blink host vs `-gpu`, pairwise and ping-pong, 8/4/4/1 ranks per node, put_zcopy and GPUDirect off. |
+| `gpu_pw.sh` | `smoke`, `main` or `best` (short GPU run: pingpong and pairwise_b 2M-512M, pairwise_nb, PCI relaxed ordering; prints Gibit/s and Gb/s per cell). `smoke` then `main`: Blink host vs `-gpu`, pairwise and ping-pong, 8/4/4/1 ranks per node, put_zcopy and GPUDirect off. |
 | `lib.sh` | Shared helpers (sourced). |
