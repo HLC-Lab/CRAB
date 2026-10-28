@@ -111,7 +111,8 @@ are described in [ADR-038](../dev/dashboard/decisions/adr-038-two-layouts.md); t
 These are the places on Linux; other systems use their own user data and config folders. Two
 variables move them:
 
-- `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`.
+- `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`. It must be an
+  absolute path (`~` is fine): a relative value stops the command with an error.
 - `CRAB_PATH_PRESETS` sets the folder of your override files.
 
 The package ships no presets: the shared ones come from the crab-wrappers clone, with the

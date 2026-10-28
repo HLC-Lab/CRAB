@@ -413,6 +413,14 @@ def cli_router():
     argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
+    from crab import paths
+
+    try:
+        paths.validate_env_paths()
+    except ValueError as exc:
+        print(f"crab: {exc}", file=sys.stderr)
+        sys.exit(2)
+
     from crab.setup.memory import ReceiptError
 
     try:

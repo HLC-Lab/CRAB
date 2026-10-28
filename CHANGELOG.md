@@ -21,7 +21,12 @@ Planned as 1.2.0.
 
 This release changes the presets format and where presets live, inside the 1.x line
 ([ADR-041](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-041-presets-in-crab-wrappers/)).
+It also stops guessing folders from the current directory: a value that names a folder must be
+absolute.
 
+- `CRAB_HOME`, `CRAB_PATH_WRAPPERS` (each entry), `CRAB_PATH_PRESETS` and
+  `CRAB_WEB_CONFIG_DIR`/`_DATA_DIR`/`_LIBRARY_DIR` must be absolute paths (`~` is fine). A relative
+  value stops the command with an error that names the variable.
 - The single-file overrides are refused. `local/presets.json` (in CRAB's home) and `presets.json`
   in the config folder (`~/.config/crab/presets.json` or `$CRAB_HOME/config/presets.json`) are no
   longer read. While one exists, every command that loads presets stops with a message that names
