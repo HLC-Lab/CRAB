@@ -63,6 +63,10 @@ absolute.
 - Slurm jobs start in their data folder instead of the folder `crab run` was typed in. A preset
   `header` line with a relative path (`source ./env.sh`) must become absolute. A preset's own
   `--chdir` directive still wins.
+- The `.env` preset file (just the preset name, used when neither `-p` nor `CRAB_PRESET` is given)
+  is read from CRAB's home, the repository root in a checkout and `~/.local/share/crab` (or
+  `$CRAB_HOME`) in a pip install, instead of the folder you run `crab` from. A `.env` in the
+  current folder is ignored.
 
 ### Added
 

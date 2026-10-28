@@ -343,8 +343,9 @@ def execute_orchestrator(
 
     try:
         selected_preset = preset_arg or os.environ.get("CRAB_PRESET")
-        if os.path.exists(".env") and not selected_preset:
-            with open(".env") as f:
+        env_file = os.path.join(CRAB_ROOT, ".env")
+        if os.path.exists(env_file) and not selected_preset:
+            with open(env_file) as f:
                 selected_preset = f.read().strip()
 
         if not selected_preset:

@@ -37,7 +37,9 @@ At run time CRAB resolves which preset to use in this order:
 
 1. The `-p`/`--preset` flag: `crab run myconfig.json -p mycluster`
 2. The `CRAB_PRESET` environment variable
-3. A `.env` file in the working directory containing just the preset name
+3. A `.env` file in CRAB's home containing just the preset name: the repository root in a
+   checkout, `~/.local/share/crab` (or `$CRAB_HOME`) in a pip install. A `.env` in the folder you
+   run `crab` from is not read.
 
 If none of these names a preset, `crab run` stops with an error. It never picks one for you;
 to run without Slurm, ask for it explicitly with `-p local`.

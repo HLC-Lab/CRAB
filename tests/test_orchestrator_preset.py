@@ -16,7 +16,8 @@ from settings_fixtures import LOCAL_DIRECT
 
 def test_no_preset_anywhere_exits_with_a_clear_error(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("CRAB_PRESET", raising=False)
-    monkeypatch.chdir(tmp_path)  # no .env here
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("crab.cli.orchestrator.CRAB_ROOT", str(tmp_path))  # no .env here
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps({"global_options": {}, "experiments": {}}))
 

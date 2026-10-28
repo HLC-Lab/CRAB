@@ -156,8 +156,9 @@ No preset selected. Pass -p <preset> or set CRAB_PRESET (use -p local to run wit
 ```
 
 `crab run` never picks a preset for you, so a forgotten `-p` cannot run a benchmark on a login
-node. Pass `-p <name>`, set `CRAB_PRESET`, or put the name in a `.env` file in the working
-directory. See [Selecting your preset](presets.md#selecting-your-preset).
+node. Pass `-p <name>`, set `CRAB_PRESET`, or put the name in a `.env` file in CRAB's home (the
+repository root in a checkout, `~/.local/share/crab` or `$CRAB_HOME` in a pip install; not the
+folder you run `crab` from). See [Selecting your preset](presets.md#selecting-your-preset).
 
 ### Preset not found
 

@@ -338,6 +338,8 @@ To migrate a preset, add `scheduler` (`"slurm"` for a cluster), set `launcher`, 
 
 1. `-p` / `--preset` flag
 2. `CRAB_PRESET` environment variable
-3. A `.env` file in the working directory (its contents = the preset name)
+3. A `.env` file in CRAB's home (its contents = the preset name): the repository root in a
+   checkout, `~/.local/share/crab` (or `$CRAB_HOME`) in a pip install; the folder you run `crab`
+   from is not read
 
 If none of these names a preset, `crab run` stops with an error; it never picks one for you.
