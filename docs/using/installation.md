@@ -206,7 +206,9 @@ An application that is already installed does not need the wizard:
 - If its wrapper declares an `executable` and that program is on `PATH` when the job runs (for
   example after a `module load` in your preset), CRAB finds it with no setup at all.
 - Otherwise record where it is: `crab receipts set <benchmark_id> --binary /path/to/program`,
-  optionally with `--pre-run "module load ..."` (repeatable) and `--launcher srun|mpirun`.
+  optionally with `--pre-run "module load ..."` (repeatable) and `--launcher srun|mpirun`. Give
+  the full path: `~` is expanded, and a relative path is made absolute from the folder you run
+  the command in, so the receipt works from any folder.
 - A config can also name the binary for one app directly, with a `binary` key next to `path`.
 
 `crab wrappers list` shows every wrapper CRAB can see and where each one's binary comes from.

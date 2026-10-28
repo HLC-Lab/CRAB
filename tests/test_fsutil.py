@@ -10,7 +10,9 @@ import os
 import shutil
 from pathlib import Path
 
-from crab.fsutil import leave_dir_before_remove
+import pytest
+
+from crab.fsutil import absolute_binary, leave_dir_before_remove
 
 
 def _real(path: Path) -> str:
@@ -121,3 +123,78 @@ def test_benchmarks_symlink_resolves_to_the_real_benchmarks_folder(monkeypatch, 
     leave_dir_before_remove(link / "blink")
 
     assert os.getcwd() == _real(real_benchmarks)
+
+
+# --- absolute_binary: a typed binary path is stored absolute ---
+
+
+def _delete_cwd(tmp_path: Path) -> None:
+    """Move into a folder and remove it, so `os.getcwd()` raises (the test chdir'd first)."""
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    os.chdir(gone)
+    gone.rmdir()
+
+
+@pytest.mark.parametrize("name", ["xhpl", "pw.x", "mpirun"])
+def test_a_bare_command_name_is_unchanged(monkeypatch, tmp_path, name):
+    monkeypatch.chdir(tmp_path)
+    assert absolute_binary(name) == name
+
+
+def test_an_absolute_path_is_unchanged_even_without_a_current_folder(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _delete_cwd(tmp_path)
+    assert absolute_binary("/opt/x/bin/xhpl") == "/opt/x/bin/xhpl"
+
+
+def test_a_tilde_path_is_expanded_even_without_a_current_folder(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    _delete_cwd(tmp_path)
+    assert absolute_binary("~/bin/x") == f"{tmp_path / 'home'}/bin/x"
+
+
+def test_a_relative_path_is_made_absolute_from_the_current_folder(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sub").mkdir()
+    os.chdir(tmp_path / "sub")
+    here = os.path.abspath(".")
+    assert absolute_binary("rel/x") == f"{here}/rel/x"
+    assert absolute_binary("./x") == f"{here}/x"
+    assert absolute_binary("../x/y") == f"{tmp_path}/x/y"
+    assert absolute_binary("rel/dir/") == f"{here}/rel/dir"
+
+
+@pytest.mark.parametrize(
+    "line", ["/opt/select_nic /opt/bin/x", "/opt/select_nic rel/x", "  /opt/a   rel/b  "]
+)
+def test_a_launcher_line_is_unchanged(monkeypatch, tmp_path, line):
+    monkeypatch.chdir(tmp_path)
+    assert absolute_binary(line) == line
+
+
+@pytest.mark.parametrize("raw", ["", "   "])
+def test_an_empty_value_is_unchanged(monkeypatch, tmp_path, raw):
+    monkeypatch.chdir(tmp_path)
+    assert absolute_binary(raw) == raw
+
+
+def test_an_unknown_user_is_refused(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match=r"~.*full path"):
+        absolute_binary("~nosuchuser_zz/x")
+
+
+@pytest.mark.parametrize("raw", ["$HOME/x", "${SCRATCH}/x"])
+def test_an_environment_variable_is_refused(monkeypatch, tmp_path, raw):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match=r"environment variables.*full path"):
+        absolute_binary(raw)
+
+
+def test_a_relative_path_without_a_current_folder_is_refused(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    _delete_cwd(tmp_path)
+    with pytest.raises(ValueError, match=r"current folder no longer exists.*full path"):
+        absolute_binary("rel/x")

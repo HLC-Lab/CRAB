@@ -18,7 +18,7 @@ from rich.text import Text
 import crab.core.process.manager as manager
 import crab.setup.memory as memory
 from crab import paths
-from crab.fsutil import leave_dir_before_remove
+from crab.fsutil import absolute_binary, leave_dir_before_remove
 from crab.setup.registry import discover_recipes
 
 console = Console()
@@ -201,15 +201,25 @@ def _ask_module_executable(recipe) -> str:
 
     The recipe id is not a command, so it is never offered; an empty answer is asked again.
     """
-    if recipe.module_executable:
-        return Prompt.ask(
-            "Enter the executable the module provides", default=recipe.module_executable
-        )
     while True:
-        answer = Prompt.ask("Enter the executable the module provides").strip()
-        if answer:
-            return answer
-        console.print("[red]An executable name is required.[/red]")
+        if recipe.module_executable:
+            answer = Prompt.ask(
+                "Enter the executable the module provides (a command name, or a full path; "
+                "~ is expanded)",
+                default=recipe.module_executable,
+            ).strip()
+        else:
+            answer = Prompt.ask(
+                "Enter the executable the module provides (a command name, or a full path; "
+                "~ is expanded)"
+            ).strip()
+        if not answer:
+            console.print("[red]An executable name is required.[/red]")
+            continue
+        try:
+            return absolute_binary(answer)
+        except ValueError as error:
+            console.print(f"[red]{error}[/red]")
 
 
 def _collect_pre_run_hooks() -> list[str]:
@@ -272,10 +282,15 @@ def _run_custom_benchmark_wizard(
     # ── Step 2: executable path ───────────────────────────────────────────────
     while True:
         path = Prompt.ask(
-            "\n[bold]Full path to the executable[/bold] (e.g. '/opt/hpl/bin/xhpl')"
+            "\n[bold]Full path to the executable[/bold] (e.g. '/opt/hpl/bin/xhpl'; ~ is expanded)"
         ).strip()
         if not path:
             console.print("[red]Path cannot be empty.[/red]")
+            continue
+        try:
+            path = absolute_binary(path)
+        except ValueError as error:
+            console.print(f"[red]{error}[/red]")
             continue
         if not os.path.isfile(path):
             console.print(
@@ -459,10 +474,15 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
         elif choice == "2":
             while True:
                 user_path = Prompt.ask(
-                    "Enter the absolute path to executable/directory (or 'q' to exit)"
+                    "Enter the full path to executable/directory (~ is expanded; 'q' to exit)"
                 )
                 if user_path.lower() == "q":
                     break
+                try:
+                    user_path = absolute_binary(user_path.strip())
+                except ValueError as error:
+                    console.print(f"[red]{error}[/red]")
+                    continue
                 if recipe.verify_existing(user_path):
                     final_path = user_path
                     break

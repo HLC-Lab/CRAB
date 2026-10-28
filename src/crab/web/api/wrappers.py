@@ -9,6 +9,7 @@ the laptop (``check_profile_name`` refuses it for cluster profiles). Runs
 
 from __future__ import annotations
 
+import shlex
 from typing import Literal
 
 from fastapi import APIRouter, Query, Request
@@ -42,7 +43,28 @@ class ReceiptImport(BaseModel):
     launcher: Literal["", "srun", "mpirun"] = ""
 
 
+def _check_binary(binary: str) -> None:
+    """Refuse a relative path: it would be resolved in the remote's folder, not the person's.
+
+    One word with a `/` that starts with neither `/` nor `~` is relative. Command names, absolute
+    and `~` paths and launcher lines of several words pass.
+
+    Raises:
+        InputError: the binary is a relative path.
+    """
+    try:
+        tokens = shlex.split(binary)
+    except ValueError:
+        tokens = binary.split()
+    if len(tokens) == 1 and "/" in tokens[0] and not tokens[0].startswith(("/", "~")):
+        raise InputError(
+            f"{tokens[0]!r} is a relative path: give the full path to the binary on that machine."
+        )
+
+
 def _receipt_args(body: ReceiptImport) -> list[str | RemotePath]:
+    """The `crab receipts set` arguments for an import. Raises InputError for a relative binary."""
+    _check_binary(body.binary)
     args: list[str | RemotePath] = ["receipts", "set", body.id, "--binary", RemotePath(body.binary)]
     for command in body.pre_run:
         if command.strip():

@@ -89,9 +89,14 @@ def handle_parse(args: argparse.Namespace) -> None:
 def handle_receipts_set(args: argparse.Namespace) -> None:
     import crab.setup.memory as memory
     from crab.cli.contract import CONTRACT_SCHEMA
+    from crab.fsutil import absolute_binary
 
     if not _RECEIPT_ID.match(args.id):
         _fail(f"receipt id {args.id!r} may only use letters, digits, '_', '-' and '.'")
+    try:
+        args.binary = absolute_binary(args.binary)
+    except ValueError as error:
+        _fail(str(error))
     if not args.allow_missing and not os.path.exists(args.binary):
         _fail(f"binary {args.binary} does not exist (use --allow-missing to record it anyway)")
 
@@ -359,7 +364,12 @@ def register(subparsers: Any) -> None:
     receipts_sub = parser_receipts.add_subparsers(dest="receipts_command", required=True)
     parser_set = receipts_sub.add_parser("set", help="Record where a benchmark's binary lives")
     parser_set.add_argument("id", help="The wrapper's benchmark_id.")
-    parser_set.add_argument("--binary", required=True, help="Path to the executable.")
+    parser_set.add_argument(
+        "--binary",
+        required=True,
+        help="Full path to the executable (~ is expanded; a relative path is made absolute "
+        "from where you run this), or a command name.",
+    )
     parser_set.add_argument(
         "--pre-run",
         action="append",

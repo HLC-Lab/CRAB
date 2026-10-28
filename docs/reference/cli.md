@@ -454,13 +454,15 @@ crab receipts set --binary PATH [--pre-run CMD ...] [--launcher srun|mpirun] [--
 | Argument | Meaning | Default |
 |----------|---------|---------|
 | `ID` | The wrapper's `benchmark_id`. Required. | none |
-| `--binary` | Path to the executable. Required. | none |
+| `--binary` | Full path to the executable, or a command name that is on `PATH` when the job runs. Required. | none |
 | `--pre-run` | A command to run before each launch. Repeatable. | none |
 | `--launcher` | `srun` or `mpirun`. Sets this benchmark's launcher kind, which overrides the preset's `launcher` for this benchmark. Any other value is refused. | the preset's launcher |
 | `--allow-missing` | Record the path even if it does not exist here. Without it, a `PATH` that does not exist is refused. | off |
 | `--json` | Print the saved receipt as JSON. | off |
 
-It writes `local/receipts/ID.json`.
+It writes `local/receipts/ID.json`. The path is stored absolute: `~` is expanded and a relative
+path is made absolute from the folder you run the command in, before the existence check. A
+command name such as `xhpl` is stored as typed.
 
 ```bash
 crab receipts set mybench --binary /scratch/me/mybench/bin/mybench
