@@ -47,6 +47,10 @@ with CRAB's home, the repository root in a checkout and the data directory of a 
 preset that sets its own `CRAB_ROOT` wins. If a preset doesn't set `CRAB_SYSTEM`, it defaults to
 the preset's name and is used in the output directory path.
 
+Keys that name folders, `CRAB_ROOT` and each entry of `CRAB_PATH_WRAPPERS`, must be absolute
+paths: a relative one would mean a different folder depending on where you run `crab`, so the
+preset is refused with a message naming the key. `~` and `__CWD__` are fine.
+
 ## Your overrides
 
 Never edit the shared presets: they are part of the crab-wrappers clone, and an edit there would

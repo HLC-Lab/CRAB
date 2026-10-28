@@ -189,7 +189,8 @@ def config_wrapper_path_problems(
     `only` limits the check to those experiment keys (a `crab run --only` rerun). `env` is the
     job's execution environment (a preset's `env`): a CRAB_PATH_WRAPPERS set there wins over this
     process's, as it does in the job. Its bash variables are expanded here; a value that still
-    holds a `$` after that is not guessed at, and the check is skipped. Placeholder paths
+    holds a `$` after that is not guessed at, and the check is skipped; a relative entry is one
+    problem line. Placeholder paths
     (`{var}`) are skipped: they are only known once a sweep expands them. A config shape that
     holds no experiments or apps yields nothing (the schema checks own that). The legacy
     `applications` form counts as one experiment, as the engine reads it.
@@ -200,6 +201,12 @@ def config_wrapper_path_problems(
     expanded = os.path.expandvars(preset_value)
     if "$" in expanded:
         return []
+    try:
+        for entry in expanded.split(os.pathsep):
+            if entry:
+                paths.check_env_value("CRAB_PATH_WRAPPERS", entry)
+    except ValueError as error:
+        return [str(error)]
     saved = os.environ.get("CRAB_PATH_WRAPPERS")
     os.environ["CRAB_PATH_WRAPPERS"] = expanded
     try:

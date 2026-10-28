@@ -27,6 +27,31 @@ from crab.core.wrapper_paths import (  # noqa: E402 -- same
 )
 
 
+def _check_env_folders(env: dict[str, Any], preset_arg: str) -> None:
+    """Refuse a relative `CRAB_PATH_WRAPPERS` entry or `CRAB_ROOT` in a preset's `env`.
+
+    `__CWD__` counts as CRAB's home (as in `prepare_execution_environment`) and `~` is fine; a
+    value that still holds a `$` is skipped, it is expanded later (see `paths.check_env_value`).
+
+    Raises:
+        ValueError: a relative value; the message names the preset and the key.
+    """
+    values: list[tuple[str, str]] = []
+    wrappers = env.get("CRAB_PATH_WRAPPERS")
+    if isinstance(wrappers, str):
+        for entry in wrappers.split(os.pathsep):
+            if entry:
+                values.append(("CRAB_PATH_WRAPPERS", entry))
+    root = env.get("CRAB_ROOT")
+    if isinstance(root, str) and root:
+        values.append(("CRAB_ROOT", root))
+    for key, value in values:
+        try:
+            paths.check_env_value(key, value.replace("__CWD__", CRAB_ROOT))
+        except ValueError as error:
+            raise ValueError(f"Preset '{preset_arg}': env {error}") from error
+
+
 def load_environment_config(
     preset_arg: str, crab_root: str | Path | None = None, *, allow_unset_marks: bool = False
 ) -> dict[str, Any]:
@@ -40,7 +65,8 @@ def load_environment_config(
         KeyError: the preset does not exist.
         ValueError: a presets file holds `_common` or a mark no override can patch, the preset
             holds a mark the user has not overridden (the message holds the override snippet), its
-            execution fields are invalid, or a dropped `CRAB_*` launch key is in its `env`.
+            execution fields are invalid, a dropped `CRAB_*` launch key is in its `env`, or its `env`
+            holds a relative `CRAB_ROOT` or `CRAB_PATH_WRAPPERS` entry.
     """
     from crab.cli.preset_marks import override_snippet, unset_marks
     from crab.cli.presets import load_all_presets, preset_not_found_message, preset_sources
@@ -65,6 +91,7 @@ def load_environment_config(
         )
 
     final_env = {"CRAB_ROOT": "__CWD__", **target_preset.get("env", {})}
+    _check_env_folders(final_env, preset_arg)
 
     # Parsed before CRAB_SYSTEM is added, so it sees only what the preset itself set.
     settings = from_preset({**target_preset, "env": final_env}, preset_arg)

@@ -224,3 +224,42 @@ def test_a_dollar_entry_stays_unexpanded(root: Path, monkeypatch) -> None:
         str(root / "local/wrappers"),
         "$NO_SUCH_VARIABLE_FOR_CRAB/w",
     ]
+
+
+def _wrapper_config() -> dict:
+    return {"experiments": {"e1": {"apps": {"0": {"path": "blink/nope.py"}}}}}
+
+
+def test_a_preset_wrappers_value_that_expands_to_a_relative_path_is_a_problem(
+    root: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("REL", "rel")
+    problems = wp.config_wrapper_path_problems(
+        _wrapper_config(), env={"CRAB_PATH_WRAPPERS": "$REL/w"}
+    )
+    assert len(problems) == 1
+    assert "CRAB_PATH_WRAPPERS" in problems[0]
+    assert "absolute" in problems[0]
+    assert "CRAB_PATH_WRAPPERS" not in os.environ
+
+
+def test_a_preset_wrappers_value_that_expands_to_an_absolute_path_is_checked(
+    root: Path, monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("REL", str(tmp_path / "folder"))
+    problems = wp.config_wrapper_path_problems(
+        _wrapper_config(), env={"CRAB_PATH_WRAPPERS": "$REL/w"}
+    )
+    assert len(problems) == 1
+    assert "not found on the wrapper search path" in problems[0]
+    assert str(tmp_path / "folder" / "w") in problems[0]
+    assert "CRAB_PATH_WRAPPERS" not in os.environ
+
+
+def test_a_preset_wrappers_value_with_an_unset_variable_is_skipped(root: Path, monkeypatch) -> None:
+    monkeypatch.delenv("REL", raising=False)
+    assert (
+        wp.config_wrapper_path_problems(_wrapper_config(), env={"CRAB_PATH_WRAPPERS": "$REL/w"})
+        == []
+    )
+    assert "CRAB_PATH_WRAPPERS" not in os.environ

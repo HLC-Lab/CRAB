@@ -207,3 +207,52 @@ def test_allow_unset_marks_loads_the_preset_with_the_mark_in_place(tmp_path, mar
     config = load_environment_config("lab", tmp_path, allow_unset_marks=True)
 
     assert config["sbatch"] == ["--account=<YOUR_ACCOUNT>"]
+
+
+def _env_preset(env: dict[str, str]) -> dict[str, dict]:
+    return {"p": {"scheduler": "slurm", "env": env}}
+
+
+def test_a_relative_wrappers_entry_in_a_preset_env_is_refused_naming_the_preset() -> None:
+    presets = _env_preset({"CRAB_PATH_WRAPPERS": "/abs/a:rel/b"})
+    with patch("crab.cli.presets.load_all_presets", return_value=presets):
+        with pytest.raises(ValueError) as exc:
+            load_environment_config("p")
+
+    message = str(exc.value)
+    assert "Preset 'p'" in message
+    assert "CRAB_PATH_WRAPPERS" in message
+    assert "absolute" in message
+
+
+def test_a_relative_crab_root_in_a_preset_env_is_refused_naming_the_preset() -> None:
+    presets = _env_preset({"CRAB_ROOT": "rel/root"})
+    with patch("crab.cli.presets.load_all_presets", return_value=presets):
+        with pytest.raises(ValueError) as exc:
+            load_environment_config("p")
+
+    message = str(exc.value)
+    assert "Preset 'p'" in message
+    assert "CRAB_ROOT" in message
+    assert "absolute" in message
+
+
+@pytest.mark.parametrize("crab_root", ["__CWD__", "/abs/root", "~/crab", "__CWD__/sub"])
+def test_a_preset_crab_root_that_is_not_relative_still_loads(crab_root: str) -> None:
+    with patch(
+        "crab.cli.presets.load_all_presets", return_value=_env_preset({"CRAB_ROOT": crab_root})
+    ):
+        config = load_environment_config("p")
+
+    assert config["env"]["CRAB_ROOT"] == crab_root
+
+
+@pytest.mark.parametrize(
+    "wrappers", ["$SCRATCH/w:/abs/b", "~/w", "/abs/a:/abs/b", "/abs/a::/abs/b", "__CWD__/w"]
+)
+def test_a_preset_wrappers_path_that_is_not_relative_still_loads(wrappers: str) -> None:
+    presets = _env_preset({"CRAB_PATH_WRAPPERS": wrappers})
+    with patch("crab.cli.presets.load_all_presets", return_value=presets):
+        config = load_environment_config("p")
+
+    assert config["env"]["CRAB_PATH_WRAPPERS"] == wrappers

@@ -28,7 +28,7 @@ ENV_PATH_NAMES = (
 ENV_PATH_LIST_NAMES = ("CRAB_PATH_WRAPPERS",)
 
 
-def _checked_value(name: str, raw: str) -> str:
+def check_env_value(name: str, raw: str) -> str:
     """`raw` (a value of variable `name`) with `~` expanded, otherwise as typed; relative is refused.
 
     A value that still holds a `$` is a template that is expanded later (a job never aborts on
@@ -54,12 +54,12 @@ def env_path(name: str) -> Path | None:
     """The folder named by environment variable `name`: None when unset or empty.
 
     Raises:
-        ValueError: the value is a relative path (see `_checked_value`).
+        ValueError: the value is a relative path (see `check_env_value`).
     """
     raw = os.environ.get(name)
     if not raw:
         return None
-    return Path(_checked_value(name, raw))
+    return Path(check_env_value(name, raw))
 
 
 def env_path_list(name: str) -> list[str]:
@@ -68,10 +68,10 @@ def env_path_list(name: str) -> list[str]:
     Entries are strings with `~` expanded and otherwise exactly as typed.
 
     Raises:
-        ValueError: an entry is a relative path (see `_checked_value`).
+        ValueError: an entry is a relative path (see `check_env_value`).
     """
     raw = os.environ.get(name, "")
-    return [_checked_value(name, entry) for entry in raw.split(os.pathsep) if entry]
+    return [check_env_value(name, entry) for entry in raw.split(os.pathsep) if entry]
 
 
 def validate_env_paths() -> None:

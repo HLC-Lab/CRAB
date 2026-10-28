@@ -337,3 +337,22 @@ def test_a_preset_with_an_unset_mark_is_a_validation_error(
 
     assert len(errors) == 1
     assert "Preset 'lab' needs your own value for --account." in errors[0]
+
+
+@pytest.mark.parametrize(
+    ("key", "value"), [("CRAB_PATH_WRAPPERS", "/abs/a:rel/b"), ("CRAB_ROOT", "rel/root")]
+)
+def test_a_relative_folder_in_the_preset_env_is_an_error_line(
+    tmp_path: Path, key: str, value: str
+) -> None:
+    from crab.cli.validate import validate_file
+
+    presets = {"p": {"scheduler": "slurm", "env": {key: value}}}
+    with patch("crab.cli.presets.load_all_presets", return_value=presets):
+        errors, warnings = validate_file(_config(tmp_path, _experiment()), "p")
+
+    assert len(errors) == 1
+    assert "Preset 'p'" in errors[0]
+    assert key in errors[0]
+    assert "absolute" in errors[0]
+    assert warnings == []
