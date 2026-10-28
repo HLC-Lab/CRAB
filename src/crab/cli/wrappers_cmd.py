@@ -12,6 +12,7 @@ import csv
 import json
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -94,10 +95,12 @@ def handle_receipts_set(args: argparse.Namespace) -> None:
     if not _RECEIPT_ID.match(args.id):
         _fail(f"receipt id {args.id!r} may only use letters, digits, '_', '-' and '.'")
     try:
-        args.binary = absolute_binary(args.binary)
+        # A bare name that is a file in this folder means that file; any other stays a command.
+        args.binary = absolute_binary(args.binary, bare_is_path=os.path.exists(args.binary))
     except ValueError as error:
         _fail(str(error))
-    if not args.allow_missing and not os.path.exists(args.binary):
+    on_path = os.sep not in args.binary and shutil.which(args.binary) is not None
+    if not args.allow_missing and not os.path.exists(args.binary) and not on_path:
         _fail(f"binary {args.binary} does not exist (use --allow-missing to record it anyway)")
 
     receipt = {
@@ -368,7 +371,7 @@ def register(subparsers: Any) -> None:
         "--binary",
         required=True,
         help="Full path to the executable (~ is expanded; a relative path is made absolute "
-        "from where you run this), or a command name.",
+        "from where you run this), or a command name on PATH (stored as typed).",
     )
     parser_set.add_argument(
         "--pre-run",

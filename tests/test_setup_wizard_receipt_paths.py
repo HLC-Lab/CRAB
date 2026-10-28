@@ -144,3 +144,25 @@ def test_module_executable_bare_name_stays_bare(monkeypatch, home):
 def test_module_executable_typed_with_a_tilde_becomes_absolute(monkeypatch, home):
     _, saved, _ = _recipe_flow(monkeypatch, ["3", "module load qe/7.4", "~/bin/pw.x"])
     assert saved["demo"]["binary_path"] == f"{home}/bin/pw.x"
+
+
+def test_custom_benchmark_a_bare_name_means_a_file_in_the_current_folder(monkeypatch, home):
+    Path("build").write_text("")
+    receipt, _ = _custom(monkeypatch, ["build"])
+    assert receipt["binary_path"] == os.path.abspath("build")
+
+
+def test_manual_path_a_bare_name_is_made_absolute(monkeypatch, home):
+    recipe, saved, _ = _recipe_flow(monkeypatch, ["2", "build"])
+    assert recipe.verified == [os.path.abspath("build")]
+    assert saved["demo"]["binary_path"] == os.path.abspath("build")
+
+
+def test_auto_detected_relative_path_is_stored_absolute(monkeypatch, home):
+    recipe = _Recipe()
+    recipe.fast_search = lambda _dir: "bin/x"
+    saved, _, queue = _script(monkeypatch, ["1"])
+    monkeypatch.setattr(wizard.questionary, "checkbox", lambda *a, **k: _Answer([recipe.suite]))
+    wizard._run_recipe_wizard([recipe], {recipe.suite: [recipe]}, [recipe.benchmark_id])
+    assert queue == []
+    assert saved["demo"]["binary_path"] == os.path.abspath("bin/x")

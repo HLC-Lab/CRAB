@@ -288,7 +288,7 @@ def _run_custom_benchmark_wizard(
             console.print("[red]Path cannot be empty.[/red]")
             continue
         try:
-            path = absolute_binary(path)
+            path = absolute_binary(path, bare_is_path=True)
         except ValueError as error:
             console.print(f"[red]{error}[/red]")
             continue
@@ -479,7 +479,7 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                 if user_path.lower() == "q":
                     break
                 try:
-                    user_path = absolute_binary(user_path.strip())
+                    user_path = absolute_binary(user_path.strip(), bare_is_path=True)
                 except ValueError as error:
                     console.print(f"[red]{error}[/red]")
                     continue
@@ -578,6 +578,13 @@ def _run_recipe_wizard(recipes: list, groups: dict[str, list], recipe_ids: list[
                 console.print(f"\n[bold red]Compilation Interrupted:[/bold red]\n{err_msg}")
                 console.input("\n[dim]Press [Enter] to continue...[/dim]")
                 continue
+
+        if final_path:
+            try:  # one save point: whatever a strategy found or typed is stored absolute
+                final_path = absolute_binary(final_path)
+            except ValueError as error:
+                console.print(f"[red]{error}[/red]")
+                final_path = None
 
         if final_path:
             new_receipt = {

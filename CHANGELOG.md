@@ -72,7 +72,13 @@ absolute.
 
 - `crab setup` and `crab receipts set` store the binary path as an absolute path: `~` is expanded
   and a relative path is made absolute from where you type it. A bare command name (a module's
-  executable) stays as typed. The dashboard's receipt import refuses a relative path.
+  executable) stays as typed. In a launcher line of several words every path is made absolute. The
+  dashboard's receipt import refuses a relative path.
+- A receipt that holds a relative binary path (or one starting with `~`) is no longer used: it
+  meant a different file depending on the folder the job started in. Such a receipt is ignored and
+  the wrapper's own executable on `PATH` is tried; the run stops with an error naming the receipt
+  only when nothing else provides a binary. Register the binary again with `crab setup` or
+  `crab receipts set`.
 - The merge rules are by field. `env` merges by key and `null` removes a key. `sbatch` and launcher
   `flags` replace a shared item by its `--name=` and append every other item. `header` and `notes`
   add to the shared ones. The mpirun `export` list is a union. Everything else is replaced. See the

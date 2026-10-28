@@ -166,10 +166,8 @@ def test_a_relative_path_is_made_absolute_from_the_current_folder(monkeypatch, t
     assert absolute_binary("rel/dir/") == f"{here}/rel/dir"
 
 
-@pytest.mark.parametrize(
-    "line", ["/opt/select_nic /opt/bin/x", "/opt/select_nic rel/x", "  /opt/a   rel/b  "]
-)
-def test_a_launcher_line_is_unchanged(monkeypatch, tmp_path, line):
+@pytest.mark.parametrize("line", ["/opt/select_nic /opt/bin/x", "  /opt/a   /opt/b  "])
+def test_an_absolute_launcher_line_is_unchanged(monkeypatch, tmp_path, line):
     monkeypatch.chdir(tmp_path)
     assert absolute_binary(line) == line
 
@@ -198,3 +196,57 @@ def test_a_relative_path_without_a_current_folder_is_refused(monkeypatch, tmp_pa
     _delete_cwd(tmp_path)
     with pytest.raises(ValueError, match=r"current folder no longer exists.*full path"):
         absolute_binary("rel/x")
+
+
+# --- absolute_binary: dots, bare_is_path, launcher lines, normpath ---
+
+
+def test_dot_and_dotdot_are_paths(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "sub").mkdir()
+    os.chdir(tmp_path / "sub")
+    assert absolute_binary(".") == str(tmp_path / "sub")
+    assert absolute_binary("..") == str(tmp_path)
+
+
+def test_a_bare_name_is_a_path_when_asked(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    assert absolute_binary("build", bare_is_path=True) == f"{tmp_path}/build"
+    assert absolute_binary("xhpl", bare_is_path=True) == f"{tmp_path}/xhpl"
+
+
+def test_a_single_flag_like_token_is_untouched_even_as_a_path(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    assert absolute_binary("-n", bare_is_path=True) == "-n"
+    assert absolute_binary("-x/y") == "-x/y"
+
+
+def test_every_path_like_token_of_a_launcher_line_is_made_absolute(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    here = os.path.abspath(".")
+    assert absolute_binary("~/sel ./bin/x") == f"{tmp_path / 'home'}/sel {here}/bin/x"
+    assert absolute_binary("mpirun ./x") == f"mpirun {here}/x"
+    assert absolute_binary("mpirun -n 4 ./x") == f"mpirun -n 4 {here}/x"
+
+
+@pytest.mark.parametrize("line", ["/opt/select_nic /opt/bin/x", "mpirun -n 4"])
+def test_a_launcher_line_with_nothing_to_change_is_returned_as_given(monkeypatch, tmp_path, line):
+    monkeypatch.chdir(tmp_path)
+    assert absolute_binary(line) == line
+
+
+def test_a_launcher_line_with_an_environment_variable_is_refused(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(ValueError, match=r"environment variables.*full path"):
+        absolute_binary("sel $HOME/x")
+    with pytest.raises(ValueError, match=r"~.*full path"):
+        absolute_binary("~nosuchuser_zz/sel /opt/x")
+
+
+def test_absolute_results_have_no_trailing_slash(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert absolute_binary("~/x/") == f"{tmp_path / 'home'}/x"
+    assert absolute_binary("/opt/x/") == "/opt/x"
+    assert absolute_binary("x/") == f"{tmp_path}/x"
