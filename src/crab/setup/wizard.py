@@ -18,6 +18,7 @@ from rich.text import Text
 import crab.core.process.manager as manager
 import crab.setup.memory as memory
 from crab import paths
+from crab.fsutil import leave_dir_before_remove
 from crab.setup.registry import discover_recipes
 
 console = Console()
@@ -120,6 +121,7 @@ def handle_cleanup(benchmark_id: str):
                     f"[yellow]Found old build path at {target_cleanup}. Clear layout directory?[/yellow]",
                     default=True,
                 ):
+                    leave_dir_before_remove(target_cleanup)
                     shutil.rmtree(target_cleanup)
                     console.print(f"[green]Cleaned up: {target_cleanup}[/green]")
 
@@ -157,6 +159,7 @@ def _clear_leftover_build(benchmark_id: str, name: str) -> bool:
     ):
         console.print(skip_message)
         return False
+    leave_dir_before_remove(target)
     shutil.rmtree(target)
     console.print(f"[green]Cleaned up: {target}[/green]")
     return True

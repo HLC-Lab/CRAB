@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from crab.cli.gitops import GitError, git, is_repo_root
+from crab.fsutil import leave_dir_before_remove
 
 # The shared wrappers repository. `wrappers/` is a separate git clone of it, ignored by CRAB's
 # own git; the wrapper contract is ADR-031.
@@ -65,6 +66,7 @@ def _clear_leftovers(directory: Path) -> bool:
     if not all(_is_leftover(child) for child in children):
         return False
     for child in children:
+        leave_dir_before_remove(child)
         if child.is_dir() and not child.is_symlink():
             shutil.rmtree(child)
         else:

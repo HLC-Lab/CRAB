@@ -89,6 +89,8 @@ absolute.
 
 - `crab setup` no longer fails to clone a benchmark when it is started from inside the leftover
   folder it removes: recipes now clone from the folder above the target.
+- Removing a leftover folder (`crab setup`, `crab wrappers pull`) no longer strands the command in
+  a deleted folder when you started it from inside: CRAB steps out first.
 
 ## [1.1.0] - 2026-10-21
 
