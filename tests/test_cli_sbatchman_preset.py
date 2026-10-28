@@ -456,6 +456,40 @@ def test_the_handler_treats_a_namespace_without_the_flag_as_the_command_form(
     assert capsys.readouterr().out.startswith("sbatchman configure slurm \\\n")
 
 
+def test_the_handler_reports_a_relative_wrappers_path_as_one_line(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fake_root: Path
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "rel/w")
+    with pytest.raises(SystemExit) as exc:
+        handle(_namespace(configs_file=False, nodes="2"))
+    out = capsys.readouterr()
+
+    assert exc.value.code == 2
+    assert out.out == ""
+    lines = out.err.strip().splitlines()
+    assert len(lines) == 1
+    assert lines[0].startswith("crab sbatchman-preset: ")
+    assert "CRAB_PATH_WRAPPERS" in lines[0]
+
+
+def test_the_handler_keeps_an_absolute_wrappers_path(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], fake_root: Path
+) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/abs/w")
+
+    handle(_namespace(configs_file=False, nodes="2"))
+
+    assert "  --env 'CRAB_PATH_WRAPPERS=/abs/w' \\" in capsys.readouterr().out
+
+
+def test_the_handler_defaults_to_the_checkout_wrappers_when_the_variable_is_unset(
+    capsys: pytest.CaptureFixture[str], fake_root: Path
+) -> None:
+    handle(_namespace(configs_file=False, nodes="2"))
+
+    assert f"  --env 'CRAB_PATH_WRAPPERS={fake_root / 'wrappers'}' \\" in capsys.readouterr().out
+
+
 @pytest.mark.parametrize("system", ["on", "yes", "7up", "a.b"])
 def test_configs_file_keeps_a_cluster_name_yaml_would_misread_as_a_string_key(
     system: str,

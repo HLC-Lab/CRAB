@@ -217,9 +217,10 @@ def handle(args: argparse.Namespace) -> None:
     """
     from crab.core import wrapper_paths
 
-    # The shared wrappers folders as the worker resolves them (the first entry is `local/wrappers`).
-    shared = wrapper_paths.wrapper_search_path()[1:]
     try:
+        # The shared wrappers folders as the worker resolves them (the first entry is
+        # `local/wrappers`). Inside the `try`: a relative CRAB_PATH_WRAPPERS entry raises here.
+        shared = wrapper_paths.wrapper_search_path()[1:]
         common: dict[str, Any] = {
             "venv_bin": Path(sys.executable).parent.absolute(),
             "crab_root": Path(wrapper_paths._CRAB_ROOT).absolute(),
