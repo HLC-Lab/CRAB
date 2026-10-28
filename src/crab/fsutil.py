@@ -1,8 +1,9 @@
-"""Small filesystem helpers: leaving a folder before removing it, and absolute binary paths."""
+"""Small filesystem helpers: leaving a folder before removing it, and binary paths."""
 
 from __future__ import annotations
 
 import os
+import re
 import shlex
 
 
@@ -40,7 +41,23 @@ def leave_dir_before_remove(target: str | os.PathLike[str]) -> None:
         return
 
 
-def _is_path_like(token: str) -> bool:
+_PLACEHOLDER = re.compile(r"(?<!\$)\{")
+
+
+def _has_placeholder(word: str) -> bool:
+    """True for a sweep placeholder such as `{dir}`: a `{` not preceded by `$` (`${VAR}` is not one)."""
+    return _PLACEHOLDER.search(word) is not None
+
+
+def _split_words(value: str) -> list[str]:
+    """`shlex.split`, or a whitespace split when a quote is unbalanced."""
+    try:
+        return shlex.split(value)
+    except ValueError:
+        return value.split()
+
+
+def is_path_like(token: str) -> bool:
     """A word that names a path: not a flag, and it has a separator, a leading `~`, or is `.`/`..`."""
     if token.startswith("-"):
         return False
@@ -80,18 +97,46 @@ def absolute_binary(raw: str, *, bare_is_path: bool = False) -> str:
         ValueError: a path-like word names an environment variable or an unknown user, or is
             relative while the current folder no longer exists. The message says what to type.
     """
-    try:
-        tokens = shlex.split(raw)
-    except ValueError:  # an unbalanced quote: split on whitespace instead
-        tokens = raw.split()
+    tokens = _split_words(raw)
     if not tokens:
         return raw
     if len(tokens) == 1:
         token = tokens[0]
-        if token.startswith("-") or not (bare_is_path or _is_path_like(token)):
+        if token.startswith("-") or not (bare_is_path or is_path_like(token)):
             return raw
         return _absolute_token(token)
-    converted = [_absolute_token(t) if _is_path_like(t) else t for t in tokens]
+    converted = [_absolute_token(t) if is_path_like(t) else t for t in tokens]
     if converted == tokens:
         return raw
     return shlex.join(converted)
+
+
+def expand_binary(value: str) -> str:
+    """A configured binary with `~` and `$VAR` expanded, the way the job's shell would see it.
+
+    Each word that holds no sweep placeholder (`{dir}`) goes through `os.path.expandvars` and
+    `os.path.expanduser`; a variable that is not set stays as typed. The words are rejoined with
+    `shlex.join` only when one changed, otherwise `value` is returned exactly as given.
+    """
+    words = _split_words(value)
+    expanded = [
+        w if _has_placeholder(w) else os.path.expanduser(os.path.expandvars(w)) for w in words
+    ]
+    if expanded == words:
+        return value
+    return shlex.join(expanded)
+
+
+def relative_path_word(value: str) -> str | None:
+    """The first path-like word of a binary that depends on the current folder, else None.
+
+    A word counts when `is_path_like` says so and it is not absolute, does not start with `~`,
+    holds no `$` (expanded later, where the job runs) and no sweep placeholder (`{dir}`).
+    """
+    for word in _split_words(value):
+        if not is_path_like(word) or _has_placeholder(word):
+            continue
+        if os.path.isabs(word) or word.startswith("~") or "$" in word:
+            continue
+        return word
+    return None

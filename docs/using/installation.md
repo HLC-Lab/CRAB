@@ -211,7 +211,10 @@ An application that is already installed does not need the wizard:
   and a relative path is made absolute from the folder you run the command in, so the receipt
   works from any folder. A receipt that holds a relative path, for example one written by an
   older CRAB, is not used: `crab wrappers list` shows it as missing, so register it again.
-- A config can also name the binary for one app directly, with a `binary` key next to `path`.
+- A config can also name the binary for one app directly, with a `binary` key next to `path`:
+  the full path (`~` and `$VAR` are expanded where the job runs) or a command name on `PATH`. A
+  relative path such as `bin/xhpl` is refused by `crab validate` and `crab run`, because it would
+  mean a different file depending on the folder the job starts in.
 
 `crab wrappers list` shows every wrapper CRAB can see and where each one's binary comes from.
 

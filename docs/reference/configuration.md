@@ -355,7 +355,7 @@ application:
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
 | `path` | string | required | Path to the [wrapper](../glossary.md#wrapper) module. A relative path is looked up in `local/wrappers/`, then in each folder of `CRAB_PATH_WRAPPERS` (or `wrappers/`); see [Where CRAB looks for wrappers](../extending/wrappers.md#where-crab-looks-for-wrappers). `crab validate` and `crab run` refuse a path that names no file there. |
-| `binary` | string | none | Path to the application's executable for this app. Takes precedence over the wrapper's receipt and `PATH` lookup. |
+| `binary` | string | none | The application's executable for this app: a full path (`~` and `$VAR` are expanded where the job runs) or a command name on `PATH`. A relative path such as `bin/xhpl` is refused by `crab validate` and `crab run`. Takes precedence over the wrapper's receipt and `PATH` lookup. |
 | `args` | string | `""` | Command-line arguments passed to the executable. |
 | `collect` | bool | `false` | Whether to parse and store this app's metrics. |
 | `start` | string | `"0"` | When to start the app. See [Scheduling](#scheduling-start-and-end). |

@@ -49,6 +49,9 @@ absolute.
 - The shared presets write the account of a cluster as a required mark, `--account=<YOUR_ACCOUNT>`.
   `crab run`, `crab validate -p` and `crab nodes -p` refuse such a preset until your overrides set
   it.
+- A relative path in an app's `binary` key (`bin/xhpl`, `./xhpl`) is refused by `crab validate` and
+  `crab run` before anything is submitted. Use the full path (`~` and `$VAR` are fine, expanded
+  where the job runs) or a command name on `PATH`.
 
 ### Added
 

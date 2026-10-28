@@ -880,3 +880,57 @@ def test_check_config_warns_about_a_cpu_bind_inside_a_multi_word_launcher_flag(
         f"experiment e1: launcher flag '{reported}' is replaced by CRAB's core binding "
         "for apps that share nodes or set cpus"
     ]
+
+
+def _binary_config(binary: object) -> dict:
+    app: dict = {"path": "a.py", "binary": binary}
+    return {"global_options": {}, "experiments": {"e1": {"apps": {"0": app}}}}
+
+
+@pytest.mark.parametrize("binary", ["bin/xhpl", "./xhpl", "../x/xhpl", ".", "..", "mpirun ./xhpl"])
+def test_a_relative_binary_is_refused(binary: str) -> None:
+    from crab.core.config_checks import check_config
+
+    with pytest.raises(ValueError) as exc:
+        check_config(_binary_config(binary))
+    message = str(exc.value)
+    assert "experiment e1: app 0" in message and "binary" in message
+    assert "full path" in message
+    assert repr(binary.split()[-1]) in message
+
+
+@pytest.mark.parametrize(
+    "binary",
+    [
+        "/opt/hpl/bin/xhpl",
+        "~/bin/xhpl",
+        "$HOME/bin/xhpl",
+        "${SCRATCH}/bin/xhpl",
+        "xhpl",
+        "mpirun /opt/x",
+        "/opt/x -n 4",
+        "{dir}/xhpl",
+        "bin/{n}/xhpl",
+        None,
+        "",
+    ],
+)
+def test_an_absolute_or_bare_binary_is_accepted(binary: str | None) -> None:
+    from crab.core.config_checks import check_config
+
+    check_config(_binary_config(binary))
+
+
+def test_an_absent_binary_key_is_accepted() -> None:
+    from crab.core.config_checks import check_config
+
+    config = _binary_config("x")
+    del config["experiments"]["e1"]["apps"]["0"]["binary"]
+    check_config(config)
+
+
+def test_a_non_string_binary_is_refused() -> None:
+    from crab.core.config_checks import check_config
+
+    with pytest.raises(ValueError, match=r"experiment e1: app 0: binary must be a string"):
+        check_config(_binary_config(5))

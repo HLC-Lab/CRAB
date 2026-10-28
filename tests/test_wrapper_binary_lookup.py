@@ -167,3 +167,71 @@ def test_an_unexpanded_leftover_token_is_reported_with_the_same_hint(
     with pytest.raises(MissingBinaryError) as exc:
         app.resolve_binary()
     assert "relative or unexpanded path" in str(exc.value)
+
+
+# The config `binary` key: a full path or a command name. `~` and `$VAR` are expanded where the job
+# runs; a relative path (which the config check refuses before submit) never falls through.
+
+
+def test_a_tilde_config_binary_is_expanded(cwd_with_binary: Path) -> None:
+    app = _wrapper(None)
+    app.binary = "~/bin/xhpl"
+    assert app.find_binary() == (f"{cwd_with_binary}/bin/xhpl", "config")
+
+
+def test_a_tilde_config_binary_is_expanded_even_when_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    app = _wrapper(None)
+    app.binary = "~/nope/xhpl"
+    assert app.find_binary() == (f"{tmp_path}/nope/xhpl", "config")
+
+
+def test_a_variable_config_binary_is_expanded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XHPL_HOME", str(tmp_path))
+    app = _wrapper(None)
+    app.binary = "$XHPL_HOME/bin/xhpl"
+    assert app.find_binary() == (f"{tmp_path}/bin/xhpl", "config")
+
+
+def test_an_unset_variable_config_binary_is_missing_and_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("XHPL_HOME", raising=False)
+    exe = _exe(tmp_path / "bin", "xhpl")
+    app = _wrapper(str(exe), executable="xhpl")
+    app.binary = "$XHPL_HOME/bin/xhpl"
+    assert app.find_binary() == (None, "missing")
+    with pytest.raises(MissingBinaryError) as exc:
+        app.resolve_binary()
+    message = str(exc.value)
+    assert "'binary' key in the config" in message and "$XHPL_HOME/bin/xhpl" in message
+    assert "unset environment variable" in message
+
+
+def test_a_relative_config_binary_never_falls_through(
+    cwd_with_binary: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    receipt = _exe(cwd_with_binary / "opt", "receipt_bin")
+    on_path = _exe(cwd_with_binary / "onpath", "xhpl")
+    monkeypatch.setenv("PATH", str(on_path.parent))
+    app = _wrapper(str(receipt), executable="xhpl")
+    app.binary = "bin/xhpl"
+    assert app.find_binary() == (None, "missing")
+    with pytest.raises(MissingBinaryError) as exc:
+        app.resolve_binary()
+    message = str(exc.value)
+    assert "'binary' key in the config" in message and "'bin/xhpl'" in message
+    assert "relative path" in message and "full path" in message
+
+
+def test_config_binary_pins(tmp_path: Path) -> None:
+    exe = _exe(tmp_path / "bin", "xhpl")
+    for chosen in (str(exe), str(tmp_path / "gone" / "xhpl"), "xhpl"):
+        app = _wrapper(None)
+        app.binary = chosen
+        assert app.find_binary() == (chosen, "config")
+    assert _wrapper(str(exe)).find_binary() == (str(exe), "receipt")

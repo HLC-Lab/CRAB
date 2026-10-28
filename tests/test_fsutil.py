@@ -12,7 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from crab.fsutil import absolute_binary, leave_dir_before_remove
+from crab.fsutil import (
+    absolute_binary,
+    expand_binary,
+    is_path_like,
+    leave_dir_before_remove,
+    relative_path_word,
+)
 
 
 def _real(path: Path) -> str:
@@ -250,3 +256,47 @@ def test_absolute_results_have_no_trailing_slash(monkeypatch, tmp_path):
     assert absolute_binary("~/x/") == f"{tmp_path / 'home'}/x"
     assert absolute_binary("/opt/x/") == "/opt/x"
     assert absolute_binary("x/") == f"{tmp_path}/x"
+
+
+def test_expand_binary_expands_tilde_and_variables(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("XHPL", "/opt/hpl")
+    monkeypatch.delenv("NOPE_ZZ", raising=False)
+    assert expand_binary("~/bin/x") == f"{tmp_path}/bin/x"
+    assert expand_binary("$XHPL/bin/x") == "/opt/hpl/bin/x"
+    assert expand_binary("${XHPL}/bin/x") == "/opt/hpl/bin/x"
+    assert expand_binary("$NOPE_ZZ/x") == "$NOPE_ZZ/x"
+    assert expand_binary("{dir}/x") == "{dir}/x"
+    assert expand_binary("mpirun ~/x -n 4") == f"mpirun {tmp_path}/x -n 4"
+
+
+@pytest.mark.parametrize("value", ["xhpl", "/opt/x/xhpl", "mpirun  /opt/x   -n 4", "", "'a b'"])
+def test_expand_binary_returns_a_value_with_nothing_to_expand_exactly(value):
+    assert expand_binary(value) == value
+
+
+@pytest.mark.parametrize(
+    ("value", "word"),
+    [
+        ("bin/x", "bin/x"),
+        ("/a/b", None),
+        ("xhpl", None),
+        ("mpirun ./x", "./x"),
+        ("$HOME/x", None),
+        ("${SCRATCH}/x", None),
+        ("{dir}/x", None),
+        ("bin/{n}/x", None),
+        ("~/x", None),
+        ("/opt/x -n 4", None),
+        (".", "."),
+        ("..", ".."),
+        ("", None),
+    ],
+)
+def test_relative_path_word(value, word):
+    assert relative_path_word(value) == word
+
+
+def test_is_path_like():
+    assert is_path_like("a/b") and is_path_like("~") and is_path_like(".")
+    assert not is_path_like("xhpl") and not is_path_like("-x/y")

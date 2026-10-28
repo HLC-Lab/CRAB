@@ -18,6 +18,7 @@ from crab.core.execution.launch_checks import (
 from crab.core.execution.placement_checks import allocate_on_paper, check_experiment
 from crab.core.execution.settings import ExecutionSettings
 from crab.core.execution.tokens import has_token
+from crab.fsutil import relative_path_word
 
 ALLOCATION_MODES = ("linear", "interleaved", "random", "shared")
 CORES_MODES = ("disjoint", "shared")
@@ -268,6 +269,20 @@ def _check_allocation(
             )
 
 
+def _check_binary(binary: Any, where: str) -> None:
+    """An app's `binary` is a full path (`~` and `$VAR` allowed) or a command name, never relative."""
+    if binary is None or binary == "":
+        return
+    if not isinstance(binary, str):
+        raise ValueError(f"{where}: binary must be a string, got {binary!r}")
+    word = relative_path_word(binary)
+    if word is not None:
+        raise ValueError(
+            f"{where}: binary {word!r} is a relative path; give the full path (~ is fine) "
+            "or a command name that is on PATH"
+        )
+
+
 def check_config(config: dict[str, Any], settings: ExecutionSettings | None = None) -> list[str]:
     """Raise ValueError on the first value the engine would ignore or misread.
 
@@ -315,4 +330,5 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
             if "collect" in app:
                 parse_bool(app["collect"], f"{where}: collect")
             _check_collected_end(app, where, warnings)
+            _check_binary(app.get("binary"), where)
     return warnings

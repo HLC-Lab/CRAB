@@ -356,3 +356,15 @@ def test_a_relative_folder_in_the_preset_env_is_an_error_line(
     assert key in errors[0]
     assert "absolute" in errors[0]
     assert warnings == []
+
+
+def test_a_relative_binary_is_an_error_line_and_an_absolute_one_is_not() -> None:
+    from crab.cli.validate import check_config_problems
+
+    config = _experiment()
+    config["experiments"]["e1"]["apps"]["0"]["binary"] = "bin/xhpl"
+    errors, _warnings = check_config_problems(config)
+    assert len(errors) == 1 and "experiment e1: app 0" in errors[0] and "'bin/xhpl'" in errors[0]
+
+    config["experiments"]["e1"]["apps"]["0"]["binary"] = "/opt/hpl/bin/xhpl"
+    assert check_config_problems(config)[0] == []
