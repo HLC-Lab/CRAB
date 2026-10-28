@@ -7,3 +7,5 @@ ompi-cuda/
 openmpi-*/
 openmpi-*.tar.bz2
 !dist/openmpi-*.tar.bz2
+ucx-cuda/
+ucx-1.*/

@@ -25,5 +25,6 @@ pat='Transport: *(cuda|gdr)|Component: *(cuda|gdr)|cuda_copy|cuda_ipc|gdr_copy'
 say "ucx_info CUDA transports, plain shell:      $(ucx_info -d 2>&1 | grep -i -E "$pat" | sort -u | tr -s ' ' | tr '\n' ';')"
 say "ucx_info CUDA transports, CUDA on lib path: $(LD_LIBRARY_PATH=$CUDA_LIB ucx_info -d 2>&1 | grep -i -E "$pat" | sort -u | tr -s ' ' | tr '\n' ';')"
 { ucx_info -v; echo ---; ucx_info -d; echo ---; LD_LIBRARY_PATH=$CUDA_LIB UCX_LOG_LEVEL=debug ucx_info -d 2>&1 | grep -i -E 'cuda|dlopen|module' | head -40; } >>"$LOG" 2>&1
+if [[ -x $HERE/ucx-cuda/bin/ucx_info ]]; then say "ucx-cuda (ours): $(LD_LIBRARY_PATH=$HERE/ucx-cuda/lib:$CUDA_LIB $HERE/ucx-cuda/bin/ucx_info -d 2>&1 | grep -i -E "$pat" | sort -u | tr -s " " | tr "\n" ";")"; fi
 say "libcuda: $(ldconfig -p | awk '/libcuda.so.1 / {print $NF; exit}') | libcudart: $(ls $CUDA_LIB/libcudart.so.12* 2>/dev/null | head -1)"
 say "done: $LOG"

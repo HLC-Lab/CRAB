@@ -30,6 +30,7 @@ Remove: `rm -rf ~/crab/lab`.
 | `blink_gpu_build.sh` | Builds the GPU-capable Blink (`-gpu`) into `blink-gpu/` next to this folder; checks libraries on both nodes. |
 | `ucx_check.sh` | Read-only: does this UCX have working CUDA modules/transports (module files, ldd, `ucx_info -d` with and without the CUDA runtime on the library path)? |
 | `net_check.sh` | Read-only: what the proxy lets through (Open MPI tarball, GitHub) and which build tools exist; prints a verdict. |
+| `ucx_cuda_build.sh` | Builds a UCX 1.20.0 with CUDA into `ucx-cuda/` (the system UCX has no CUDA module); `gpu_pw.sh` puts it first in LD_LIBRARY_PATH. Tarball in `dist/`. |
 | `ompi_cuda_build.sh` | Builds a CUDA-aware Open MPI (system UCX) into `ompi-cuda/`; the installed Open MPIs have no CUDA, so Blink `-gpu` stops with "not GPU-aware". The GPU scripts use it automatically. |
 | `gpu_pw.sh` | `smoke` then `main`: Blink host vs `-gpu`, pairwise and ping-pong, 8/4/4/1 ranks per node, put_zcopy and GPUDirect off. |
 | `lib.sh` | Shared helpers (sourced). |

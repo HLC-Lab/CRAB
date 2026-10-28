@@ -26,7 +26,8 @@ SIZES=${SIZES:-134217728 2097152}
 PROGS=${PROGS:-pairwise_b pingpong_pairwise_b}
 CSV=${LOG%.log}.csv
 echo "layout,prog,mem,variant,size,verdict,t_max_s,t_min_s,gibit_slowest,gibit_fastest" >"$CSV"
-export LD_LIBRARY_PATH="/usr/local/cuda-12.3/targets/x86_64-linux/lib:$(dirname "$(dirname "$(command -v mpirun)")")/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+[[ -d $HERE_LAB/ucx-cuda/lib ]] && UCX_CUDA_LIB=$HERE_LAB/ucx-cuda/lib: || UCX_CUDA_LIB=
+export LD_LIBRARY_PATH="$UCX_CUDA_LIB/usr/local/cuda-12.3/targets/x86_64-linux/lib:$(dirname "$(dirname "$(command -v mpirun)")")/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # layouts: ranks per node, cores, ports, GPUs (local rank i uses entry i)
 LAYOUTS=(L8 L4x L4s L1)
