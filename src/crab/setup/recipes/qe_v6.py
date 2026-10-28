@@ -74,7 +74,7 @@ class QERecipeV6(BenchmarkRecipe):
         repo_url = "https://gitlab.com/QEF/q-e.git"
         if not self.run_command_streamed(
             ["git", "clone", "--branch", _QE_V6_TAG, "--depth", "1", repo_url, target_dir],
-            ".",
+            self.clone_parent(target_dir),
             f"Cloning Q-E {_QE_V6_TAG}...",
             env,
             log_callback,

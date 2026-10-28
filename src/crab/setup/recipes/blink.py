@@ -36,7 +36,11 @@ class BlinkRecipe(BenchmarkRecipe):
     ) -> tuple[bool, BuildResult | None, str]:
         repo_url = "https://github.com/HLC-Lab/blink.git"
         if not self.run_command_streamed(
-            ["git", "clone", repo_url, target_dir], ".", "Cloning Repository...", env, log_callback
+            ["git", "clone", repo_url, target_dir],
+            self.clone_parent(target_dir),
+            "Cloning Repository...",
+            env,
+            log_callback,
         ):
             return False, None, "Git clone failed."
 

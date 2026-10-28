@@ -85,6 +85,11 @@ absolute.
 - `src/crab/presets.json` and the `_common` block.
 - The `example_preset` entry, and its exclusion from tab-completion.
 
+### Fixed
+
+- `crab setup` no longer fails to clone a benchmark when it is started from inside the leftover
+  folder it removes: recipes now clone from the folder above the target.
+
 ## [1.1.0] - 2026-10-21
 
 ### Changed

@@ -8,8 +8,11 @@ defaults ON and fetches googletest from GitHub, hence -DBLINK_TESTS=OFF.
 
 import os
 import stat
+import sys
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from crab.setup.recipes.blink import BlinkRecipe
 
@@ -173,3 +176,59 @@ def test_check_dependencies_passes_without_make(tmp_path):
 
     assert ok is True
     assert not os.path.exists(os.path.join(path, "make"))
+
+
+def test_clone_runs_from_the_folder_above_the_target(tmp_path):
+    parent = tmp_path / "benchmarks"
+    parent.mkdir()
+
+    _, calls = _build(BlinkRecipe(), parent / "blink", fail_at=0)
+
+    assert calls[0][1] == str(parent)
+    assert os.path.isabs(calls[0][1])
+
+
+def test_clone_folder_is_created_when_missing(tmp_path):
+    parent = tmp_path / "does" / "not" / "exist"
+
+    _, calls = _build(BlinkRecipe(), parent / "blink", fail_at=0)
+
+    assert parent.is_dir()
+    assert calls[0][1] == str(parent)
+
+
+@pytest.mark.parametrize("cwd", [".", "rel/dir", ""])
+def test_run_command_streamed_refuses_a_relative_folder(cwd):
+    with pytest.raises(ValueError, match="absolute"):
+        BlinkRecipe().run_command_streamed(["true"], cwd, "x", {}, None)
+
+
+def test_run_command_streamed_runs_in_an_absolute_folder(tmp_path):
+    ok = BlinkRecipe().run_command_streamed(
+        [sys.executable, "-c", "pass"], str(tmp_path), "x", {}, None
+    )
+
+    assert ok is True
+
+
+def test_run_command_streamed_missing_absolute_folder_returns_false(tmp_path):
+    ok = BlinkRecipe().run_command_streamed(
+        [sys.executable, "-c", "pass"], str(tmp_path / "missing"), "x", {}, None
+    )
+
+    assert ok is False
+
+
+def test_run_command_streamed_ignores_a_deleted_process_folder(tmp_path, monkeypatch):
+    # The bug: crab setup removed the folder it was started in, then cloned from ".".
+    monkeypatch.chdir(tmp_path)
+    gone = tmp_path / "gone"
+    gone.mkdir()
+    os.chdir(gone)
+    gone.rmdir()
+
+    ok = BlinkRecipe().run_command_streamed(
+        [sys.executable, "-c", "pass"], str(tmp_path), "x", {}, None
+    )
+
+    assert ok is True
