@@ -16,6 +16,7 @@ campaign.
 | `gpu_set.py` | Writes the GPU comm-only suites (all-to-all and all-gather victims with the buffers in GPU memory, against a steady all-to-all aggressor); see [below](#gpu-comm-only-suites). |
 | `gpu_preflight.sh` | Checks over ssh that every H100 node can run the GPU suites (state, 16 ports, 8 GPUs, `nvidia_peermem`, CUDA-aware MPI and UCX, Blink programs, NFS, Selective Repeat), and diffs the NIC counters before and after a run; read only, see [below](#check-the-h100-nodes-before-a-gpu-run). |
 | `gpu_lab.sh` | Lab session for the H100 GPU suites in steps that each print one screen (38 lines x 100 columns) and keep the full detail in a log; `status` shows the checkout, the preset, `crab validate` of the three GPU configs and a node x check grid and is read only; `smoke` submits the smoke config with a plain `crab run`, waits for the job and shows whether it ran, what the victim measured, what the full suites will cost and what the NICs saw; see [below](#one-screen-lab-session). |
+| `gpu_lab_dual.sh` | Sourced by `gpu_lab.sh`: the `dual-port` step (Gb/s of one H100 card with one port and with both ports from GPU memory, through UCX and raw, and what the NIC counters saw) and the `salloc` wrapper the steps that need two nodes share; see [below](#one-screen-lab-session). |
 | `topology.sh` | Reports each RDMA port of every node over ssh and listens for LLDP to name the leaf switch behind it (round 2, run by `bringup.sh topo`). |
 | `topology_summary.py` | Turns the TSV of `topology.sh` into a one-screen grid and verdict, as `topology.sh` does at its end. |
 | `pingpong_set.py` | Builds the ping-pong ceiling configs for `make_configs.py --set pingpong` (see [round 2](#round-2-topology-and-ping-pong-ceilings)). |
@@ -566,10 +567,12 @@ it reaches the nodes; `examples/nplb/gpu_preflight.sh -h` lists them all.
 
 `gpu_lab.sh` runs the lab checks as steps. Every step prints at most one screen, 38 lines of at
 most 100 columns, so it can be photographed and sent for diagnosis, and writes everything it saw to
-a log. So far it has two steps, `status` and `smoke`; the other steps (`dual-port`, `pin`, `all`)
+a log. So far it has three steps, `status`, `smoke` and `dual-port`; the other steps (`pin`, `all`)
 print `gpu_lab: step '<name>' is not available yet` and exit 2. `status` changes nothing on any
 node. `smoke` starts one real job, the smoke config, through the same plain `crab run` the final
-suites use; it changes no node setting and never cancels the job.
+suites use; it changes no node setting and never cancels the job. `dual-port` starts only benchmark
+processes (Blink through `mpirun`, `ib_write_bw`) on two nodes it allocates for itself, and changes
+no node setting; the step lives in `gpu_lab_dual.sh`, which `gpu_lab.sh` loads.
 
 ```bash
 # What: check the setup (preset, the three configs, every node). Why: a missing preset or a node that is
@@ -582,10 +585,23 @@ examples/nplb/gpu_lab.sh status                    # or: examples/nplb/gpu_lab.s
 # counters are read; they default to those of PARTITION.
 examples/nplb/gpu_lab.sh smoke                     # or: examples/nplb/gpu_lab.sh smoke <node1> <node2> <node3> <node4>
 
+# What: measure one H100 card with one port and with both ports, from GPU memory, through UCX and raw. Why: to
+# learn how much the second port adds and whether both ports share one PCIe x16. When: after `smoke`, or
+# any time the GPU numbers look capped. The card is 0-7 (default 0); NODES picks the two nodes, else the
+# step asks salloc for two exclusive nodes of PARTITION and waits up to ALLOC_TIMEOUT seconds (600).
+# Same-leaf pairs give the cleanest numbers: name two nodes behind one leaf switch (see `topology.sh`).
+examples/nplb/gpu_lab.sh dual-port                 # or: examples/nplb/gpu_lab.sh dual-port 3
+NODES="<node1> <node2>" examples/nplb/gpu_lab.sh dual-port 5
+
+# What: the same step inside an allocation you already hold. Why: salloc is then not asked for a second
+# one. When: you ran `salloc -N 2 ...` yourself; the two nodes come from the allocation.
+GPU_LAB_ALLOC=0 examples/nplb/gpu_lab.sh dual-port
+
 # What: print the whole log of the last run of a step. Why: the screen cuts lines to 100 columns and to
 # 38 lines. When: a line ends in `~` or says `... N more lines`.
 examples/nplb/gpu_lab.sh show status
 examples/nplb/gpu_lab.sh show smoke
+examples/nplb/gpu_lab.sh show dual-port
 
 # What: the same smoke with the all-gather config. Why: a one-variable switch between the two victims.
 # When: after the all-to-all smoke, if the all-gather suite is also going to run.
@@ -645,10 +661,60 @@ SMOKE_JSON=examples/nplb/h100/smoke_gpu_ag_comm.json examples/nplb/gpu_lab.sh sm
   limit, `smoke` stops waiting, prints `crab status <job id>` and `crab cancel <job id>` and leaves
   the job alone: cancelling it is your decision. The exit status is 0 when the job completed and
   every victim app has rows, 1 otherwise, and 2 for bad usage.
+- `dual-port [CARD]`: the question is "push both ports of one H100 card from GPU memory: how much do
+  we get, and does the second port go over the same PCIe lanes?". It is a measurement, not a gate: a
+  `FAIL` means a run gave no number, a `WARN` marks a suspicious value, everything else is a plain
+  fact. A CX8 card has two PCI functions on one bus, the even `mlx5_N` and the odd `mlx5_N+1`; the
+  cards, in order 0 to 7, are `mlx5_0`+`mlx5_1`, `mlx5_2`+`mlx5_3`, `mlx5_4`+`mlx5_5`,
+  `mlx5_8`+`mlx5_9`, `mlx5_10`+`mlx5_11`, `mlx5_12`+`mlx5_13`, `mlx5_14`+`mlx5_15`,
+  `mlx5_16`+`mlx5_17` (`mlx5_6` and `mlx5_7` are the unused CX5). The GPU of card k is GPU k behind
+  the same PCIe switch, and the rank or process runs on core 0, 1, 2, 3 (cards 0 to 3, socket 0) or
+  40, 41, 42, 43 (cards 4 to 7, socket 1). The step needs 2 nodes; outside a Slurm allocation it runs
+  itself again under `salloc -N 2 -p <PARTITION> --exclusive --immediate=<ALLOC_TIMEOUT>` (plus
+  `--nodelist=` when `NODES` is set) and prints one `allocation FAIL` line, exit 1, when none was
+  granted in time; it never cancels or touches a job of anyone else. Inside an allocation
+  (`SLURM_JOB_ID` set, or `GPU_LAB_ALLOC=0`) it takes the two nodes from `scontrol show hostnames`.
+  Four measured runs follow, each between a counter snapshot and a counter diff on both nodes:
+  - `ucx 1 port` and `ucx 2 ports`: Blink `pingpong_b -gpu` through the CUDA `mpirun` of the lab
+    (`--mca pml ucx`, one rank per node, bound to the card's core), with `UCX_NET_DEVICES` set to the
+    first port (`UCX_MAX_RNDV_RAILS=1`) and then to both ports (`UCX_MAX_RNDV_RAILS=2`), and
+    `UCX_IB_ROCE_REACHABILITY_MODE=all`, `CUDA_DEVICE_ORDER=PCI_BUS_ID` and `CUDA_VISIBLE_DEVICES=<card>`
+    on both. `UCX_LOG_LEVEL` is never set, it changes the timing. Gb/s is the message size times
+    8 over 1e9 times the one-way time of one sample, which is half a round trip (the `pingpong_b`
+    source records the round trip divided by 2), taken as the median over the samples of the slowest
+    of the two ranks (the Maximum column of Blink's CSV);
+  - `raw 1 port` and `raw 2 ports`: `ib_write_bw --use_cuda=<card> -R --report_gbits` from node A
+    (client) to node B (server), started over ssh, first on the first port and then on both ports at
+    the same time, each process on its own core (the card's core, and the core 4 above it for the
+    second port, because two busy-polling processes must not share one core). Gb/s is the `BW
+    average` column, summed over the ports. The addresses of the ports on node B are read from their
+    network interfaces. Without `--use_cuda` in `ib_write_bw` (perftest built without CUDA) the raw
+    part is skipped with a `WARN`, and the UCX part still runs.
+
+  The screen shows the nodes and the card, the four runs with their Gb/s, the ratio of two ports to
+  one for UCX and for raw, the reference (both ports of a card reached 418-435 Gb/s on the host, a
+  PCIe Gen5 x16 cap; one port is 400 Gb/s) and the unit (Gb/s = 1e9 bit/s; the Gibit/s of the earlier
+  lab runs are 7.4% lower), then for each run whether each of the two ports carried traffic (and
+  whether an ECN/CNP counter moved), and a verdict line for UCX and one for raw: ratio 1.6 or more
+  says `second port adds bandwidth`, from 1.1 to 1.6 `partial gain`, below 1.1 `no gain from the
+  second port`; when the figure with two ports is at or below 456 Gb/s (5% above the 435 Gb/s
+  ceiling) and the ratio is below 1.6, `consistent with a shared PCIe x16 cap` is added. A `WARN` is
+  also printed for a one-port figure above 400 Gb/s, a two-port figure above 800 Gb/s, two ports
+  slower than one, no traffic on the first port, no traffic on the second port in a two-port run,
+  and traffic on the second port in a one-port run. A good result: both ratios near 2 with both
+  ports shown carrying traffic, or a clear plateau near 420-435 Gb/s that says the cap is the PCIe
+  link and not the network. Settings: `SIZE` (message bytes, default 134217728), `DUR` (seconds of
+  each `ib_write_bw`, default 10), `DUAL_ITER` and `DUAL_WARMUP` (Blink `-iter` and `-warmup`, default
+  50 and 10), `STEP_TIMEOUT` (seconds each launched command may run, default 180, bounded with
+  `timeout -k 5`; the `ib_write_bw` processes also end by themselves after `DUR`), `RAW_SETTLE`
+  (seconds between starting the servers and the clients, default 3), `LAB` (default
+  `/root/crab/lab`), `BLINK` (default `$LAB/blink-gpu/build-cuda/bin`), `CUDA_LIB`, `SALLOC` (the
+  `salloc` executable), `ALLOC_TIMEOUT`, `GPU_LAB_ALLOC` and `NODES`. The exit status is 0 when no
+  run failed, 1 when one did, and 2 for a bad card or setting (one line, nothing started).
 - `show <step>`: prints the full log of the last run of that step, which is what the screen cut.
   Use it when a line ends in `~` (cut at 100 columns) or when a line says `... N more lines`.
 
-A good result: `status: 0 FAIL, 0 WARN` and `smoke: 0 FAIL, 0 WARN`. A `FAIL` names its cause: fix it
+A good result: `status: 0 FAIL, 0 WARN` and `smoke: 0 FAIL, 0 WARN`; `dual-port` is read, not passed. A `FAIL` names its cause: fix it
 (the preset is copied with the `cp` line on the screen; a node or a port that is down is for the lab
 to fix) and run the step again before going on.
 

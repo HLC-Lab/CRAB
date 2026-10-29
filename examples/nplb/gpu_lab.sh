@@ -9,9 +9,15 @@
 #                                               victim measured, what the full suites will cost,
 #                                               and the NIC counters before/after (HOST...: the
 #                                               nodes whose counters are read)
+#   examples/nplb/gpu_lab.sh dual-port [CARD]   one H100 card (0-7, default 0), GPU memory, 2 nodes:
+#                                               Gb/s with one port and with both ports, through UCX
+#                                               (Blink pingpong_b -gpu) and raw (ib_write_bw
+#                                               --use_cuda), the ratios, the per-port counters and a
+#                                               verdict; inside an allocation of 2 nodes, or it asks
+#                                               salloc for one (details: gpu_lab_dual.sh)
 #   examples/nplb/gpu_lab.sh show STEP          print the full log of the last run of STEP
 #   examples/nplb/gpu_lab.sh -h                 this text
-# Steps still to come (they print "not available yet" and exit 2): dual-port, pin, all.
+# Steps still to come (they print "not available yet" and exit 2): pin, all.
 # With no HOST, the nodes of $PARTITION (sinfo). `status` never stops early: it is a dashboard.
 # `smoke` submits one real job (the only thing besides read-only checks that this script starts),
 # stops before the submit when the preset or the smoke config is not usable, never cancels the job
@@ -22,8 +28,8 @@
 # "~" and, when lines were cut, a line says how many and names `gpu_lab.sh show STEP`.
 # Nothing is changed on any node; the only files written are the logs under $WORK.
 # Exit status: 0 nothing failed, 1 a check failed, 2 bad usage or missing setup (no hosts, no log).
-# Env: PARTITION (h100_4nodes), WORK (<checkout>/local/nplb-work), NODES (reserved for the later
-#      steps: the 2 nodes of the diagnostics), CRAB (the crab executable; default
+# Env: PARTITION (h100_4nodes), WORK (<checkout>/local/nplb-work), NODES ("a b": the 2 nodes of
+#      `dual-port`; same-leaf pairs give the cleanest numbers), CRAB (the crab executable; default
 #      <checkout>/.venv/bin/crab when it is executable, else crab), CRAB_PRESETS_DIR (the folder
 #      searched for the preset; default: CRAB_PATH_PRESETS, else <checkout>/local/presets and then
 #      $XDG_CONFIG_HOME or ~/.config/crab/presets), PREFLIGHT_SSH (how gpu_preflight.sh reaches the
@@ -31,7 +37,9 @@
 #      SMOKE_JSON (the config `smoke` submits; default h100/smoke_gpu_a2a_comm.json, the allgather
 #      smoke file works too), SMOKE_POLL (seconds between two `crab status` calls, default 10),
 #      SMOKE_TIMEOUT (seconds to wait for the job, default 1800), PYTHON (reads JSON, logs and CSVs;
-#      default <checkout>/.venv/bin/python when it is executable, else python3).
+#      default <checkout>/.venv/bin/python when it is executable, else python3). `dual-port` also
+#      reads SALLOC, GPU_LAB_ALLOC, ALLOC_TIMEOUT, STEP_TIMEOUT, SIZE, DUR, DUAL_ITER, DUAL_WARMUP,
+#      RAW_SETTLE, LAB, BLINK and CUDA_LIB: gpu_lab_dual.sh lists them.
 set -uo pipefail
 
 usage() { sed -n '2,/^[^#]/{/^#/p}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
@@ -1146,6 +1154,11 @@ cmd_show() {
     return 2
 }
 
+# ---- dual-port -------------------------------------------------------------------------------
+
+# shellcheck source=gpu_lab_dual.sh
+source "$HERE/gpu_lab_dual.sh"
+
 # ---- dispatch --------------------------------------------------------------------------------
 
 case ${1:-} in
@@ -1172,7 +1185,12 @@ case ${1:-} in
         cmd_smoke "$@"
         exit $?
         ;;
-    dual-port | pin | all)
+    dual-port)
+        shift
+        cmd_dual "$@"
+        exit $?
+        ;;
+    pin | all)
         echo "gpu_lab: step '$1' is not available yet" >&2
         exit 2
         ;;
