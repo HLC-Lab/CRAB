@@ -1,0 +1,1911 @@
+{
+  "schema_version": 2,
+  "global_options": {
+    "name": "gpu_ag_comm",
+    "numnodes": "4",
+    "ppn": "8",
+    "minruns": "1",
+    "maxruns": "1",
+    "timeout": "3600.0",
+    "outformat": "csv",
+    "walltime": "06:00:00",
+    "sbatch_directives": [
+      "--exclusive",
+      "--job-name=nplb_gpu_ag_comm"
+    ],
+    "allocation": {
+      "mode": "interleaved",
+      "partitions": {
+        "victim": {
+          "share": 50
+        },
+        "aggressor": {
+          "share": 50
+        }
+      }
+    }
+  },
+  "experiments": {
+    "ppn1_alone": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 1, alone: the reference for the runs with an aggressor.",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "0",
+          "end": "",
+          "partition": "victim",
+          "ppn": 1,
+          "cpus": "0",
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn1_vs_a2a": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 1, while a steady all-to-all of 2097152 bytes (ppn 1) runs on the aggressor nodes (it starts first and stops at the end).",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "3",
+          "end": "",
+          "partition": "victim",
+          "ppn": 1,
+          "cpus": "0",
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "11": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "collect": false,
+          "start": "0",
+          "end": "f",
+          "partition": "aggressor",
+          "ppn": 1,
+          "cpus": "0",
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn2_alone": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 2, alone: the reference for the runs with an aggressor.",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "0",
+          "end": "",
+          "partition": "victim",
+          "ppn": 2,
+          "cpus": "0,1",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn2_vs_a2a": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 2, while a steady all-to-all of 2097152 bytes (ppn 2) runs on the aggressor nodes (it starts first and stops at the end).",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "3",
+          "end": "",
+          "partition": "victim",
+          "ppn": 2,
+          "cpus": "0,1",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 2,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "11": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "collect": false,
+          "start": "0",
+          "end": "f",
+          "partition": "aggressor",
+          "ppn": 2,
+          "cpus": "0,1",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn4_alone": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 4, alone: the reference for the runs with an aggressor.",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "0",
+          "end": "",
+          "partition": "victim",
+          "ppn": 4,
+          "cpus": "0,1,2,3",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn4_vs_a2a": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 4, while a steady all-to-all of 2097152 bytes (ppn 4) runs on the aggressor nodes (it starts first and stops at the end).",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "3",
+          "end": "",
+          "partition": "victim",
+          "ppn": 4,
+          "cpus": "0,1,2,3",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 4,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "11": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "collect": false,
+          "start": "0",
+          "end": "f",
+          "partition": "aggressor",
+          "ppn": 4,
+          "cpus": "0,1,2,3",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn8_alone": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 8, alone: the reference for the runs with an aggressor.",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "0",
+          "end": "",
+          "partition": "victim",
+          "ppn": 8,
+          "cpus": "0,1,2,3,40,41,42,43",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn8_vs_a2a": {
+      "description": "Victim (all-gather, communication only) over a size sweep from 1024 to 536870912 bytes on the victim nodes, ppn 8, while a steady all-to-all of 2097152 bytes (ppn 8) runs on the aggressor nodes (it starts first and stops at the end).",
+      "apps": {
+        "0": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1024 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "3",
+          "end": "",
+          "partition": "victim",
+          "ppn": 8,
+          "cpus": "0,1,2,3,40,41,42,43",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4096 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16384 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s1",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "3": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 65536 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s2",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "4": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 262144 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s3",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "5": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 1048576 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s4",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "6": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 4194304 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s5",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "7": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 16777216 -iter 1000 -warmup 100 -grty 1 -gpu",
+          "collect": true,
+          "start": "s6",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "8": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 67108864 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s7",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "9": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 268435456 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s8",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "10": {
+          "path": "blink/allgather/allgather_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/allgather_comm_only",
+          "args": "-msgsize 536870912 -iter 100 -warmup 50 -grty 1 -gpu",
+          "collect": true,
+          "start": "s9",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "11": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "collect": false,
+          "start": "0",
+          "end": "f",
+          "partition": "aggressor",
+          "ppn": 8,
+          "cpus": "0,1,2,3,40,41,42,43",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    }
+  }
+}

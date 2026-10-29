@@ -1,0 +1,267 @@
+{
+  "schema_version": 2,
+  "global_options": {
+    "name": "smoke_gpu_a2a_comm",
+    "numnodes": "4",
+    "ppn": "8",
+    "minruns": "1",
+    "maxruns": "1",
+    "timeout": "600.0",
+    "outformat": "csv",
+    "walltime": "00:30:00",
+    "sbatch_directives": [
+      "--exclusive",
+      "--job-name=nplb_smoke_gpu_a2a_comm"
+    ],
+    "allocation": {
+      "mode": "interleaved",
+      "partitions": {
+        "victim": {
+          "share": 50
+        },
+        "aggressor": {
+          "share": 50
+        }
+      }
+    }
+  },
+  "experiments": {
+    "ppn1_alone": {
+      "description": "Victim (all-to-all, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 1, alone: the reference for the runs with an aggressor.",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 1048576 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "0",
+          "end": "",
+          "partition": "victim",
+          "ppn": 1,
+          "cpus": "0",
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 67108864 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn1_vs_a2a": {
+      "description": "Victim (all-to-all, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 1, while a steady all-to-all of 2097152 bytes (ppn 1) runs on the aggressor nodes (it starts first and stops at the end).",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 1048576 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "3",
+          "end": "",
+          "partition": "victim",
+          "ppn": 1,
+          "cpus": "0",
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 67108864 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 1,
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "collect": false,
+          "start": "0",
+          "end": "f",
+          "partition": "aggressor",
+          "ppn": 1,
+          "cpus": "0",
+          "nics": [
+            "mlx5_0:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn8_alone": {
+      "description": "Victim (all-to-all, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 8, alone: the reference for the runs with an aggressor.",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 1048576 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "0",
+          "end": "",
+          "partition": "victim",
+          "ppn": 8,
+          "cpus": "0,1,2,3,40,41,42,43",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 67108864 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    },
+    "ppn8_vs_a2a": {
+      "description": "Victim (all-to-all, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 8, while a steady all-to-all of 2097152 bytes (ppn 8) runs on the aggressor nodes (it starts first and stops at the end).",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 1048576 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "3",
+          "end": "",
+          "partition": "victim",
+          "ppn": 8,
+          "cpus": "0,1,2,3,40,41,42,43",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "1": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 67108864 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "start": "s0",
+          "end": "",
+          "ppn": 8,
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        },
+        "2": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
+          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "collect": false,
+          "start": "0",
+          "end": "f",
+          "partition": "aggressor",
+          "ppn": 8,
+          "cpus": "0,1,2,3,40,41,42,43",
+          "nics": [
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
+          ],
+          "env": {
+            "UCX_MAX_RNDV_RAILS": "1",
+            "UCX_IB_ROCE_REACHABILITY_MODE": "all",
+            "CUDA_DEVICE_ORDER": "PCI_BUS_ID"
+          }
+        }
+      }
+    }
+  }
+}
