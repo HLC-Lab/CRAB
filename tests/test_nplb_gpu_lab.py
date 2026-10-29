@@ -680,6 +680,25 @@ def test_the_script_holds_no_command_that_writes_to_a_node(name):
     assert hits == []
 
 
+RUN_SCRIPT = SCRIPT.parent / "gpu_lab_run.sh"
+
+
+def test_the_smoke_step_file_is_sourced_and_parses():
+    assert subprocess.run(["bash", "-n", str(SCRIPT), str(RUN_SCRIPT)]).returncode == 0
+    assert 'source "$HERE/gpu_lab_run.sh"' in SCRIPT.read_text()
+    assert "cmd_smoke()" in RUN_SCRIPT.read_text()
+
+
+@pytest.mark.parametrize("name", WRITE_PATTERNS)
+def test_the_smoke_step_file_holds_no_command_that_writes_to_a_node(name):
+    hits = [
+        ln
+        for ln in RUN_SCRIPT.read_text().splitlines()
+        if re.search(WRITE_PATTERNS[name], ln, re.IGNORECASE)
+    ]
+    assert hits == []
+
+
 @pytest.mark.parametrize(
     "bad",
     [
