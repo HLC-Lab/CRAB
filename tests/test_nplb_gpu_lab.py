@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -667,6 +668,9 @@ WRITE_PATTERNS = {
     "systemctl": r"systemctl",
     "kill": r"kill",
     "scancel": r"scancel",
+    "scontrol update": r"scontrol\s+update\b",
+    "scontrol release": r"scontrol\s+release\b",
+    "scontrol hold": r"scontrol\s+hold\b",
 }
 
 
@@ -714,6 +718,9 @@ def test_the_smoke_step_file_holds_no_command_that_writes_to_a_node(name):
         "systemctl stop x",
         "kill -9 1",
         "scancel 12",
+        "scontrol update JobId=1 TimeLimit=5",
+        "scontrol release 1",
+        "scontrol hold 1",
     ],
 )
 def test_the_read_only_guard_does_catch_the_bad_commands(bad):
@@ -731,7 +738,10 @@ SMOKE_POINTER = "gpu_lab.sh show smoke"
 
 # `crab`: validate as before; `run --json` prints run.out (stdout) and run.err (stderr), exits with
 # run.rc, and records the directory it ran in; `status --json JOBID` answers the next state of the
-# `states` file (the last one repeats); the state NOSTATUS makes the call itself fail.
+# `states` file (the last one repeats); a line is STATE or STATE|source (a bare STATE answers with
+# source squeue; `UNKNOWN|none` is what a cluster without accounting answers for a job that left
+# the queue); the state NOSTATUS makes the call itself fail. Call N first appends the file
+# growth/N to the log named in growth.target (a job log that grows between polls).
 FAKE_CRAB_SMOKE = r"""#!/usr/bin/env bash
 echo "$*" >>"$FAKE_CRAB_DIR/calls"
 echo "crab $*" >>"$FAKE_ORDER"
@@ -754,15 +764,31 @@ status)
     [[ -f $d/status.n ]] && n=$(<"$d/status.n")
     n=$((n + 1))
     echo "$n" >"$d/status.n"
+    if [[ -f $d/growth.target && -f $d/growth/$n ]]; then
+        cat "$d/growth/$n" >>"$(<"$d/growth.target")"
+    fi
     state=$(sed -n "${n}p" "$d/states")
     [[ -n $state ]] || state=$(tail -n 1 "$d/states")
     if [[ $state == NOSTATUS ]]; then echo "crab: no scheduler here" >&2; exit 1; fi
+    source=squeue
+    if [[ $state == *"|"* ]]; then source=${state#*|}; state=${state%%|*}; fi
     printf '{\n  "schema": 1,\n  "jobs": [\n    {\n      "job_id": "%s",\n' "${!#}"
-    printf '      "state": "%s",\n      "source": "squeue"\n    }\n  ]\n}\n' "$state"
+    printf '      "state": "%s",\n      "source": "%s"\n    }\n  ]\n}\n' "$state" "$source"
     exit 0
     ;;
 esac
 exit 3
+"""
+
+# `scontrol show job ID`: records its call, prints scontrol.out and exits with scontrol.rc. The
+# fake is only on PATH when a test installs it (a lab without it is the default).
+FAKE_SCONTROL = r"""#!/usr/bin/env bash
+echo "$*" >>"$FAKE_CRAB_DIR/scontrol.calls"
+[[ $1 == show && $2 == job ]] || exit 9
+d=$FAKE_CRAB_DIR
+[[ -f $d/scontrol.out ]] && cat "$d/scontrol.out"
+[[ -f $d/scontrol.rc ]] && exit "$(<"$d/scontrol.rc")"
+exit 0
 """
 
 # `gpu_preflight.sh counters snapshot|diff`: records its call in the shared order log. A snapshot
@@ -834,6 +860,16 @@ def plain_line(t: int, message: str) -> str:
     return f"\x1b[2m[{h:02d}:{m:02d}:{s:02d}]\x1b[0m \x1b[32mINFO\x1b[0m \x1b[34mCRAB\x1b[0m  {message}\n"
 
 
+def worker_line(t: int, level: str, message: str) -> str:
+    """A worker-log line of any level (the colors of the real log) without an experiment prefix."""
+    h, m, s = t // 3600 % 24, t // 60 % 60, t % 60
+    color = {"INFO": "32", "WARN": "33", "ERROR": "31", "FATAL": "1;31"}[level]
+    return (
+        f"\x1b[2m[{h:02d}:{m:02d}:{s:02d}]\x1b[0m \x1b[{color}m{level}\x1b[0m "
+        f"\x1b[34mCRAB\x1b[0m  {message}\n"
+    )
+
+
 def build_run(
     root: Path,
     suite: dict | None = None,
@@ -850,10 +886,12 @@ def build_run(
     no_log=(),
     errors: dict | None = None,
     slurm_error: str = "",
+    ending: str | None = None,
 ) -> Path:
     """A run folder in the shape of a real one: slurm_output.log, slurm_error.log, per-experiment
     data_app_<id>.csv of the victim apps. `median` is a number or f(exp, app, size) in seconds;
-    skip_csv, empty, no_finish, failed and no_log are sets of (experiment, app id)."""
+    skip_csv, empty, no_finish, failed and no_log are sets of (experiment, app id). `ending` is
+    the text the log ends with (None: the success line; "": no final line)."""
     suite = suite or load_smoke_suite()
     root.mkdir(parents=True)
     log = [plain_line(start, "Worker started")]
@@ -882,7 +920,9 @@ def build_run(
             n = 0 if key in empty else rows
             body = "".join(f"1,{size},{m!r},{m!r},{m!r},{m!r},{m!r}\n" for _ in range(n))
             (exp_dir / f"data_app_{aid}.csv").write_text(head + body)
-    log.append(plain_line(t, f"Engine run finished  elapsed={elapsed}"))
+    log.append(
+        plain_line(t, f"Engine run finished  elapsed={elapsed}") if ending is None else ending
+    )
     (root / "slurm_output.log").write_text("".join(log))
     (root / "slurm_error.log").write_text(slurm_error)
     for (exp, aid), text in (errors or {}).items():
@@ -1279,15 +1319,356 @@ def test_a_wait_that_times_out_leaves_the_job_running_and_says_how_to_look_or_ca
     assert not any("counters diff" in c for c in order(w))
 
 
-def test_a_status_that_never_answers_ends_as_a_fail_after_a_bounded_number_of_polls(smoke_world):
+# ---- the end of a job without accounting: the job's own files decide -------------------------
+# `crab status` answers `UNKNOWN|none` for a job that left the queue on a cluster without sacct.
+# The last line of slurm_output.log, scontrol (when it knows the job) and metadata.csv decide.
+STALL = {"SMOKE_STALL": "1"}  # seconds of silence before a log counts as dead (tests wait 1-2 s)
+END_T = 10 * 3600 + 300
+FATAL_MSG = "Worker fatal error: 1 of 4 experiments failed: ppn8_alone"
+
+
+def job_log(w: dict) -> Path:
+    return w["root"] / "datadir" / "run1" / "slurm_output.log"
+
+
+def grow_job_log(w: dict, chunks: dict[int, str]) -> None:
+    """Call N of `crab status` first appends chunks[N] to the job log."""
+    put(w["crabdir"] / "growth.target", f"{job_log(w)}\n")
+    for n, text in chunks.items():
+        put(w["crabdir"] / "growth" / str(n), text)
+
+
+def install_scontrol(w: dict, out: str | None = None, rc: int = 0) -> None:
+    put(w["gbin"] / "scontrol", FAKE_SCONTROL, 0o755)
+    if out is not None:
+        put(w["crabdir"] / "scontrol.out", out)
+    if rc:
+        put(w["crabdir"] / "scontrol.rc", f"{rc}\n")
+
+
+def scontrol_says(state: str, code: str) -> str:
+    return (
+        "JobId=4242 JobName=crab_run\n   UserId=lab(1000) GroupId=lab(1000)\n"
+        f"   JobState={state} Reason=None Dependency=(null)\n"
+        f"   Requeue=0 Restarts=0 BatchFlag=1 Reboot=0 ExitCode={code}\n"
+    )
+
+
+def scontrol_calls(w: dict) -> list[str]:
+    calls = w["crabdir"] / "scontrol.calls"
+    return calls.read_text().splitlines() if calls.exists() else []
+
+
+def status_polls(w: dict) -> int:
+    return len([c for c in crab_calls(w) if c.startswith("status")])
+
+
+def job_line(out: str) -> str:
+    return next(ln for ln in out.splitlines() if re.match(r"^job\s+(OK|WARN|FAIL)\s", ln))
+
+
+def test_unknown_then_a_success_line_in_the_log_is_ok_within_one_poll(smoke_world):
     w = smoke_world
-    env = smoke_env(w, states="NOSTATUS\n")
+    states = "PENDING\nRUNNING\nRUNNING\nUNKNOWN|none\n"
+    env = smoke_env(w, states=states, ending="")
+    final = plain_line(END_T, "Engine run finished  elapsed=0:01:35")
+    grow_job_log(w, {4: plain_line(END_T - 2, "All experiments finished") + final})
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)
+    assert result.returncode == 0, result.stdout + result.stderr
+    out = result.stdout
+    screen_limits(out)
+    assert re.search(
+        r"^job\s+OK\s+4242 ended OK \(job log: Engine run finished\)\s+run 1m35s\s+total", out, re.M
+    ), out
+    assert verdict_of(out) == "smoke: 0 FAIL, 0 WARN"
+    # the final line showed up at poll 4, the poll that saw the job gone: no 30-poll wait
+    assert status_polls(w) == 4
+    assert "no state from crab status" not in out
+
+
+def test_unknown_and_a_fatal_last_line_fails_with_that_line(smoke_world):
+    w = smoke_world
+    ending = worker_line(END_T, "FATAL", FATAL_MSG)
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n", ending=ending)
     result = run_lab(w, ["smoke", "w1", "w2"], **env)
     assert result.returncode == 1
-    assert re.search(r"^job\s+FAIL\s+4242 no state from crab status", result.stdout, re.M)
-    polls = [c for c in crab_calls(w) if c.startswith("status")]
-    assert 2 <= len(polls) <= 100
+    out = result.stdout
+    screen_limits(out)
+    assert re.search(r"^job\s+FAIL\s+4242 FAILED \(job log\)\s+after", out, re.M), out
+    assert re.search(rf"^\s+last log line: {re.escape(FATAL_MSG)}$", out, re.M), out
+    assert SMOKE_POINTER in out
+    assert status_polls(w) == 2
+    assert any("counters diff" in c for c in order(w))
+    # a long last line is cut on the screen and kept whole in the log
+    long_msg = FATAL_MSG + " " + "x" * 200
+    put(job_log(w), worker_line(END_T, "FATAL", long_msg))
+    again = run_lab(w, ["smoke", "w1", "w2"], **env)
+    note = next(ln for ln in again.stdout.splitlines() if "last log line:" in ln)
+    assert note.endswith("~") and "x" * 150 not in again.stdout
+
+
+def test_all_experiments_finished_is_never_a_success(smoke_world):
+    w = smoke_world
+    ending = plain_line(END_T, "All experiments finished")
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n", ending=ending)
+    result = run_lab(w, ["smoke", "w1", "w2"], **env, **STALL)
+    assert result.returncode == 1
+    out = result.stdout
+    assert re.search(r"^job\s+FAIL\s+4242 ended without a final line", out, re.M), out
+    assert "job OK" not in out and "ended OK" not in out
+    assert status_polls(w) >= 2  # it waited for the stall rule, not for the first poll
+
+
+@pytest.mark.parametrize(
+    ("level", "message", "word"),
+    [
+        ("WARN", "Worker terminated (SIGTERM)", "terminated"),
+        ("WARN", "Worker interrupted by user", "terminated"),
+        ("FATAL", "Experiment loop crashed", "FAILED"),
+    ],
+)
+def test_unknown_and_a_terminated_or_fatal_last_line_fails(smoke_world, level, message, word):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n", ending=worker_line(END_T, level, message))
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)
+    assert result.returncode == 1
+    line = job_line(result.stdout)
+    assert re.search(rf"^job\s+FAIL\s+4242 {word} \(job log\)", line), line
+    assert re.search(rf"^\s+last log line: {re.escape(message)}$", result.stdout, re.M)
+    assert status_polls(w) == 2
+
+
+def test_unknown_with_a_silent_log_and_no_final_line_fails_with_the_error_log_tail(smoke_world):
+    w = smoke_world
+    error = "Traceback (most recent call last):\n  File x, line 1\nMemoryError: out of memory\n"
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n", ending="", slurm_error=error)
+    result = run_lab(w, ["smoke", "w1", "w2"], **env, **STALL)
+    assert result.returncode == 1
+    out = result.stdout
+    line = job_line(out)
+    assert re.search(r"^job\s+FAIL\s+4242 ended without a final line \(stopped early\?\)", line), (
+        line
+    )
+    assert re.search(
+        r"^\s+log silent for 1s; slurm_error.log: MemoryError: out of memory$", out, re.M
+    ), out
+    assert status_polls(w) >= 3  # polled while the log stayed silent
+    assert SMOKE_POINTER in out
+
+
+def test_unknown_while_the_log_grows_keeps_waiting_until_the_final_line(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n", ending="")
+    chunks = {n: plain_line(END_T + n, f"INFO progress {n}") for n in range(3, 9)}
+    chunks[9] = plain_line(END_T + 9, "Engine run finished  elapsed=0:01:35")
+    grow_job_log(w, chunks)
+    result = run_lab(w, ["smoke", "w1", "w2"], **env, **STALL)
+    assert result.returncode == 0, result.stdout
+    assert "ended OK (job log: Engine run finished)" in job_line(result.stdout)
+    assert status_polls(w) == 9
+
+
+def test_unknown_without_any_log_fails_after_the_stall_with_the_error_log_tail(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="UNKNOWN|none\n", slurm_error="sbatch: error: node down\n")
+    job_log(w).unlink()
+    result = run_lab(w, ["smoke", "w1", "w2"], **env, **STALL)
+    assert result.returncode == 1
+    line = job_line(result.stdout)
+    assert re.search(r"^job\s+FAIL\s+4242 job left the queue without writing a log", line), line
+    assert re.search(
+        r"^\s+no log for 1s; slurm_error.log: sbatch: error: node down$", result.stdout, re.M
+    ), result.stdout
+    assert status_polls(w) >= 2  # not decided from the first poll
+
+
+@pytest.mark.parametrize(
+    ("state", "code"), [("FAILED", "1:0"), ("TIMEOUT", "0:15"), ("CANCELLED", "0:0")]
+)
+def test_scontrol_with_a_terminal_bad_state_decides_at_once(smoke_world, state, code):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n", ending="")
+    install_scontrol(w, scontrol_says(state, code))
+    started = time.monotonic()
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)  # default stall: 120 s
+    assert time.monotonic() - started < 60
+    assert result.returncode == 1
+    line = job_line(result.stdout)
+    assert re.search(rf"^job\s+FAIL\s+4242 {state} \(scontrol", line), line
+    assert status_polls(w) == 2
+    assert scontrol_calls(w) == ["show job 4242"] * 1
+
+
+def test_scontrol_completed_still_needs_the_success_line_of_the_log(smoke_world):
+    w = smoke_world
+    # the log ends well: OK, with the scontrol call made
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n")
+    install_scontrol(w, scontrol_says("COMPLETED", "0:0"))
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)
+    assert result.returncode == 0, result.stdout
+    assert "ended OK (job log: Engine run finished)" in job_line(result.stdout)
+    assert scontrol_calls(w) == ["show job 4242"]
+    # the log has no final line: COMPLETED alone does not make an OK, the stall rule decides
+    (w["root"] / "tty").mkdir()
+    w2 = make_world(w["root"] / "tty", ["head", "w1", "w2"])
+    env2 = smoke_env(w2, states="RUNNING\nUNKNOWN|none\n", ending="")
+    install_scontrol(w2, scontrol_says("COMPLETED", "0:0"))
+    again = run_lab(w2, ["smoke", "w1", "w2"], **env2, **STALL)
+    assert again.returncode == 1
+    assert re.search(r"^job\s+FAIL\s+4242 ended without a final line", job_line(again.stdout))
+
+
+@pytest.mark.parametrize(
+    ("out", "rc"),
+    [(None, 0), ("slurm_load_jobs error: Invalid job id specified\n", 1), ("garbage\n", 0)],
+    ids=["silent", "expired", "unparsable"],
+)
+def test_scontrol_that_does_not_know_the_job_is_ignored(smoke_world, out, rc):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n")
+    install_scontrol(w, out, rc)
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)
+    assert result.returncode == 0, result.stdout
+    assert "ended OK (job log: Engine run finished)" in job_line(result.stdout)
+    assert scontrol_calls(w) == ["show job 4242"]
+
+
+def test_no_scontrol_on_the_path_is_fine_and_never_called(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n")
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)
+    assert result.returncode == 0
+    assert scontrol_calls(w) == []
+
+
+def test_a_job_scontrol_still_calls_running_is_not_stalled(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n", ending="")
+    install_scontrol(w, scontrol_says("RUNNING", "0:0"))
+    result = run_lab(w, ["smoke", "w1", "w2"], SMOKE_TIMEOUT="2", **env, **STALL)
+    assert result.returncode == 1
+    out = result.stdout
+    assert re.search(r"^job\s+FAIL\s+4242 still UNKNOWN after \d+s: not cancelled", out, re.M), out
+
+
+METADATA_HEAD = (
+    "job_name,experiment_name,timestamp,numnodes,ppn,apps_list,status,tags,relative_path,"
+    "total_runs,failed_runs,seed\n"
+)
+
+
+def metadata_row(job_dir: str, exp: str, status: str, failed: int) -> str:
+    return (
+        f"crab_run,{exp},2026-10-29_10-00-00,2,1,0 1,{status},none,./{job_dir}/{exp},5,{failed},\n"
+    )
+
+
+def test_an_ok_job_with_a_failed_experiment_in_metadata_csv_is_a_warn_naming_it(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n")
+    rows = METADATA_HEAD
+    rows += metadata_row("run1", "ppn1_alone", "COMPLETED", 0)
+    rows += metadata_row("run1", "ppn8_alone", "FAILED", 5)
+    rows += metadata_row("run1", "ppn8_vs_a2a", "COMPLETED", 2)
+    rows += metadata_row("older_run", "ppn1_vs_a2a", "FAILED", 5)  # another job: not ours
+    put(w["root"] / "datadir" / "metadata.csv", rows)
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)
+    assert result.returncode == 0, result.stdout
+    out = result.stdout
+    line = job_line(out)
+    assert re.search(r"^job\s+WARN\s+4242 ended OK \(job log: Engine run finished\)", line), line
+    note = next(ln for ln in out.splitlines() if "metadata.csv" in ln)
+    assert note.strip() == "metadata.csv lists failed runs: ppn8_alone,ppn8_vs_a2a"
+    assert verdict_of(out) == "smoke: 0 FAIL, 1 WARN"
+
+
+def test_metadata_csv_with_clean_rows_or_missing_is_silent_on_the_screen(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="RUNNING\nUNKNOWN|none\n")
+    clean = run_lab(w, ["smoke", "w1", "w2"], **env)
+    assert clean.returncode == 0 and verdict_of(clean.stdout) == "smoke: 0 FAIL, 0 WARN"
+    assert "metadata.csv" not in clean.stdout
+    assert "metadata.csv" in smoke_log(w)  # a note in the log only
+    (w["root"] / "tty").mkdir()
+    w2 = make_world(w["root"] / "tty", ["head", "w1", "w2"])
+    env2 = smoke_env(w2, states="RUNNING\nUNKNOWN|none\n")
+    rows = METADATA_HEAD + metadata_row("run1", "ppn1_alone", "COMPLETED", 0)
+    put(w2["root"] / "datadir" / "metadata.csv", rows)
+    ok = run_lab(w2, ["smoke", "w1", "w2"], **env2)
+    assert ok.returncode == 0 and verdict_of(ok.stdout) == "smoke: 0 FAIL, 0 WARN"
+
+
+@pytest.mark.parametrize(
+    ("final", "word"),
+    [("COMPLETED|sacct", "COMPLETED"), ("FAILED|sacct", "FAILED"), ("TIMEOUT|sacct", "TIMEOUT")],
+)
+def test_a_final_sacct_state_is_still_taken_as_it_is(smoke_world, final, word):
+    w = smoke_world
+    env = smoke_env(w, states=f"PENDING\nRUNNING\n{final}\n")
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)
+    status = "OK" if word == "COMPLETED" else "FAIL"
+    assert result.returncode == (0 if status == "OK" else 1)
+    assert re.search(rf"^job\s+{status}\s+4242 {word}\b", job_line(result.stdout)), result.stdout
+    assert status_polls(w) == 3
+    assert scontrol_calls(w) == []
+
+
+def test_unknown_before_the_job_is_visible_is_not_decided_from_a_missing_log(smoke_world):
+    w = smoke_world
+    states = "UNKNOWN|none\nUNKNOWN|none\nPENDING\nRUNNING\nUNKNOWN|none\n"
+    env = smoke_env(w, states=states)
+    full = job_log(w).read_text()
+    job_log(w).unlink()  # the log appears only when the job starts, at poll 4
+    grow_job_log(w, {4: full})
+    result = run_lab(w, ["smoke", "w1", "w2"], **env)  # default stall: 120 s
+    assert result.returncode == 0, result.stdout
+    assert "ended OK (job log: Engine run finished)" in job_line(result.stdout)
+    assert status_polls(w) == 5
+
+
+def test_a_status_that_never_answers_and_no_job_log_fails_after_the_stall_not_before(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="NOSTATUS\n")
+    job_log(w).unlink()
+    result = run_lab(w, ["smoke", "w1", "w2"], **env, **STALL)
+    assert result.returncode == 1
+    line = job_line(result.stdout)
+    assert re.search(r"^job\s+FAIL\s+4242 no state from crab status and no job log", line), line
+    assert status_polls(w) >= 2
     assert not any("cancel" in c for c in crab_calls(w))
+
+
+def test_a_status_that_fails_while_the_log_grows_keeps_waiting_then_reads_the_log(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="NOSTATUS\n", ending="")
+    chunks = {n: plain_line(END_T + n, f"INFO progress {n}") for n in range(2, 5)}
+    chunks[5] = plain_line(END_T + 5, "Engine run finished  elapsed=0:01:35")
+    grow_job_log(w, chunks)
+    result = run_lab(w, ["smoke", "w1", "w2"], **env, **STALL)
+    assert result.returncode == 0, result.stdout
+    assert "ended OK (job log: Engine run finished)" in job_line(result.stdout)
+    assert status_polls(w) == 5
+
+
+def test_a_timeout_with_the_job_gone_from_the_queue_still_leaves_it_alone(smoke_world):
+    w = smoke_world
+    env = smoke_env(w, states="UNKNOWN|none\n", ending="")
+    grow_job_log(w, {n: plain_line(END_T + n, f"INFO progress {n}") for n in range(1, 40)})
+    result = run_lab(w, ["smoke", "w1", "w2"], SMOKE_TIMEOUT="0", **env)
+    assert result.returncode == 1
+    out = result.stdout
+    assert re.search(r"^job\s+FAIL\s+4242 still UNKNOWN after 0s: not cancelled", out, re.M), out
+    assert "crab status 4242" in out and "crab cancel 4242" in out
+    assert not any("cancel" in c for c in crab_calls(w))
+    assert not any("counters diff" in c for c in order(w))
+
+
+def test_every_scontrol_call_of_the_lab_scripts_is_show_job():
+    for path in (SCRIPT, RUN_SCRIPT):
+        for ln in path.read_text().splitlines():
+            ln = re.sub(r"(^|\s)#.*", "", ln)  # a comment may talk about scontrol
+            for verb in re.findall(r"\bscontrol\s+(\w+)(?:\s+(\w+))?", ln):
+                assert verb == ("show", "job"), ln
 
 
 def test_the_first_error_line_is_on_the_screen_truncated_and_in_the_log_whole(smoke_world):
@@ -1505,3 +1886,17 @@ def test_bad_smoke_settings_exit_2_with_one_line(smoke_world):
         assert result.stdout == ""
         assert len(result.stderr.strip().splitlines()) == 1 and name in result.stderr
     assert order(w) == []
+
+
+def test_a_bad_smoke_stall_exits_2_with_one_line_and_the_usage_documents_it(smoke_world):
+    w = smoke_world
+    env = smoke_env(w)
+    for bad in ("soon", "-1", "1.5"):
+        result = run_lab(w, ["smoke", "w1"], **{**env, "SMOKE_STALL": bad})
+        assert result.returncode == 2
+        assert result.stdout == ""
+        assert len(result.stderr.strip().splitlines()) == 1 and "SMOKE_STALL" in result.stderr
+    assert order(w) == []
+    usage = run_lab(w, ["-h"])
+    assert "SMOKE_STALL" in usage.stdout and "120" in usage.stdout
+    assert "UNKNOWN_POLLS" not in usage.stdout
