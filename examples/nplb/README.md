@@ -486,7 +486,9 @@ on nodes 1 and 3.
   6 hour full files.
 - `--local`: files named `local_*`, only to drive the flow (generate, check, launch, parse) on a
   laptop without GPUs or InfiniBand: `ppn` 1 and 2, sizes 1 KiB and 1 MiB, `-iter 5 -warmup 1`, no
-  `-gpu`, `binary`, `nics`, `cpus` or UCX variables. It cannot be combined with `--smoke`.
+  `-gpu`, `binary`, `nics`, `cpus` or UCX variables. The layout is 2 nodes (`numnodes` "2", `ppn`
+  "2"), one per partition, so it needs a preset with two hosts (see
+  [Running the laptop files](#running-the-laptop-files)). It cannot be combined with `--smoke`.
 - `--aggr-ppn`: the aggressor's ranks per node: 1, 2, 4, 8 or `same` (the default, the victim's
   `ppn`). A comma list is allowed.
 - `--aggr-msgsize`: the aggressor's message size in bytes (default 2 MiB = 2097152). A comma list
@@ -514,6 +516,41 @@ the H100 test cluster; on other hardware change `CORES` and `NICS` in `gpu_set.p
 **Open choice.** The aggressor's `ppn` and message size are not settled. The committed files use
 the defaults (the victim's `ppn`, 2 MiB). When the choice is made, regenerate with `--aggr-ppn` and
 `--aggr-msgsize` and commit the new files.
+
+### Running the laptop files
+
+The `local_*` files ask for 2 nodes, and the `local` preset has one host, so CRAB refuses them
+(`numnodes 2 is more than the preset's 1 host(s)`). Give CRAB a preset whose two hosts are
+both this machine:
+
+```json
+{
+    "local2": {
+        "scheduler": "local",
+        "launcher": "mpirun",
+        "hosts": ["localhost:6", "127.0.0.1:6"]
+    }
+}
+```
+
+- `"local2"`: the preset name, used as `-p local2`.
+- `"scheduler": "local"`: run on this machine as a detached process, with no Slurm.
+- `"launcher": "mpirun"`: start each app with Open MPI's `mpirun`, which places the victim ranks on
+  one host and the aggressor ranks on the other.
+- `"hosts"`: two distinct names (host names must be distinct) that both reach this machine, each
+  with 6 cores. The victim partition gets the first host and the aggressor partition the second.
+
+Save it as a file (for example `local2.json`) in `local/presets/` in a checkout, or in the folder
+that `CRAB_PATH_PRESETS` names (it must be a folder, not a file). Then check it and run a file:
+
+```bash
+.venv/bin/crab presets show local2                         # the preset as CRAB reads it
+.venv/bin/crab run -p local2 local/local_gpu_a2a_comm.json  # the generated file, from the --local command above
+```
+
+The local files do not write `binary`, so the apps need a Blink receipt (`crab setup`) or a
+`binary` you add to each app. The run's worker is a detached process: start it from a normal shell
+session, not from a command that kills its children when it ends.
 
 ## The two test sets
 
