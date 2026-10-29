@@ -1,0 +1,18 @@
+{
+    "nplb_h100_gpu": {
+        "description": "NPLB test cluster, 4 H100 nodes, CUDA-aware Open MPI and UCX (GPU memory)",
+        "scheduler": "slurm",
+        "launcher": "mpirun",
+        "launchers": {
+            "mpirun": {
+                "command": "/root/crab/lab/ompi-cuda/bin/mpirun",
+                "dialect": "openmpi4",
+                "flags": ["--allow-run-as-root", "--mca", "pml", "ucx", "--mca", "btl", "^openib"]
+            }
+        },
+        "sbatch": ["--partition=h100_4nodes"],
+        "env": {
+            "LD_LIBRARY_PATH": "/root/crab/lab/ucx-cuda/lib:/usr/local/cuda-12.3/targets/x86_64-linux/lib:/root/crab/lab/ompi-cuda/lib:$LD_LIBRARY_PATH"
+        }
+    }
+}
