@@ -14,6 +14,7 @@ campaign.
 | `nic_check.sh` | Runs Blink in several placements on 2 nodes and shows per-rank bandwidth and the bytes each NIC sent, to confirm every rank uses its own NIC. |
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
 | `gpu_set.py` | Writes the GPU comm-only suites (all-to-all and all-gather victims with the buffers in GPU memory, against a steady all-to-all aggressor); see [below](#gpu-comm-only-suites). |
+| `gpu_preflight.sh` | Checks over ssh that every H100 node can run the GPU suites (state, 16 ports, 8 GPUs, `nvidia_peermem`, CUDA-aware MPI and UCX, Blink programs, NFS, Selective Repeat), and diffs the NIC counters before and after a run; read only, see [below](#check-the-h100-nodes-before-a-gpu-run). |
 | `topology.sh` | Reports each RDMA port of every node over ssh and listens for LLDP to name the leaf switch behind it (round 2, run by `bringup.sh topo`). |
 | `topology_summary.py` | Turns the TSV of `topology.sh` into a one-screen grid and verdict, as `topology.sh` does at its end. |
 | `pingpong_set.py` | Builds the ping-pong ceiling configs for `make_configs.py --set pingpong` (see [round 2](#round-2-topology-and-ping-pong-ceilings)). |
@@ -516,6 +517,49 @@ the H100 test cluster; on other hardware change `CORES` and `NICS` in `gpu_set.p
 **Open choice.** The aggressor's `ppn` and message size are not settled. The committed files use
 the defaults (the victim's `ppn`, 2 MiB). When the choice is made, regenerate with `--aggr-ppn` and
 `--aggr-msgsize` and commit the new files.
+
+### Check the H100 nodes before a GPU run
+
+`gpu_preflight.sh` runs on the node that holds the checkout and only reads: it changes nothing on
+any node. The only file it writes is the counter snapshot, on the machine it runs on.
+
+```bash
+examples/nplb/gpu_preflight.sh <node1> <node2> <node3> <node4>        # or: PARTITION=<partition> examples/nplb/gpu_preflight.sh
+examples/nplb/gpu_preflight.sh counters snapshot before.txt <node1> <node2> <node3> <node4>
+examples/nplb/gpu_preflight.sh counters diff before.txt <node1> <node2> <node3> <node4>
+```
+
+- First line: the checks. Run it before every session, and again when a node was rebooted. It
+  prints one `OK`, `WARN` or `FAIL` line per node and check, and exits 1 on any `FAIL`. A `FAIL` line
+  names the node and what is missing, for example `not ACTIVE: mlx5_3 (1: DOWN)`. If a node or a
+  port is down, stop and tell the lab: nothing here fixes it. The checks are `state` (Slurm does not
+  list the node as down, drained, failed or in maintenance), `ports` (the 16 CX8 ports `mlx5_0` to
+  `mlx5_5` and `mlx5_8` to `mlx5_17` exist and port 1 is `ACTIVE`; the disabled CX5 `mlx5_6` and
+  `mlx5_7` are skipped), `gpus` (`nvidia-smi -L` lists 8), `peermem` (`nvidia_peermem` is loaded,
+  which GPUDirect RDMA needs), `mpirun` (`$LAB/ompi-cuda/bin/mpirun` runs and `ompi_info` reports CUDA
+  support), `ucx` (`$LAB/ucx-cuda/lib` has `libucp`), `blink` (both comm-only programs exist and `ldd`
+  finds every library, with the lab's `LD_LIBRARY_PATH`), `nfs` (on the workers: the checkout is an NFS
+  mount) and `sr` (the output of `sr_state.sh`: a `WARN` when Selective Repeat differs between ports,
+  a `FAIL` when a port could not be read).
+- Second line: saves five counters of each of the 16 ports of every node into `before.txt`, one
+  `<node> <port> <counter> <value>` line each: `np_ecn_marked_roce_packets`, `np_cnp_sent` and
+  `rp_cnp_handled` (ECN marks seen and congestion notifications sent and handled) and
+  `port_xmit_data` and `port_rcv_data` (traffic, in units of 4 bytes). A counter this driver does not
+  have is stored as `NA`. Run it right before the smoke run.
+- Third line: reads the counters again right after the run and prints the nonzero change of each
+  (`<node> <port> <counter> +<delta>`), then three summary lines. `ports with traffic` names the
+  ports whose traffic counters moved (`<node>/<port>`): with one rank per port, every port of the
+  nodes that ran ranks should be listed, and a node or port that carried nothing is the thing to look
+  at. `ECN/CNP activity` is `yes` when any ECN or CNP counter moved, `no` when none did and `unknown`
+  when this driver exposes none of them. The last line, `proxy: ...`, is the caveat to keep in mind:
+  these counters show whether the NICs saw ECN marks and CNPs during the run. They are a proxy
+  for congestion-control activity, not the NPLB setting of the switch, which nodes cannot read. Without
+  hosts, `diff` uses the hosts in `before.txt`. It exits 1 when a node is unreachable and 2 when the file
+  is missing or malformed.
+
+`LAB` (default `/root/crab/lab`), `CRAB_DIR`, `CUDA_LIB` (default
+`/usr/local/cuda-12.3/targets/x86_64-linux/lib`) and `PREFLIGHT_SSH` change where it looks and how
+it reaches the nodes; `examples/nplb/gpu_preflight.sh -h` lists them all.
 
 ### Running the laptop files
 
