@@ -15,7 +15,7 @@ campaign.
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
 | `gpu_set.py` | Writes the GPU comm-only suites (all-to-all and all-gather victims with the buffers in GPU memory, against a steady all-to-all aggressor); see [below](#gpu-comm-only-suites). |
 | `gpu_preflight.sh` | Checks over ssh that every H100 node can run the GPU suites (state, 16 ports, 8 GPUs, `nvidia_peermem`, CUDA-aware MPI and UCX, Blink programs, NFS, Selective Repeat), and diffs the NIC counters before and after a run; read only, see [below](#check-the-h100-nodes-before-a-gpu-run). |
-| `gpu_lab.sh` | Lab session for the H100 GPU suites in steps that each print one screen (38 lines x 100 columns) and keep the full detail in a log; `status` shows the checkout, the preset, `crab validate` of the three GPU configs and a node x check grid; read only, see [below](#one-screen-lab-session). |
+| `gpu_lab.sh` | Lab session for the H100 GPU suites in steps that each print one screen (38 lines x 100 columns) and keep the full detail in a log; `status` shows the checkout, the preset, `crab validate` of the three GPU configs and a node x check grid and is read only; `smoke` submits the smoke config with a plain `crab run`, waits for the job and shows whether it ran, what the victim measured, what the full suites will cost and what the NICs saw; see [below](#one-screen-lab-session). |
 | `topology.sh` | Reports each RDMA port of every node over ssh and listens for LLDP to name the leaf switch behind it (round 2, run by `bringup.sh topo`). |
 | `topology_summary.py` | Turns the TSV of `topology.sh` into a one-screen grid and verdict, as `topology.sh` does at its end. |
 | `pingpong_set.py` | Builds the ping-pong ceiling configs for `make_configs.py --set pingpong` (see [round 2](#round-2-topology-and-ping-pong-ceilings)). |
@@ -566,15 +566,33 @@ it reaches the nodes; `examples/nplb/gpu_preflight.sh -h` lists them all.
 
 `gpu_lab.sh` runs the lab checks as steps. Every step prints at most one screen, 38 lines of at
 most 100 columns, so it can be photographed and sent for diagnosis, and writes everything it saw to
-a log. So far it has one step, `status`; the other steps (`smoke`, `dual-port`, `pin`, `all`) print
-`gpu_lab: step '<name>' is not available yet` and exit 2. It changes nothing on any node.
+a log. So far it has two steps, `status` and `smoke`; the other steps (`dual-port`, `pin`, `all`)
+print `gpu_lab: step '<name>' is not available yet` and exit 2. `status` changes nothing on any
+node. `smoke` starts one real job, the smoke config, through the same plain `crab run` the final
+suites use; it changes no node setting and never cancels the job.
 
 ```bash
+# What: check the setup (preset, the three configs, every node). Why: a missing preset or a node that is
+# down would waste the smoke job. When: first, on the head node in the checkout. Nodes default to those
+# of PARTITION; name them to check a subset.
 examples/nplb/gpu_lab.sh status                    # or: examples/nplb/gpu_lab.sh status <node1> <node2> <node3> <node4>
+
+# What: submit the smoke config, wait, summarize. Why: it proves that a real job runs end to end and measures
+# what the full suites cost. When: after `status` is green. The nodes are only the ones whose NIC
+# counters are read; they default to those of PARTITION.
+examples/nplb/gpu_lab.sh smoke                     # or: examples/nplb/gpu_lab.sh smoke <node1> <node2> <node3> <node4>
+
+# What: print the whole log of the last run of a step. Why: the screen cuts lines to 100 columns and to
+# 38 lines. When: a line ends in `~` or says `... N more lines`.
 examples/nplb/gpu_lab.sh show status
+examples/nplb/gpu_lab.sh show smoke
+
+# What: the same smoke with the all-gather config. Why: a one-variable switch between the two victims.
+# When: after the all-to-all smoke, if the all-gather suite is also going to run.
+SMOKE_JSON=examples/nplb/h100/smoke_gpu_ag_comm.json examples/nplb/gpu_lab.sh smoke
 ```
 
-- First line: the first thing to run on the head node, in the checkout, before anything else, and
+- `status`: the first thing to run on the head node, in the checkout, before anything else, and
   again after a node was rebooted. Photograph the screen. Without nodes it uses those of
   `PARTITION` (default `h100_4nodes`, from `sinfo`). The screen has one line per
   check, `<what> OK|WARN|FAIL <detail>`: `checkout` (branch and commit, with a note when files are
@@ -587,20 +605,64 @@ examples/nplb/gpu_lab.sh show status
   appears when a node cannot be reached). Under the grid, each cell that is not `ok` gets one line,
   `<node> <check> <detail>`. The last line is the verdict, `status: N FAIL, M WARN`. The exit status
   is 0 when `N` is 0 and 1 otherwise; `status` always runs every check, whatever fails.
-- Second line: prints the full log of the last `status` run (or of any step, `show <step>`),
-  which is what the screen cut. Use it when a line ends in `~` (cut at 100 columns) or when the
-  last screen line says `... N more lines`.
+- `smoke`: run it once `status` is green. It is the rehearsal of the final submit: the same
+  `crab run -p nplb_h100_gpu --json <smoke config>` from the checkout, then a wait on
+  `crab status --json <job id>` every 10 s (a single updating `waiting:` line shows only on a
+  terminal; the limit is 30 minutes) and a read of the run folder `crab run` printed. Before it
+  submits anything it checks, in this order, that crab and the smoke config exist, that the preset is
+  installed and that `crab validate -p nplb_h100_gpu` accepts the config; a failure there is a
+  `FAIL` line and nothing is submitted. The full node check is not run here, that is `status`. The
+  screen then shows:
+  - `job`: the job id, its final state (`COMPLETED` is the only good one), the run time from the
+    worker log and the total time since the submit; and `apps`: `8/8 victim apps finished` and how
+    many CSV rows were written (the aggressor app, which has no CSV and is stopped at the end of its
+    experiment, is not counted);
+  - one row per experiment: `apps` done/expected, the median duration per message size (the median
+    over the CSV rows of the `*_Median-Duration_s` column, shown as `us`, `ms` or `s`), the rows of
+    each victim CSV (`-` where the file is missing) and the wall time of each victim app, taken from
+    the worker log (the `FINISHED` or `FAILED` line minus the `Launched` line; `?` when the lines
+    are missing, which is not an error);
+  - `NIC counters, before and after the job`: the three summary lines of
+    `gpu_preflight.sh counters diff` (the ports that carried traffic, whether an ECN/CNP counter moved,
+    and the reminder that these counters are a proxy for congestion control, not the NPLB setting of
+    the switch). The counters are saved before the submit and read again when the job ended, on the
+    nodes you gave or those of `PARTITION`; a node that cannot be read gives a `counters WARN` line
+    and the smoke result still counts;
+  - `full suites: ~A + ~B min`: a rough, measured estimate of the two full suites (all-to-all and
+    all-gather). For each app it adds a startup time (the shortest app wall time seen in this run) to
+    `-iter + -warmup` times the time of one iteration, which is the median of the median-duration
+    column at the two smoke sizes, extended to the 11 sizes of `h100/gpu_a2a_comm.json` in a straight
+    line on log-log axes and never below the smaller measured time; ppn 2 and 4, which smoke does not
+    run, borrow the nearest ppn it ran. All-gather uses the same time model and the same numbers as
+    all-to-all. The line also says how many iterations smoke ran per app against the 150 to 1100 of
+    the full suites, because that is what makes it rough;
+  - the verdict, `smoke: N FAIL, M WARN`.
 
-A good result: `status: 0 FAIL, 0 WARN`. A `FAIL` names its cause: fix it (the preset is copied
-with the `cp` line on the screen; a node or a port that is down is for the lab to fix) and run
-`status` again before going on.
+  A job that ends `FAILED`, `CANCELLED`, `TIMEOUT` or `NODE_FAIL`, a `crab run` that fails, a victim
+  app with no CSV, no rows or no `FINISHED` line, are each a `FAIL` with a one-line reason and
+  `details: gpu_lab.sh show smoke`; the first line of an `error_app_<id>.log` or `slurm_error.log`
+  follows, cut to the screen width (the log has it whole). If the job is still not over after the
+  limit, `smoke` stops waiting, prints `crab status <job id>` and `crab cancel <job id>` and leaves
+  the job alone: cancelling it is your decision. The exit status is 0 when the job completed and
+  every victim app has rows, 1 otherwise, and 2 for bad usage.
+- `show <step>`: prints the full log of the last run of that step, which is what the screen cut.
+  Use it when a line ends in `~` (cut at 100 columns) or when a line says `... N more lines`.
+
+A good result: `status: 0 FAIL, 0 WARN` and `smoke: 0 FAIL, 0 WARN`. A `FAIL` names its cause: fix it
+(the preset is copied with the `cp` line on the screen; a node or a port that is down is for the lab
+to fix) and run the step again before going on.
 
 Where things go. Each run makes a folder `$WORK/gpu_lab/<YYYYmmdd_HHMMSS>/` with one
-`<step>.log` per step (the whole output of `gpu_preflight.sh` and of `crab validate`, plus the
-verdict), and `$WORK/gpu_lab/latest` points at the newest. `WORK` defaults to `local/nplb-work` in
-the checkout, as for `topology.sh`. Other settings: `CRAB` (the crab executable, default
-`.venv/bin/crab`), `CRAB_PRESETS_DIR` (the folder searched for the preset; by default the one `crab
-info` prints, then `~/.config/crab/presets/`), `PREFLIGHT_SSH` and `GPU_PREFLIGHT`;
+`<step>.log` per step (the whole output of `gpu_preflight.sh` and of `crab validate`, for `smoke`
+the submit result, the state changes of the job with their times, the submit, start and end times,
+how the wall times were derived, every CSV, the estimate model and the verdict), and
+`$WORK/gpu_lab/latest` points at the newest. `WORK` defaults to `local/nplb-work` in the checkout, as
+for `topology.sh`. Other settings: `CRAB` (the crab executable, default `.venv/bin/crab`),
+`CRAB_PRESETS_DIR` (the folder searched for the preset; by default the one `crab info` prints, then
+`~/.config/crab/presets/`), `SMOKE_JSON` (the config `smoke` submits; the all-gather smoke file
+`h100/smoke_gpu_ag_comm.json` is the one-variable switch), `SMOKE_POLL` and `SMOKE_TIMEOUT` (seconds
+between two status calls, and the limit of the wait), `PYTHON` (reads the results; default
+`.venv/bin/python`, else `python3`), `PREFLIGHT_SSH` and `GPU_PREFLIGHT`;
 `examples/nplb/gpu_lab.sh -h` lists them all.
 
 ### Running the laptop files
