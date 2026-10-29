@@ -15,6 +15,7 @@ campaign.
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
 | `gpu_set.py` | Writes the GPU comm-only suites (all-to-all and all-gather victims with the buffers in GPU memory, against a steady all-to-all aggressor); see [below](#gpu-comm-only-suites). |
 | `gpu_preflight.sh` | Checks over ssh that every H100 node can run the GPU suites (state, 16 ports, 8 GPUs, `nvidia_peermem`, CUDA-aware MPI and UCX, Blink programs, NFS, Selective Repeat), and diffs the NIC counters before and after a run; read only, see [below](#check-the-h100-nodes-before-a-gpu-run). |
+| `gpu_lab.sh` | Lab session for the H100 GPU suites in steps that each print one screen (38 lines x 100 columns) and keep the full detail in a log; `status` shows the checkout, the preset, `crab validate` of the three GPU configs and a node x check grid; read only, see [below](#one-screen-lab-session). |
 | `topology.sh` | Reports each RDMA port of every node over ssh and listens for LLDP to name the leaf switch behind it (round 2, run by `bringup.sh topo`). |
 | `topology_summary.py` | Turns the TSV of `topology.sh` into a one-screen grid and verdict, as `topology.sh` does at its end. |
 | `pingpong_set.py` | Builds the ping-pong ceiling configs for `make_configs.py --set pingpong` (see [round 2](#round-2-topology-and-ping-pong-ceilings)). |
@@ -560,6 +561,47 @@ examples/nplb/gpu_preflight.sh counters diff before.txt <node1> <node2> <node3> 
 `LAB` (default `/root/crab/lab`), `CRAB_DIR`, `CUDA_LIB` (default
 `/usr/local/cuda-12.3/targets/x86_64-linux/lib`) and `PREFLIGHT_SSH` change where it looks and how
 it reaches the nodes; `examples/nplb/gpu_preflight.sh -h` lists them all.
+
+### One-screen lab session
+
+`gpu_lab.sh` runs the lab checks as steps. Every step prints at most one screen, 38 lines of at
+most 100 columns, so it can be photographed and sent for diagnosis, and writes everything it saw to
+a log. So far it has one step, `status`; the other steps (`smoke`, `dual-port`, `pin`, `all`) print
+`gpu_lab: step '<name>' is not available yet` and exit 2. It changes nothing on any node.
+
+```bash
+examples/nplb/gpu_lab.sh status                    # or: examples/nplb/gpu_lab.sh status <node1> <node2> <node3> <node4>
+examples/nplb/gpu_lab.sh show status
+```
+
+- First line: the first thing to run on the head node, in the checkout, before anything else, and
+  again after a node was rebooted. Photograph the screen. Without nodes it uses those of
+  `PARTITION` (default `h100_4nodes`, from `sinfo`). The screen has one line per
+  check, `<what> OK|WARN|FAIL <detail>`: `checkout` (branch and commit, with a note when files are
+  modified), `preset` (a `*.json` file that defines `nplb_h100_gpu` is in the overrides folder; when
+  it is not, the next line is the `cp` command that installs it), and `validate smoke`,
+  `validate a2a` and `validate allgather` (`crab validate -p nplb_h100_gpu` on the three GPU configs
+  in `h100/`; it reads the file and the preset only, it does not check that `binary` exists). Below
+  them is the grid: one row per node, one column per `gpu_preflight.sh` check (`ok`, `WARN`,
+  `FAIL`, or `-` where the check does not apply, such as `nfs` on the head node; an `ssh` column
+  appears when a node cannot be reached). Under the grid, each cell that is not `ok` gets one line,
+  `<node> <check> <detail>`. The last line is the verdict, `status: N FAIL, M WARN`. The exit status
+  is 0 when `N` is 0 and 1 otherwise; `status` always runs every check, whatever fails.
+- Second line: prints the full log of the last `status` run (or of any step, `show <step>`),
+  which is what the screen cut. Use it when a line ends in `~` (cut at 100 columns) or when the
+  last screen line says `... N more lines`.
+
+A good result: `status: 0 FAIL, 0 WARN`. A `FAIL` names its cause: fix it (the preset is copied
+with the `cp` line on the screen; a node or a port that is down is for the lab to fix) and run
+`status` again before going on.
+
+Where things go. Each run makes a folder `$WORK/gpu_lab/<YYYYmmdd_HHMMSS>/` with one
+`<step>.log` per step (the whole output of `gpu_preflight.sh` and of `crab validate`, plus the
+verdict), and `$WORK/gpu_lab/latest` points at the newest. `WORK` defaults to `local/nplb-work` in
+the checkout, as for `topology.sh`. Other settings: `CRAB` (the crab executable, default
+`.venv/bin/crab`), `CRAB_PRESETS_DIR` (the folder searched for the preset; by default the one `crab
+info` prints, then `~/.config/crab/presets/`), `PREFLIGHT_SSH` and `GPU_PREFLIGHT`;
+`examples/nplb/gpu_lab.sh -h` lists them all.
 
 ### Running the laptop files
 
