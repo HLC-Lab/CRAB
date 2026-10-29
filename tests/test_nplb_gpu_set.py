@@ -319,7 +319,11 @@ def test_bad_aggressor_values_exit_2(
     assert list(tmp_path.iterdir()) == []
 
 
-def test_local_variant(local: dict[str, Any]) -> None:
+def test_local_variant(local: dict[str, Any], full: dict[str, Any], smoke: dict[str, Any]) -> None:
+    # The lab files keep the 4-node layout; the laptop files need only 2 hosts (one per partition).
+    for built in (full, smoke):
+        for config in built.values():
+            assert config["global_options"]["numnodes"] == "4"
     for config in local.values():
         text = json.dumps(config)
         for word in ('"binary"', "-gpu", '"nics"', '"cpus"', "CUDA_DEVICE_ORDER", "UCX_"):
@@ -327,7 +331,7 @@ def test_local_variant(local: dict[str, Any]) -> None:
         names = list(config["experiments"])
         assert names == [f"ppn{p}_{k}" for p in (1, 2) for k in ("alone", "vs_a2a")]
         opts = config["global_options"]
-        assert opts["numnodes"] == "4"
+        assert opts["numnodes"] == "2" and opts["ppn"] == "2"
         assert opts["allocation"]["mode"] == "interleaved"
         assert {k: v["share"] for k, v in opts["allocation"]["partitions"].items()} == {
             "victim": 50,

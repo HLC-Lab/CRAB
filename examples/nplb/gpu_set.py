@@ -23,8 +23,9 @@ more than one (ppn, size) pair every victim ppn gets one `vs` experiment per pai
 
 `--local` is only for driving the flow (generate, check, launch, parse) on a laptop without GPUs
 or InfiniBand: ppn 1 and 2, sizes 1 KiB and 1 MiB, `-iter 5 -warmup 1`, no `-gpu`, `binary`,
-`nics`, `cpus` or UCX variables. The wrappers and the 4-node interleaved layout stay the same.
-It cannot be combined with `--smoke`. Node names are never written into a config.
+`nics`, `cpus` or UCX variables. The wrappers stay the same, but the layout shrinks to two nodes,
+one per partition (interleaved, 50/50), so a preset with two hosts runs it. It cannot be combined
+with `--smoke`. Node names are never written into a config.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from make_configs import LAYOUTS, Placement, Settings  # noqa: E402
+from make_configs import LAYOUTS, PAIR_LAYOUT, Layout, Placement, Settings  # noqa: E402
 from md_set import VICTIM_LEAD  # noqa: E402
 
 KIB = 1 << 10
@@ -110,6 +111,8 @@ class Mode:
     walltime: str
     timeout: str
     exclusive: bool
+    layout: Layout  # how the nodes split between the victim and the aggressor partitions
+    ppn: int  # the config's global `ppn`
     small: tuple[int, int]  # (`-iter`, `-warmup`) below BIG_MESSAGE
     big: tuple[int, int]  # the same from BIG_MESSAGE up
 
@@ -121,12 +124,34 @@ class Mode:
 # Walltime of a lab file: 8 experiments x 11 sizes = 88 apps, each costing about 12 s of mpirun
 # start-up (18 min in all) plus its runs, allowed 60 s on average (88 min); the sum, about 2 h,
 # is tripled as slack for the slowest sizes under congestion.
-FULL = Mode("", PPNS, SIZES, True, "06:00:00", "3600.0", True, (1000, 100), (100, 50))
+FULL = Mode(
+    "", PPNS, SIZES, True, "06:00:00", "3600.0", True, LAYOUTS[4], 8, (1000, 100), (100, 50)
+)
 SMOKE = Mode(
-    "smoke_", SMOKE_PPNS, SMOKE_SIZES, True, "00:30:00", "600.0", True, SMOKE_RUN, SMOKE_RUN
+    "smoke_",
+    SMOKE_PPNS,
+    SMOKE_SIZES,
+    True,
+    "00:30:00",
+    "600.0",
+    True,
+    LAYOUTS[4],
+    8,
+    SMOKE_RUN,
+    SMOKE_RUN,
 )
 LOCAL = Mode(
-    "local_", LOCAL_PPNS, LOCAL_SIZES, False, "00:30:00", "600.0", False, LOCAL_RUN, LOCAL_RUN
+    "local_",
+    LOCAL_PPNS,
+    LOCAL_SIZES,
+    False,
+    "00:30:00",
+    "600.0",
+    False,
+    PAIR_LAYOUT,
+    2,
+    LOCAL_RUN,
+    LOCAL_RUN,
 )
 
 
@@ -249,12 +274,12 @@ def build(
 ) -> tuple[str, dict[str, Any]]:
     """(file stem, config) of one suite."""
     stem = f"{mode.prefix}{victim.stem}"
-    layout = LAYOUTS[4]
+    layout = mode.layout
     directives = ["--exclusive"] if mode.exclusive else []
     options: dict[str, Any] = {
         "name": stem,
         "numnodes": str(layout.nodes),
-        "ppn": "8",
+        "ppn": str(mode.ppn),
         "minruns": "1",
         "maxruns": "1",
         "timeout": mode.timeout,
