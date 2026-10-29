@@ -3,14 +3,23 @@
 # directly: the `smoke` step. `gpu_lab.sh smoke [HOST...]` submits the smoke config with a plain
 # `crab run`, waits for the job, then shows what ran, what the victim measured, what the full suites
 # will cost and the NIC counters before and after the job. This file holds the step's settings
-# (SMOKE_JSON, SMOKE_POLL, SMOKE_TIMEOUT, UNKNOWN_POLLS, PYTHON), its state variables, `cmd_smoke`
-# with the `smoke_*` helpers, and the embedded python (SMOKE_PY) that reads the finished run. The
-# usage text and the env documentation stay in the header of gpu_lab.sh.
+# (SMOKE_JSON, SMOKE_POLL, SMOKE_TIMEOUT, SMOKE_STALL, PYTHON), the markers that say how a job log
+# ends, its state variables, `job_outcome` (how the end of a job is recognised), `cmd_smoke` with
+# the `smoke_*` helpers, and the embedded python (SMOKE_PY) that reads the finished run. The usage
+# text and the env documentation stay in the header of gpu_lab.sh.
 
 SMOKE_JSON=${SMOKE_JSON:-$HERE/h100/smoke_gpu_a2a_comm.json}
 SMOKE_POLL=${SMOKE_POLL:-10}
 SMOKE_TIMEOUT=${SMOKE_TIMEOUT:-1800}
-readonly UNKNOWN_POLLS=30 # polls in a row without a job state before `smoke` gives up waiting
+SMOKE_STALL=${SMOKE_STALL:-120}
+# How the worker ends its log (slurm_output.log, ANSI colour codes stripped): the LAST non-empty line
+# decides. All are extended regular expressions. "All experiments finished" is not a success marker:
+# the worker prints it after failed experiments too.
+readonly SMOKE_OK_MARKERS='Engine run finished'
+readonly SMOKE_FAIL_MARKERS='FATAL|Worker fatal error|Worker terminated|Worker interrupted'
+readonly SMOKE_STOP_MARKERS='Worker terminated|Worker interrupted' # the part of the above that is a stop from outside
+# JobState values of `scontrol show job` that are final and bad (COMPLETED needs the log as well).
+readonly SCONTROL_BAD_STATES='FAILED|TIMEOUT|CANCELLED.*|NODE_FAIL|OUT_OF_MEMORY|BOOT_FAIL|DEADLINE|PREEMPTED'
 PYTHON=${PYTHON:-}
 if [[ -z $PYTHON ]]; then
     if [[ -x $CHECKOUT/.venv/bin/python ]]; then PYTHON=$CHECKOUT/.venv/bin/python; else PYTHON=python3; fi
@@ -22,6 +31,16 @@ JOB=
 DATA_DIR=
 JOB_STATE=
 TIMED_OUT=0
+OUTCOME=       # OK, WARN, FAIL or UNDECIDED: what the job ended as (set by smoke_wait / job_outcome)
+OUTCOME_WHY=   # the short reason, as it reads on the job line (the screen line is 100 columns)
+OUTCOME_NOTE=  # the detail that goes on a line under the job line (last log line, error tail), or empty
+OUTCOME_SRC=   # where the verdict comes from: log, scontrol or status
+GONE_AT=       # SECONDS when the job was first seen outside the queue (reset when it is queued again)
+LOG_SIG=       # size of slurm_output.log at the last poll that looked at it
+LOG_SIG_AT=    # SECONDS when that size last changed
+SC_STATE=
+SC_CODE=
+BRIEF=
 POINTED=0
 CNT_FILE=
 CNT_OK=0
@@ -536,39 +555,224 @@ print(d["data_dir"])' 2>/dev/null)
     log "job $JOB, data dir $DATA_DIR"
 }
 
-# smoke_wait: polls `crab status --json JOB` until the job ends. Sets JOB_STATE (the last state seen,
-# "no state from crab status" after UNKNOWN_POLLS polls in a row without one) and TIMED_OUT.
+# ---- how a job ends --------------------------------------------------------------------------
+# A cluster without accounting (no sacct) answers `crab status` with UNKNOWN for a job that left the
+# queue, whatever became of it. The job's own files then say what happened.
+
+# cut_text TEXT WIDTH: TEXT, or its first WIDTH-1 characters and a "~" when longer.
+cut_text() {
+    local text=$1 width=$2
+    if ((${#text} > width)); then text="${text:0:width-1}~"; fi
+    printf '%s' "$text"
+}
+
+# brief_line LINE: sets BRIEF to the message of a worker log line: no time, level or source name,
+# blanks squeezed, cut to 70 columns.
+brief_line() {
+    local line=$1
+    if [[ $line =~ ^\[[0-9:]+\][[:space:]]+[A-Z]+[[:space:]]+(.*)$ ]]; then line=${BASH_REMATCH[1]}; fi
+    line=${line#CRAB}
+    line=$(tr -s ' ' <<<"$line")
+    BRIEF=$(cut_text "${line# }" 70)
+}
+
+# job_log_last_line FILE: the last non-empty line, ANSI colour codes stripped.
+job_log_last_line() {
+    last_line "$(tail -n 20 "$1" 2>/dev/null | sed $'s/\x1b\\[[0-9;]*m//g')"
+}
+
+# error_tail DATA_DIR: the last non-empty line of slurm_error.log (the end of a traceback), cut;
+# nothing when there is none.
+error_tail() {
+    local file=$1/slurm_error.log
+    [[ -s $file ]] || return 0
+    cut_text "$(last_line "$(tail -n 5 "$file")")" 50
+}
+
+# scontrol_job JOBID: sets SC_STATE and SC_CODE (ExitCode, "x:y") from `scontrol show job`, empty
+# when scontrol is missing or does not know the job (it forgets a job about 5 minutes after its end).
+scontrol_job() {
+    local out
+    SC_STATE=
+    SC_CODE=
+    command -v scontrol >/dev/null || return 0
+    out=$(scontrol show job "$1" 2>/dev/null) || return 0
+    SC_STATE=$(grep -o 'JobState=[A-Z_]*' <<<"$out" | head -n 1)
+    SC_STATE=${SC_STATE#JobState=}
+    SC_CODE=$(grep -o 'ExitCode=[0-9]*:[0-9]*' <<<"$out" | head -n 1)
+    SC_CODE=${SC_CODE#ExitCode=}
+}
+
+# metadata_failures DATA_DIR: prints "missing", "unreadable", "clean" or "failed a,b": the experiments
+# of this job that metadata.csv (in the data root, the parent of DATA_DIR) lists as FAILED or with
+# failed runs.
+metadata_failures() {
+    local data=${1%/} out
+    out=$("$PYTHON" -I -c 'import csv, sys
+path, job = sys.argv[1], sys.argv[2]
+try:
+    handle = open(path, encoding="utf-8", errors="replace", newline="")
+except OSError:
+    print("missing")
+    sys.exit(0)
+failed = []
+with handle:
+    for row in csv.DictReader(handle):
+        rel = (row.get("relative_path") or "").strip()
+        if not (rel.startswith("./%s/" % job) or rel.startswith("%s/" % job)):
+            continue
+        try:
+            runs = int(float(row.get("failed_runs") or 0))
+        except ValueError:
+            runs = 0
+        name = row.get("experiment_name") or rel.rsplit("/", 1)[-1]
+        if (row.get("status") or "").strip().upper() == "FAILED" or runs > 0:
+            if name not in failed:
+                failed.append(name)
+print("failed " + ",".join(failed) if failed else "clean")' "${data%/*}/metadata.csv" "${data##*/}" 2>/dev/null) || out=unreadable
+    printf '%s' "${out:-unreadable}"
+}
+
+# outcome_fail WHY SRC [NOTE]: the job failed.
+outcome_fail() {
+    OUTCOME=FAIL
+    OUTCOME_WHY=$1
+    OUTCOME_SRC=$2
+    OUTCOME_NOTE=${3:-}
+}
+
+# outcome_ok WHY SRC DATA_DIR: the job ended well, then the metadata.csv cross-check: an experiment
+# of this job listed as FAILED (or with failed runs) turns the OK into a WARN and is named. A missing
+# file is a note in the log only.
+outcome_ok() {
+    local found names
+    OUTCOME=OK
+    OUTCOME_WHY=$1
+    OUTCOME_SRC=$2
+    OUTCOME_NOTE=
+    found=$(metadata_failures "$3")
+    case $found in
+        failed*)
+            names=${found#failed }
+            OUTCOME=WARN
+            OUTCOME_NOTE="metadata.csv lists failed runs: $(cut_text "$names" 60)"
+            ;;
+        missing) log "metadata.csv: not found next to the data dir, cross-check skipped" ;;
+        unreadable) log "metadata.csv: could not be read, cross-check skipped" ;;
+    esac
+}
+
+# job_outcome DATA_DIR JOBID: called when the job is no longer in the queue and crab status gave no
+# final state (UNKNOWN, empty, or the call failed). Sets OUTCOME (OK, WARN, FAIL, or UNDECIDED: poll
+# again), OUTCOME_WHY and OUTCOME_SRC (log, scontrol). Order:
+#  1. scontrol show job: a final bad state decides FAIL at once; COMPLETED 0:0 only lets the log
+#     decide; a state that is not final means the job is alive (the silence clocks restart).
+#  2. the last non-empty line of slurm_output.log against the markers at the top of this file.
+#  3. silence: no change in the size of the log for SMOKE_STALL seconds with no final line, or no log
+#     at all that long since the job was first seen outside the queue.
+# State kept across polls: GONE_AT, LOG_SIG, LOG_SIG_AT (smoke_wait resets them).
+job_outcome() {
+    local data=$1 id=$2 log=$1/slurm_output.log line sig errtail why now=$SECONDS
+    OUTCOME=UNDECIDED
+    OUTCOME_WHY=
+    OUTCOME_NOTE=
+    OUTCOME_SRC=
+    [[ -n $GONE_AT ]] || GONE_AT=$now
+    scontrol_job "$id"
+    if [[ -z $SC_STATE ]]; then
+        :
+    elif [[ $SC_STATE == COMPLETED ]]; then
+        if [[ -n $SC_CODE && $SC_CODE != 0:0 ]]; then
+            outcome_fail "COMPLETED (scontrol, exit $SC_CODE)" scontrol
+            return 0
+        fi
+    elif [[ $SC_STATE =~ ^($SCONTROL_BAD_STATES)$ ]]; then
+        outcome_fail "$SC_STATE (scontrol${SC_CODE:+, exit $SC_CODE})" scontrol
+        return 0
+    else
+        GONE_AT=$now
+        LOG_SIG_AT=$now
+    fi
+    errtail=$(error_tail "$data")
+    if [[ -f $log ]]; then
+        sig=$(wc -c <"$log")
+        sig=${sig//[[:space:]]/}
+        if [[ $sig != "$LOG_SIG" ]]; then
+            LOG_SIG=$sig
+            LOG_SIG_AT=$now
+        fi
+        line=$(job_log_last_line "$log")
+        if [[ $line =~ $SMOKE_FAIL_MARKERS ]]; then
+            brief_line "$line"
+            why="FAILED (job log)"
+            [[ $line =~ $SMOKE_STOP_MARKERS ]] && why="terminated (job log)"
+            outcome_fail "$why" log "last log line: $BRIEF"
+            return 0
+        fi
+        if [[ $line =~ $SMOKE_OK_MARKERS ]]; then
+            outcome_ok "ended OK (job log: ${BASH_REMATCH[0]})" log "$data"
+            return 0
+        fi
+        if ((now - LOG_SIG_AT >= SMOKE_STALL)); then
+            outcome_fail "ended without a final line (stopped early?)" log \
+                "log silent for ${SMOKE_STALL}s${errtail:+; slurm_error.log: $errtail}"
+        fi
+    elif ((now - GONE_AT >= SMOKE_STALL)); then
+        why="job left the queue without writing a log"
+        [[ -z $JOB_STATE ]] && why="no state from crab status and no job log"
+        outcome_fail "$why" log "no log for ${SMOKE_STALL}s${errtail:+; slurm_error.log: $errtail}"
+    fi
+    return 0
+}
+
+# smoke_wait: polls `crab status --json JOB` until the job ends. Sets JOB_STATE (the last state
+# seen), OUTCOME/OUTCOME_WHY/OUTCOME_SRC and TIMED_OUT. A state of the queue means it is not over; a
+# final state of sacct is taken as it is; UNKNOWN (or no answer) hands the decision to job_outcome,
+# which says UNDECIDED while the job log is still growing.
 smoke_wait() {
-    local out tty=0 waited=0 unknown=0 prev=x t0=$SECONDS started=
+    local out parsed tty=0 waited=0 prev=x t0=$SECONDS started=
     [[ -t 1 ]] && tty=1
     JOB_STATE=
+    OUTCOME=UNDECIDED
+    OUTCOME_WHY=
+    OUTCOME_NOTE=
+    OUTCOME_SRC=
+    GONE_AT=
+    LOG_SIG=
+    LOG_SIG_AT=
     while :; do
         out=$("$CRAB" status --json "$JOB" 2>>"$RUN_DIR/smoke.status.err")
-        JOB_STATE=$(printf '%s' "$out" | "$PYTHON" -I -c 'import json, sys
+        parsed=$(printf '%s' "$out" | "$PYTHON" -I -c 'import json, sys
 print(json.load(sys.stdin)["jobs"][0]["state"])' 2>/dev/null)
-        JOB_STATE=${JOB_STATE%%$'\n'*}
+        JOB_STATE=${parsed%%$'\n'*}
         if [[ $JOB_STATE != "$prev" ]]; then
             log "$(date '+%F %T') job $JOB state ${JOB_STATE:-none}"
             prev=$JOB_STATE
         fi
         case ${JOB_STATE%% *} in
             "" | UNKNOWN)
-                unknown=$((unknown + 1))
-                if ((unknown >= UNKNOWN_POLLS)); then
-                    JOB_STATE="no state from crab status"
+                job_outcome "$DATA_DIR" "$JOB"
+                if [[ $OUTCOME != UNDECIDED ]]; then
+                    log "$(date '+%F %T') job $JOB ended: $OUTCOME ($OUTCOME_SRC) $OUTCOME_WHY"
                     break
                 fi
                 ;;
-            COMPLETED) break ;;
-            PENDING | CONFIGURING | REQUEUED | REQUEUE_* | SUSPENDED | STOPPED) unknown=0 ;;
+            COMPLETED)
+                outcome_ok COMPLETED status "$DATA_DIR"
+                break
+                ;;
+            PENDING | CONFIGURING | REQUEUED | REQUEUE_* | SUSPENDED | STOPPED) GONE_AT= ;;
             RUNNING | COMPLETING | RESIZING | SIGNALING | STAGE_OUT)
-                unknown=0
+                GONE_AT=
                 [[ -n $started ]] || {
                     started=1
                     log "$(date '+%F %T') started (job $JOB first seen as $JOB_STATE)"
                 }
                 ;;
-            *) break ;;
+            *)
+                outcome_fail "$JOB_STATE" status
+                break
+                ;;
         esac
         waited=$((SECONDS - t0))
         if ((waited >= SMOKE_TIMEOUT)); then
@@ -654,8 +858,8 @@ smoke_finish() {
 
 cmd_smoke() {
     local line job_ok=0 detail t_submit
-    if ! [[ $SMOKE_POLL =~ ^[0-9]+$ && $SMOKE_TIMEOUT =~ ^[0-9]+$ ]]; then
-        echo "gpu_lab: SMOKE_POLL and SMOKE_TIMEOUT are whole seconds (got '$SMOKE_POLL' and '$SMOKE_TIMEOUT')" >&2
+    if ! [[ $SMOKE_POLL =~ ^[0-9]+$ && $SMOKE_TIMEOUT =~ ^[0-9]+$ && $SMOKE_STALL =~ ^[0-9]+$ ]]; then
+        echo "gpu_lab: SMOKE_POLL, SMOKE_TIMEOUT and SMOKE_STALL are whole seconds (got '$SMOKE_POLL', '$SMOKE_TIMEOUT' and '$SMOKE_STALL')" >&2
         return 2
     fi
     if ! command -v "$PYTHON" >/dev/null; then
@@ -685,15 +889,16 @@ cmd_smoke() {
         smoke_finish
         return
     fi
-    [[ $JOB_STATE == COMPLETED ]] && job_ok=1
+    [[ $OUTCOME == OK || $OUTCOME == WARN ]] && job_ok=1
     smoke_diff
     smoke_analyze "$job_ok"
     if ((job_ok)); then
-        detail="$JOB COMPLETED  run $WALL  total $(fmt_secs $((SECONDS - t_submit)))  data ${DATA_DIR##*/}"
-        result job OK "$detail"
+        detail="$JOB $OUTCOME_WHY  run $WALL  total $(fmt_secs $((SECONDS - t_submit)))  data ${DATA_DIR##*/}"
+        result job "$OUTCOME" "$detail"
     else
-        result job FAIL "$JOB $JOB_STATE  after $(fmt_secs $((SECONDS - t_submit)))  run $WALL"
+        result job FAIL "$JOB $OUTCOME_WHY  after $(fmt_secs $((SECONDS - t_submit)))  run $WALL"
     fi
+    [[ -n $OUTCOME_NOTE ]] && note "  $OUTCOME_NOTE"
     smoke_show_results
     if ((FAILS > 0)) && ((${#ERRLINE[@]})); then
         note "first error: ${ERRLINE[0]}: ${ERRLINE[1]}"

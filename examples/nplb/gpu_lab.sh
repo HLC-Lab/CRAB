@@ -36,7 +36,11 @@
 #      nodes, default ssh), GPU_PREFLIGHT (default: gpu_preflight.sh next to this script),
 #      SMOKE_JSON (the config `smoke` submits; default h100/smoke_gpu_a2a_comm.json, the allgather
 #      smoke file works too), SMOKE_POLL (seconds between two `crab status` calls, default 10),
-#      SMOKE_TIMEOUT (seconds to wait for the job, default 1800), PYTHON (reads JSON, logs and CSVs;
+#      SMOKE_TIMEOUT (seconds to wait for the job, default 1800), SMOKE_STALL (seconds of silence
+#      after which a job that left the queue without a final line in its log counts as dead,
+#      default 120; a cluster without accounting reports such a job as UNKNOWN, so `smoke` reads
+#      the end of slurm_output.log, `scontrol show job` when it answers, and metadata.csv),
+#      PYTHON (reads JSON, logs and CSVs;
 #      default <checkout>/.venv/bin/python when it is executable, else python3). `dual-port` also
 #      reads SALLOC, GPU_LAB_ALLOC, ALLOC_TIMEOUT, STEP_TIMEOUT, SIZE, DUR, DUAL_ITER, DUAL_WARMUP,
 #      RAW_SETTLE, LAB, BLINK and CUDA_LIB: gpu_lab_dual.sh lists them.
