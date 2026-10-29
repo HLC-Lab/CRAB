@@ -472,15 +472,17 @@ Each file has 8 experiments: `ppn{1,2,4,8}_alone` (the victim alone, the referen
 one per message size, 1 KiB to 256 MiB in steps of ×4 and then 512 MiB, each starting when the
 previous one ends (1000 iterations and 100 warm-up iterations below 32 MiB, 100 and 50 from there
 up). The aggressor is `alltoall_comm_only -endl` without `-blength`, so it is steady; it is not
-collected, starts 3 seconds before the victim and stops when the last size ends. The 4 nodes are
-split in two interleaved partitions of 50%: the victim runs on Slurm nodes 0 and 2, the aggressor
-on nodes 1 and 3.
+collected, starts 3 seconds before the victim and stops when the last size ends. It always runs
+the maximum `ppn` of the file (8, or 2 with `--local`), whatever the victim's `ppn`, with 128 KiB
+messages. The 4 nodes are split in two interleaved partitions of 50%: the victim runs on Slurm
+nodes 0 and 2, the aggressor on nodes 1 and 3.
 
 ```bash
 .venv/bin/python examples/nplb/gpu_set.py --out examples/nplb/h100/            # the two lab files
 .venv/bin/python examples/nplb/gpu_set.py --out smoke/ --smoke                 # a short version of both
 .venv/bin/python examples/nplb/gpu_set.py --out local/ --local                 # laptop files, no GPUs
 .venv/bin/python examples/nplb/gpu_set.py --out examples/nplb/h100/ --aggr-ppn 4 --aggr-msgsize 1048576
+.venv/bin/python examples/nplb/gpu_set.py --out local/pair --nodes <nodeA>,<nodeB> --tag same_leaf   # 2 nodes, victim alone
 ```
 
 - `--out DIR` (required): the folder for the two files; it is created when missing.
@@ -492,10 +494,13 @@ on nodes 1 and 3.
   `-gpu`, `binary`, `nics`, `cpus` or UCX variables. The layout is 2 nodes (`numnodes` "2", `ppn`
   "2"), one per partition, so it needs a preset with two hosts (see
   [Running the laptop files](#running-the-laptop-files)). It cannot be combined with `--smoke`.
-- `--aggr-ppn`: the aggressor's ranks per node: 1, 2, 4, 8 or `same` (the default, the victim's
-  `ppn`). A comma list is allowed.
-- `--aggr-msgsize`: the aggressor's message size in bytes (default 2 MiB = 2097152). A comma list
+- `--aggr-ppn`: the aggressor's ranks per node: 1, 2, 4, 8 or `same` (the victim's `ppn`). The
+  default is the maximum `ppn` of the file: 8 (2 with `--local`). A comma list is allowed.
+- `--aggr-msgsize`: the aggressor's message size in bytes (default 128 KiB = 131072). A comma list
   is allowed.
+- `--nodes A,B` with `--tag NAME`: 2-node files with the victim alone only, for when the 4th node
+  is offline (see [Two nodes, victim alone](#two-nodes-victim-alone)). `--out` must be inside a
+  `local/` directory. It cannot be combined with `--local`, `--aggr-ppn` or `--aggr-msgsize`.
 
 With more than one (aggressor `ppn`, size) pair, every victim `ppn` gets one `vs` experiment per
 pair, named `ppn{p}_vs_a2a_ap{aggressor ppn}_as{size}` instead of `ppn{p}_vs_a2a`.
@@ -516,9 +521,41 @@ the H100 test cluster; on other hardware change `CORES` and `NICS` in `gpu_set.p
 .venv/bin/crab run -p nplb_h100_gpu examples/nplb/h100/gpu_a2a_comm.json         # then the full file
 ```
 
-**Open choice.** The aggressor's `ppn` and message size are not settled. The committed files use
-the defaults (the victim's `ppn`, 2 MiB). When the choice is made, regenerate with `--aggr-ppn` and
-`--aggr-msgsize` and commit the new files.
+**Aggressor.** The aggressor runs `ppn` 8 (the maximum) in every experiment and sends 128 KiB
+messages, as decided by the supervisor, to be confirmed against the ISC paper of the previous
+campaign. To try another choice, regenerate with `--aggr-ppn` and `--aggr-msgsize` (`--aggr-ppn
+same` follows the victim's `ppn`).
+
+### Two nodes, victim alone
+
+When the 4th node is offline the 4-node files cannot run. `--nodes` writes the victim-alone part
+on two nodes instead, so the two victims can still be measured while the node is away:
+
+```bash
+# same leaf switch: the baseline pair
+.venv/bin/python examples/nplb/gpu_set.py --out local/pair --nodes <nodeA>,<nodeB> --tag same_leaf
+# nodes behind different leaf switches: the comparison
+.venv/bin/python examples/nplb/gpu_set.py --out local/pair --nodes <nodeA>,<nodeC> --tag cross_leaf
+# the same, a short version first (ppn 1 and 8, two sizes)
+.venv/bin/python examples/nplb/gpu_set.py --out local/pair --nodes <nodeA>,<nodeB> --tag same_leaf --smoke
+.venv/bin/crab run -p nplb_h100_gpu local/pair/gpu_a2a_comm_same_leaf.json
+```
+
+- `--nodes A,B`: the two nodes, written as `--nodelist=A,B` in the config's `sbatch_directives`,
+  with `numnodes` "2" and a plain `linear` allocation. Use the Slurm node names; pick a pair on
+  the same leaf switch for the first run and a pair on different leaves for the comparison.
+- `--tag NAME`: goes in the file names (`gpu_a2a_comm_NAME.json`, `gpu_ag_comm_NAME.json`, with
+  `smoke_` in front for `--smoke`), so one `--out` folder can hold both pairs. Letters, digits,
+  `-` and `_` only.
+- `--out local/...`: required, and the generator refuses any other folder. The files hold node
+  names, which are never committed, and `local/` is git-ignored.
+- `--smoke`: the same short run as above (`ppn` 1 and 8, sizes 1 MiB and 64 MiB, `-iter 20
+  -warmup 5`).
+
+Each file has the experiments `ppn1_alone`, `ppn2_alone`, `ppn4_alone` and `ppn8_alone` (`ppn1_alone`
+and `ppn8_alone` with `--smoke`): the same victim chain, pinning, binary and environment as the
+`alone` experiments of the 4-node files, with no aggressor and no partitions. Run them like the
+others, with `crab run -p nplb_h100_gpu <file>`.
 
 ### Check the H100 nodes before a GPU run
 

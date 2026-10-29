@@ -11,12 +11,12 @@ set.
 | `a2a_vs_a2a_C0_P1.json` | Phase 2 of the md set with an all-to-all as the victim and an all-to-all as the aggressor, on network configuration C0 (ECMP, NPLB off, selective repeat off) with one UCX path (`P1`). |
 | `smoke_gpu_a2a_comm.json` | Short check of the all-to-all suite: victim `alltoall_comm_only`, `ppn` 1 and 8, message sizes 1 MiB and 64 MiB, `-iter 20 -warmup 5`, 30 minute walltime. Written by `gpu_set.py --smoke`. |
 | `smoke_gpu_ag_comm.json` | The same short check with victim `allgather_comm_only`. |
-| `gpu_a2a_comm.json` | Full all-to-all suite: victim `alltoall_comm_only`, `ppn` 1, 2, 4 and 8, 11 message sizes from 1 KiB to 512 MiB, alone and against a steady `alltoall_comm_only -endl` aggressor, 6 hour walltime. Written by `gpu_set.py`. |
+| `gpu_a2a_comm.json` | Full all-to-all suite: victim `alltoall_comm_only`, `ppn` 1, 2, 4 and 8, 11 message sizes from 1 KiB to 512 MiB, alone and against a steady `alltoall_comm_only -endl` aggressor (`ppn` 8, 128 KiB messages), 6 hour walltime. Written by `gpu_set.py`. |
 | `gpu_ag_comm.json` | The same suite with victim `allgather_comm_only` (the aggressor is still the all-to-all). |
 
 The four `gpu_*` configs are written by [`gpu_set.py`](../gpu_set.py), not by `make_configs.py`.
 They run Blink's communication-only programs on GPU memory (`-gpu`) with 8 experiments each,
-`ppn{1,2,4,8}_alone` and `ppn{1,2,4,8}_vs_a2a`; the
+`ppn{1,2,4,8}_alone` and `ppn{1,2,4,8}_vs_a2a` (the aggressor always runs `ppn` 8); the
 [GPU comm-only suites](../README.md#gpu-comm-only-suites) section describes them, their pinning and
 the flags that rewrite them. Run them with the preset `nplb_h100_gpu`, smoke file first:
 `crab run -p nplb_h100_gpu <file>`.

@@ -12,28 +12,40 @@ NICS[i] and GPU i (Blink's `-gpu` picks the GPU by local rank, and `CUDA_DEVICE_
 fixes the device order).
 
 The aggressor is `alltoall_comm_only -endl` without `-blength` (steady), `collect: false`, and
-starts `VICTIM_LEAD` seconds before the victim chain. `--aggr-ppn` (1, 2, 4, 8 or `same`, the
-default: the victim's ppn) and `--aggr-msgsize` (bytes, default 2 MiB) take comma lists; with
+starts `VICTIM_LEAD` seconds before the victim chain. By the supervisor's decision the aggressor
+always runs the maximum ppn of the mode (8 in the lab and smoke files, 2 with `--local`), whatever
+the victim's ppn, with 128 KiB messages. `--aggr-ppn` (1, 2, 4, 8 or `same`, the victim's ppn;
+default: the mode's maximum) and `--aggr-msgsize` (bytes, default 128 KiB) take comma lists; with
 more than one (ppn, size) pair every victim ppn gets one `vs` experiment per pair, named
 `ppn{p}_vs_a2a_ap{aggressor ppn}_as{size}`.
 
     python3 gpu_set.py --out h100/                 # the two lab files
     python3 gpu_set.py --out h100/ --smoke         # ppn 1 and 8, two sizes, -iter 20
     python3 gpu_set.py --out local/ --local        # laptop files: see below
+    python3 gpu_set.py --out local/pair --nodes <nodeA>,<nodeB> --tag same_leaf
 
 `--local` is only for driving the flow (generate, check, launch, parse) on a laptop without GPUs
 or InfiniBand: ppn 1 and 2, sizes 1 KiB and 1 MiB, `-iter 5 -warmup 1`, no `-gpu`, `binary`,
 `nics`, `cpus` or UCX variables. The wrappers stay the same, but the layout shrinks to two nodes,
 one per partition (interleaved, 50/50), so a preset with two hosts runs it. It cannot be combined
 with `--smoke`. Node names are never written into a config.
+
+`--nodes A,B --tag NAME` is for a lab with the 4th node offline: it writes 2-node files with the
+victim alone only (`ppn{1,2,4,8}_alone`, no aggressor, no partitions; `--smoke` gives ppn 1 and 8)
+pinned to those two nodes with `--nodelist=A,B`, named `gpu_a2a_comm_NAME.json` and
+`gpu_ag_comm_NAME.json` (`smoke_` prefix with `--smoke`). Sizes, iterations, pinning, binary and
+environment are those of the 4-node files. The files hold node names, so `--out` must sit inside
+a `local/` directory (git-ignored). It cannot be combined with `--local`, `--aggr-ppn` or
+`--aggr-msgsize`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -67,8 +79,10 @@ GPU_ENV = {
     "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
 }
 BIG_MESSAGE = 32 * MIB  # from this size on, fewer iterations
-AGGRESSOR_SIZE = 2 * MIB
+AGGRESSOR_SIZE = 128 * KIB  # 128 KiB, the supervisor's choice
 AGGRESSOR_PPN_CHOICES = ("1", "2", "4", "8")
+TAG_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
+NODE_PATTERN = re.compile(r"[A-Za-z0-9._-]+")
 SMOKE_RUN = (20, 5)  # (-iter, -warmup)
 LOCAL_RUN = (5, 1)
 
@@ -115,6 +129,13 @@ class Mode:
     ppn: int  # the config's global `ppn`
     small: tuple[int, int]  # (`-iter`, `-warmup`) below BIG_MESSAGE
     big: tuple[int, int]  # the same from BIG_MESSAGE up
+    nodes: tuple[str, ...] = ()  # two node names: the victim-alone files pinned to them
+    tag: str = ""  # their file name suffix
+
+    @property
+    def aggressor_ppn(self) -> int:
+        """The default aggressor ppn: the most ranks per node the mode runs."""
+        return max(self.ppns)
 
     def iterations(self, size: int) -> tuple[int, int]:
         """(`-iter`, `-warmup`) of one message size."""
@@ -210,7 +231,7 @@ def victim_chain(
             args,
             ppn,
             start=head_start if key == 0 else f"s{key - 1}",
-            partition="victim" if key == 0 else None,
+            partition="victim" if key == 0 and not mode.nodes else None,
         )
     return apps
 
@@ -243,16 +264,22 @@ def aggressor_pairs(victim_ppn: int, ppns: list[str], sizes: list[int]) -> list[
 def experiments(
     mode: Mode, victim: Victim, ppns: list[str], sizes: list[int]
 ) -> dict[str, dict[str, Any]]:
-    """The experiments of one file: per victim ppn, `alone` and one `vs` per aggressor pair."""
+    """The experiments of one file: per victim ppn, `alone` and one `vs` per aggressor pair.
+
+    The two-node files (`mode.nodes`) have the `alone` ones only, and no partitions.
+    """
     found: dict[str, dict[str, Any]] = {}
     span = f"{mode.sizes[0]} to {mode.sizes[-1]} bytes"
     for ppn in mode.ppns:
-        base = f"Victim ({victim.text}) over a size sweep from {span} on the victim nodes"
+        where_run = "on two nodes" if mode.nodes else "on the victim nodes"
+        base = f"Victim ({victim.text}) over a size sweep from {span} {where_run}"
+        reference = "" if mode.nodes else ": the reference for the runs with an aggressor"
         found[f"ppn{ppn}_alone"] = {
-            "description": f"{base}, ppn {ppn}, alone: the reference for the runs "
-            "with an aggressor.",
+            "description": f"{base}, ppn {ppn}, alone{reference}.",
             "apps": victim_chain(mode, victim, ppn, "0"),
         }
+        if mode.nodes:
+            continue
         pairs = aggressor_pairs(ppn, ppns, sizes)
         for pair_ppn, size in pairs:
             name = f"ppn{ppn}_vs_a2a"
@@ -273,26 +300,31 @@ def build(
     mode: Mode, victim: Victim, ppns: list[str], sizes: list[int]
 ) -> tuple[str, dict[str, Any]]:
     """(file stem, config) of one suite."""
-    stem = f"{mode.prefix}{victim.stem}"
+    stem = f"{mode.prefix}{victim.stem}" + (f"_{mode.tag}" if mode.nodes else "")
     layout = mode.layout
     directives = ["--exclusive"] if mode.exclusive else []
+    directives.append(f"--job-name=nplb_{stem}")
+    allocation: dict[str, Any] = {
+        "mode": "interleaved",
+        "partitions": {
+            "victim": {"share": layout.victim_share},
+            "aggressor": {"share": layout.aggressor_share},
+        },
+    }
+    if mode.nodes:  # two pinned nodes, no partitions
+        directives.append(f"--nodelist={','.join(mode.nodes)}")
+        allocation = {"mode": "linear"}
     options: dict[str, Any] = {
         "name": stem,
-        "numnodes": str(layout.nodes),
+        "numnodes": str(len(mode.nodes) if mode.nodes else layout.nodes),
         "ppn": str(mode.ppn),
         "minruns": "1",
         "maxruns": "1",
         "timeout": mode.timeout,
         "outformat": "csv",
         "walltime": mode.walltime,
-        "sbatch_directives": [*directives, f"--job-name=nplb_{stem}"],
-        "allocation": {
-            "mode": "interleaved",
-            "partitions": {
-                "victim": {"share": layout.victim_share},
-                "aggressor": {"share": layout.aggressor_share},
-            },
-        },
+        "sbatch_directives": directives,
+        "allocation": allocation,
     }
     config = {
         "schema_version": 2,
@@ -336,27 +368,71 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--local", action="store_true", help="laptop files, only to drive the flow")
     p.add_argument(
         "--aggr-ppn",
-        default="same",
-        help="aggressor ranks per node: 1, 2, 4, 8 or same (the victim's), comma list allowed",
+        default=None,
+        help="aggressor ranks per node: 1, 2, 4, 8 or same (the victim's), comma list allowed "
+        "(default: the mode's maximum, 8, or 2 with --local)",
     )
     p.add_argument(
         "--aggr-msgsize",
-        default=str(AGGRESSOR_SIZE),
-        help="aggressor message size in bytes, comma list allowed (default: 2 MiB)",
+        default=None,
+        help="aggressor message size in bytes, comma list allowed (default: 128 KiB)",
+    )
+    p.add_argument(
+        "--nodes",
+        default=None,
+        help="A,B: write 2-node, victim-alone files pinned to these two nodes with --nodelist "
+        "(needs --tag; --out must be inside a local/ directory)",
+    )
+    p.add_argument(
+        "--tag",
+        default=None,
+        help="suffix of the --nodes file names, e.g. same_leaf: gpu_a2a_comm_same_leaf.json",
     )
     return p
 
 
+def parse_nodes(text: str) -> tuple[str, ...]:
+    """`--nodes`: exactly two distinct node names."""
+    names = tuple(word.strip() for word in text.split(","))
+    if len(names) != 2 or names[0] == names[1] or not all(map(NODE_PATTERN.fullmatch, names)):
+        raise UsageError("--nodes: give exactly two distinct node names as A,B")
+    return names
+
+
+def pair_mode(base: Mode, args: argparse.Namespace) -> Mode:
+    """The 2-node victim-alone mode of `--nodes`/`--tag`, or a UsageError."""
+    if args.local:
+        raise UsageError("--nodes cannot be combined with --local")
+    if args.aggr_ppn is not None or args.aggr_msgsize is not None:
+        raise UsageError("--nodes writes no aggressor: drop --aggr-ppn and --aggr-msgsize")
+    nodes = parse_nodes(args.nodes)
+    if "local" not in args.out.resolve().parts:
+        raise UsageError(
+            "--out: --nodes writes node names into the configs, so --out must be inside "
+            "a local/ directory (git-ignored); node names are never committed"
+        )
+    return replace(base, nodes=nodes, tag=args.tag)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    mode = SMOKE if args.smoke else LOCAL if args.local else FULL
     try:
         if args.smoke and args.local:
             raise UsageError("--smoke and --local cannot be combined")
-        ppns, sizes = parse_ppns(args.aggr_ppn), parse_sizes(args.aggr_msgsize)
+        if args.nodes is not None and args.tag is None:
+            raise UsageError("--nodes needs --tag NAME for the file names")
+        if args.tag is not None and args.nodes is None:
+            raise UsageError("--tag only names the --nodes files: give --nodes A,B too")
+        if args.tag is not None and not TAG_PATTERN.fullmatch(args.tag):
+            raise UsageError("--tag: use only letters, digits, - and _")
+        if args.nodes is not None:
+            mode = pair_mode(mode, args)
+        ppns = parse_ppns(str(mode.aggressor_ppn) if args.aggr_ppn is None else args.aggr_ppn)
+        sizes = parse_sizes(str(AGGRESSOR_SIZE) if args.aggr_msgsize is None else args.aggr_msgsize)
     except UsageError as exc:
         print(f"gpu_set.py: error: {exc}", file=sys.stderr)
         return 2
-    mode = SMOKE if args.smoke else LOCAL if args.local else FULL
     args.out.mkdir(parents=True, exist_ok=True)
     for victim in VICTIMS:
         stem, config = build(mode, victim, ppns, sizes)

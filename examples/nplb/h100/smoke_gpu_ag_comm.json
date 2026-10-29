@@ -68,7 +68,7 @@
       }
     },
     "ppn1_vs_a2a": {
-      "description": "Victim (all-gather, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 1, while a steady all-to-all of 2097152 bytes (ppn 1) runs on the aggressor nodes (it starts first and stops at the end).",
+      "description": "Victim (all-gather, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 1, while a steady all-to-all of 131072 bytes (ppn 8) runs on the aggressor nodes (it starts first and stops at the end).",
       "apps": {
         "0": {
           "path": "blink/allgather/allgather_comm_only.py",
@@ -109,15 +109,22 @@
         "2": {
           "path": "blink/alltoall/alltoall_comm_only.py",
           "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
-          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "args": "-msgsize 131072 -endl -grty 1 -gpu",
           "collect": false,
           "start": "0",
           "end": "f",
           "partition": "aggressor",
-          "ppn": 1,
-          "cpus": "0",
+          "ppn": 8,
+          "cpus": "0,1,2,3,40,41,42,43",
           "nics": [
-            "mlx5_0:1"
+            "mlx5_0:1",
+            "mlx5_2:1",
+            "mlx5_4:1",
+            "mlx5_8:1",
+            "mlx5_10:1",
+            "mlx5_12:1",
+            "mlx5_14:1",
+            "mlx5_16:1"
           ],
           "env": {
             "UCX_MAX_RNDV_RAILS": "1",
@@ -183,7 +190,7 @@
       }
     },
     "ppn8_vs_a2a": {
-      "description": "Victim (all-gather, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 8, while a steady all-to-all of 2097152 bytes (ppn 8) runs on the aggressor nodes (it starts first and stops at the end).",
+      "description": "Victim (all-gather, communication only) over a size sweep from 1048576 to 67108864 bytes on the victim nodes, ppn 8, while a steady all-to-all of 131072 bytes (ppn 8) runs on the aggressor nodes (it starts first and stops at the end).",
       "apps": {
         "0": {
           "path": "blink/allgather/allgather_comm_only.py",
@@ -238,7 +245,7 @@
         "2": {
           "path": "blink/alltoall/alltoall_comm_only.py",
           "binary": "~/crab/lab/blink-gpu/build-cuda/bin/alltoall_comm_only",
-          "args": "-msgsize 2097152 -endl -grty 1 -gpu",
+          "args": "-msgsize 131072 -endl -grty 1 -gpu",
           "collect": false,
           "start": "0",
           "end": "f",
