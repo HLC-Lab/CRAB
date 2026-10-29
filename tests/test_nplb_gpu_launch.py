@@ -309,15 +309,16 @@ def test_the_aggressor_runs_alltoall_until_the_end_on_its_own_cores_and_nics(
     assert app["partition"] == "aggressor"
     words = shlex.split(launched.line)
     assert words[0] == GPU_MPIRUN
-    assert words[1:3] == ["-n", str(ppn * len(AGGRESSOR_NODES))]
-    assert words[3:5] == ["-H", ",".join(n for n in AGGRESSOR_NODES for _ in range(ppn))]
+    # The aggressor always runs the maximum ppn (8), whatever the victim's.
+    assert words[1:3] == ["-n", str(8 * len(AGGRESSOR_NODES))]
+    assert words[3:5] == ["-H", ",".join(n for n in AGGRESSOR_NODES for _ in range(8))]
     bash_at = words.index("bash")
     assert words[bash_at + 2] == f"{BIN_DIR}/alltoall_comm_only"
     args = words[bash_at + 3 :]
-    assert args == ["-msgsize", "2097152", "-endl", "-grty", "1", "-gpu"]
+    assert args == ["-msgsize", "131072", "-endl", "-grty", "1", "-gpu"]
     assert "-blength" not in words
-    assert f"--cpu-list {CORES[ppn]} --bind-to cpu-list:ordered" in launched.line
-    assert _shim_nics(launched.shim) == NICS[:ppn]
+    assert f"--cpu-list {CORES[8]} --bind-to cpu-list:ordered" in launched.line
+    assert _shim_nics(launched.shim) == NICS
     # The nics list is the only NIC source: no UCX_NET_DEVICES from env, in the script or the -x.
     assert "UCX_NET_DEVICES" not in app["env"]
     assert "UCX_NET_DEVICES" not in "\n".join(launched.script)

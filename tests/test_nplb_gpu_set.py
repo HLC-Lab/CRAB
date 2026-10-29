@@ -216,19 +216,41 @@ def test_aggressor(full: dict[str, Any]) -> None:
                 assert all(a["partition"] == "victim" for a in apps[:1])
                 assert all(a.get("partition") != "aggressor" for a in apps), exp
                 continue
-            p = int(exp.split("_")[0].removeprefix("ppn"))
             agg = apps[-1]
-            assert set(agg["args"].split()) >= {"-msgsize", "2097152", "-endl", "-gpu"}
-            assert option(agg, "-msgsize") == "2097152"
+            # The supervisor's choice: the aggressor always runs the maximum ppn (8), 128 KiB,
+            # whatever the victim's ppn.
+            assert agg["args"] == "-msgsize 131072 -endl -grty 1 -gpu"
             assert "-blength" not in agg["args"].split()
             assert agg["collect"] is False
             assert (agg["start"], agg["end"]) == ("0", "f")
             assert agg["partition"] == "aggressor"
-            assert agg["ppn"] == p
-            assert agg["cpus"] == ",".join(CORES[:p])
-            assert agg["nics"] == NICS[:p]
+            assert agg["ppn"] == 8
+            assert agg["cpus"] == "0,1,2,3,40,41,42,43"
+            assert agg["nics"] == NICS
             keys = list(config["experiments"][exp]["apps"])
             assert keys[-1] == str(len(SIZES))
+
+
+def test_the_smoke_aggressor_is_the_same_default(smoke: dict[str, Any]) -> None:
+    for config in smoke.values():
+        for exp in ("ppn1_vs_a2a", "ppn8_vs_a2a"):
+            agg = app_list(config, exp)[-1]
+            assert agg["args"] == "-msgsize 131072 -endl -grty 1 -gpu"
+            assert agg["ppn"] == 8 and agg["cpus"] == ",".join(CORES) and agg["nics"] == NICS
+
+
+def test_the_ppn1_victim_meets_the_ppn8_aggressor(full: dict[str, Any]) -> None:
+    config = full["gpu_a2a_comm.json"]
+    assert app_list(config, "ppn1_vs_a2a")[0]["ppn"] == 1
+    assert app_list(config, "ppn1_vs_a2a")[-1]["ppn"] == 8
+
+
+def test_aggr_ppn_same_follows_the_victim_and_keeps_the_default_size(tmp_path: Path) -> None:
+    config = generate(tmp_path, "--aggr-ppn", "same")["gpu_a2a_comm.json"]
+    assert list(config["experiments"]) == FULL_NAMES
+    for p in (1, 2, 4, 8):
+        agg = app_list(config, f"ppn{p}_vs_a2a")[-1]
+        assert agg["ppn"] == p and option(agg, "-msgsize") == "131072"
 
 
 def test_global_options(full: dict[str, Any], smoke: dict[str, Any]) -> None:
@@ -295,8 +317,8 @@ def test_one_value_in_a_list_keeps_the_plain_name_and_same_follows_the_victim(
 
 def test_two_aggressor_ppn_values_name_every_experiment_with_ap_and_as(tmp_path: Path) -> None:
     config = generate(tmp_path, "--aggr-ppn", "1,2")["gpu_a2a_comm.json"]
-    assert "ppn4_vs_a2a_ap1_as2097152" in config["experiments"]
-    assert "ppn4_vs_a2a_ap2_as2097152" in config["experiments"]
+    assert "ppn4_vs_a2a_ap1_as131072" in config["experiments"]
+    assert "ppn4_vs_a2a_ap2_as131072" in config["experiments"]
     assert "ppn4_vs_a2a" not in config["experiments"]
 
 
@@ -342,6 +364,10 @@ def test_local_variant(local: dict[str, Any], full: dict[str, Any], smoke: dict[
                 assert (option(app, "-iter"), option(app, "-warmup")) == ("5", "1")
             assert sizes_of(victim_apps(config, exp)) == [1024, 1048576]
         assert app_list(config, "ppn1_vs_a2a")[-1]["path"] == A2A_WRAPPER
+        for exp in ("ppn1_vs_a2a", "ppn2_vs_a2a"):  # the mode's maximum ppn, 128 KiB
+            agg = app_list(config, exp)[-1]
+            assert agg["ppn"] == 2, exp
+            assert agg["args"] == "-msgsize 131072 -endl -grty 1", exp
     assert app_list(local["local_gpu_ag_comm.json"], "ppn1_alone")[0]["path"] == AG_WRAPPER
     assert app_list(local["local_gpu_a2a_comm.json"], "ppn1_alone")[0]["path"] == A2A_WRAPPER
 
@@ -358,6 +384,14 @@ def test_every_generated_file_passes_the_checks(
             assert check_config(config, settings) == [], name
 
 
+@pytest.mark.parametrize("pattern", ["gpu_*", "smoke_gpu_*"])
+def test_committed_files_never_contain_a_node_name(pattern: str) -> None:
+    files = sorted(H100.glob(pattern))
+    assert files
+    for path in files:
+        assert "--nodelist" not in path.read_text(), path.name
+
+
 @pytest.mark.parametrize("prefix", ["", "smoke_"])
 def test_committed_files_are_what_the_generator_writes_now(prefix: str, tmp_path: Path) -> None:
     out = generate(tmp_path, *(["--smoke"] if prefix else []))
@@ -365,3 +399,140 @@ def test_committed_files_are_what_the_generator_writes_now(prefix: str, tmp_path
     for name in out:
         committed = (H100 / name).read_text()
         assert committed == (tmp_path / name).read_text(), f"{name} is stale: rerun gpu_set.py"
+
+
+# --- two-node, victim-alone files (--nodes/--tag) ---------------------------------------------
+
+
+def pair(tmp_path: Path, *args: str) -> dict[str, dict[str, Any]]:
+    """Run `--nodes na,nb --tag same_leaf` into <tmp>/local/x; return {file name: config}."""
+    out = tmp_path / "local" / "x"
+    assert gpu_set.main(["--out", str(out), "--nodes", "na,nb", "--tag", "same_leaf", *args]) == 0
+    return {p.name: json.loads(p.read_text()) for p in sorted(out.glob("*.json"))}
+
+
+@pytest.fixture(scope="module")
+def pair_full(tmp_path_factory: pytest.TempPathFactory) -> dict[str, dict[str, Any]]:
+    return pair(tmp_path_factory.mktemp("pair"))
+
+
+@pytest.fixture(scope="module")
+def pair_smoke(tmp_path_factory: pytest.TempPathFactory) -> dict[str, dict[str, Any]]:
+    return pair(tmp_path_factory.mktemp("pairsmoke"), "--smoke")
+
+
+def test_pair_file_names(pair_full: dict[str, Any], pair_smoke: dict[str, Any]) -> None:
+    assert sorted(pair_full) == ["gpu_a2a_comm_same_leaf.json", "gpu_ag_comm_same_leaf.json"]
+    assert sorted(pair_smoke) == [
+        "smoke_gpu_a2a_comm_same_leaf.json",
+        "smoke_gpu_ag_comm_same_leaf.json",
+    ]
+
+
+def test_pair_global_options(pair_full: dict[str, Any], pair_smoke: dict[str, Any]) -> None:
+    for built in (pair_full, pair_smoke):
+        for file_name, config in built.items():
+            stem = file_name.removesuffix(".json")
+            opts = config["global_options"]
+            assert config["schema_version"] == 2
+            assert opts["name"] == stem
+            assert opts["numnodes"] == "2" and opts["ppn"] == "8"
+            assert opts["minruns"] == "1" and opts["maxruns"] == "1"
+            assert sorted(opts["sbatch_directives"]) == sorted(
+                ["--exclusive", f"--job-name=nplb_{stem}", "--nodelist=na,nb"]
+            )
+            assert opts["allocation"] == {"mode": "linear"}
+
+
+def test_pair_experiments_are_the_victim_alone_only(
+    pair_full: dict[str, Any], pair_smoke: dict[str, Any]
+) -> None:
+    for config in pair_full.values():
+        assert list(config["experiments"]) == [f"ppn{p}_alone" for p in (1, 2, 4, 8)]
+    for config in pair_smoke.values():
+        assert list(config["experiments"]) == ["ppn1_alone", "ppn8_alone"]
+    for built in (pair_full, pair_smoke):
+        for config in built.values():
+            text = json.dumps(config)
+            assert '"partition"' not in text and "-endl" not in text and "_vs_" not in text
+            assert "partitions" not in text
+
+
+def test_pair_experiments_equal_the_four_node_alone_ones(
+    pair_full: dict[str, Any],
+    pair_smoke: dict[str, Any],
+    full: dict[str, Any],
+    smoke: dict[str, Any],
+) -> None:
+    # Same sizes, iterations, pinning, binary, env, -gpu and wrapper as the 4-node `alone`
+    # experiments; the only app difference is the head's `partition` (no partitions on 2 nodes).
+    # The description differs on purpose: it says two nodes instead of the victim nodes.
+    for four, two in ((full, pair_full), (smoke, pair_smoke)):
+        for file_name, config in two.items():
+            reference = four[file_name.replace("_same_leaf", "")]
+            for exp, body in config["experiments"].items():
+                expected = json.loads(json.dumps(reference["experiments"][exp]["apps"]))
+                expected["0"].pop("partition")
+                assert body["apps"] == expected, (file_name, exp)
+                assert "two nodes" in body["description"]
+
+
+def test_pair_smoke_run_shape(pair_smoke: dict[str, Any]) -> None:
+    for config in pair_smoke.values():
+        assert config["global_options"]["walltime"] == "00:30:00"
+        for exp in config["experiments"]:
+            apps = app_list(config, exp)
+            assert sizes_of(apps) == [1048576, 67108864]
+            assert {(option(a, "-iter"), option(a, "-warmup")) for a in apps} == {("20", "5")}
+
+
+def test_pair_files_pass_the_checks(pair_full: dict[str, Any], pair_smoke: dict[str, Any]) -> None:
+    from crab.core.config_checks import check_config
+    from settings_fixtures import slurm_settings
+
+    for built in (pair_full, pair_smoke):
+        for name, config in built.items():
+            assert check_config(config, slurm_settings()) == [], name
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--nodes", "na,nb"],
+        ["--tag", "same_leaf"],
+        ["--nodes", "na,nb", "--tag", "same leaf"],
+        ["--nodes", "na,nb", "--tag", "a/b"],
+        ["--nodes", "na,nb", "--tag", ""],
+        ["--nodes", "na", "--tag", "t"],
+        ["--nodes", "na,nb,nc", "--tag", "t"],
+        ["--nodes", "na,na", "--tag", "t"],
+        ["--nodes", "na,", "--tag", "t"],
+        ["--nodes", "na,nb", "--tag", "t", "--local"],
+        ["--nodes", "na,nb", "--tag", "t", "--aggr-ppn", "8"],
+        ["--nodes", "na,nb", "--tag", "t", "--aggr-msgsize", "131072"],
+    ],
+)
+def test_pair_validation_errors_exit_2_with_one_line_and_write_nothing(
+    args: list[str], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "local" / "x"
+    assert gpu_set.main(["--out", str(out), *args]) == 2
+    assert len(capsys.readouterr().err.strip().splitlines()) == 1
+    assert not out.exists()
+
+
+def test_pair_out_without_a_local_directory_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "plain"
+    assert gpu_set.main(["--out", str(out), "--nodes", "na,nb", "--tag", "t"]) == 2
+    err = capsys.readouterr().err
+    assert len(err.strip().splitlines()) == 1
+    assert "local/" in err and "node names" in err
+    assert not out.exists()
+
+
+def test_pair_tag_characters_allowed(tmp_path: Path) -> None:
+    out = tmp_path / "local"
+    assert gpu_set.main(["--out", str(out), "--nodes", "na,nb", "--tag", "Cross-leaf_2"]) == 0
+    assert (out / "gpu_a2a_comm_Cross-leaf_2.json").exists()
