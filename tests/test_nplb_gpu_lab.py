@@ -609,7 +609,7 @@ def test_an_unknown_subcommand_exits_2(world):
     assert not world["work"].exists()
 
 
-@pytest.mark.parametrize("step", ["dual-port", "pin", "all"])
+@pytest.mark.parametrize("step", ["pin", "all"])
 def test_steps_not_built_yet_say_so_and_exit_2(world, step):
     result = run_lab(world, [step])
     assert result.returncode == 2
