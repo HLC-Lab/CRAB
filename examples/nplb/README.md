@@ -13,6 +13,7 @@ campaign.
 | `probe.py` | Reads each node's RDMA NICs (ports, PCI address, speed, NUMA node, netdev, memory, GPU layout) and writes a cluster profile with the `nics` and `cpus` lists to use. |
 | `nic_check.sh` | Runs Blink in several placements on 2 nodes and shows per-rank bandwidth and the bytes each NIC sent, to confirm every rank uses its own NIC. |
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
+| `gpu_set.py` | Writes the GPU comm-only suites (all-to-all and all-gather victims with the buffers in GPU memory, against a steady all-to-all aggressor); see [below](#gpu-comm-only-suites). |
 | `topology.sh` | Reports each RDMA port of every node over ssh and listens for LLDP to name the leaf switch behind it (round 2, run by `bringup.sh topo`). |
 | `topology_summary.py` | Turns the TSV of `topology.sh` into a one-screen grid and verdict, as `topology.sh` does at its end. |
 | `pingpong_set.py` | Builds the ping-pong ceiling configs for `make_configs.py --set pingpong` (see [round 2](#round-2-topology-and-ping-pong-ceilings)). |
@@ -452,6 +453,67 @@ done
 C0 and C2 mean nothing on such a cluster; running both only exercises the C0-vs-C2 tables. A good
 result: every job completes, each `bindings_app_*.log` shows one card per local rank, and
 `summary.md` has bandwidth, spread and slowdown values for every experiment.
+
+## GPU comm-only suites
+
+`gpu_set.py` writes two configs, one per victim, with Blink's communication-only programs running
+on GPU memory (`-gpu`, the CUDA-aware build under `~/crab/lab/blink-gpu/build-cuda/bin`). It uses
+the standard library only and does not read the cluster profile. The configs it wrote for the
+H100 nodes are in [`h100/`](h100/README.md).
+
+- `gpu_a2a_comm.json`: victim `alltoall_comm_only`.
+- `gpu_ag_comm.json`: victim `allgather_comm_only`.
+
+Each file has 8 experiments: `ppn{1,2,4,8}_alone` (the victim alone, the reference) and
+`ppn{1,2,4,8}_vs_a2a` (the same victim while an aggressor runs). A victim is a chain of 11 apps,
+one per message size, 1 KiB to 256 MiB in steps of ×4 and then 512 MiB, each starting when the
+previous one ends (1000 iterations and 100 warm-up iterations below 32 MiB, 100 and 50 from there
+up). The aggressor is `alltoall_comm_only -endl` without `-blength`, so it is steady; it is not
+collected, starts 3 seconds before the victim and stops when the last size ends. The 4 nodes are
+split in two interleaved partitions of 50%: the victim runs on Slurm nodes 0 and 2, the aggressor
+on nodes 1 and 3.
+
+```bash
+.venv/bin/python examples/nplb/gpu_set.py --out examples/nplb/h100/            # the two lab files
+.venv/bin/python examples/nplb/gpu_set.py --out smoke/ --smoke                 # a short version of both
+.venv/bin/python examples/nplb/gpu_set.py --out local/ --local                 # laptop files, no GPUs
+.venv/bin/python examples/nplb/gpu_set.py --out examples/nplb/h100/ --aggr-ppn 4 --aggr-msgsize 1048576
+```
+
+- `--out DIR` (required): the folder for the two files; it is created when missing.
+- `--smoke`: files named `smoke_*`, with only `ppn` 1 and 8, two sizes (1 MiB and 64 MiB),
+  `-iter 20 -warmup 5` and a 30 minute walltime. Run it first to check the launch before the
+  6 hour full files.
+- `--local`: files named `local_*`, only to drive the flow (generate, check, launch, parse) on a
+  laptop without GPUs or InfiniBand: `ppn` 1 and 2, sizes 1 KiB and 1 MiB, `-iter 5 -warmup 1`, no
+  `-gpu`, `binary`, `nics`, `cpus` or UCX variables. It cannot be combined with `--smoke`.
+- `--aggr-ppn`: the aggressor's ranks per node: 1, 2, 4, 8 or `same` (the default, the victim's
+  `ppn`). A comma list is allowed.
+- `--aggr-msgsize`: the aggressor's message size in bytes (default 2 MiB = 2097152). A comma list
+  is allowed.
+
+With more than one (aggressor `ppn`, size) pair, every victim `ppn` gets one `vs` experiment per
+pair, named `ppn{p}_vs_a2a_ap{aggressor ppn}_as{size}` instead of `ppn{p}_vs_a2a`.
+
+**Pinning.** The ranks of a node use the first `ppn` entries of the `ppn` 8 layout: local rank
+*i* runs on core 0, 1, 2, 3, 40, 41, 42, 43 (the *i*-th of these), on port `mlx5_0:1`,
+`mlx5_2:1`, `mlx5_4:1`, `mlx5_8:1`, `mlx5_10:1`, `mlx5_12:1`, `mlx5_14:1`, `mlx5_16:1` (the *i*-th
+of these), and on GPU *i* (Blink's `-gpu` picks the GPU by local rank, and
+`CUDA_DEVICE_ORDER=PCI_BUS_ID` fixes the device order). The apps also set
+`UCX_MAX_RNDV_RAILS=1` and `UCX_IB_ROCE_REACHABILITY_MODE=all`. The cores and ports are those of
+the H100 test cluster; on other hardware change `CORES` and `NICS` in `gpu_set.py`.
+
+**Preset.** The configs launch through the CUDA-aware Open MPI, so run them with the preset
+`nplb_h100_gpu` (see [`presets/README.md`](presets/README.md)), not `nplb_h100`:
+
+```bash
+.venv/bin/crab run -p nplb_h100_gpu examples/nplb/h100/smoke_gpu_a2a_comm.json   # smoke first
+.venv/bin/crab run -p nplb_h100_gpu examples/nplb/h100/gpu_a2a_comm.json         # then the full file
+```
+
+**Open choice.** The aggressor's `ppn` and message size are not settled. The committed files use
+the defaults (the victim's `ppn`, 2 MiB). When the choice is made, regenerate with `--aggr-ppn` and
+`--aggr-msgsize` and commit the new files.
 
 ## The two test sets
 
