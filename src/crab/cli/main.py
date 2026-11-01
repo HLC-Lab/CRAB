@@ -406,6 +406,10 @@ def cli_router():
 
     update.register(subparsers)
 
+    from crab.cli import probe
+
+    probe.register(subparsers)
+
     # 7. Worker Command (Hidden)
     parser_worker = subparsers.add_parser("worker", help=argparse.SUPPRESS)
     parser_worker.add_argument("--workdir", required=True)

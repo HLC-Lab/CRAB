@@ -575,6 +575,41 @@ crab update --head
 crab update --json
 ```
 
+## `crab probe`
+
+Describes the node it runs on (GPUs, RDMA NIC ports, NUMA domains) as a preset
+[`topology`](presets.md#topology) block. It reads Linux sysfs only, so it needs no vendor tool. Run it
+on a compute node, inside an allocation: a login node has other hardware. Review what it prints, then
+paste the block into a preset override.
+
+```bash
+crab probe [--sysfs DIR] [--node-file FILE] [--json]
+```
+
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--sysfs DIR` | The sysfs root to read, for a copy of `/sys`. | `/sys` |
+| `--node-file FILE` | Rebuild the block from a file saved with `crab probe --json`, without reading sysfs. Use it to build a block on another machine. | none |
+| `--json` | Print `{"node": ..., "topology": ..., "warnings": [...]}` as JSON. `node` is the raw data and holds the hostname; `topology` does not. | off |
+
+What goes into the block:
+
+- **GPUs** are the display and 3D controllers of NVIDIA, AMD and Intel (an Intel VGA device is an
+  integrated GPU and is skipped), numbered in PCI bus order. When a node has GPUs of several vendors, the
+  most common vendor is kept and the others are named in a warning.
+- **NIC ports** are the active ports under `/sys/class/infiniband`, named as UCX names them
+  (`mlx5_0:1`), with their NUMA domain, PCI slot (`card`), rate and link layer. A port that is not
+  active is left out and named in a warning. Other NIC families (Slingshot `cxi`, for example) are not
+  read.
+- **`near_gpu` and `dist`** give each NIC its closest GPU and the distance class between them
+  (`PIX`, `PXB`, `PHB`, `NODE` or `SYS`), worked out from the PCI tree. They are left out when the PCI
+  tree is not visible (some virtual machines and containers hide it), and a warning says so. The classes
+  are an approximation of what `nvidia-smi topo -m` prints.
+- `nic_env` is set to `UCX_NET_DEVICES` when NIC ports were found. Change it if the stack selects NICs
+  in another way.
+
+The command exits 1 with a one-line message when the sysfs folder or the node file cannot be read.
+
 ## `crab worker` (internal)
 
 Hidden subcommand executed *by the generated Slurm job* on the compute nodes: the second phase of
