@@ -51,3 +51,4 @@ deleted.
 | [040](adr-040-minruns-counts-successful-runs.md) | `minruns` counts successful runs; `maxruns` and `timeout` count every started run | accepted |
 | [041](adr-041-presets-in-crab-wrappers.md) | Cluster presets live in crab-wrappers; users patch them with per-user overrides | accepted |
 | [042](adr-042-stable-from-2-0.md) | CRAB is declared stable from 2.0; 1.x may change its public surface | accepted |
+| [043](adr-043-placement-intent-and-topology-facts.md) | Placement intent lives in the config, topology facts live in the preset | accepted |
