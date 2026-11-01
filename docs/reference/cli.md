@@ -584,12 +584,16 @@ paste the block into a preset override.
 
 ```bash
 crab probe [--sysfs DIR] [--node-file FILE] [--json]
+crab probe --check (-p PRESET | --topology-file FILE) [--sysfs DIR] [--node-file FILE] [--json]
 ```
 
 | Flag | Meaning | Default |
 |------|---------|---------|
 | `--sysfs DIR` | The sysfs root to read, for a copy of `/sys`. | `/sys` |
 | `--node-file FILE` | Rebuild the block from a file saved with `crab probe --json`, without reading sysfs. Use it to build a block on another machine. | none |
+| `--check` | Check this node against a topology instead of describing it (see below). | off |
+| `-p`, `--preset` | With `--check`: the preset whose `topology` to check against. | none |
+| `--topology-file FILE` | With `--check`: a topology block, or a `crab probe --json` file, to check against. | none |
 | `--json` | Print `{"node": ..., "topology": ..., "warnings": [...]}` as JSON. `node` is the raw data and holds the hostname; `topology` does not. | off |
 
 What goes into the block:
@@ -610,6 +614,27 @@ What goes into the block:
   in another way.
 
 The command exits 1 with a one-line message when the sysfs folder or the node file cannot be read.
+
+### `crab probe --check`
+
+Placement trusts a preset's `topology`, and facts go stale: a port goes down, a node loses a GPU, a job
+holds two of the four GPUs. UCX and CUDA only warn about such things, so `--check` fails instead. It reads
+this node and compares it with the topology of a preset (`-p`) or of a file, and exits 1 after naming each
+thing that does not hold:
+
+- a NIC port of the topology that is missing, not active, or in another PCI slot;
+- a different number of GPUs, or a GPU in another PCI slot;
+- fewer GPUs visible to the job than the topology lists (`nvidia-smi -L`), which is what a Slurm job
+  that asked for part of the node sees; the message says to ask for the whole node;
+- NUMA domains that differ from the topology's.
+
+```text
+$ crab probe --check -p mylab
+problem: mlx5_2:1 is not active (1: DOWN)
+```
+
+With `--node-file`, the node is read from a saved `--json` file, and the job-level checks (visible GPUs,
+allowed cores) are skipped because they describe a running job.
 
 ## `crab worker` (internal)
 
