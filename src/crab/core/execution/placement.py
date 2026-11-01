@@ -22,11 +22,13 @@ from crab.core.execution.placement_parse import (
     app_ppn,
     has_exclusive,
     parse_app_env,
+    parse_app_gpus,
     parse_app_nics,
     parse_cpus,
 )
 from crab.core.execution.placement_parse import parse_ppn as parse_ppn
 from crab.core.execution.settings import ExecutionSettings
+from crab.core.execution.topology import device_env
 
 AUTO_SPLIT_WARNING = (
     "automatic disjoint core split ignores NUMA and NIC locality; set cpus per app to control it"
@@ -69,6 +71,7 @@ class Placement:
     shared_cores: list[bool] = field(default_factory=list)
     co_run: list[CoRun | None] = field(default_factory=list)
     nics: list[tuple[str, ...] | None] = field(default_factory=list)
+    gpus: list[tuple[int, ...] | None] = field(default_factory=list)
 
 
 def _groups(heads: Sequence[Head]) -> list[list[Head]]:
@@ -287,20 +290,28 @@ def _place(
         parse_app_env(cfg.get("env", {}), f"app {key}: env")
         for key, cfg in zip(keys, configs, strict=True)
     ]
+    nic_var, gpu_var = device_env(settings.topology)
     nics: list[tuple[str, ...] | None] = []
+    gpus: list[tuple[int, ...] | None] = []
     for key, cfg, env in zip(keys, configs, envs, strict=True):
         app_nics = parse_app_nics(cfg["nics"], f"app {key}: nics") if "nics" in cfg else None
-        if app_nics is not None and "UCX_NET_DEVICES" in env:
-            raise ValueError(f"app {key}: nics and env UCX_NET_DEVICES both set the NIC; keep one")
+        if app_nics is not None and nic_var in env:
+            raise ValueError(f"app {key}: nics and env {nic_var} both set the NIC; keep one")
         nics.append(app_nics)
+        app_gpus = parse_app_gpus(cfg["gpus"], f"app {key}: gpus") if "gpus" in cfg else None
+        if app_gpus is not None and gpu_var in env:
+            raise ValueError(f"app {key}: gpus and env {gpu_var} both set the GPU; keep one")
+        gpus.append(app_gpus)
     literal = [
         parse_cpus(cfg["cpus"], f"app {key}") if "cpus" in cfg and i not in reuse else None
         for i, (key, cfg) in enumerate(zip(keys, configs, strict=True))
     ]
-    bound = apply_binds(keys, configs, envs, ppns, nodes, set(reuse), literal, settings)
+    directives = [global_opts.get("sbatch_directives"), global_opts.get("system_sbatch")]
+    bound = apply_binds(keys, configs, envs, ppns, nodes, set(reuse), literal, settings, directives)
     for i, applied in enumerate(bound):
-        if applied is not None and applied.nics is not None:
-            nics[i] = applied.nics
+        if applied is not None:
+            nics[i] = applied.nics if applied.nics is not None else nics[i]
+            gpus[i] = applied.gpus if applied.gpus is not None else gpus[i]
     heads: list[Head] = []
     for i, (key, cfg) in enumerate(zip(keys, configs, strict=True)):
         if i in reuse:
@@ -322,7 +333,6 @@ def _place(
                 ppns[i],
             )
         )
-    directives = [global_opts.get("sbatch_directives"), global_opts.get("system_sbatch")]
     result, warnings = plan(
         heads, settings.scheduler, host_cores_of(settings, node_list), directives
     )
@@ -338,4 +348,4 @@ def _place(
     modes = co_run_modes(heads)
     co_run = [modes.get(f"app {keys[reuse.get(i, i)]}") for i in range(len(keys))]
     shared_cores = [mode == "shared" for mode in co_run]
-    return Placement(cpu_lists, envs, warnings, shared_cores, co_run, nics)
+    return Placement(cpu_lists, envs, warnings, shared_cores, co_run, nics, gpus)

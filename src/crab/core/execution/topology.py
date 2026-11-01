@@ -37,6 +37,12 @@ NIC_KEYS = (
     "link_layer",
 )
 SOURCE_KEYS = ("kind", "version", "date")
+GPU_ENV = {
+    "nvidia": "CUDA_VISIBLE_DEVICES",
+    "amd": "ROCR_VISIBLE_DEVICES",
+    "intel": "ZE_AFFINITY_MASK",
+}
+DEFAULT_NIC_ENV = "UCX_NET_DEVICES"
 
 PCI_ADDRESS = re.compile(r"[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-7]")
 PCI_CARD = re.compile(r"[0-9a-f]+(:[0-9a-f]+){1,2}")
@@ -114,6 +120,18 @@ def _choice(value: object, where: str, allowed: tuple[str, ...]) -> str | None:
     if value not in allowed:
         raise ValueError(f"{where}: must be one of {', '.join(allowed)}, got {value!r}.")
     return str(value)
+
+
+def device_env(topology: Topology | None) -> tuple[str, str]:
+    """The variables a rank's NIC and GPU are set through: (NIC variable, GPU variable).
+
+    The topology says which; without one the defaults are UCX's and CUDA's.
+    """
+    nic, vendor = DEFAULT_NIC_ENV, "nvidia"
+    if topology is not None:
+        nic = topology.nic_env or nic
+        vendor = topology.gpu_vendor if topology.gpu_vendor in GPU_ENV else vendor
+    return nic, GPU_ENV[vendor]
 
 
 def parse_core_list(text: object, where: str) -> tuple[int, ...]:

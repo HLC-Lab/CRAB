@@ -365,11 +365,12 @@ application:
 | `cpus` | string | none | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 | `env` | object | `{}` | Environment variables set for this app's ranks only. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 | `nics` | list of strings | none | One NIC per rank: rank `i` on a node uses `nics[i % len(nics)]`. See [NICs per rank](#nics-per-rank-nics). |
+| `gpus` | list of integers | none | One GPU per rank: rank `i` on a node gets the GPU `gpus[i % len(gpus)]`. See [GPUs per rank](#gpus-per-rank-gpus). |
 | `bind` | object | none | Which cores and NICs the ranks get, stated without naming a device, so the same file runs on different clusters. See [Placement by intent](#placement-by-intent-bind). |
 
 !!! tip "Extra keys become wrapper attributes"
     Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end`,
-    `partition`, `cpus`, `env`, `nics`, `bind` or `ppn` (including `binary`) is injected as an attribute
+    `partition`, `cpus`, `env`, `nics`, `gpus`, `bind` or `ppn` (including `binary`) is injected as an attribute
     onto the wrapper instance. This lets a wrapper accept custom configuration straight from the
     JSON without framework changes.
 
@@ -478,18 +479,37 @@ the cores and devices from the `topology` of the preset you run with
 
 | Key | Values |
 |---|---|
-| `nic` | `"default"` sets nothing and is the control run. `"nearest"` is the NIC nearest to the rank's GPU or core, `"far"` one in another NUMA domain, `"spread"` goes round robin over all NICs, `"single"` gives every rank the same one. |
+| `nic` | `"default"` sets nothing and is the control run. `"nearest"` is the NIC nearest to the rank's GPU or core, `"far"` one in another NUMA domain, `"spread"` goes round robin over all NICs, `"single"` gives every rank the same one. `{"pick": "nearest", "ports": 2}` gives each rank both ports of its card; `{"tag": "x"}` takes the NICs the preset labelled `x`; `"exclusive": true` in the object form refuses a NIC shared by two ranks. |
 | `cores` | `"launcher"` (the default) leaves the cores to the launcher. `"nearest"` gives each rank a physical core, taking apps that share nodes in order and never the same core twice. `{"smt": true}` also uses SMT siblings. |
-| `gpu` | `"none"` (the default) and `"all"` set nothing. `"per-rank"` and `"shared"` are refused for now. |
+| `gpu` | `"none"` (the default) and `"all"` set nothing, so every rank sees every GPU. `"per-rank"` gives rank `i` GPU `i` of the order below and refuses a ppn above the GPU count; `"shared"` goes round robin. |
 | `order` | `"pack"` (the default) or `"spread"`, the order in which GPUs are taken. |
 
 `"nearest"` and `"far"` need something to be near to: a GPU, or `cores: "nearest"`. A request the
 preset's topology cannot meet stops the run before it is submitted, and the message says what the topology
 has, for example how many free cores a NUMA domain has left. The same checks run again in the worker.
 
-`bind` and a literal key on the same axis are refused: `bind.cores` with `cpus`, `bind.nic` with `nics` or
-`env.UCX_NET_DEVICES`. Unlike a literal `cpus`, which CRAB sorts, the cores `bind` picks keep the order of
+`bind` and a literal key on the same axis are refused: `bind.cores` with `cpus`, `bind.nic` with `nics` or the
+NIC variable in `env`, `bind.gpu` with `gpus` or the GPU variable in `env`. `bind.gpu` also refuses `--gpus-per-task` and
+`--gpu-bind` among the sbatch directives: Slurm renumbers the GPUs it binds, so the indexes would point at other GPUs. Unlike a literal `cpus`, which CRAB sorts, the cores `bind` picks keep the order of
 the ranks. A preset without a `topology` cannot run a `bind` that asks for anything.
+
+### GPUs per rank (`gpus`)
+
+`gpus` is a list of GPU indexes, one per rank like `nics`: rank `i` on a node gets `gpus[i % len(gpus)]`. The
+index is the position of the GPU in PCI bus order, which is the order of `nvidia-smi` and of a preset's
+[`topology`](presets.md#topology). The shim sets, for NVIDIA, `CUDA_VISIBLE_DEVICES` and
+`CUDA_DEVICE_ORDER=PCI_BUS_ID` (so the index means PCI order); for AMD `ROCR_VISIBLE_DEVICES`; for Intel
+`ZE_AFFINITY_MASK`. The vendor comes from the preset's `topology`, and is NVIDIA without one. The same
+launch shim as `nics` does it, and one line per rank goes to its standard error:
+
+```text
+crab: <host> local rank <r> -> UCX_NET_DEVICES=<nic> CUDA_VISIBLE_DEVICES=<gpu>
+```
+
+An app that sets both `gpus` and the GPU variable in `env` is refused. The NIC variable a preset's
+`topology` names (`nic_env`) replaces `UCX_NET_DEVICES` in `nics`, in the shim and in the check. `crab_run.json` holds
+the app's `gpus` with its launch (`null` when it sets none). The indexes are the node's: the job must see all the GPUs
+of the node (for example `--gres=gpu:4` for a four-GPU node), not a subset that Slurm renumbers.
 
 ## Scheduling (`start` and `end`)
 

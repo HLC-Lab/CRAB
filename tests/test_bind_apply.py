@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from crab.core.config_checks import check_config
-from crab.core.execution.placement import place_experiment
+from crab.core.execution.placement import parse_cpus, place_experiment
 from crab.core.execution.placement_checks import check_experiment
 from crab.core.execution.settings import ExecutionSettings
 from settings_fixtures import slurm_settings
@@ -119,12 +119,83 @@ def test_a_literal_key_on_another_axis_is_fine() -> None:
     assert placed.cpu_lists[0] == (0,) and placed.nics[0] == ("a:1",)
 
 
-def test_gpu_pinning_and_several_ports_are_not_available_yet() -> None:
-    with pytest.raises(ValueError, match='app 0: bind.gpu "per-rank" is not available yet'):
-        place([{"bind": {"gpu": "per-rank"}}])
-    with pytest.raises(ValueError, match="app 0: bind.nic ports 2 is not available yet"):
-        place([{"bind": {"nic": {"pick": "spread", "ports": 2}}}])
-    assert place([{"bind": {"gpu": "all", "cores": "nearest"}}], ppn=1).cpu_lists[0] == (0,)
+def test_gpu_per_rank_gives_each_rank_its_gpu_a_nic_and_a_core_in_one_domain() -> None:
+    placed = place([{"bind": {"gpu": "per-rank", "nic": "nearest", "cores": "nearest"}}])
+    assert placed.gpus[0] == (0, 1, 2, 3)
+    assert placed.nics[0] == ("nic0:1", "nic1:1", "nic2:1", "nic3:1")
+    assert placed.cpu_lists[0] == (0, 1, 8, 9)
+
+
+def test_the_rank_order_of_the_resolver_is_kept_where_a_literal_list_is_sorted() -> None:
+    placed = place([{"bind": {"gpu": "per-rank", "cores": "nearest", "order": "spread"}}])
+    assert placed.gpus[0] == (0, 2, 1, 3)
+    assert placed.cpu_lists[0] == (0, 8, 1, 9)
+    assert parse_cpus("0,8,1,9", "t") == (0, 1, 8, 9)
+
+
+def test_gpu_all_sets_no_gpu_and_shared_wraps() -> None:
+    assert place([{"bind": {"gpu": "all"}}]).gpus == [None]
+    assert place([{"bind": {"gpu": "shared"}}], ppn=6).gpus[0] == (0, 1, 2, 3, 0, 1)
+
+
+def test_several_ports_of_a_card_become_one_entry_per_rank() -> None:
+    settings = settings_for("two-gpus-two-port-cards")
+    body = {"bind": {"gpu": "per-rank", "nic": {"pick": "nearest", "ports": 2}}}
+    placed = place([body], settings=settings, ppn=2)
+    assert placed.nics[0] == ("rdma0:1,rdma1:1", "rdma2:1,rdma3:1")
+
+
+def test_a_gpu_app_with_a_literal_gpus_or_the_vendor_variable_is_refused() -> None:
+    with pytest.raises(
+        ValueError, match=r"app 0: bind.gpu and gpus \(or env CUDA_VISIBLE_DEVICES\)"
+    ):
+        place([{"gpus": [0], "bind": {"gpu": "per-rank"}}])
+    with pytest.raises(
+        ValueError, match=r"app 0: bind.gpu and gpus \(or env CUDA_VISIBLE_DEVICES\)"
+    ):
+        place([{"env": {"CUDA_VISIBLE_DEVICES": "0"}, "bind": {"gpu": "per-rank"}}])
+    assert place([{"gpus": [0, 1], "bind": {"cores": "nearest"}}], ppn=2).gpus[0] == (0, 1)
+
+
+def test_slurm_gpu_binding_options_are_refused_with_a_gpu_bind() -> None:
+    for option in ("--gpus-per-task=1", "--gpu-bind=closest"):
+        with pytest.raises(ValueError) as error:
+            place_experiment(
+                "e1",
+                ["0"],
+                [{"bind": {"gpu": "per-rank"}}],
+                [["h0"]],
+                {},
+                {"ppn": 2},
+                settings_for(),
+                [],
+                {"sbatch_directives": ["--exclusive", option]},
+            )
+        assert "sets the GPUs itself, so --gpus-per-task and --gpu-bind cannot be among" in str(
+            error.value
+        )
+    placed = place_experiment(
+        "e1",
+        ["0"],
+        [{"bind": {"gpu": "all"}}],
+        [["h0"]],
+        {},
+        {"ppn": 2},
+        settings_for(),
+        [],
+        {"sbatch_directives": ["--gpus-per-task=1"]},
+    )
+    assert placed.gpus == [None]
+
+
+def test_the_vendor_variable_follows_the_topology() -> None:
+    settings = settings_for("amd-single-socket")
+    with pytest.raises(ValueError, match=r"bind.gpu and gpus \(or env ROCR_VISIBLE_DEVICES\)"):
+        place(
+            [{"env": {"ROCR_VISIBLE_DEVICES": "0"}, "bind": {"gpu": "per-rank"}}],
+            settings=settings,
+            ppn=2,
+        )
 
 
 def test_what_the_topology_cannot_give_fails_with_its_numbers() -> None:

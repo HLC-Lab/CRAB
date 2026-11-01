@@ -14,12 +14,14 @@ from crab.core.execution.placement import (
     Head,
     app_ppn,
     parse_app_env,
+    parse_app_gpus,
     parse_app_nics,
     parse_cpus,
     place_experiment,
     plan,
 )
 from crab.core.execution.placement_checks import check_experiment
+from crab.core.execution.placement_parse import has_sbatch_option
 from crab.core.execution.settings import from_preset
 from settings_fixtures import LOCAL_DIRECT, slurm_settings
 
@@ -583,3 +585,46 @@ def test_a_cpu_bind_flag_under_mpirun_does_not_warn() -> None:
     preset = {"launcher": "mpirun", "launchers": {"srun": {"flags": ["--cpu-bind=socket"]}}}
     settings = from_preset({"scheduler": "slurm", **preset}, "t")
     assert _bind_notes(_shared_check({"0": {}, "1": {}}, settings)) == []
+
+
+# -- gpus -----------------------------------------------------------------------------------------
+
+
+def test_gpus_keeps_the_indexes_in_order() -> None:
+    assert parse_app_gpus([3, 0, 1], "app 0: gpus") == (3, 0, 1)
+    assert parse_app_gpus([0], "app 0: gpus") == (0,)
+
+
+@pytest.mark.parametrize("value", [[], "0", 3, None, {"0": 1}])
+def test_gpus_refuses_what_is_not_a_non_empty_list(value: object) -> None:
+    with pytest.raises(ValueError, match=r"app 0: gpus: must be a non-empty list of GPU indexes"):
+        parse_app_gpus(value, "app 0: gpus")
+
+
+@pytest.mark.parametrize("item", [-1, True, "0", 1.5, None])
+def test_gpus_refuses_an_item_that_is_not_a_gpu_index(item: object) -> None:
+    with pytest.raises(ValueError, match=r"app 0: gpus: .* is not a GPU index"):
+        parse_app_gpus([0, item], "app 0: gpus")
+
+
+def test_a_literal_gpus_reaches_the_placement_per_app() -> None:
+    placed = _place([{"gpus": [1, 0]}, {}], [["localhost"], ["localhost"]], {})
+    assert placed.gpus == [(1, 0), None]
+
+
+def test_gpus_and_the_vendor_variable_in_env_both_set_the_gpu() -> None:
+    configs = [{"gpus": [0], "env": {"CUDA_VISIBLE_DEVICES": "1"}}]
+    with pytest.raises(
+        ValueError, match="app 0: gpus and env CUDA_VISIBLE_DEVICES both set the GPU"
+    ):
+        _place(configs, [["localhost"]], {})
+
+
+def test_has_sbatch_option_reads_both_forms_and_ignores_false() -> None:
+    names = {"gpus-per-task", "gpu-bind"}
+    assert has_sbatch_option([["--time=1", "--gpus-per-task=1"]], names)
+    assert has_sbatch_option([None, ["gpu-bind closest"]], names)
+    assert has_sbatch_option([{"--gpu-bind": "closest"}], names)
+    assert not has_sbatch_option([{"gpu-bind": False}], names)
+    assert not has_sbatch_option([["--exclusive"], None], names)
+    assert not has_sbatch_option([], names)

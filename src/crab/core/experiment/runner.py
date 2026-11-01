@@ -14,6 +14,7 @@ from crab.core.execution.settings import (
     LauncherSpec,
     resolve_launcher,
 )
+from crab.core.execution.topology import device_env
 from crab.core.provenance import record_experiment_allocation
 from crab.core.wrapper_paths import (
     load_module,
@@ -139,6 +140,7 @@ class ExperimentRunner:
                 "env",
                 "ppn",
                 "nics",
+                "gpus",
                 "bind",
             ]
             for key, value in details.items():
@@ -225,13 +227,15 @@ class ExperimentRunner:
             self.node_list,
             self.global_opts,
         )
-        for app, cpu_list, app_env, shared, co_run, nics in zip(
+        nic_env, gpu_env = device_env(self.settings.topology)
+        for app, cpu_list, app_env, shared, co_run, nics, gpus in zip(
             self.apps,
             placed.cpu_lists,
             placed.envs,
             placed.shared_cores,
             placed.co_run,
             placed.nics,
+            placed.gpus,
             strict=True,
         ):
             app.cpu_list = cpu_list
@@ -239,6 +243,9 @@ class ExperimentRunner:
             app.shared_cores = shared
             app.co_run = co_run
             app.nics = nics
+            app.gpus = gpus
+            app.nic_env = nic_env
+            app.gpu_env = gpu_env
 
         # 3. Initialize Data Containers
         for app in self.apps:

@@ -14,7 +14,9 @@ from typing import Any
 
 from crab.core.execution.bind import Bind, parse_bind
 from crab.core.execution.bind_resolve import resolve
+from crab.core.execution.placement_parse import has_sbatch_option
 from crab.core.execution.settings import ExecutionSettings
+from crab.core.execution.topology import device_env
 
 
 @dataclass(frozen=True)
@@ -23,29 +25,38 @@ class AppBind:
 
     cpus: tuple[int, ...] | None
     nics: tuple[str, ...] | None
+    gpus: tuple[int, ...] | None
     warnings: tuple[str, ...]
 
 
 def _refuse_conflicts(
-    bind: Bind, config: Mapping[str, Any], env: Mapping[str, str], where: str
+    bind: Bind,
+    config: Mapping[str, Any],
+    env: Mapping[str, str],
+    where: str,
+    settings: ExecutionSettings,
 ) -> None:
+    nic_var, gpu_var = device_env(settings.topology)
     if bind.cores == "nearest" and "cpus" in config:
         raise ValueError(f"{where}: bind.cores and cpus both place the cores; keep one")
-    if bind.nic.pick != "default" and ("nics" in config or "UCX_NET_DEVICES" in env):
+    if bind.nic.pick != "default" and ("nics" in config or nic_var in env):
         raise ValueError(
-            f"{where}: bind.nic and nics (or env UCX_NET_DEVICES) both set the NIC; keep one"
+            f"{where}: bind.nic and nics (or env {nic_var}) both set the NIC; keep one"
+        )
+    if bind.gpu in ("per-rank", "shared") and ("gpus" in config or gpu_var in env):
+        raise ValueError(
+            f"{where}: bind.gpu and gpus (or env {gpu_var}) both set the GPU; keep one"
         )
 
 
-def _refuse_unavailable(bind: Bind, where: str) -> None:
-    if bind.gpu in ("per-rank", "shared"):
+def _refuse_slurm_gpu_binding(bind: Bind, directives: Sequence[Any], where: str) -> None:
+    """Slurm renumbers the GPUs it binds, so GPU indexes from the topology would point at the wrong ones."""
+    if bind.gpu in ("per-rank", "shared") and has_sbatch_option(
+        directives, {"gpus-per-task", "gpu-bind"}
+    ):
         raise ValueError(
-            f'{where}: bind.gpu "{bind.gpu}" is not available yet: bind places cores and NICs for now.'
-        )
-    if bind.nic.ports > 1:
-        raise ValueError(
-            f"{where}: bind.nic ports {bind.nic.ports} is not available yet: "
-            "the launch shim sets one NIC per rank."
+            f'{where}: bind.gpu "{bind.gpu}" sets the GPUs itself, so --gpus-per-task and --gpu-bind '
+            "cannot be among the sbatch directives (Slurm would renumber them)"
         )
 
 
@@ -58,12 +69,13 @@ def apply_binds(
     chained: Collection[int],
     literal_cpus: Sequence[tuple[int, ...] | None],
     settings: ExecutionSettings,
+    directives: Sequence[Any] = (),
 ) -> list[AppBind | None]:
     """One entry per app: None when it has no `bind` (or one that asks for nothing).
 
     `chained` holds the indexes of apps that start after another and run on its cores;
     `literal_cpus` is each app's parsed `cpus`, so apps are placed after the cores earlier apps
-    on the same nodes already hold.
+    on the same nodes already hold; `directives` are the raw sbatch directive sources.
 
     Raises:
         ValueError: an invalid `bind`, a `bind` and a literal key on the same axis, a `bind` on an
@@ -78,8 +90,8 @@ def apply_binds(
         if "bind" in configs[i]:
             bind = parse_bind(configs[i]["bind"], where)
             if bind != Bind():
-                _refuse_conflicts(bind, configs[i], envs[i], where)
-                _refuse_unavailable(bind, where)
+                _refuse_conflicts(bind, configs[i], envs[i], where, settings)
+                _refuse_slurm_gpu_binding(bind, directives, where)
                 if i in chained and bind.cores == "nearest":
                     raise ValueError(
                         f"{where}: bind.cores cannot be set on an app that starts after another; "
@@ -94,9 +106,16 @@ def apply_binds(
                 placed = resolve(bind, settings.topology, ppns[i], taken, where)
                 cpus = tuple(r.cores[0] for r in placed.ranks) if bind.cores == "nearest" else None
                 nics = (
-                    tuple(r.nics[0] for r in placed.ranks) if bind.nic.pick != "default" else None
+                    tuple(",".join(r.nics) for r in placed.ranks)
+                    if bind.nic.pick != "default"
+                    else None
                 )
-                result = AppBind(cpus, nics, placed.warnings)
+                gpus = (
+                    tuple(int(r.gpu) for r in placed.ranks if r.gpu is not None)
+                    if bind.gpu in ("per-rank", "shared")
+                    else None
+                )
+                result = AppBind(cpus, nics, gpus, placed.warnings)
                 cores = placed.cores_used or cores
         applied.append(result)
         if i not in chained:

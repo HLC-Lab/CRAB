@@ -7,7 +7,7 @@ so existing imports keep working.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 from crab.core.execution.settings import check_dropped_keys
@@ -102,15 +102,39 @@ def parse_app_nics(value: object, where: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def has_exclusive(sbatch_directives: Sequence[Any]) -> bool:
-    """True when `--exclusive` is among the directives (list or dict form of each source)."""
+def parse_app_gpus(value: object, where: str) -> tuple[int, ...]:
+    """An app's `gpus`: a non-empty list of GPU indexes, kept in order.
+
+    Raises:
+        ValueError: `value` is not a non-empty list of non-negative integers.
+    """
+    if not isinstance(value, list) or not value:
+        raise ValueError(
+            f"{where}: must be a non-empty list of GPU indexes such as [0, 1], got {value!r}"
+        )
+    for item in value:
+        if type(item) is not int or item < 0:
+            raise ValueError(f"{where}: {item!r} is not a GPU index (a non-negative integer)")
+    return tuple(value)
+
+
+def has_sbatch_option(sbatch_directives: Sequence[Any], names: Collection[str]) -> bool:
+    """True when one of the options `names` (without dashes) is among the directives.
+
+    Each source is the list or the dict form; a dict entry whose value is False does not count.
+    """
     for source in sbatch_directives:
         if isinstance(source, dict):
-            if any(str(k).lstrip("-") == "exclusive" and v is not False for k, v in source.items()):
+            if any(str(k).lstrip("-") in names and v is not False for k, v in source.items()):
                 return True
         elif isinstance(source, list):
             for raw in source:
                 words = str(raw).strip().lstrip("-").split()
-                if words and words[0].split("=")[0] == "exclusive":
+                if words and words[0].split("=")[0] in names:
                     return True
     return False
+
+
+def has_exclusive(sbatch_directives: Sequence[Any]) -> bool:
+    """True when `--exclusive` is among the directives (list or dict form of each source)."""
+    return has_sbatch_option(sbatch_directives, {"exclusive"})
