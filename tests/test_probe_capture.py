@@ -13,6 +13,7 @@ import pytest
 
 from crab.core.execution.bind import parse_bind
 from crab.core.execution.bind_resolve import resolve
+from crab.core.execution.node_check import compare_nodes, node_facts
 from crab.core.execution.probe_topology import build_topology, distance
 from crab.core.execution.topology import DISTANCES
 from topology_fixtures import captured_doc, captured_four_gpu_four_nic_infiniband
@@ -84,3 +85,15 @@ def test_asking_for_more_gpus_than_the_node_has_names_both_numbers() -> None:
     bind = parse_bind({"gpu": "per-rank"}, "app 0")
     with pytest.raises(ValueError, match=r"needs 5 GPUs per node \(ppn 5\), the topology has 4"):
         resolve(bind, topology, 5, frozenset(), "app 0")
+
+
+def test_two_real_nodes_of_one_type_compare_as_alike_and_a_moved_nic_is_named(
+    doc: dict[str, Any],
+) -> None:
+    second = captured_doc("four_gpu_four_nic_infiniband_second_node")["facts"]
+    first = node_facts(doc["node"])
+    assert compare_nodes({"node-a": first, "node-b": second}) == []
+    moved = {**second, "nics": {**second["nics"], "mlx5_2:1": "0000:99:00.0"}}
+    assert compare_nodes({"node-a": first, "node-b": moved}) == [
+        "active NIC ports differ from node-a: mlx5_2:1 is in another PCI slot on node-b"
+    ]
