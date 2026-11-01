@@ -7,7 +7,8 @@ from typing import Any
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
-from crab.core.execution.placement import app_ppn, parse_ppn, place_experiment
+from crab.core.execution.node_check_run import AppDevices, run_node_check
+from crab.core.execution.placement import Placement, app_ppn, parse_ppn, place_experiment
 from crab.core.execution.settings import (
     SLURM_DEFAULT,
     ExecutionSettings,
@@ -247,6 +248,8 @@ class ExperimentRunner:
             app.nic_env = nic_env
             app.gpu_env = gpu_env
 
+        self._check_nodes(placed)
+
         # 3. Initialize Data Containers
         for app in self.apps:
             if app.collect_flag:
@@ -261,6 +264,29 @@ class ExperimentRunner:
 
                 app.msg_size = msg_size
                 self.data_containers.extend(setup_containers(app))
+
+    def _check_nodes(self, placed: Placement) -> None:
+        """Check the nodes of the apps that use `bind` against the preset's topology; stop if one is off."""
+        flagged = [i for i, used in enumerate(placed.bound) if used]
+        topology = self.settings.topology if self.settings is not None else None
+        if not flagged or topology is None:
+            return
+        devices = [
+            AppDevices(
+                tuple(self.apps[i].node_list),
+                tuple(self.apps[i].nics or ()),
+                tuple(self.apps[i].gpus or ()),
+                tuple(self.apps[i].cpu_list or ()),
+            )
+            for i in flagged
+        ]
+        problems = run_node_check(topology, devices, self.launchers[flagged[0]], self.exp_dir)
+        if problems:
+            raise RuntimeError(
+                "node check failed before the first run: the preset's topology does not describe "
+                "these nodes\n" + "\n".join(f"  - {problem}" for problem in problems)
+            )
+        self.log.info(f"Node check passed on {len({n for d in devices for n in d.nodes})} node(s)")
 
     def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""

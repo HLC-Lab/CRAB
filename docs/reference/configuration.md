@@ -493,6 +493,13 @@ NIC variable in `env`, `bind.gpu` with `gpus` or the GPU variable in `env`. `bin
 `--gpu-bind` among the sbatch directives: Slurm renumbers the GPUs it binds, so the indexes would point at other GPUs. Unlike a literal `cpus`, which CRAB sorts, the cores `bind` picks keep the order of
 the ranks. A preset without a `topology` cannot run a `bind` that asks for anything.
 
+**Node check.** Before the first run of an experiment whose apps use `bind`, CRAB runs a short check on every
+node they use, started through the experiment's launcher with one task per node. Each node must match the
+preset's `topology` where the placement relies on it (the NIC ports named are up and in the right PCI slot,
+the GPU count and slots, the GPUs the job can see, the cores it may use, the NUMA layout), and all nodes must
+agree with each other. If anything is off the experiment stops before its first run, and the error names each
+problem with its node. [`crab probe --check`](cli.md#crab-probe-check) runs the same check on one node by hand.
+
 ### GPUs per rank (`gpus`)
 
 `gpus` is a list of GPU indexes, one per rank like `nics`: rank `i` on a node gets `gpus[i % len(gpus)]`. The

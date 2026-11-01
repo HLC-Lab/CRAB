@@ -72,6 +72,7 @@ class Placement:
     co_run: list[CoRun | None] = field(default_factory=list)
     nics: list[tuple[str, ...] | None] = field(default_factory=list)
     gpus: list[tuple[int, ...] | None] = field(default_factory=list)
+    bound: list[bool] = field(default_factory=list)
 
 
 def _groups(heads: Sequence[Head]) -> list[list[Head]]:
@@ -348,4 +349,5 @@ def _place(
     modes = co_run_modes(heads)
     co_run = [modes.get(f"app {keys[reuse.get(i, i)]}") for i in range(len(keys))]
     shared_cores = [mode == "shared" for mode in co_run]
-    return Placement(cpu_lists, envs, warnings, shared_cores, co_run, nics, gpus)
+    used_bind = [applied is not None for applied in bound]
+    return Placement(cpu_lists, envs, warnings, shared_cores, co_run, nics, gpus, used_bind)
