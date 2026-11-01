@@ -208,6 +208,31 @@ crab: node01 local rank 1 -> UCX_NET_DEVICES=mlx5_1:1
 `nics` and `env.UCX_NET_DEVICES` on the same app are refused. The data directory must be on a
 shared filesystem; see [NICs per rank](../reference/configuration.md#nics-per-rank-nics).
 
+## Placement that runs on any cluster
+
+`cpus` and `nics` name the cores and devices of one machine, so a config that uses them runs on that machine.
+To write a config that runs on different clusters, say what you want with `bind` and leave the devices to
+the preset:
+
+```json
+"0": {
+  "path": "blink/alltoall/alltoall_comm_only.py",
+  "args": "-msgsize 16777216 -iter 20 -warmup 5 -grty 1 -gpu",
+  "collect": true,
+  "bind": { "gpu": "per-rank", "nic": "nearest", "cores": "nearest" }
+}
+```
+
+Each rank gets its own GPU, the NIC nearest to that GPU and a core on the same NUMA domain. The cluster's
+preset supplies the facts, a [`topology`](../reference/presets.md#topology) that `crab probe` writes for a
+node (see [Describing your nodes](presets.md#describing-your-nodes-topology)). A request the cluster cannot meet,
+such as four GPUs per node on a node that has two, stops the run before it is submitted and says what the
+topology has.
+
+For the control run, set `"nic": "default"`: nothing is set for the NIC and UCX picks its own, and the GPUs and
+cores stay the same. [`examples/placement/`](https://github.com/HLC-Lab/CRAB/tree/develop/examples/placement)
+has the pair. The [reference](../reference/configuration.md#placement-by-intent-bind) lists every `bind` value.
+
 ## Choosing an allocation mode
 
 | Mode | `allocation.mode` | Use when |

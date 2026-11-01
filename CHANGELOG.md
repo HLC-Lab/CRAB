@@ -13,6 +13,29 @@ Each product-line release is listed here. The SbatchMan partner line is tagged `
 usually alongside the product release. A SbatchMan-only release has only the `+sbatchman` tag, and
 its notes live in the tag and the GitHub release.
 
+## [Unreleased]
+
+### Added
+
+- **Placement by intent.** An app's `bind` key says which cores, NICs and GPUs its ranks get
+  (`"bind": {"gpu": "per-rank", "nic": "nearest", "cores": "nearest"}`) without naming a device, so one
+  config runs on clusters that name them differently. A literal `gpus` key (one GPU index per rank) sits
+  next to `nics`; both go through the same launch shim. See
+  [Placement by intent](https://hlc-crab.readthedocs.io/en/latest/reference/configuration/#placement-by-intent-bind).
+- **`topology` in presets.** A preset can describe one node type (GPUs, NIC ports, NUMA domains, the
+  nearest NIC of each GPU, physical cores). It is plain data, handwritten or written by `crab probe`, and
+  is checked when the preset loads.
+- **`crab probe`.** Describes the node it runs on as a `topology` block from Linux sysfs, with no vendor
+  tool. `crab probe --check -p <preset>` compares a node with a preset's topology and names each
+  mismatch: a port that is down, a different GPU count, fewer GPUs visible to the job than the node has.
+- **A node check before the first run.** An experiment whose apps use `bind` runs the same check on every
+  node, through its launcher, and stops with a per-node report if the preset's topology does not describe
+  them.
+- **The run folder keeps the placement.** `crab_run.json` gains `placements` (what `bind` resolved to, per
+  local rank, and the node check's outcome), and a run with `bind` also writes `config.resolved.json`,
+  which CRAB refuses to replay under another preset, topology or resolver.
+- `examples/placement/`: a GPU all-to-all with `bind` and its control with `"nic": "default"`.
+
 ## [1.2.0] - 2026-11-01
 
 ### Breaking: read before upgrading
