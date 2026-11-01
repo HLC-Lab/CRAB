@@ -602,9 +602,10 @@ What goes into the block:
   active is left out and named in a warning. Other NIC families (Slingshot `cxi`, for example) are not
   read.
 - **`near_gpu` and `dist`** give each NIC its closest GPU and the distance class between them
-  (`PIX`, `PXB`, `PHB`, `NODE` or `SYS`), worked out from the PCI tree. They are left out when the PCI
+  (`PIX`, `PXB`, `PHB`, `NODE` or `SYS`). They are left out when the PCI
   tree is not visible (some virtual machines and containers hide it), and a warning says so. The classes
-  are an approximation of what `nvidia-smi topo -m` prints.
+  are worked out from the PCI tree, not read from `nvidia-smi`. On a GPU node with four GPUs and four
+  InfiniBand ports all 16 pairs matched `nvidia-smi topo -m`; other layouts have not been compared yet.
 - `nic_env` is set to `UCX_NET_DEVICES` when NIC ports were found. Change it if the stack selects NICs
   in another way.
 

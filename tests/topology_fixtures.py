@@ -6,10 +6,15 @@ cluster run over all of them; a test that needs one layout's device names builds
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
+from crab.core.execution.probe_topology import build_topology
 from crab.core.execution.topology import Topology, parse_topology
+
+CAPTURES = Path(__file__).parent / "fixtures" / "probe"
 
 
 def make(block: dict[str, Any]) -> Topology:
@@ -121,6 +126,18 @@ def no_nic_selection() -> Topology:
     )
 
 
+def captured_doc(name: str) -> dict[str, Any]:
+    """A node saved from a real machine by `crab probe --json`, with the vendor tool's distance matrix."""
+    doc: dict[str, Any] = json.loads((CAPTURES / f"{name}.json").read_text())
+    return doc
+
+
+def captured_four_gpu_four_nic_infiniband() -> Topology:
+    """A real GPU node: four GPUs, four InfiniBand ports, one NIC per GPU (built by the probe)."""
+    block, _ = build_topology(captured_doc("four_gpu_four_nic_infiniband")["node"], "2026-11-01")
+    return make(block)
+
+
 SHAPES: dict[str, Callable[[], Topology]] = {
     "four-gpus-four-nics": four_gpus_four_nics,
     "eight-gpus-two-nics": eight_gpus_two_nics,
@@ -129,4 +146,5 @@ SHAPES: dict[str, Callable[[], Topology]] = {
     "smt-two-sockets": smt_two_sockets,
     "cpu-only": cpu_only,
     "no-nic-selection": no_nic_selection,
+    "captured-four-gpu-four-nic-infiniband": captured_four_gpu_four_nic_infiniband,
 }
