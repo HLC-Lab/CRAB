@@ -13,9 +13,7 @@ Each product-line release is listed here. The SbatchMan partner line is tagged `
 usually alongside the product release. A SbatchMan-only release has only the `+sbatchman` tag, and
 its notes live in the tag and the GitHub release.
 
-## [Unreleased]
-
-Planned as 1.2.0.
+## [1.2.0] - 2026-11-01
 
 ### Breaking: read before upgrading
 
