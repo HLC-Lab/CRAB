@@ -365,10 +365,11 @@ application:
 | `cpus` | string | none | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 | `env` | object | `{}` | Environment variables set for this app's ranks only. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
 | `nics` | list of strings | none | One NIC per rank: rank `i` on a node uses `nics[i % len(nics)]`. See [NICs per rank](#nics-per-rank-nics). |
+| `bind` | object | none | Which cores and NICs the ranks get, stated without naming a device, so the same file runs on different clusters. See [Placement by intent](#placement-by-intent-bind). |
 
 !!! tip "Extra keys become wrapper attributes"
     Any key in an app entry that is **not** one of `path`, `args`, `collect`, `start`, `end`,
-    `partition`, `cpus`, `env`, `nics` or `ppn` (including `binary`) is injected as an attribute
+    `partition`, `cpus`, `env`, `nics`, `bind` or `ppn` (including `binary`) is injected as an attribute
     onto the wrapper instance. This lets a wrapper accept custom configuration straight from the
     JSON without framework changes.
 
@@ -460,6 +461,35 @@ The script lives in the run directory, under CRAB's data directory, and every no
 the data directory has to be on a shared filesystem, as it already has to be for the results.
 For a worked example, see
 [One network interface per rank](../using/writing-configs.md#one-network-interface-per-rank).
+
+### Placement by intent (`bind`)
+
+`cpus` and `nics` name cores and devices of one machine. `bind` says what you want, and CRAB works out
+the cores and devices from the `topology` of the preset you run with
+([`topology`](presets.md#topology); `crab probe` prints one for a node):
+
+```json
+"0": {
+  "path": "blink/alltoall/alltoall_comm_only.py",
+  "ppn": 4,
+  "bind": { "cores": "nearest", "nic": "spread" }
+}
+```
+
+| Key | Values |
+|---|---|
+| `nic` | `"default"` sets nothing and is the control run. `"nearest"` is the NIC nearest to the rank's GPU or core, `"far"` one in another NUMA domain, `"spread"` goes round robin over all NICs, `"single"` gives every rank the same one. |
+| `cores` | `"launcher"` (the default) leaves the cores to the launcher. `"nearest"` gives each rank a physical core, taking apps that share nodes in order and never the same core twice. `{"smt": true}` also uses SMT siblings. |
+| `gpu` | `"none"` (the default) and `"all"` set nothing. `"per-rank"` and `"shared"` are refused for now. |
+| `order` | `"pack"` (the default) or `"spread"`, the order in which GPUs are taken. |
+
+`"nearest"` and `"far"` need something to be near to: a GPU, or `cores: "nearest"`. A request the
+preset's topology cannot meet stops the run before it is submitted, and the message says what the topology
+has, for example how many free cores a NUMA domain has left. The same checks run again in the worker.
+
+`bind` and a literal key on the same axis are refused: `bind.cores` with `cpus`, `bind.nic` with `nics` or
+`env.UCX_NET_DEVICES`. Unlike a literal `cpus`, which CRAB sorts, the cores `bind` picks keep the order of
+the ranks. A preset without a `topology` cannot run a `bind` that asks for anything.
 
 ## Scheduling (`start` and `end`)
 

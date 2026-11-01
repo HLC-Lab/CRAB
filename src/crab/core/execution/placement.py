@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from crab.core.allocation.chains import resolve_chains
+from crab.core.execution.bind_apply import apply_binds
 from crab.core.execution.settings import ExecutionSettings, check_dropped_keys
 
 AUTO_SPLIT_WARNING = (
@@ -388,6 +389,14 @@ def _place(
         if app_nics is not None and "UCX_NET_DEVICES" in env:
             raise ValueError(f"app {key}: nics and env UCX_NET_DEVICES both set the NIC; keep one")
         nics.append(app_nics)
+    literal = [
+        parse_cpus(cfg["cpus"], f"app {key}") if "cpus" in cfg and i not in reuse else None
+        for i, (key, cfg) in enumerate(zip(keys, configs, strict=True))
+    ]
+    bound = apply_binds(keys, configs, envs, ppns, nodes, set(reuse), literal, settings)
+    for i, applied in enumerate(bound):
+        if applied is not None and applied.nics is not None:
+            nics[i] = applied.nics
     heads: list[Head] = []
     for i, (key, cfg) in enumerate(zip(keys, configs, strict=True)):
         if i in reuse:
@@ -398,7 +407,8 @@ def _place(
                     "so set cpus there"
                 )
             continue
-        cpus = parse_cpus(cfg["cpus"], f"app {key}") if "cpus" in cfg else None
+        applied = bound[i]
+        cpus = applied.cpus if applied is not None and applied.cpus is not None else literal[i]
         heads.append(
             Head(
                 f"app {key}",
@@ -412,6 +422,7 @@ def _place(
     result, warnings = plan(
         heads, settings.scheduler, host_cores_of(settings, node_list), directives
     )
+    warnings += [w for applied in bound if applied is not None for w in applied.warnings]
     for i, head_index in reuse.items():
         cores = result[f"app {keys[head_index]}"]
         if cores is not None and ppns[i] > len(cores):

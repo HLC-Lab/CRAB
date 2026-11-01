@@ -139,6 +139,7 @@ class ExperimentRunner:
                 "env",
                 "ppn",
                 "nics",
+                "bind",
             ]
             for key, value in details.items():
                 if key not in reserved_keys:
