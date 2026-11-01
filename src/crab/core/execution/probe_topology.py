@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from crab.core.execution.topology import DISTANCES, parse_topology
+from crab.core.execution.topology import DISTANCES, cores_text, parse_core_list, parse_topology
 
 PROBE_VERSION = "1"
 NIC_ENV = "UCX_NET_DEVICES"
@@ -72,6 +72,18 @@ def _nearest_gpu(
     return None if best is None else (best[1], best[2])
 
 
+def _physical(node: Mapping[str, Any], domains: Mapping[str, str]) -> dict[str, str]:
+    """Per NUMA domain, the lowest hardware thread of each physical core; empty without sibling data."""
+    firsts = sorted(min(group) for group in node.get("core_threads") or [] if group)
+    found: dict[str, str] = {}
+    for key, text in domains.items():
+        cores = set(parse_core_list(text, "probe"))
+        mine = tuple(core for core in firsts if core in cores)
+        if mine:
+            found[key] = cores_text(mine)
+    return found
+
+
 def build_topology(node: Mapping[str, Any], today: str) -> tuple[dict[str, Any], list[str]]:
     """The `topology` block for `node` and the warnings about what could not be read.
 
@@ -127,6 +139,9 @@ def build_topology(node: Mapping[str, Any], today: str) -> tuple[dict[str, Any],
         "nics": block_nics,
         "source": {"kind": "probe", "version": PROBE_VERSION, "date": today},
     }
+    physical = _physical(node, domains)
+    if physical:
+        block["physical"] = physical
     if block_nics:
         block["nic_env"] = NIC_ENV
     try:

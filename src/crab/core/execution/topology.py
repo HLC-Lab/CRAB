@@ -15,7 +15,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
@@ -23,7 +23,7 @@ GPU_VENDORS = ("nvidia", "amd", "intel", "none")
 DISTANCES = ("PIX", "PXB", "PHB", "NODE", "SYS")
 LINK_LAYERS = ("InfiniBand", "Ethernet")
 SOURCE_KINDS = ("handwritten", "probe")
-TOPOLOGY_KEYS = ("gpu_vendor", "nic_env", "numa", "gpus", "nics", "source")
+TOPOLOGY_KEYS = ("gpu_vendor", "nic_env", "numa", "physical", "gpus", "nics", "source")
 GPU_KEYS = ("numa", "pci")
 NIC_KEYS = (
     "dev",
@@ -79,6 +79,7 @@ class Topology:
     gpus: tuple[Gpu, ...]
     nics: tuple[Nic, ...]
     source: Mapping[str, str]
+    physical: Mapping[int, tuple[int, ...]] = field(default_factory=lambda: MappingProxyType({}))
 
 
 def _object(value: object, where: str, allowed: tuple[str, ...]) -> dict[str, Any]:
@@ -115,7 +116,7 @@ def _choice(value: object, where: str, allowed: tuple[str, ...]) -> str | None:
     return str(value)
 
 
-def _parse_core_list(text: object, where: str) -> tuple[int, ...]:
+def parse_core_list(text: object, where: str) -> tuple[int, ...]:
     """ "0-15,32" as the sorted cores; the same syntax as an app's `cpus`."""
     if not isinstance(text, str) or not text.strip():
         raise ValueError(f"{where}: must be a core list such as '0-15,32', got {text!r}.")
@@ -139,7 +140,7 @@ def _parse_numa(value: object, where: str) -> Mapping[int, tuple[int, ...]]:
     for key, text in value.items():
         if not isinstance(key, str) or not key.isdigit():
             raise ValueError(f"{where}: key {key!r} must be a NUMA domain number.")
-        cores = _parse_core_list(text, f"{where}.{key}")
+        cores = parse_core_list(text, f"{where}.{key}")
         for core in cores:
             if core in taken:
                 raise ValueError(
@@ -149,6 +150,27 @@ def _parse_numa(value: object, where: str) -> Mapping[int, tuple[int, ...]]:
             taken[core] = int(key)
         domains[int(key)] = cores
     return MappingProxyType(domains)
+
+
+def _parse_physical(
+    value: object, where: str, domains: Mapping[int, tuple[int, ...]]
+) -> Mapping[int, tuple[int, ...]]:
+    """Per NUMA domain, the first hardware thread of each physical core (a subset of `numa`)."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{where}: must be an object of NUMA id to core list.")
+    physical: dict[int, tuple[int, ...]] = {}
+    for key, text in value.items():
+        if not isinstance(key, str) or not key.isdigit() or int(key) not in domains:
+            known = ", ".join(str(d) for d in sorted(domains)) or "none"
+            raise ValueError(
+                f"{where}: key {key!r} must be a NUMA domain of topology.numa ({known})."
+            )
+        cores = parse_core_list(text, f"{where}.{key}")
+        outside = [core for core in cores if core not in domains[int(key)]]
+        if outside:
+            raise ValueError(f"{where}.{key}: core {outside[0]} is not in topology.numa.{key}.")
+        physical[int(key)] = cores
+    return MappingProxyType(physical)
 
 
 def _check_domain(numa: int | None, domains: Mapping[int, tuple[int, ...]], where: str) -> None:
@@ -252,12 +274,13 @@ def parse_topology(value: object, where: str) -> Topology:
     vendor = _choice(body.get("gpu_vendor", "none"), f"{here}.gpu_vendor", GPU_VENDORS)
     nic_env = _text(body.get("nic_env"), f"{here}.nic_env", ENV_NAME)
     domains = _parse_numa(body["numa"], f"{here}.numa") if "numa" in body else MappingProxyType({})
+    physical = _parse_physical(body.get("physical", {}), f"{here}.physical", domains)
     gpus = _parse_gpus(body.get("gpus", []), f"{here}.gpus", domains)
     if gpus and vendor == "none":
         raise ValueError(f'{here}.gpu_vendor: GPUs are listed, so it cannot be "none".')
     nics = _parse_nics(body.get("nics", []), f"{here}.nics", domains, len(gpus))
     source = _parse_source(body.get("source", {"kind": "handwritten"}), f"{here}.source")
-    return Topology(str(vendor), nic_env, domains, gpus, nics, source)
+    return Topology(str(vendor), nic_env, domains, gpus, nics, source, physical)
 
 
 def _present(**fields: Any) -> dict[str, Any]:
@@ -273,7 +296,9 @@ def to_json(topology: Topology) -> dict[str, Any]:
     if topology.nic_env is not None:
         data["nic_env"] = topology.nic_env
     if topology.numa:
-        data["numa"] = {str(d): _cores_text(c) for d, c in sorted(topology.numa.items())}
+        data["numa"] = {str(d): cores_text(c) for d, c in sorted(topology.numa.items())}
+    if topology.physical:
+        data["physical"] = {str(d): cores_text(c) for d, c in sorted(topology.physical.items())}
     data["gpus"] = [_present(numa=g.numa, pci=g.pci) for g in topology.gpus]
     data["nics"] = [
         _present(
@@ -293,7 +318,7 @@ def to_json(topology: Topology) -> dict[str, Any]:
     return data
 
 
-def _cores_text(cores: tuple[int, ...]) -> str:
+def cores_text(cores: tuple[int, ...]) -> str:
     """The cores as a list of runs, `(0, 1, 2, 8)` -> `0-2,8`."""
     runs: list[str] = []
     start = previous = cores[0]

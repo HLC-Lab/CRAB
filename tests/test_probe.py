@@ -38,6 +38,11 @@ class Sysfs:
         node.mkdir(parents=True)
         (node / "cpulist").write_text(cpulist + "\n")
 
+    def cpu(self, number: int, siblings: str) -> None:
+        topology = self.root / "devices" / "system" / "cpu" / f"cpu{number}" / "topology"
+        topology.mkdir(parents=True)
+        (topology / "thread_siblings_list").write_text(siblings + "\n")
+
     def pci(self, path: list[str], vendor: str, device_class: str, numa: int = 0) -> Path:
         """A PCI function at `path` (root complex first); its parents are created as bridges."""
         base = self.root / "devices" / os.path.join(*path)
@@ -259,9 +264,60 @@ def test_gpus_of_several_vendors_keep_the_majority_and_name_what_was_left_out(
     ]
 
 
+def smt_node(tmp_path: Path, siblings: dict[int, str]) -> Sysfs:
+    fs = Sysfs(tmp_path)
+    fs.numa_domain(0, "0-3,8-11")
+    fs.numa_domain(1, "4-7,12-15")
+    for number, text in siblings.items():
+        fs.cpu(number, text)
+    return fs
+
+
+def test_physical_cores_are_the_lowest_thread_of_each_sibling_set(tmp_path: Path) -> None:
+    pairs = {c: f"{c},{c + 8}" if c < 8 else f"{c - 8},{c}" for c in range(16)}
+    topology, _ = block(smt_node(tmp_path, pairs))
+    assert topology["physical"] == {"0": "0-3", "1": "4-7"}
+    assert topology["numa"] == {"0": "0-3,8-11", "1": "4-7,12-15"}
+
+
+def test_without_smt_every_core_is_physical(tmp_path: Path) -> None:
+    topology, _ = block(smt_node(tmp_path, {c: str(c) for c in range(16)}))
+    assert topology["physical"] == {"0": "0-3,8-11", "1": "4-7,12-15"}
+
+
+def test_without_sibling_data_there_is_no_physical_key(tmp_path: Path) -> None:
+    topology, _ = block(smt_node(tmp_path, {}))
+    assert "physical" not in topology
+
+
+def test_adjacent_siblings_and_ranges_are_read(tmp_path: Path) -> None:
+    fs = Sysfs(tmp_path)
+    fs.numa_domain(0, "0-7")
+    for c, text in {
+        0: "0-1",
+        1: "0-1",
+        2: "2-3",
+        3: "2-3",
+        4: "4-5",
+        5: "4-5",
+        6: "6-7",
+        7: "6-7",
+    }.items():
+        fs.cpu(c, text)
+    topology, _ = block(fs)
+    assert topology["physical"] == {"0": "0,2,4,6"}
+    assert collect_node(tmp_path, hostname="n")["core_threads"] == [[0, 1], [2, 3], [4, 5], [6, 7]]
+
+
 def test_an_unreadable_sysfs_gives_an_empty_node_not_a_crash(tmp_path: Path) -> None:
     node = collect_node(tmp_path, hostname="n1")
-    assert node == {"hostname": "n1", "gpus": [], "nics": [], "numa_cpulists": {}}
+    assert node == {
+        "hostname": "n1",
+        "gpus": [],
+        "nics": [],
+        "numa_cpulists": {},
+        "core_threads": [],
+    }
     topology, warnings = build_topology(node, TODAY)
     assert parse_topology(topology, "probe").gpus == ()
     assert "no GPU found" in warnings

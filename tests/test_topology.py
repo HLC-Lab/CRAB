@@ -12,7 +12,7 @@ from crab.cli.presets import resolve_presets
 from crab.core.execution.settings import from_json, from_preset, to_json
 from crab.core.execution.topology import (
     Topology,
-    _cores_text,
+    cores_text,
     parse_topology,
     topology_sha256,
 )
@@ -107,7 +107,7 @@ def test_to_json_reads_back_to_an_equal_topology(data: dict[str, Any]) -> None:
 
 
 def test_to_json_writes_core_lists_as_runs() -> None:
-    assert _cores_text((0, 1, 2, 8, 10, 11)) == "0-2,8,10-11"
+    assert cores_text((0, 1, 2, 8, 10, 11)) == "0-2,8,10-11"
     assert topology_to_json(parse_topology(FULL, WHERE))["numa"]["1"] == "40-79,120-159"
 
 
@@ -228,3 +228,41 @@ def test_an_override_replaces_the_shared_topology_whole() -> None:
     patch = {"gpu_vendor": "nvidia", "gpus": [{}], "nics": [{"dev": "mlx5_0:1"}]}
     override = [(Path("override/mine.json"), {"lab": {"topology": patch}})]
     assert resolve_presets([shared], override)["lab"]["topology"] == patch
+
+
+SMT: dict[str, Any] = {
+    "gpu_vendor": "none",
+    "numa": {"0": "0-3,8-11", "1": "4-7,12-15"},
+    "physical": {"0": "0-3", "1": "4-7"},
+}
+
+
+def test_physical_cores_parse_round_trip_and_change_the_hash() -> None:
+    topology = parse_topology(SMT, WHERE)
+    assert topology.physical == {0: (0, 1, 2, 3), 1: (4, 5, 6, 7)}
+    assert topology_to_json(topology)["physical"] == {"0": "0-3", "1": "4-7"}
+    assert parse_topology(topology_to_json(topology), WHERE) == topology
+    without = parse_topology({k: v for k, v in SMT.items() if k != "physical"}, WHERE)
+    assert without.physical == {} and "physical" not in topology_to_json(without)
+    assert topology_sha256(topology) != topology_sha256(without)
+
+
+@pytest.mark.parametrize(
+    ("physical", "message"),
+    [
+        ("0-3", "topology.physical: must be an object of NUMA id to core list."),
+        ({"x": "0-3"}, "topology.physical: key 'x' must be a NUMA domain of topology.numa (0, 1)."),
+        ({"2": "0-3"}, "topology.physical: key '2' must be a NUMA domain of topology.numa (0, 1)."),
+        ({"0": "0-3,12"}, "topology.physical.0: core 12 is not in topology.numa.0."),
+        ({"0": "3-1"}, "topology.physical.0: '3-1' has the invalid item '3-1'"),
+    ],
+)
+def test_invalid_physical_blocks_name_the_field(physical: Any, message: str) -> None:
+    with pytest.raises(ValueError) as error:
+        parse_topology({**SMT, "physical": physical}, WHERE)
+    assert message in str(error.value) and str(error.value).startswith(WHERE)
+
+
+def test_physical_without_numa_names_the_missing_domains() -> None:
+    with pytest.raises(ValueError, match=r"topology.numa \(none\)"):
+        parse_topology({"physical": {"0": "0-3"}}, WHERE)

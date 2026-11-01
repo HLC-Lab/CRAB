@@ -149,6 +149,7 @@ yet.
 | `gpu_vendor` | `"nvidia"`, `"amd"`, `"intel"` or `"none"`. It cannot be `"none"` when `gpus` is not empty. | `"none"` |
 | `nic_env` | The environment variable that selects a NIC for one rank, a shell variable name such as `UCX_NET_DEVICES`. `null` says the stack cannot do it. | `null` |
 | `numa` | Object of NUMA domain number to core list (`"0-15,32"`, the syntax of an app's `cpus`). Domains must not share a core. | `{}` |
+| `physical` | Object of NUMA domain number to core list: the first hardware thread of each physical core, a subset of that domain's `numa` list. Without it CRAB cannot tell SMT siblings from separate cores. `crab probe` writes it. | none |
 | `gpus` | List of GPUs. A GPU's id is its position in the list, in PCI bus order. Each entry may have `numa` (a domain from `numa`) and `pci` (`"0000:19:00.0"`, lowercase). | `[]` |
 | `nics` | List of NIC ports. Each entry needs `dev` (a name such as `"mlx5_0:1"`, unique in the list). Optional: `numa`, `near_gpu` (an index into `gpus`), `card` (the PCI slot, `"19:00"`), `pci`, `dist` (`"PIX"`, `"PXB"`, `"PHB"`, `"NODE"` or `"SYS"`, the GPU to NIC distance), `tags` (list of labels), `rate_mbps`, `link_layer` (`"InfiniBand"` or `"Ethernet"`). | `[]` |
 | `source` | Where the block came from: `kind` (`"handwritten"` or `"probe"`, required inside `source`), and optional `version` and `date` (`2026-11-01`). | `{"kind": "handwritten"}` |

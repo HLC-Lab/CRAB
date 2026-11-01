@@ -116,6 +116,32 @@ def _collect_nics(sysfs: Path) -> list[dict[str, Any]]:
     return nics
 
 
+def _parse_cpulist(text: str | None) -> list[int]:
+    """Cores of a kernel cpulist such as "0,80" or "0-3"; unparsable input gives an empty list."""
+    cores: set[int] = set()
+    for item in (text or "").split(","):
+        first, _, last = item.strip().partition("-")
+        if (
+            not first.isdigit()
+            or (last and not last.isdigit())
+            or (last and int(last) < int(first))
+        ):
+            return []
+        cores.update(range(int(first), int(last or first) + 1))
+    return sorted(cores)
+
+
+def _collect_core_threads(sysfs: Path) -> list[list[int]]:
+    """The distinct sets of hardware threads that share a physical core, e.g. [[0, 80], [1, 81]]."""
+    root = sysfs / "devices" / "system" / "cpu"
+    groups = {
+        tuple(_parse_cpulist(_read(root / entry / "topology" / "thread_siblings_list")))
+        for entry in _list_dir(root)
+        if re.fullmatch(r"cpu\d+", entry)
+    }
+    return sorted(list(group) for group in groups if group)
+
+
 def _collect_numa(sysfs: Path) -> dict[str, str | None]:
     root = sysfs / "devices" / "system" / "node"
     return {
@@ -126,10 +152,12 @@ def _collect_numa(sysfs: Path) -> dict[str, str | None]:
 
 
 def collect_node(sysfs: Path, hostname: str | None = None) -> dict[str, Any]:
-    """Describe this node as a JSON-ready dict: `gpus`, `nics` (one per port) and `numa_cpulists`."""
+    """Describe this node as a JSON-ready dict: `gpus`, `nics` (one per port), `numa_cpulists` and
+    `core_threads`."""
     return {
         "hostname": hostname if hostname is not None else socket.gethostname(),
         "gpus": _collect_gpus(sysfs),
         "nics": _collect_nics(sysfs),
         "numa_cpulists": _collect_numa(sysfs),
+        "core_threads": _collect_core_threads(sysfs),
     }
