@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from crab.core.allocation.chains import resolve_chains
-from crab.core.execution.bind_apply import apply_binds
+from crab.core.execution.bind_apply import AppBind, apply_binds
 from crab.core.execution.placement_parse import (
     app_ppn,
     has_exclusive,
@@ -72,7 +72,7 @@ class Placement:
     co_run: list[CoRun | None] = field(default_factory=list)
     nics: list[tuple[str, ...] | None] = field(default_factory=list)
     gpus: list[tuple[int, ...] | None] = field(default_factory=list)
-    bound: list[bool] = field(default_factory=list)
+    binds: list[AppBind | None] = field(default_factory=list)
 
 
 def _groups(heads: Sequence[Head]) -> list[list[Head]]:
@@ -349,5 +349,4 @@ def _place(
     modes = co_run_modes(heads)
     co_run = [modes.get(f"app {keys[reuse.get(i, i)]}") for i in range(len(keys))]
     shared_cores = [mode == "shared" for mode in co_run]
-    used_bind = [applied is not None for applied in bound]
-    return Placement(cpu_lists, envs, warnings, shared_cores, co_run, nics, gpus, used_bind)
+    return Placement(cpu_lists, envs, warnings, shared_cores, co_run, nics, gpus, bound)

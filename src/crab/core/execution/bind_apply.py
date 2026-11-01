@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from crab.core.execution.bind import Bind, parse_bind
-from crab.core.execution.bind_resolve import resolve
+from crab.core.execution.bind_resolve import RankPlacement, resolve
 from crab.core.execution.placement_parse import has_sbatch_option
 from crab.core.execution.settings import ExecutionSettings
 from crab.core.execution.topology import device_env
@@ -27,6 +27,7 @@ class AppBind:
     nics: tuple[str, ...] | None
     gpus: tuple[int, ...] | None
     warnings: tuple[str, ...]
+    ranks: tuple[RankPlacement, ...] = ()
 
 
 def _refuse_conflicts(
@@ -115,7 +116,7 @@ def apply_binds(
                     if bind.gpu in ("per-rank", "shared")
                     else None
                 )
-                result = AppBind(cpus, nics, gpus, placed.warnings)
+                result = AppBind(cpus, nics, gpus, placed.warnings, placed.ranks)
                 cores = placed.cores_used or cores
         applied.append(result)
         if i not in chained:

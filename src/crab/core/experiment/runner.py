@@ -2,11 +2,13 @@ import os
 import re
 import shutil
 import time
+from dataclasses import asdict
 from typing import Any
 
 from crab.core.config_checks import parse_bool
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
+from crab.core.execution.bind_resolve import RESOLVER_VERSION
 from crab.core.execution.node_check_run import AppDevices, run_node_check
 from crab.core.execution.placement import Placement, app_ppn, parse_ppn, place_experiment
 from crab.core.execution.settings import (
@@ -15,8 +17,8 @@ from crab.core.execution.settings import (
     LauncherSpec,
     resolve_launcher,
 )
-from crab.core.execution.topology import device_env
-from crab.core.provenance import record_experiment_allocation
+from crab.core.execution.topology import device_env, topology_sha256
+from crab.core.provenance import record_experiment_allocation, record_placement
 from crab.core.wrapper_paths import (
     load_module,
     missing_wrappers_hint,
@@ -248,7 +250,7 @@ class ExperimentRunner:
             app.nic_env = nic_env
             app.gpu_env = gpu_env
 
-        self._check_nodes(placed)
+        self._check_nodes(placed, placed_keys, placed_configs)
 
         # 3. Initialize Data Containers
         for app in self.apps:
@@ -265,9 +267,10 @@ class ExperimentRunner:
                 app.msg_size = msg_size
                 self.data_containers.extend(setup_containers(app))
 
-    def _check_nodes(self, placed: Placement) -> None:
-        """Check the nodes of the apps that use `bind` against the preset's topology; stop if one is off."""
-        flagged = [i for i, used in enumerate(placed.bound) if used]
+    def _check_nodes(self, placed: Placement, keys: list[str], configs: list[Any]) -> None:
+        """Record the `bind` placement, check the nodes of those apps against the preset's topology and
+        stop if one is off. The record is written first, so a failed check leaves its problems in it."""
+        flagged = [(i, applied) for i, applied in enumerate(placed.binds) if applied is not None]
         topology = self.settings.topology if self.settings is not None else None
         if not flagged or topology is None:
             return
@@ -278,15 +281,34 @@ class ExperimentRunner:
                 tuple(self.apps[i].gpus or ()),
                 tuple(self.apps[i].cpu_list or ()),
             )
-            for i in flagged
+            for i, _ in flagged
         ]
-        problems = run_node_check(topology, devices, self.launchers[flagged[0]], self.exp_dir)
+        problems = run_node_check(topology, devices, self.launchers[flagged[0][0]], self.exp_dir)
+        nodes = sorted({node for device in devices for node in device.nodes})
+        record_placement(
+            os.path.dirname(self.exp_dir),
+            self.name,
+            {
+                "resolver_version": RESOLVER_VERSION,
+                "topology_sha256": topology_sha256(topology),
+                "apps": {
+                    keys[i]: {
+                        "bind": configs[i]["bind"],
+                        "ppn": self.apps[i].ppn,
+                        "ranks": [asdict(rank) for rank in applied.ranks],
+                        "warnings": list(applied.warnings),
+                    }
+                    for i, applied in flagged
+                },
+                "node_check": {"nodes": nodes, "passed": not problems, "problems": problems},
+            },
+        )
         if problems:
             raise RuntimeError(
                 "node check failed before the first run: the preset's topology does not describe "
                 "these nodes\n" + "\n".join(f"  - {problem}" for problem in problems)
             )
-        self.log.info(f"Node check passed on {len({n for d in devices for n in d.nodes})} node(s)")
+        self.log.info(f"Node check passed on {len(nodes)} node(s)")
 
     def execute(self, data_path):
         """Main execution loop (Setup -> Run -> Wait -> Converge)."""

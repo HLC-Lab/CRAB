@@ -24,6 +24,8 @@ from crab.core.execution.node_check_run import (
     used_by,
 )
 from crab.core.execution.settings import LauncherSpec
+from crab.core.execution.topology import topology_sha256
+from crab.core.provenance import record_placement
 from settings_fixtures import slurm_settings
 from topology_fixtures import SHAPES
 
@@ -166,6 +168,8 @@ def make_runner(tmp_path: Path, bind: dict[str, Any] | None):
     if bind is not None:
         app["bind"] = bind
     settings = dataclasses.replace(slurm_settings(), topology=SHAPES["four-gpus-four-nics"]())
+    (tmp_path / "out").mkdir(exist_ok=True)
+    (tmp_path / "out" / "crab_run.json").write_text(json.dumps({"results_schema": 1}))
     return ExperimentRunner(
         exp_name="exp",
         config={"apps": {"0": app}, "local_options": {}},
@@ -221,3 +225,81 @@ def test_an_experiment_without_bind_is_not_checked(
     monkeypatch.setattr("crab.core.experiment.runner.run_node_check", boom)
     make_runner(tmp_path, None).setup()
     make_runner(tmp_path, {}).setup()
+
+
+def placements(tmp_path: Path) -> dict[str, Any]:
+    data = json.loads((tmp_path / "out" / "crab_run.json").read_text())
+    return data.get("placements", {})
+
+
+def test_setup_records_the_resolved_placement_and_the_node_check_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("crab.core.experiment.runner.run_node_check", lambda *args: [])
+    bind = {"gpu": "per-rank", "nic": "nearest", "cores": "nearest"}
+    make_runner(tmp_path, bind).setup()
+    record = placements(tmp_path)["exp"]
+    assert record["resolver_version"] == "1"
+    assert record["topology_sha256"] == topology_sha256(SHAPES["four-gpus-four-nics"]())
+    app = record["apps"]["0"]
+    assert (
+        app["bind"] == bind
+        and app["ppn"] == 2
+        and app["warnings"]
+        == [
+            "app 0: the topology has no physical core list, so every core counts as physical (SMT unknown)"
+        ]
+    )
+    assert app["ranks"] == [
+        {
+            "local_rank": 0,
+            "gpu": 0,
+            "nics": ["nic0:1"],
+            "cores": [0],
+            "dist": "PIX",
+            "nic_share": 1,
+        },
+        {
+            "local_rank": 1,
+            "gpu": 1,
+            "nics": ["nic1:1"],
+            "cores": [1],
+            "dist": "PIX",
+            "nic_share": 1,
+        },
+    ]
+    assert record["node_check"] == {"nodes": ["n0"], "passed": True, "problems": []}
+
+
+def test_a_failed_node_check_still_leaves_its_problems_in_the_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "crab.core.experiment.runner.run_node_check",
+        lambda *args: ["n0: nic0:1 is not on this node"],
+    )
+    with pytest.raises(RuntimeError, match="node check failed before the first run"):
+        make_runner(tmp_path, {"nic": "spread"}).setup()
+    check = placements(tmp_path)["exp"]["node_check"]
+    assert check == {
+        "nodes": ["n0"],
+        "passed": False,
+        "problems": ["n0: nic0:1 is not on this node"],
+    }
+
+
+def test_an_experiment_without_bind_records_no_placement(tmp_path: Path) -> None:
+    make_runner(tmp_path, None).setup()
+    assert placements(tmp_path) == {}
+
+
+def test_record_placement_replaces_the_experiments_record_and_skips_a_missing_file(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "crab_run.json").write_text(json.dumps({"results_schema": 1}))
+    record_placement(str(tmp_path), "e1", {"a": 1})
+    record_placement(str(tmp_path), "e1", {"a": 2})
+    record_placement(str(tmp_path), "e2", {"b": 1})
+    data = json.loads((tmp_path / "crab_run.json").read_text())
+    assert data["placements"] == {"e1": {"a": 2}, "e2": {"b": 1}} and data["results_schema"] == 1
+    record_placement(str(tmp_path / "nowhere"), "e1", {"a": 1})
