@@ -115,6 +115,7 @@ def test_an_mpirun_launch_is_recorded_with_its_line_kind_dialect_and_binding_rep
                 "ppn": 2,
                 "env": {},
                 "nics": None,
+                "gpus": None,
             }
         }
     }
@@ -548,3 +549,115 @@ def test_the_shim_reads_the_local_rank_strictly(
         assert "crab: no local rank variable" in result.stderr
     else:
         assert result.returncode == 0
+
+
+# --- gpus: one GPU per rank through the same shim ----------------------------------------------
+
+
+def _devices_job(
+    exp_dir: Path,
+    nics: Any = None,
+    gpus: Any = None,
+    gpu_env: str | None = None,
+    nic_env: str | None = None,
+) -> _Job:
+    job = _Job(exp_dir)
+    job.nics = nics
+    job.gpus = gpus
+    if gpu_env:
+        job.gpu_env = gpu_env
+    if nic_env:
+        job.nic_env = nic_env
+    return job
+
+
+def _show(*variables: str) -> tuple[str, ...]:
+    return ("sh", "-c", " ".join(f'printf "%s;" "${v}";' for v in variables))
+
+
+def test_an_app_with_gpus_is_launched_through_a_shim_and_the_record_lists_them(
+    layout: tuple[Path, Path],
+) -> None:
+    job_dir, exp_dir = layout
+    job = _devices_job(exp_dir, gpus=(0, 2, 1, 3))
+    _run(job, SRUN)
+
+    assert _shim_path(job).is_file()
+    record = _launches(job_dir)["e1"]["0"]
+    assert record["gpus"] == [0, 2, 1, 3] and record["nics"] is None
+    assert record["line"].endswith(f" bash {shlex.quote(str(_shim_path(job)))} ./app -x 1")
+
+
+def test_each_local_rank_gets_its_gpu_in_list_order_and_the_pci_ordering_is_set(
+    layout: tuple[Path, Path],
+) -> None:
+    _, exp_dir = layout
+    job = _devices_job(exp_dir, gpus=(0, 2, 1, 3))
+    _run(job, SRUN)
+
+    for rank, gpu in enumerate([0, 2, 1, 3, 0, 2]):
+        result = _run_shim(
+            _shim_path(job),
+            {"SLURM_LOCALID": str(rank)},
+            *_show("CUDA_VISIBLE_DEVICES", "CUDA_DEVICE_ORDER"),
+        )
+        assert result.returncode == 0
+        assert result.stdout == f"{gpu};PCI_BUS_ID;"
+        assert result.stderr.strip().endswith(f"local rank {rank} -> CUDA_VISIBLE_DEVICES={gpu}")
+
+
+def test_a_rank_gets_its_nic_and_its_gpu_from_the_same_local_rank(
+    layout: tuple[Path, Path],
+) -> None:
+    _, exp_dir = layout
+    job = _devices_job(exp_dir, nics=("a:1", "b:1,c:1"), gpus=(3, 1))
+    _run(job, SRUN)
+
+    result = _run_shim(
+        _shim_path(job), {"SLURM_LOCALID": "1"}, *_show("UCX_NET_DEVICES", "CUDA_VISIBLE_DEVICES")
+    )
+    assert result.stdout == "b:1,c:1;1;"
+    assert result.stderr.strip().endswith(
+        "local rank 1 -> UCX_NET_DEVICES=b:1,c:1 CUDA_VISIBLE_DEVICES=1"
+    )
+
+
+def test_other_vendors_and_another_nic_variable_are_honoured(layout: tuple[Path, Path]) -> None:
+    _, exp_dir = layout
+    job = _devices_job(
+        exp_dir, nics=("x:1",), gpus=(5,), gpu_env="ROCR_VISIBLE_DEVICES", nic_env="NCCL_IB_HCA"
+    )
+    _run(job, SRUN)
+
+    result = _run_shim(
+        _shim_path(job),
+        {"SLURM_LOCALID": "0"},
+        *_show("ROCR_VISIBLE_DEVICES", "NCCL_IB_HCA", "CUDA_DEVICE_ORDER"),
+    )
+    assert result.stdout == "5;x:1;;"
+    assert "ROCR_VISIBLE_DEVICES=5" in result.stderr and "NCCL_IB_HCA=x:1" in result.stderr
+
+
+def test_the_gpu_shim_fails_loudly_without_a_local_rank_and_says_what_it_cannot_pick(
+    layout: tuple[Path, Path],
+) -> None:
+    _, exp_dir = layout
+    for nics, gpus, what in (
+        ((), (0,), "GPU"),
+        (("a:1",), (0,), "NIC and GPU"),
+        (("a:1",), (), "NIC"),
+    ):
+        job = _devices_job(exp_dir, nics=nics or None, gpus=gpus or None)
+        _run(job, SRUN)
+        result = _run_shim(_shim_path(job), {})
+        assert result.returncode != 0 and result.stdout == ""
+        assert f"cannot pick a {what}" in result.stderr
+
+
+def test_the_direct_launcher_uses_the_first_gpu(layout: tuple[Path, Path]) -> None:
+    _, exp_dir = layout
+    job = _devices_job(exp_dir, gpus=(4, 5))
+    _run(job, LauncherSpec("direct", (), "", (), ()))
+
+    result = _run_shim(_shim_path(job), {}, *_show("CUDA_VISIBLE_DEVICES"))
+    assert result.stdout == "4;"

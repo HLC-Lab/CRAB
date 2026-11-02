@@ -183,6 +183,21 @@ def record_allocation(job_dir: str, experiment: str, record: dict[str, Any]) -> 
     _update_run_json(job_dir, put)
 
 
+def record_placement(job_dir: str, experiment: str, record: dict[str, Any]) -> None:
+    """Set `placements[experiment]` of `<job_dir>/crab_run.json` to the `bind` placement `record`.
+
+    The record holds the resolver version, the topology hash, each `bind` app's per-rank table and
+    the node check's outcome. An experiment is set up once per job, so a second call replaces the
+    first. A missing or unreadable file is skipped: this is provenance, and must never fail a run.
+    """
+
+    def put(data: dict[str, Any]) -> bool:
+        data.setdefault("placements", {})[experiment] = record
+        return True
+
+    _update_run_json(job_dir, put)
+
+
 def record_experiment_allocation(
     job_dir: str, experiment: str, apps: list[Any], record: dict[str, Any]
 ) -> tuple[dict[str, Any], list[str]]:

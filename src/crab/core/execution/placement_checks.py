@@ -82,17 +82,27 @@ def check_experiment(
     )
     effective = launcher or settings.launcher
     ignored = [
-        f"experiment {exp}: app {key}: cpus has no effect with the {effective} launcher; "
+        f"experiment {exp}: app {key}: {_core_key(cfg)} has no effect with the {effective} launcher; "
         "only mpirun binds to an explicit core list"
         for key, cfg in zip(keys, configs, strict=True)
-        if "cpus" in cfg and effective == "direct"
+        if _core_key(cfg) and effective == "direct"
     ]
-    binds = any(placed.co_run) or any("cpus" in cfg for cfg in configs)
+    binds = any(placed.co_run) or any(_core_key(cfg) for cfg in configs)
     return (
         placed.warnings
         + ignored
         + (_cpu_bind_note(exp, exp_opts, settings, launcher) if binds else [])
     )
+
+
+def _core_key(cfg: Mapping[str, Any]) -> str | None:
+    """The key that pins this app's cores: `cpus`, `bind.cores`, or None when the launcher chooses."""
+    if "cpus" in cfg:
+        return "cpus"
+    bind = cfg.get("bind")
+    if isinstance(bind, dict) and bind.get("cores") not in (None, "launcher"):
+        return "bind.cores"
+    return None
 
 
 def _cpu_bind_note(
