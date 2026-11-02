@@ -23,26 +23,36 @@ Nothing is checked against the real node: CRAB never asks whether a NIC exists o
   handwritten from a cluster's documentation (a minimal block) or written by `crab probe` (a full
   block with PCI addresses, card slots and distances); both use one schema, and a rule that needs a
   field the block lacks fails and says which field.
-- **Result** is written into the run folder: `config.resolved.json` (every `bind` compiled to literal
-  `cpus`, `gpus`, `nics`, `env`) and `placement.json` (per local rank, with the topology used).
+- **Result** is recorded in the run folder: `placements` in `crab_run.json` (each `bind` app's per-rank
+  table of GPU, NICs, cores and GPU to NIC distance, the resolver version, the topology hash and the node
+  check's outcome) and `config.resolved.json` (the config plus a `resolved_for` header).
 
 **`crab probe` reads Linux sysfs only** (RDMA devices, PCI devices, NUMA and core lists, GPU and NIC
-distances from the PCI tree), so it needs neither `nvidia-smi` nor hwloc. It runs on a node, as a
-small job through the preset's scheduler, or offline on a copied sysfs tree. It never edits a shared
+distances from the PCI tree), so it needs neither `nvidia-smi` nor hwloc. It runs on a node, or offline
+from a copied sysfs tree or from the node data a previous run saved with `--json`. It never edits a
 preset, and it never writes a block without printing it first.
 
-**Four checks, each with one job.** Validation before submit resolves `bind` on paper against the
-preset. A node check at worker start, once per node, compares every node against the facts. Each
-rank's shim checks its own visible devices. After the run, the launcher's binding masks are compared
-with the intended cores.
+**Three steps, each with one job.** Validation before submit resolves `bind` on paper against the
+preset, with the same code the worker runs. Before the first run of an experiment, a node check runs
+once per node through the experiment's launcher: it compares each node with the facts the placement
+relies on (the NIC ports used are up and in the expected PCI slot, the GPU count and slots, the GPUs the
+job can see, the cores it may use, the NUMA layout) and the nodes with each other; a node that does not
+answer is asked once more, and the raw output is kept. The rank shim then sets each rank's variables
+and prints one line naming them, and the launcher's own binding report is kept next to it in the
+experiment folder. Nothing compares the binding report with the intended cores automatically.
 
 **Fail by default.** A request the cluster cannot satisfy stops the job with a message that names the
 rule, the app and the cluster's real numbers. Nodes of one allocation that would need different maps
 fail. There is no silent fallback.
 
-**Literal keys stay** as the compiled form. A resolved config carries `resolved_for` (preset,
-topology hash, CRAB version, resolver version) and `crab run` refuses it under another preset,
-topology or resolver version, pointing at the agnostic `config.json`.
+**Literal keys stay** as the hand-written, one-cluster form (`cpus`, `nics`, `gpus`), and `bind` and a
+literal on the same axis are refused. A run with `bind` keeps `config.json` free of any cluster and also
+writes `config.resolved.json`, the same config with a `resolved_for` header (preset, topology hash,
+resolver version, CRAB version). The placement is not written out as literal keys: a literal `cpus` is
+sorted by design, and a rank may hold several NIC ports, which a literal `nics` item cannot say. The
+resolver is deterministic and versioned, so the same topology and resolver give the same placement, and
+CRAB refuses to run a resolved config under another preset, topology or resolver, naming the difference
+and pointing at the agnostic `config.json`.
 
 ## Alternatives considered
 
