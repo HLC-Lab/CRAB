@@ -15,6 +15,8 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-02
+
 ### Added
 
 - **A `gpu` setting for Blink in `crab setup`.** The wizard asks for the GPU backend (`auto`, `off`,
@@ -34,6 +36,14 @@ its notes live in the tag and the GitHub release.
 
 - **Blink runs without `-msgsize` record 1024 in `msg_size`, not 0.** The Blink wrappers need the
   crab-wrappers update that declares the size. Runs recorded earlier keep their 0.
+
+### Fixed
+
+- **An app that writes a lot to standard error no longer stalls its run.** CRAB now reads each app's
+  standard error while the app runs. Before, it read it only after the app exited, so more than about
+  64 KB blocked the app until its timeout, and an app that CRAB stopped kept only 64 KiB of it.
+- **CRAB keeps the last 4 MiB of an app's standard error in memory** and warns once when it cuts the
+  rest. That is where a failure message comes from.
 
 ## [1.3.0] - 2026-11-02
 
