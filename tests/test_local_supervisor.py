@@ -171,6 +171,15 @@ def _state_file(job_dir: Path) -> dict[str, str]:
     return data
 
 
+def _wait_for_state(job_dir: Path, state: str) -> None:
+    """Wait until `local_state.json` says `state`.
+
+    A job that ends normally gets its exit-code file a moment before its final state, and `status()`
+    reports it from the exit code alone, so a test that has seen the final status must still wait.
+    """
+    _poll(lambda: _state_file(job_dir)["state"] == state, f"local_state.json to say {state}")
+
+
 def test_a_job_goes_from_submitted_to_completed(harness: Harness) -> None:
     job_id, job_dir = harness.submit("job", ["sh", "-c", "echo $$ > worker.pid; sleep 1"])
 
@@ -178,7 +187,7 @@ def test_a_job_goes_from_submitted_to_completed(harness: Harness) -> None:
     final = _final(harness, job_id)
 
     assert final == JobStatus(job_id, "COMPLETED", "local", "0")
-    assert _state_file(job_dir)["state"] == "COMPLETED"
+    _wait_for_state(job_dir, "COMPLETED")
     worker_pid = int((job_dir / "worker.pid").read_text())
     assert harness.pid(job_id) != worker_pid
 
@@ -204,7 +213,7 @@ def test_a_failing_worker_is_failed_with_its_exit_code(harness: Harness) -> None
     job_id, job_dir = harness.submit("job", ["sh", "-c", "exit 3"])
 
     assert _final(harness, job_id) == JobStatus(job_id, "FAILED", "local", "3")
-    assert _state_file(job_dir)["state"] == "FAILED"
+    _wait_for_state(job_dir, "FAILED")
 
 
 def test_exclusive_jobs_on_one_host_run_one_after_the_other(harness: Harness) -> None:
