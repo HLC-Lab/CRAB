@@ -55,6 +55,7 @@ shares, which is now an engine default (see [Special tokens](#special-tokens)).
 | `header` | array of strings | Shell lines emitted at the top of the job script (e.g. `module load …`). Slurm only; see [Module flow](../using/presets.md#module-flow). The script starts in the job's data folder, not in the folder you ran `crab run` from, so use absolute paths for anything a line sources or loads. |
 | `extends` | string | The name of a preset to start from: this preset is that preset's resolved form, changed by the fields written here. See [`extends`](#extends). |
 | `notes` | array of strings | Short remarks about the cluster, printed by `crab presets show` and carried by `crab info --json`. The crab-wrappers guide asks for at most 3 one-line entries in a shared preset. |
+| `topology` | object | The GPUs, NICs and NUMA domains of one node type. See [`topology`](#topology). |
 
 The execution fields, which say how this machine schedules and launches work, are listed next. A
 key that appears in neither table stops CRAB with an error that lists the allowed keys. The resolved
@@ -121,6 +122,40 @@ A Slurm preset and a local one, from the shared presets (shortened):
     "launcher": "mpirun"
 }
 ```
+
+## `topology`
+
+`topology` describes the hardware of one node type: which GPUs and NIC ports it has, which NUMA
+domain each sits in and which NIC is nearest to which GPU. It is plain data. Write it by hand from
+the cluster's documentation, or paste the block a probe printed; both use this schema. CRAB checks
+the block when the preset loads and stores it in the job's `execution.json`. No setting reads it
+yet.
+
+```json
+"topology": {
+  "gpu_vendor": "nvidia",
+  "nic_env": "UCX_NET_DEVICES",
+  "numa": { "0": "0-15", "1": "16-31" },
+  "gpus": [ { "numa": 0 }, { "numa": 0 }, { "numa": 1 }, { "numa": 1 } ],
+  "nics": [
+    { "dev": "mlx5_0:1", "numa": 0, "near_gpu": 0 },
+    { "dev": "mlx5_1:1", "numa": 0, "near_gpu": 1 }
+  ]
+}
+```
+
+| Field | Meaning | Default |
+|---|---|---|
+| `gpu_vendor` | `"nvidia"`, `"amd"`, `"intel"` or `"none"`. It cannot be `"none"` when `gpus` is not empty. | `"none"` |
+| `nic_env` | The environment variable that selects a NIC for one rank, a shell variable name such as `UCX_NET_DEVICES`. `null` says the stack cannot do it. | `null` |
+| `numa` | Object of NUMA domain number to core list (`"0-15,32"`, the syntax of an app's `cpus`). Domains must not share a core. | `{}` |
+| `physical` | Object of NUMA domain number to core list: the first hardware thread of each physical core, a subset of that domain's `numa` list. Without it CRAB cannot tell SMT siblings from separate cores. `crab probe` writes it. | none |
+| `gpus` | List of GPUs. A GPU's id is its position in the list, in PCI bus order. Each entry may have `numa` (a domain from `numa`) and `pci` (`"0000:19:00.0"`, lowercase). | `[]` |
+| `nics` | List of NIC ports. Each entry needs `dev` (a name such as `"mlx5_0:1"`, unique in the list). Optional: `numa`, `near_gpu` (an index into `gpus`), `card` (the PCI slot, `"19:00"`), `pci`, `dist` (`"PIX"`, `"PXB"`, `"PHB"`, `"NODE"` or `"SYS"`, the GPU to NIC distance), `tags` (list of labels), `rate_mbps`, `link_layer` (`"InfiniBand"` or `"Ethernet"`). | `[]` |
+| `source` | Where the block came from: `kind` (`"handwritten"` or `"probe"`, required inside `source`), and optional `version` and `date` (`2026-11-01`). | `{"kind": "handwritten"}` |
+
+Keep hostnames out of a shared preset. A variant for another node type (a GPU partition next to a
+CPU one) is a preset of its own that `extends` the base and writes its own `topology`.
 
 ## The srun launcher
 
@@ -216,6 +251,7 @@ field:
 | `header` | The patch's lines run after the base lines. |
 | `notes` | The patch's notes are added after the base ones (a note already there is not repeated). |
 | `scheduler`, `launcher`, `exclusive`, `hosts`, `hostfile`, `launchers.<kind>.command`, `launchers.<kind>.dialect`, `description` | Replaced by the patch's value. |
+| `topology` | Replaced whole by the patch's block, never merged: a device list with some entries from each side would describe no real node. A preset that `extends` another and has no `topology` keeps its parent's. |
 
 A `launchers` object is merged per launcher kind and then per field, so a patch that sets only
 `launchers.mpirun.command` keeps the shared `flags`. A launcher kind the base does not have is

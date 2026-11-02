@@ -1,0 +1,21 @@
+{
+  "about": "The node facts `crab probe --check` read on a second real GPU node of the same type as four_gpu_four_nic_infiniband.json, in a full-node allocation (it reported no problems).",
+  "facts": {
+    "nics": {
+      "mlx5_0:1": "0000:1a:00.0",
+      "mlx5_1:1": "0000:53:00.0",
+      "mlx5_2:1": "0000:8c:00.0",
+      "mlx5_3:1": "0000:c5:00.0"
+    },
+    "gpus": [
+      "0000:1d:00.0",
+      "0000:56:00.0",
+      "0000:8f:00.0",
+      "0000:c8:00.0"
+    ],
+    "numa": {
+      "0": "0-15",
+      "1": "16-31"
+    }
+  }
+}

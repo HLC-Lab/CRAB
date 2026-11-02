@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "global_options": {
+    "name": "placement_pinned_gpu_control",
+    "numnodes": "2",
+    "ppn": "4",
+    "minruns": "3",
+    "maxruns": "5",
+    "timeout": "600.0",
+    "outformat": "csv",
+    "walltime": "00:20:00",
+    "sbatch_directives": [
+      "--exclusive"
+    ]
+  },
+  "experiments": {
+    "alltoall_gpu": {
+      "description": "The control for pinned_gpu.json: the same GPUs and cores, but no NIC is set, so UCX picks its own.",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "args": "-msgsize 16777216 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "bind": {
+            "gpu": "per-rank",
+            "nic": "default",
+            "cores": "nearest"
+          }
+        }
+      }
+    }
+  }
+}

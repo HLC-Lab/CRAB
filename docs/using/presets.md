@@ -376,6 +376,35 @@ the cluster variants with `extends`. The
 [contributing guide](https://github.com/HLC-Lab/crab-wrappers/blob/main/CONTRIBUTING.md#presets)
 has the rules and the check to run.
 
+## Describing your nodes (`topology`)
+
+A [`topology`](../reference/presets.md#topology) tells CRAB what one node type has: its GPUs and NIC ports, which
+NUMA domain each is in and which NIC is nearest to which GPU. With it, a config can ask for placement by intent
+(`bind`) instead of naming devices, and the same config runs on clusters that name them differently.
+
+1. On one node of the type, inside an allocation, run `crab probe`. It prints the block and anything it could
+   not read; see [`crab probe`](../reference/cli.md#crab-probe).
+2. Put the block in a preset of yours. A cluster with GPU and CPU nodes gets one preset for each, the GPU one
+   extending the other with its `topology`. The GPU request belongs there too, so the config holds no cluster value:
+
+   ```json
+   {
+     "mycluster-gpu": {
+       "extends": "mycluster",
+       "sbatch": ["--gres=gpu:4"],
+       "topology": { "...": "the block crab probe printed" }
+     }
+   }
+   ```
+
+3. Check it: `crab probe --check -p mycluster-gpu` on a node of that type says what no longer matches. The
+   facts go stale (a port goes down, a node loses a GPU), so CRAB also runs the same check on every node before
+   the first run of an experiment that uses `bind`, and stops if one is off.
+
+A topology can also be written by hand from the cluster's documentation: the GPUs, the NIC ports and their
+NUMA domains are enough for most of `bind`. Anything the operating system cannot report, such as which switch a
+port is wired to, goes in as `tags` that you choose and that a config can ask for.
+
 ## Choosing the launcher
 
 The preset's `scheduler` decides how the job itself is run: `"slurm"` submits it with `sbatch`.

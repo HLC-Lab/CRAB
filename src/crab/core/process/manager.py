@@ -222,11 +222,20 @@ MODULE_INIT_SCRIPTS: tuple[str, ...] = (
 )
 
 
-def _rank_shim_text(job_id: int, nics: tuple[str, ...], launcher: object) -> str:
-    """The text of the shim that gives each rank of app `job_id` its own NIC.
+def _rank_shim_text(
+    job_id: int,
+    nics: tuple[str, ...],
+    launcher: object,
+    gpus: tuple[int, ...] = (),
+    nic_env: str = "UCX_NET_DEVICES",
+    gpu_env: str = "CUDA_VISIBLE_DEVICES",
+) -> str:
+    """The text of the shim that gives each rank of app `job_id` its own NIC and GPU.
 
-    A rank's NIC is `nics[local rank % len(nics)]`; the local rank comes from the launcher's
-    environment variables, and a rank that finds none fails instead of falling back to `nics[0]`.
+    A rank's NIC is `nics[local rank % len(nics)]`, set in `nic_env`, and its GPU
+    `gpus[local rank % len(gpus)]`, set in `gpu_env` (with `CUDA_DEVICE_ORDER=PCI_BUS_ID` for CUDA, so the
+    index is the PCI order). Either list may be empty. The local rank comes from the launcher's
+    environment variables, and a rank that finds none fails instead of falling back to the first entry.
     Under the direct launcher there is one process, so the local rank is 0.
     """
     if isinstance(launcher, SrunLauncher):
@@ -235,11 +244,15 @@ def _rank_shim_text(job_id: int, nics: tuple[str, ...], launcher: object) -> str
         names = _MPIRUN_LOCAL_RANK_VARS
     else:
         names = ()
+    what = " and ".join(label for label, items in (("NIC", nics), ("GPU", gpus)) if items)
     lines = [
         "#!/bin/bash",
-        f"# CRAB: each rank of app {job_id} uses its own NIC from the app's nics list.",
-        f"nics=({' '.join(shlex.quote(nic) for nic in nics)})",
+        f"# CRAB: each rank of app {job_id} uses its own {what} from the app's lists.",
     ]
+    if nics:
+        lines.append(f"nics=({' '.join(shlex.quote(nic) for nic in nics)})")
+    if gpus:
+        lines.append(f"gpus=({' '.join(str(gpu) for gpu in gpus)})")
     if names:
         # ${A:-${B:-${C:-}}}: the first of the variables that is set and not empty.
         chain = "".join(f"${{{name}:-" for name in names) + "}" * len(names)
@@ -248,16 +261,24 @@ def _rank_shim_text(job_id: int, nics: tuple[str, ...], launcher: object) -> str
             "case $r in",
             "    ''|*[!0-9]*)",
             f'        echo "crab: no local rank variable ({", ".join(names)}) set; '
-            'cannot pick a NIC" >&2',
+            f'cannot pick a {what}" >&2',
             "        exit 1",
             "        ;;",
             "esac",
         ]
     else:
         lines.append("r=0")
+    assigned = []
+    if nics:
+        lines.append(f'export {nic_env}="${{nics[$((10#$r % ${{#nics[@]}}))]}}"')
+        assigned.append(f"{nic_env}=${nic_env}")
+    if gpus:
+        if gpu_env == "CUDA_VISIBLE_DEVICES":
+            lines.append("export CUDA_DEVICE_ORDER=PCI_BUS_ID")
+        lines.append(f'export {gpu_env}="${{gpus[$((10#$r % ${{#gpus[@]}}))]}}"')
+        assigned.append(f"{gpu_env}=${gpu_env}")
     lines += [
-        'export UCX_NET_DEVICES="${nics[$((10#$r % ${#nics[@]}))]}"',
-        'echo "crab: $(uname -n) local rank $r -> UCX_NET_DEVICES=$UCX_NET_DEVICES" >&2',
+        f'echo "crab: $(uname -n) local rank $r -> {" ".join(assigned)}" >&2',
         'exec "$@"',
     ]
     return "\n".join(lines) + "\n"
@@ -314,11 +335,21 @@ def run_job(
     script_dir = os.path.join(run_dir, ".wrappers")
     os.makedirs(script_dir, exist_ok=True)
     nics = getattr(job, "nics", None)
-    if nics:
+    gpus = getattr(job, "gpus", None)
+    if nics or gpus:
         # Absolute: srun runs the shim on every node.
         shim_path = os.path.abspath(os.path.join(script_dir, f"app_{job.id_num}_rank.sh"))
         with open(shim_path, "w") as f:
-            f.write(_rank_shim_text(job.id_num, tuple(nics), launcher))
+            f.write(
+                _rank_shim_text(
+                    job.id_num,
+                    tuple(nics or ()),
+                    launcher,
+                    tuple(gpus or ()),
+                    getattr(job, "nic_env", "UCX_NET_DEVICES"),
+                    getattr(job, "gpu_env", "CUDA_VISIBLE_DEVICES"),
+                )
+            )
         app_command = f"bash {shlex.quote(shim_path)} {app_command}"
 
     cmd_string = launch_line(
@@ -354,6 +385,7 @@ def run_job(
                 "ppn": job.ppn,
                 "env": app_env,
                 "nics": list(nics) if nics else None,
+                "gpus": list(gpus) if gpus else None,
             },
         )
 

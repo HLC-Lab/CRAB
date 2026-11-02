@@ -643,6 +643,67 @@ config: crab_run_{nodes}
 
 See [SbatchMan integration](../using/sbatchman-integration.md).
 
+## `crab probe`
+
+Describes the node it runs on (GPUs, RDMA NIC ports, NUMA domains) as a preset
+[`topology`](presets.md#topology) block. It reads Linux sysfs only, so it needs no vendor tool. Run it
+on a compute node, inside an allocation: a login node has other hardware. Review what it prints, then
+paste the block into a preset override.
+
+```bash
+crab probe [--sysfs DIR] [--node-file FILE] [--json]
+crab probe --check (-p PRESET | --topology-file FILE) [--sysfs DIR] [--node-file FILE] [--json]
+```
+
+| Flag | Meaning | Default |
+|------|---------|---------|
+| `--sysfs DIR` | The sysfs root to read, for a copy of `/sys`. | `/sys` |
+| `--node-file FILE` | Rebuild the block from a file saved with `crab probe --json`, without reading sysfs. Use it to build a block on another machine. | none |
+| `--check` | Check this node against a topology instead of describing it (see below). | off |
+| `-p`, `--preset` | With `--check`: the preset whose `topology` to check against. | none |
+| `--topology-file FILE` | With `--check`: a topology block, or a `crab probe --json` file, to check against. | none |
+| `--json` | Print `{"node": ..., "topology": ..., "warnings": [...]}` as JSON. `node` is the raw data and holds the hostname; `topology` does not. | off |
+
+What goes into the block:
+
+- **GPUs** are the display and 3D controllers of NVIDIA, AMD and Intel (an Intel VGA device is an
+  integrated GPU and is skipped), numbered in PCI bus order. When a node has GPUs of several vendors, the
+  most common vendor is kept and the others are named in a warning.
+- **NIC ports** are the active ports under `/sys/class/infiniband`, named as UCX names them
+  (`mlx5_0:1`), with their NUMA domain, PCI slot (`card`), rate and link layer. A port that is not
+  active is left out and named in a warning. Other NIC families (Slingshot `cxi`, for example) are not
+  read.
+- **`near_gpu` and `dist`** give each NIC its closest GPU and the distance class between them
+  (`PIX`, `PXB`, `PHB`, `NODE` or `SYS`). They are left out when the PCI
+  tree is not visible (some virtual machines and containers hide it), and a warning says so. The classes
+  are worked out from the PCI tree, not read from `nvidia-smi`. On a GPU node with four GPUs and four
+  InfiniBand ports all 16 pairs matched `nvidia-smi topo -m`; other layouts have not been compared yet.
+- `nic_env` is set to `UCX_NET_DEVICES` when NIC ports were found. Change it if the stack selects NICs
+  in another way.
+
+The command exits 1 with a one-line message when the sysfs folder or the node file cannot be read.
+
+### `crab probe --check`
+
+Placement trusts a preset's `topology`, and facts go stale: a port goes down, a node loses a GPU, a job
+holds two of the four GPUs. UCX and CUDA only warn about such things, so `--check` fails instead. It reads
+this node and compares it with the topology of a preset (`-p`) or of a file, and exits 1 after naming each
+thing that does not hold:
+
+- a NIC port of the topology that is missing, not active, or in another PCI slot;
+- a different number of GPUs, or a GPU in another PCI slot;
+- fewer GPUs visible to the job than the topology lists (`nvidia-smi -L`), which is what a Slurm job
+  that asked for part of the node sees; the message says to ask for the whole node;
+- NUMA domains that differ from the topology's.
+
+```text
+$ crab probe --check -p mylab
+problem: mlx5_2:1 is not active (1: DOWN)
+```
+
+With `--node-file`, the node is read from a saved `--json` file, and the job-level checks (visible GPUs,
+allowed cores) are skipped because they describe a running job.
+
 ## `crab worker` (internal)
 
 Hidden subcommand executed *by the generated Slurm job* on the compute nodes: the second phase of

@@ -10,6 +10,12 @@ from typing import Any
 from crab import paths
 from crab.core.config_checks import check_config
 from crab.core.execution.job_geometry import job_tasks_per_node, needs_job_geometry
+from crab.core.execution.resolved import (
+    RESOLVED_KEY,
+    check_resolved_for,
+    has_bind,
+    resolved_header,
+)
 from crab.core.execution.scheduler.select import scheduler_for
 from crab.core.execution.settings import SLURM_DEFAULT, ExecutionSettings, to_json
 from crab.core.experiment import ExperimentRunner
@@ -94,6 +100,7 @@ class Engine:
     ):
         check_config_schema_version(config)
         settings = settings or SLURM_DEFAULT
+        check_resolved_for(config, environment, settings)
         for warning in check_config(config, settings):
             self.log.warning(warning)
         if is_worker:
@@ -162,8 +169,14 @@ class Engine:
 
         os.makedirs(data_directory, exist_ok=True)
 
+        # config.json stays free of any cluster: a replayed resolved config loses its header here.
+        agnostic = {key: value for key, value in config.items() if key != RESOLVED_KEY}
         with open(os.path.join(data_directory, "config.json"), "w") as f:
-            json.dump(config, f, indent=4)
+            json.dump(agnostic, f, indent=4)
+        header = resolved_header(environment, settings) if has_bind(config) else None
+        if header is not None:
+            with open(os.path.join(data_directory, "config.resolved.json"), "w") as f:
+                json.dump({**agnostic, RESOLVED_KEY: header}, f, indent=4)
         with open(os.path.join(data_directory, "environment.json"), "w") as f:
             json.dump(environment, f, indent=4)
         with open(os.path.join(data_directory, "execution.json"), "w") as f:

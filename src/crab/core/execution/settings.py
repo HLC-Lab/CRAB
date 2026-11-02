@@ -14,6 +14,8 @@ from types import MappingProxyType
 from typing import Any
 
 from crab.core.execution.hosts import LOCALHOST, Host, parse_hostfile, parse_hosts
+from crab.core.execution.topology import Topology, parse_topology
+from crab.core.execution.topology import to_json as topology_to_json
 
 SCHEDULERS = ("slurm", "local")
 LAUNCHER_KINDS = ("srun", "mpirun", "direct")
@@ -31,6 +33,7 @@ ALLOWED_PRESET_KEYS = (
     "header",
     "extends",
     "notes",
+    "topology",
 )
 DROPPED_KEYS: dict[str, str] = {
     "CRAB_WL_MANAGER": "launcher",
@@ -68,6 +71,7 @@ class ExecutionSettings:
     srun: LauncherSpec
     mpirun: LauncherSpec
     env: Mapping[str, str]
+    topology: Topology | None = None
 
 
 def _read_text(path: str) -> str:
@@ -171,7 +175,8 @@ def from_preset(
 ) -> ExecutionSettings:
     """Validate the execution fields of one preset body and build `ExecutionSettings`.
 
-    `description`, `sbatch`, `header`, `notes` and `extends` are allowed and not checked here.
+    `description`, `sbatch`, `header`, `notes` and `extends` are allowed and not checked here;
+    `topology` is validated by `parse_topology`.
     `read_file` reads a hostfile and is the only IO.
 
     Raises:
@@ -217,6 +222,7 @@ def from_preset(
         srun=_parse_srun(launchers.get("srun", {}), f"{where}: launchers.srun"),
         mpirun=_parse_mpirun(launchers.get("mpirun", {}), f"{where}: launchers.mpirun"),
         env=env,
+        topology=parse_topology(preset["topology"], where) if "topology" in preset else None,
     )
 
 
@@ -245,6 +251,8 @@ def to_json(settings: ExecutionSettings) -> dict[str, Any]:
         },
     }
     data["env"] = dict(settings.env)
+    if settings.topology is not None:
+        data["topology"] = topology_to_json(settings.topology)
     return data
 
 

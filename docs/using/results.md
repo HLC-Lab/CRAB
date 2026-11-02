@@ -28,6 +28,7 @@ data/leonardo/
     ├── config.json                      # the config that ran
     ├── environment.json                 # the resolved environment
     ├── execution.json                   # the preset's scheduler, launcher and hosts
+    ├── config.resolved.json             # only when an app used bind: config.json plus resolved_for
     ├── crab_run.json                    # which CRAB and wrappers produced this
     ├── crab_job.sh                      # the batch script (Slurm only)
     ├── slurm_output.log                 # the job's stdout
@@ -47,10 +48,12 @@ The files, from the job folder down:
 | File | What it holds |
 |---|---|
 | `config.json`, `environment.json`, `execution.json` | The config, environment and execution settings the job ran with. Keep the folder, or only `config.json`, to run the same study again. |
+| `config.resolved.json` | Only when an app used `bind`: `config.json` plus a `resolved_for` header naming the preset, the hash of its topology and the resolver version it was resolved against. Replaying it under another preset, a changed topology or another resolver is refused, so it keeps the placement or says why it cannot. `config.json` has no header and runs anywhere. |
 | `crab_run.json` | Provenance. See [below](#crab_runjson). |
 | `slurm_output.log`, `slurm_error.log` | The job's stdout and stderr. The local scheduler writes files with the same names. A local job also leaves `local_job.json` and `local_state.json`. |
 | `<experiment>/data_app_<i>.csv` | The metrics of app `i`, if the app has `collect: true`. See [below](#data_app_icsv). |
 | `<experiment>/error_app_<i>.log` | The exit code, stdout and stderr of app `i` after a run in which it exited non-zero. Each failure overwrites the file, so it shows the latest one. |
+| `<experiment>/node_check_spec.json`, `<experiment>/node_check.log` | Only for an experiment whose apps use `bind`: what the node check was asked to verify, and the raw output of each attempt, with the launcher's errors. Read the log when the check stops a run. |
 | `<experiment>/bindings_app_<i>.log` | The launcher's stderr for app `i`, with a `# run <n>` line before each run. It records how `mpirun` or `srun` bound the ranks. |
 | `<experiment>/artifacts/run_<n>/app_<i>/` | The files a wrapper's `get_extra_artifacts()` named, copied for every run, failed ones included. |
 | `<experiment>/run_<n>/app_<i>/` | The working directory of app `i` in run `n`. It holds the files the app wrote, and a hidden `.wrappers/` folder with the launch scripts. CRAB deletes a folder that holds nothing else. With `retain_files: false`, it deletes the whole `run_<n>/` of every successful run. |
@@ -162,8 +165,14 @@ The fields:
   launcher and dialect `auto`, it also records the dialect found and the first line of
   `mpirun --version`.
 - `launches` records the first launch of each app: the launch line, the launcher `kind` (`srun`,
-  `mpirun` or `direct`), ranks per node, the app's extra environment and its NICs. CRAB adds it
+  `mpirun` or `direct`), ranks per node, the app's extra environment, its NICs and its GPUs. CRAB adds it
   when the app first starts, so it can be missing from a job that failed early.
+- `placements` records, for each experiment with `bind` apps, what `bind` resolved to: the `resolver_version`, the
+  `topology_sha256` of the preset's topology, and under `apps` (keyed like `launches`) each app's `bind`, `ppn`,
+  one entry per local rank (`gpu`, `nics`, `cores`, the GPU to NIC distance `dist`, and `nic_share`, the number of
+  ranks that use its first NIC) and the resolver's `warnings`. `node_check` says which nodes were checked against
+  the topology before the first run and whether they `passed`; a failed check is recorded with its `problems`
+  before the experiment stops.
 - `allocations` records, for each experiment, how its nodes were laid out: the allocation `mode`
   and each app's nodes under `apps`, keyed by the same app keys as `launches`. A random layout
   also has `seed`, the seed given in the config or the one CRAB drew. With `partitions`, the

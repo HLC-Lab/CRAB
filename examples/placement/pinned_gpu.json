@@ -1,0 +1,33 @@
+{
+  "schema_version": 2,
+  "global_options": {
+    "name": "placement_pinned_gpu",
+    "numnodes": "2",
+    "ppn": "4",
+    "minruns": "3",
+    "maxruns": "5",
+    "timeout": "600.0",
+    "outformat": "csv",
+    "walltime": "00:20:00",
+    "sbatch_directives": [
+      "--exclusive"
+    ]
+  },
+  "experiments": {
+    "alltoall_gpu": {
+      "description": "All-to-all between GPUs, four ranks per node. Each rank gets its own GPU, the NIC nearest to that GPU and a core on the same NUMA domain, whatever the cluster calls them.",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "args": "-msgsize 16777216 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "bind": {
+            "gpu": "per-rank",
+            "nic": "nearest",
+            "cores": "nearest"
+          }
+        }
+      }
+    }
+  }
+}

@@ -415,6 +415,10 @@ def cli_router():
 
     update.register(subparsers)
 
+    from crab.cli import probe
+
+    probe.register(subparsers)
+
     # 7. SbatchMan preset printer
     parser_preset = subparsers.add_parser(
         "sbatchman-preset",

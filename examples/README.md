@@ -23,6 +23,7 @@ Start on your laptop, then run one application on a cluster, then co-run applica
 | 5 | [`leonardo/scale/`](leonardo/scale/README.md) | The same studies on 64 and 256 nodes. | A large Slurm cluster. Template. |
 | 6 | [`blink-congestion-analysis/`](blink-congestion-analysis/README.md) | Two large congestion studies and a plotting script, from a research campaign. | A Slurm cluster, 8 to 16 nodes. Template. |
 | 7 | [`sbatchman/`](sbatchman/README.md) | Ready-to-launch SbatchMan campaigns: a smoke test, and an all-to-all baseline against incast noise and against all-to-all noise. | A Slurm cluster with SbatchMan, 2 to 16 nodes. Ready to launch after `crab sbatchman-preset`. |
+| 8 | [`placement/`](placement/README.md) | Pin each rank to a GPU, the NIC nearest to it and a core, without naming a device, so the same file runs on different clusters; with its control. | A GPU cluster whose preset has a `topology`. Template. |
 
 [`leonardo/`](leonardo/README.md) describes the three Leonardo folders together.
 
