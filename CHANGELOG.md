@@ -26,6 +26,14 @@ its notes live in the tag and the GitHub release.
   [Variants with `extends`](https://hlc-crab.readthedocs.io/en/latest/using/presets/#variants-with-extends).
 - `examples/leonardo/gpu/`: the Blink all-to-all and allgather on GPU memory, one rank per GPU, for
   `leonardo_gpu`.
+- **A wrapper can declare `default_msg_size`.** It is the size recorded in the CSV `msg_size` column
+  when the app's `args` have no `-msgsize`. See
+  [Writing a wrapper](https://hlc-crab.readthedocs.io/en/latest/extending/wrappers/).
+
+### Changed
+
+- **Blink runs without `-msgsize` record 1024 in `msg_size`, not 0.** The Blink wrappers need the
+  crab-wrappers update that declares the size. Runs recorded earlier keep their 0.
 
 ## [1.3.0] - 2026-11-02
 
