@@ -342,3 +342,12 @@ def test_the_check_options_are_registered() -> None:
     probe.register(parser.add_subparsers())
     args = parser.parse_args(["probe", "--check", "-p", "lab", "--topology-file", "t.json"])
     assert (args.check, args.preset, args.topology_file) == (True, "lab", "t.json")
+
+
+def test_a_node_that_cannot_check_prints_its_crash_instead_of_staying_silent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert node_check.main([str(tmp_path / "no-such-spec.json")]) == 0
+    line = json.loads(capsys.readouterr().out)
+    assert line["facts"] is None and len(line["problems"]) == 1
+    assert line["problems"][0].startswith("the node check crashed: FileNotFoundError: ")

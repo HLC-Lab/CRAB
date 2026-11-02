@@ -53,6 +53,7 @@ The files, from the job folder down:
 | `slurm_output.log`, `slurm_error.log` | The job's stdout and stderr. The local scheduler writes files with the same names. A local job also leaves `local_job.json` and `local_state.json`. |
 | `<experiment>/data_app_<i>.csv` | The metrics of app `i`, if the app has `collect: true`. See [below](#data_app_icsv). |
 | `<experiment>/error_app_<i>.log` | The exit code, stdout and stderr of app `i` after a run in which it exited non-zero. Each failure overwrites the file, so it shows the latest one. |
+| `<experiment>/node_check_spec.json`, `<experiment>/node_check.log` | Only for an experiment whose apps use `bind`: what the node check was asked to verify, and the raw output of each attempt, with the launcher's errors. Read the log when the check stops a run. |
 | `<experiment>/bindings_app_<i>.log` | The launcher's stderr for app `i`, with a `# run <n>` line before each run. It records how `mpirun` or `srun` bound the ranks. |
 | `<experiment>/artifacts/run_<n>/app_<i>/` | The files a wrapper's `get_extra_artifacts()` named, copied for every run, failed ones included. |
 | `<experiment>/run_<n>/app_<i>/` | The working directory of app `i` in run `n`. It holds the files the app wrote, and a hidden `.wrappers/` folder with the launch scripts. CRAB deletes a folder that holds nothing else. With `retain_files: false`, it deletes the whole `run_<n>/` of every successful run. |

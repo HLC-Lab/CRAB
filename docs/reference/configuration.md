@@ -497,8 +497,10 @@ the ranks. A preset without a `topology` cannot run a `bind` that asks for anyth
 node they use, started through the experiment's launcher with one task per node. Each node must match the
 preset's `topology` where the placement relies on it (the NIC ports named are up and in the right PCI slot,
 the GPU count and slots, the GPUs the job can see, the cores it may use, the NUMA layout), and all nodes must
-agree with each other. If anything is off the experiment stops before its first run, and the error names each
-problem with its node. [`crab probe --check`](cli.md#crab-probe-check) runs the same check on one node by hand.
+agree with each other. A node that gives no answer, or whose check crashed, is asked once more, since the
+first step of a job can miss a node. If anything is still off the experiment stops before its first run, and
+the error names each problem with its node. The raw output of every attempt is kept in `node_check.log` in
+the experiment's folder. [`crab probe --check`](cli.md#crab-probe-check) runs the same check on one node by hand.
 
 ### GPUs per rank (`gpus`)
 

@@ -179,18 +179,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     if len(args) != 1:
         print("usage: node_check SPEC.json", file=sys.stderr)
         return 2
-    spec = json.loads(Path(args[0]).read_text())
-    topology = parse_topology(spec["topology"], "node check")
-    node = collect_node(Path("/sys"))
-    used = Used(
-        frozenset(spec.get("nics", [])), bool(spec.get("gpus")), frozenset(spec.get("cores", []))
-    )
-    problems = check_node(
-        node, topology, used, visible_gpu_count() if used.gpus else None, allowed_cores()
-    )
-    print(
-        json.dumps({"host": socket.gethostname(), "problems": problems, "facts": node_facts(node)})
-    )
+    try:
+        spec = json.loads(Path(args[0]).read_text())
+        topology = parse_topology(spec["topology"], "node check")
+        node = collect_node(Path("/sys"))
+        used = Used(
+            frozenset(spec.get("nics", [])),
+            bool(spec.get("gpus")),
+            frozenset(spec.get("cores", [])),
+        )
+        gpus = visible_gpu_count() if used.gpus else None
+        problems = check_node(node, topology, used, gpus, allowed_cores())
+        line: dict[str, Any] = {
+            "host": socket.gethostname(),
+            "problems": problems,
+            "facts": node_facts(node),
+        }
+    except Exception as error:  # a node that cannot even check must say so, not stay silent
+        crash = f"the node check crashed: {type(error).__name__}: {error}"
+        line = {"host": socket.gethostname(), "problems": [crash], "facts": None}
+    print(json.dumps(line))
     return 0
 
 

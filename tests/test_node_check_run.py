@@ -45,11 +45,20 @@ class FakeLauncher:
 
     def __init__(self, stdout: str = "", stderr: str = "", returncode: int = 0) -> None:
         self.argv: list[str] = []
-        self.result = subprocess.CompletedProcess([], returncode, stdout, stderr)
+        self.calls = 0
+        self.pauses: list[float] = []
+        self.results = [subprocess.CompletedProcess([], returncode, stdout, stderr)]
+
+    def then(self, stdout: str = "", stderr: str = "", returncode: int = 0) -> FakeLauncher:
+        """Another outcome for the next attempt; the last one repeats."""
+        self.results.append(subprocess.CompletedProcess([], returncode, stdout, stderr))
+        return self
 
     def __call__(self, argv: list[str]) -> subprocess.CompletedProcess[str]:
         self.argv = argv
-        return self.result
+        result = self.results[min(self.calls, len(self.results) - 1)]
+        self.calls += 1
+        return result
 
 
 def apps(*nodes: str) -> list[AppDevices]:
@@ -58,7 +67,9 @@ def apps(*nodes: str) -> list[AppDevices]:
 
 def check(fake: FakeLauncher, spec: LauncherSpec = SRUN, *nodes: str, tmp: Path) -> list[str]:
     topology = SHAPES["four-gpus-four-nics"]()
-    return run_node_check(topology, apps(*(nodes or ("n1", "n2"))), spec, str(tmp), fake)
+    return run_node_check(
+        topology, apps(*(nodes or ("n1", "n2"))), spec, str(tmp), fake, sleep=fake.pauses.append
+    )
 
 
 def test_used_by_collects_ports_gpu_use_and_cores_across_apps() -> None:
@@ -115,8 +126,12 @@ def test_a_problem_on_one_node_is_reported_with_its_name(tmp_path: Path) -> None
 
 
 def test_a_node_that_does_not_answer_is_named(tmp_path: Path) -> None:
-    fake = FakeLauncher(answer("n1") + "\n")
-    assert check(fake, tmp=tmp_path) == ["n2: no answer from the node check"]
+    fake = FakeLauncher(answer("n1") + "\n", "srun: error: step failed\n")
+    assert check(fake, tmp=tmp_path) == [
+        "n2: no answer from the node check after 2 attempt(s) "
+        "(launcher error tail: srun: error: step failed; raw output in node_check.log)"
+    ]
+    assert fake.calls == 2
 
 
 def test_nodes_that_differ_from_each_other_are_named(tmp_path: Path) -> None:
@@ -303,3 +318,50 @@ def test_record_placement_replaces_the_experiments_record_and_skips_a_missing_fi
     data = json.loads((tmp_path / "crab_run.json").read_text())
     assert data["placements"] == {"e1": {"a": 2}, "e2": {"b": 1}} and data["results_schema"] == 1
     record_placement(str(tmp_path / "nowhere"), "e1", {"a": 1})
+
+
+def test_a_node_that_misses_the_first_attempt_is_asked_again_and_the_check_passes(
+    tmp_path: Path,
+) -> None:
+    fake = FakeLauncher(answer("n1") + "\n").then(answer("n1") + "\n" + answer("n2") + "\n")
+    assert check(fake, tmp=tmp_path) == []
+    assert fake.calls == 2 and fake.pauses == [3.0]
+
+
+def test_nothing_is_repeated_when_every_node_answered(tmp_path: Path) -> None:
+    fake = FakeLauncher(answer("n1") + "\n" + answer("n2") + "\n")
+    check(fake, tmp=tmp_path)
+    assert fake.calls == 1 and fake.pauses == []
+
+
+def test_a_node_whose_check_crashed_is_asked_again_and_a_lasting_crash_is_named(
+    tmp_path: Path,
+) -> None:
+    crashed = json.dumps(
+        {
+            "host": "n2",
+            "problems": ["the node check crashed: FileNotFoundError: spec"],
+            "facts": None,
+        }
+    )
+    fake = FakeLauncher(answer("n1") + "\n" + crashed + "\n")
+    assert check(fake, tmp=tmp_path) == ["n2: the node check crashed: FileNotFoundError: spec"]
+    assert fake.calls == 2
+
+
+def test_the_raw_output_of_every_attempt_is_kept_in_a_log(tmp_path: Path) -> None:
+    fake = FakeLauncher("", "first error\n", 1).then(
+        answer("n1") + "\n" + answer("n2") + "\n", "second note\n"
+    )
+    assert check(fake, tmp=tmp_path) == []
+    log = (tmp_path / "node_check.log").read_text()
+    assert "=== attempt 1: exit 1" in log and "first error" in log
+    assert "=== attempt 2: exit 0" in log and "second note" in log and '"host": "n2"' in log
+
+
+def test_a_single_attempt_is_not_retried(tmp_path: Path) -> None:
+    fake = FakeLauncher(answer("n1") + "\n")
+    problems = run_node_check(
+        SHAPES["four-gpus-four-nics"](), apps("n1", "n2"), SRUN, str(tmp_path), fake, attempts=1
+    )
+    assert fake.calls == 1 and "after 1 attempt(s)" in problems[0]
