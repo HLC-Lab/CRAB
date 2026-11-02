@@ -34,6 +34,7 @@ override are marked override.
 | `metadata` | class attr: `list[dict]` | override: `[{"name", "unit", "conv", "type"?, "role"?}, ...]`. Default `[]`. |
 | `keys` | class attr: `list[str]` | Sweep dimensions every row carries. Default `[]`. |
 | `executable` | class attr: `str` | Program looked up on `PATH` when no binary is configured. Default `""`. |
+| `default_msg_size` | class attr: `int` | The message size recorded in the CSV `msg_size` column when the app's `args` have no `-msgsize`. Default `0`. |
 | `read_data` | `(self) -> list[dict]` | override: parse `self.stdout` (and files in `self.run_dir`); return one dict per sample with every key and metric. The older one-list-per-metric return is still accepted. Default `[]`. |
 | `get_extra_artifacts` | `(self) -> list[str]` | override (optional): paths or globs, relative to `self.run_dir`, to keep with the results. Default `[]`. |
 | `get_binary_path` | `(self) -> str \| None` | override for suites: default returns the receipt's `binary_path`. |

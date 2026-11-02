@@ -71,6 +71,7 @@ class app(base):
 |---|---|
 | `metadata` | One entry per measured value: `name`, `unit`, and `conv` (`True` means CRAB repeats runs until this value converges). Optional `type`: `"float"` (default), `"int"`, `"str"` or `"bool"`. Text and boolean fields are recorded but never used for convergence. |
 | `keys` | Names of the sweep dimensions, for an application that prints results for several settings in one run (for example one line per message size). Leave it empty when a run gives single values. |
+| `default_msg_size` | Optional integer: the value of the CSV `msg_size` column when the app's `args` have no `-msgsize`. Default `0`. Set it when the program has a default message size. |
 | `read_data()` | Returns a list of rows, one dict per sample, holding every key and every metric and nothing else. The application's output is in `self.stdout` and `self.stderr`. |
 | `executable` | Program name found on `PATH` when neither the config nor a receipt gives a binary. |
 | `benchmark_id` | Name of the [receipt](receipts.md) that records where the binary lives. |

@@ -70,8 +70,10 @@ one sample. The columns, in order:
 
 1. `run_id`: the number of the run that produced the sample. It is the real run number, so a
    run that failed leaves a gap.
-2. `msg_size`: the integer after `-msgsize` in the app's `args`, or `0` when there is none. It is
-   the same on every row of the file.
+2. `msg_size`: the integer after `-msgsize` in the app's `args`. Without `-msgsize`, it is the
+   size the wrapper declares with `default_msg_size` (the Blink wrappers declare 1024, the size
+   Blink uses without the flag, and 0 for the programs that take no message size), else `0`. It
+   is the same on every row of the file.
 3. One column for each of the wrapper's `keys`, if it declares any. Keys name the dimensions of a
    sweep, such as a message size printed once per size.
 4. One column per metric, named `<i>_<metric>_<unit>`, from the wrapper's `metadata`.
