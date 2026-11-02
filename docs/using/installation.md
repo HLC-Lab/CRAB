@@ -160,7 +160,7 @@ The wizard walks through:
     | Auto-detect | Looks for an existing build under `benchmarks/`, optionally doing a deep search of your home directory. For Blink it only finds a build that `crab setup` made (`benchmarks/blink/build/bin`). |
     | Manual path | You supply the absolute path to an existing executable/directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
     | Environment module | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
-    | Build from source | Asks for a module line (default `module load gcc openmpi`), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE or the `gpu` backend of Blink), streaming the build log live. |
+    | Build from source | Asks for a module line (blank loads no modules; the prompt shows `module load gcc openmpi` as an example), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE or the `gpu` backend of Blink), streaming the build log live. |
 
 For a source build, the module line is run in a non-interactive `bash`, so it must work there. If
 CMake is a module on your cluster, add it to the line (for example
@@ -174,8 +174,8 @@ that benchmark without building anything.
 2. The suite list pre-selects every suite that is not configured yet. Press Space to untick the
    ones you do not want, so that only Blink Suite is ticked, then press Enter.
 3. At "Select Configuration Strategy", type `4` (Download and compile from source layout).
-4. At "Enter necessary pre-build cluster module loads", press Enter to accept
-   `module load gcc openmpi`, or type your own line (add CMake if it is a module).
+4. At "Enter necessary pre-build cluster module loads", type your module line, for example
+   `module load gcc openmpi` (add CMake if it is a module), or press Enter to load no modules.
 5. At "GPU backend (auto uses CUDA or HIP when found, else CPU only)", press Enter to accept `auto`, or type one of the four answers below.
 6. A build panel shows the steps (clone, configure with CMake, compile) with the last lines of the
    log. Blink is built under `benchmarks/blink/`.
