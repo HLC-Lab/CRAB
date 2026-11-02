@@ -47,7 +47,8 @@ partition or a GPU request: those belong to the cluster, so they live in its pre
    crab run examples/placement/pinned_gpu_control.json -p mycluster-gpu
    ```
 
-   Blink must be built with GPU support (set up with `crab setup`, or give the app a `binary`).
+   Blink must be built with GPU support (set up with `crab setup`, answering `cuda` for NVIDIA GPUs or
+   `hip` for AMD GPUs to the GPU backend question, or give the app a `binary`).
 
    `crab validate -p mycluster-gpu examples/placement/pinned_gpu.json` checks the config against the preset
    without submitting. If the preset passes `--cpu-bind` to `srun`, it prints a warning that the flag is

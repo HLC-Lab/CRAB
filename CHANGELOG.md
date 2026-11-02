@@ -15,6 +15,18 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **A `gpu` setting for Blink in `crab setup`.** The wizard asks for the GPU backend (`auto`, `off`,
+  `cuda` or `hip`) after the module line and passes it to Blink's CMake build. The receipt records the
+  answer. See
+  [Example: build Blink from source](https://hlc-crab.readthedocs.io/en/latest/using/installation/#example-build-blink-from-source).
+- **The shared preset `leonardo_gpu`.** It extends `leonardo`, asks for the four GPUs of a booster node
+  and carries that node's `topology`. It comes with `crab update` of crab-wrappers. See
+  [Variants with `extends`](https://hlc-crab.readthedocs.io/en/latest/using/presets/#variants-with-extends).
+- `examples/leonardo/gpu/`: the Blink all-to-all and allgather on GPU memory, one rank per GPU, for
+  `leonardo_gpu`.
+
 ## [1.3.0] - 2026-11-02
 
 ### Added
