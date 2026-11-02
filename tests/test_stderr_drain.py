@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from crab.core.execution.settings import LauncherSpec
+from crab.core.process import manager as process_manager
 from crab.core.process.manager import end_job, run_job, wait_timed
 
 DIRECT = LauncherSpec("direct", (), "", (), ())
@@ -62,6 +63,24 @@ def test_an_app_that_writes_a_megabyte_to_stderr_finishes_and_keeps_all_of_it(
     out, err = job.output
     assert out == b"ok\n"
     assert len(err) == 1024 * KIB
+
+
+def test_only_the_last_of_a_huge_stderr_is_kept_and_the_cut_is_logged(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(process_manager, "STDERR_KEEP_BYTES", 100 * KIB)
+    job = _job(
+        tmp_path,
+        f"import sys; sys.stderr.write('a' * {500 * KIB} + 'b' * {50 * KIB}); print('ok')",
+    )
+    logger = MagicMock()
+    run_job(job, DIRECT, logger)
+
+    assert not wait_timed(job, timeout_sec=10.0, logger=logger)
+
+    assert job.output is not None
+    assert job.output[1] == b"a" * (50 * KIB) + b"b" * (50 * KIB)
+    assert any("stderr" in str(call) for call in logger.warning.call_args_list)
 
 
 def test_a_stopped_app_keeps_the_stderr_it_wrote_before_the_stop(tmp_path: Path) -> None:
