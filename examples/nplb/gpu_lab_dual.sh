@@ -61,7 +61,7 @@ lab_finish() {
 # wrapped run touches the file GPU_LAB_ALLOC_FLAG when it starts: no file means no allocation was
 # made. Nothing of other users is touched.
 lab_alloc() {
-    local step=$1 flagdir flag errfile rc list names=() args
+    local step=$1 flagdir flag errfile rc list names=() args salloc_bin
     shift
     ALLOC_RC=0
     if [[ -n ${SLURM_JOB_ID:-} || ${GPU_LAB_ALLOC:-1} == 0 || ${GPU_LAB_IN_ALLOC:-} == 1 ]]; then
@@ -86,9 +86,18 @@ lab_alloc() {
         list=$(IFS=,; echo "${names[*]}")
         args+=("--nodelist=$list")
     fi
-    env GPU_LAB_IN_ALLOC=1 GPU_LAB_ALLOC_FLAG="$flag" "${SALLOC:-salloc}" "${args[@]}" -- \
-        bash "$HERE/gpu_lab.sh" "$step" "$@" 2>"$errfile"
-    rc=$?
+    # A missing salloc is reported here, not by env: some env versions add a hint line after
+    # their own error, and the screen shows the last stderr line.
+    salloc_bin=${SALLOC:-salloc}
+    if command -v "$salloc_bin" >/dev/null 2>&1; then
+        env GPU_LAB_IN_ALLOC=1 GPU_LAB_ALLOC_FLAG="$flag" "$salloc_bin" "${args[@]}" -- \
+            bash "$HERE/gpu_lab.sh" "$step" "$@" 2>"$errfile"
+        rc=$?
+    else
+        # The name comes first: a long path is cut at the end by the screen limit.
+        echo "gpu_lab: ${salloc_bin##*/} not found or not executable ($salloc_bin)" >"$errfile"
+        rc=127
+    fi
     if [[ -e $flag ]]; then
         cat "$errfile" >&2
         rm -rf "$flagdir"
