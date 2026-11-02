@@ -282,7 +282,7 @@ def test_the_ppn4_a2a_shim_is_exactly_this(tmp_path: Path) -> None:
     launched = _launch(tmp_path, A2A, "ppn4_alone", "0")
     assert launched.shim == [
         "#!/bin/bash",
-        "# CRAB: each rank of app 0 uses its own NIC from the app's nics list.",
+        "# CRAB: each rank of app 0 uses its own NIC from the app's lists.",
         "nics=(mlx5_0:1 mlx5_2:1 mlx5_4:1 mlx5_8:1)",
         "r=${OMPI_COMM_WORLD_LOCAL_RANK:-${MPI_LOCALRANKID:-${PMI_LOCAL_RANK:-"
         "${PALS_LOCAL_RANKID:-}}}}",
