@@ -35,6 +35,8 @@ class base:
     # with.
     cpu_list: tuple[int, ...] | None = None
     shared_cores = False
+    # Size recorded in the CSV when the app's args have no `-msgsize` (a program with a default size sets it).
+    default_msg_size: int = 0
 
     @property
     def app_env(self) -> dict[str, str]:

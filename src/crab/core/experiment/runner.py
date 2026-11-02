@@ -6,6 +6,7 @@ from dataclasses import asdict
 from typing import Any
 
 from crab.core.config_checks import parse_bool
+from crab.core.data.msg_size import msg_size_of
 from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
 from crab.core.execution.bind_resolve import RESOLVER_VERSION
@@ -255,16 +256,7 @@ class ExperimentRunner:
         # 3. Initialize Data Containers
         for app in self.apps:
             if app.collect_flag:
-                # Parse msg_size if present in args (for logging)
-                msg_size = 0
-                tokens = str(app.args).split()
-                if "-msgsize" in tokens:
-                    try:
-                        msg_size = int(tokens[tokens.index("-msgsize") + 1])
-                    except (ValueError, IndexError):
-                        pass
-
-                app.msg_size = msg_size
+                app.msg_size = msg_size_of(app.args, app.default_msg_size)
                 self.data_containers.extend(setup_containers(app))
 
     def _check_nodes(self, placed: Placement, keys: list[str], configs: list[Any]) -> None:
