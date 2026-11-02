@@ -4,11 +4,18 @@ import os
 import shutil
 from collections.abc import Callable
 
-from .base import BenchmarkRecipe, BuildResult
+from .base import BenchmarkRecipe, BuildManifest, BuildParameter, BuildResult
 
 # Upstream builds with CMake and puts every executable in <build>/bin, named after its source file.
 _BUILD_SUBDIR = "build"
 _PROBE_BINARY = "pingpong_b"
+_GPU_CHOICES = ["auto", "off", "cuda", "hip"]
+_GPU_DEFAULT = "auto"
+# What to tell the user when an explicit cuda/hip backend fails at configure.
+_GPU_TOOLKIT_HINTS = {
+    "cuda": "a module that provides the CUDA toolkit",
+    "hip": "a module that provides ROCm/HIP",
+}
 
 
 class BlinkRecipe(BenchmarkRecipe):
@@ -19,6 +26,20 @@ class BlinkRecipe(BenchmarkRecipe):
     @property
     def benchmark_id(self) -> str:
         return "blink"
+
+    @property
+    def build_manifest(self) -> BuildManifest:
+        return BuildManifest(
+            requires_modules=True,
+            parameters=[
+                BuildParameter(
+                    name="gpu",
+                    description="GPU backend (auto uses CUDA or HIP when found, else CPU only)",
+                    choices=list(_GPU_CHOICES),
+                    default=_GPU_DEFAULT,
+                )
+            ],
+        )
 
     def check_dependencies(self, env: dict[str, str]) -> tuple[bool, str]:
         if not shutil.which("cmake", path=env.get("PATH")):
@@ -34,6 +55,14 @@ class BlinkRecipe(BenchmarkRecipe):
         env: dict[str, str],
         log_callback: Callable[[str, str], None] | None = None,
     ) -> tuple[bool, BuildResult | None, str]:
+        gpu = params.get("gpu", _GPU_DEFAULT).lower()
+        if gpu not in _GPU_CHOICES:
+            return (
+                False,
+                None,
+                f"Unknown gpu setting '{gpu}'. Use one of: {', '.join(_GPU_CHOICES)}.",
+            )
+
         repo_url = "https://github.com/HLC-Lab/blink.git"
         if not self.run_command_streamed(
             ["git", "clone", repo_url, target_dir],
@@ -55,11 +84,19 @@ class BlinkRecipe(BenchmarkRecipe):
             build_dir,
             "-DCMAKE_BUILD_TYPE=Release",
             "-DBLINK_TESTS=OFF",
+            f"-DBLINK_GPU={gpu.upper()}",
         ]
         build_env = {**env, "CC": "mpicc", "CXX": "mpicxx"}
         if not self.run_command_streamed(
             configure_cmd, target_dir, "Configuring with CMake...", build_env, log_callback
         ):
+            if gpu in _GPU_TOOLKIT_HINTS:
+                return (
+                    False,
+                    None,
+                    f"CMake configure failed with gpu = {gpu}: load {_GPU_TOOLKIT_HINTS[gpu]}, "
+                    "or set gpu to auto or off.",
+                )
             return False, None, "CMake configure failed."
 
         if not self.run_command_streamed(
@@ -73,7 +110,13 @@ class BlinkRecipe(BenchmarkRecipe):
 
         bin_dir = os.path.join(build_dir, "bin")
         if os.path.exists(os.path.join(bin_dir, _PROBE_BINARY)):
-            return True, BuildResult(binary_path=bin_dir), "Blink suite built successfully."
+            # An explicit cuda/hip is a hard CMake error, but auto silently builds CPU-only when
+            # no toolkit is found: the recorded value is the request, not the backend found.
+            return (
+                True,
+                BuildResult(binary_path=bin_dir, metadata={"gpu": gpu}),
+                "Blink suite built successfully.",
+            )
 
         return False, None, "Compilation finished, but executables were missing from build/bin/."
 

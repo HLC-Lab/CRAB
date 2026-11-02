@@ -23,8 +23,9 @@ Start on your laptop, then run one application on a cluster, then co-run applica
 | 5 | [`leonardo/scale/`](leonardo/scale/README.md) | The same studies on 64 and 256 nodes. | A large Slurm cluster. Template. |
 | 6 | [`blink-congestion-analysis/`](blink-congestion-analysis/README.md) | Two large congestion studies and a plotting script, from a research campaign. | A Slurm cluster, 8 to 16 nodes. Template. |
 | 7 | [`placement/`](placement/README.md) | Pin each rank to a GPU, the NIC nearest to it and a core, without naming a device, so the same file runs on different clusters; with its control. | A GPU cluster whose preset has a `topology`. Template. |
+| 8 | [`leonardo/gpu/`](leonardo/gpu/README.md) | Blink all-to-all and allgather on GPU memory, one rank per GPU, two nodes. | A GPU cluster, preset `leonardo_gpu` on Leonardo. Template. |
 
-[`leonardo/`](leonardo/README.md) describes the three Leonardo folders together.
+[`leonardo/`](leonardo/README.md) describes the four Leonardo folders together.
 
 A ready-to-run example needs nothing but CRAB, Blink and the preset named in its README. A
 template is a complete, valid config tuned to one machine. Copy it, then change the keys listed
@@ -89,8 +90,8 @@ crab validate -p <your preset> examples/leonardo/congestion/noise_heatmap.json
 
 It prints `ok: <file>` and one line for each warning, and exits with 1 and a message when
 something is wrong. With `-p`, it also checks the config against the preset: the scheduler, the
-launcher and the number of hosts. Every config in this folder passes it. One example gives
-warnings under its own preset, and its README explains them.
+launcher and the number of hosts. Every config in this folder passes it. Some examples give
+warnings under their own preset, and their READMEs explain them.
 
 ## Aggressors that burst
 

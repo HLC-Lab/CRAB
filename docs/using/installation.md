@@ -160,7 +160,7 @@ The wizard walks through:
     | Auto-detect | Looks for an existing build under `benchmarks/`, optionally doing a deep search of your home directory. For Blink it only finds a build that `crab setup` made (`benchmarks/blink/build/bin`). |
     | Manual path | You supply the absolute path to an existing executable/directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
     | Environment module | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
-    | Build from source | Asks for a module line (default `module load gcc openmpi`), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE), streaming the build log live. |
+    | Build from source | Asks for a module line (default `module load gcc openmpi`), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE or the `gpu` backend of Blink), streaming the build log live. |
 
 For a source build, the module line is run in a non-interactive `bash`, so it must work there. If
 CMake is a module on your cluster, add it to the line (for example
@@ -176,9 +176,31 @@ that benchmark without building anything.
 3. At "Select Configuration Strategy", type `4` (Download and compile from source layout).
 4. At "Enter necessary pre-build cluster module loads", press Enter to accept
    `module load gcc openmpi`, or type your own line (add CMake if it is a module).
-5. A build panel shows the steps (clone, configure with CMake, compile) with the last lines of the
+5. At "GPU backend (auto uses CUDA or HIP when found, else CPU only)", press Enter to accept `auto`, or type one of the four answers below.
+6. A build panel shows the steps (clone, configure with CMake, compile) with the last lines of the
    log. Blink is built under `benchmarks/blink/`.
-6. When it ends, the wizard saves the receipt `local/receipts/blink.json`.
+7. When it ends, the wizard saves the receipt `local/receipts/blink.json`.
+
+The GPU backend question comes after the module line. The answers mean:
+
+| Answer | What the build does |
+|--------|---------------------|
+| `auto` (default) | Builds GPU support only if CMake finds a CUDA or HIP toolkit, otherwise a CPU-only build. |
+| `off` | Builds for the CPU only, even if a toolkit is loaded. |
+| `cuda` | Builds with CUDA. If CMake finds no CUDA toolkit, the configure step fails. |
+| `hip` | Builds with HIP. If CMake finds no HIP toolkit, the configure step fails. |
+
+The default `auto` is right on a machine without a GPU toolkit. When `cuda` or `hip` fails, the
+message names the `gpu` setting and tells you to load a module that provides the toolkit, or to set
+`gpu` to `auto` or `off`. The receipt records the answer you gave, not the backend CMake found:
+with `auto`, it does not say whether the build has GPU support.
+
+!!! note "Blink with CUDA on Leonardo"
+    Checked on Leonardo, November 2026: after `module purge`, the module line
+    `module load gcc/12.2.0 openmpi/4.1.6--gcc--12.2.0-cuda-12.2 cuda/12.2 cmake/3.27.9` configures
+    and builds Blink with `gpu` set to `cuda`. CRAB's own virtual environment on that cluster also
+    needs `module load python`. To run the result, use the `leonardo_gpu` preset and the configs in
+    [`examples/leonardo/gpu/`](https://github.com/HLC-Lab/CRAB/tree/develop/examples/leonardo/gpu).
 
 If an earlier build failed, it left a `benchmarks/blink` folder behind. The wizard then asks
 "Found a leftover build at ... Remove it and start again?" Answer yes to remove the folder and
