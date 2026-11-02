@@ -33,6 +33,8 @@ class _FakePopen:
         self.pid = 4242
         self.stdout = MagicMock()
         self.stdout.readline.return_value = b""
+        self.stderr = MagicMock()
+        self.stderr.read1.return_value = b""
 
 
 @pytest.fixture(autouse=True)

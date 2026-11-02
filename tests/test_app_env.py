@@ -27,6 +27,8 @@ class _FakePopen:
         self.returncode = None
         self.stdout = MagicMock()
         self.stdout.readline.return_value = b""
+        self.stderr = MagicMock()
+        self.stderr.read1.return_value = b""
 
 
 class _Job:
