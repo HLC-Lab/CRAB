@@ -9,6 +9,7 @@ file) the network card names fit Leonardo. To use one on your own cluster, follo
 | [`baselines/`](baselines/README.md) | Each collective alone, for several message sizes. The reference for the other folders. | 8 |
 | [`congestion/`](congestion/README.md) | A victim next to an aggressor. Noise intensity, node placement, network cards and co-scheduling. | 2 to 8 |
 | [`scale/`](scale/README.md) | Collectives, timing patterns and interference on a large allocation. | 64 and 256 |
+| [`gpu/`](gpu/README.md) | Blink all-to-all and allgather on GPU memory, one rank per GPU. | 2 |
 
 ## What you need
 
@@ -18,6 +19,8 @@ file) the network card names fit Leonardo. To use one on your own cluster, follo
   `<YOUR_ACCOUNT>` in its `--account` option, and `crab run` refuses to start until you set it.
   Put your value in an override file in `local/presets/`, which Git ignores.
   [Your overrides](../../docs/using/presets.md#your-overrides) shows how.
+- The `gpu/` folder is run with `-p leonardo_gpu`. That preset extends `leonardo`, so the account
+  mark is set the same way.
 - For the large runs, an account that may use the nodes and the time. Check
   `crab nodes -p leonardo` first.
 
