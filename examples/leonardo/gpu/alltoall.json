@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "global_options": {
+    "name": "leonardo_gpu_alltoall",
+    "numnodes": "2",
+    "ppn": "4",
+    "minruns": "3",
+    "maxruns": "5",
+    "timeout": "600.0",
+    "outformat": "csv",
+    "walltime": "00:30:00",
+    "sbatch_directives": [
+      "--exclusive"
+    ]
+  },
+  "experiments": {
+    "a2a_gpu_1MiB": {
+      "description": "All-to-all between GPUs with 1 MiB messages, four ranks per node, each rank bound to its own GPU, the NIC nearest to it and a core on the same NUMA domain.",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "args": "-msgsize 1048576 -iter 50 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "bind": {
+            "gpu": "per-rank",
+            "nic": "nearest",
+            "cores": "nearest"
+          }
+        }
+      }
+    },
+    "a2a_gpu_16MiB": {
+      "description": "All-to-all between GPUs with 16 MiB messages, four ranks per node, each rank bound to its own GPU, the NIC nearest to it and a core on the same NUMA domain.",
+      "apps": {
+        "0": {
+          "path": "blink/alltoall/alltoall_comm_only.py",
+          "args": "-msgsize 16777216 -iter 20 -warmup 5 -grty 1 -gpu",
+          "collect": true,
+          "bind": {
+            "gpu": "per-rank",
+            "nic": "nearest",
+            "cores": "nearest"
+          }
+        }
+      }
+    }
+  }
+}

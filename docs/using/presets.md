@@ -164,6 +164,13 @@ yours, with the lines above changed. Select it like any other preset: `-p leonar
 shared presets use the same mechanism for the choices a cluster offers, such as a GPU and a CPU
 partition. An entry that patches a shared name cannot also set `extends`.
 
+`leonardo_gpu` is a real example. It extends `leonardo`, asks for the four GPUs of a Leonardo
+booster node and carries that node's `topology`. Its `sbatch` item is `--gres=gpu:4,tmpfs:0`: a
+keyed `sbatch` item replaces the item with the same `--name=` of the preset it extends, so the item
+repeats `tmpfs:0` to keep it. The configs in
+[`examples/leonardo/gpu/`](https://github.com/HLC-Lab/CRAB/tree/develop/examples/leonardo/gpu)
+run with it. It comes with `crab update`, which updates the wrappers that hold the shared presets.
+
 ### A clean slate under a new name
 
 A patch can add and change, but it cannot remove a shared flag or a shared header line. To drop

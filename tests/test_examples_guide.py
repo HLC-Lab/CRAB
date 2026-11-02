@@ -27,6 +27,7 @@ _PRESET_OF_SET = {
     "local": "local",
     "cluster_di": "cluster_di",
     "leonardo": "leonardo",
+    "leonardo/gpu": "leonardo_gpu",
 }
 
 # Warnings an example may give, with the reason its README states. Everything else must be silent.
@@ -35,6 +36,16 @@ _EXPECTED_WARNINGS: dict[str, list[str]] = {
         f"experiment {exp}: launcher flag '--cpu-bind=verbose,socket' is replaced by CRAB's core binding "
         "for apps that share nodes or set cpus"
         for exp in ("01_victim_alone", "02_corun_separate_nics", "03_corun_same_nic")
+    ],
+    "examples/leonardo/gpu/alltoall.json": [
+        f"experiment {exp}: launcher flag '--cpu-bind=verbose,socket' is replaced by CRAB's core binding "
+        "for apps that share nodes or set cpus"
+        for exp in ("a2a_gpu_1MiB", "a2a_gpu_16MiB")
+    ],
+    "examples/leonardo/gpu/allgather.json": [
+        f"experiment {exp}: launcher flag '--cpu-bind=verbose,socket' is replaced by CRAB's core binding "
+        "for apps that share nodes or set cpus"
+        for exp in ("agtr_gpu_1MiB", "agtr_gpu_16MiB")
     ],
 }
 
@@ -125,7 +136,8 @@ def test_every_config_checks_clean_under_its_sets_preset(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rel = str(path.relative_to(REPO))
-    preset = _PRESET_OF_SET.get(path.relative_to(EXAMPLES).parts[0])
+    parts = path.relative_to(EXAMPLES).parts
+    preset = _PRESET_OF_SET.get("/".join(parts[:2])) or _PRESET_OF_SET.get(parts[0])
     if preset and WRAPPERS_PRESETS is None:
         pytest.skip(requires_wrappers_presets.kwargs["reason"])
     monkeypatch.setattr("os.cpu_count", lambda: 8)  # a small laptop; the local set must fit it

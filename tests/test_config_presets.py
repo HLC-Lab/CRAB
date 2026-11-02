@@ -29,6 +29,7 @@ _LAUNCH_LINES = {
     "lumi": "srun --export=ALL --nodelist n1 -n 1 -N 1 ./app",
     "haicgu": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "leonardo": "srun --export=ALL --nodelist n1 --cpu-bind=verbose,socket -n 1 -N 1 ./app",
+    "leonardo_gpu": "srun --export=ALL --nodelist n1 --cpu-bind=verbose,socket -n 1 -N 1 ./app",
     "cresco8": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "nanjing": "srun --export=ALL --nodelist n1 --cpu-bind=socket -n 1 -N 1 ./app",
     "slimfly": (

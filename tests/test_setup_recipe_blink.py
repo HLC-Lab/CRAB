@@ -25,7 +25,7 @@ def _make_exe(path: Path) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
-def _build(recipe, target, env=None, fail_at=None):
+def _build(recipe, target, env=None, fail_at=None, params=None):
     """Run download_and_build with run_command_streamed patched; fail_at is a call index."""
     calls = []
 
@@ -34,7 +34,9 @@ def _build(recipe, target, env=None, fail_at=None):
         return fail_at != len(calls) - 1
 
     with patch.object(recipe, "run_command_streamed", side_effect=fake_run):
-        result = recipe.download_and_build(str(target), {}, env if env is not None else {}, None)
+        result = recipe.download_and_build(
+            str(target), params if params is not None else {}, env if env is not None else {}, None
+        )
     return result, calls
 
 
@@ -110,6 +112,121 @@ def test_failed_step_stops_and_names_the_step(tmp_path):
         assert result is None
         assert word in msg.lower()
         assert len(calls) == index + 1
+
+
+GPU_CHOICES = ["auto", "off", "cuda", "hip"]
+
+
+def test_manifest_declares_one_gpu_parameter():
+    manifest = BlinkRecipe().build_manifest
+
+    assert manifest.requires_modules is True
+    assert len(manifest.parameters) == 1
+    param = manifest.parameters[0]
+    assert param.name == "gpu"
+    assert param.choices == GPU_CHOICES
+    assert param.default == "auto"
+
+
+def test_configure_passes_gpu_auto_by_default(tmp_path):
+    target = tmp_path / "blink"
+
+    _, calls = _build(BlinkRecipe(), target, params={})
+
+    configure = calls[1][0]
+    assert "-DBLINK_GPU=AUTO" in configure
+    assert "-DBLINK_TESTS=OFF" in configure
+    assert "-DCMAKE_BUILD_TYPE=Release" in configure
+
+
+@pytest.mark.parametrize(
+    ("value", "upper"), [("off", "OFF"), ("cuda", "CUDA"), ("hip", "HIP"), ("auto", "AUTO")]
+)
+def test_configure_passes_the_chosen_gpu_backend(tmp_path, value, upper):
+    target = tmp_path / "blink"
+
+    _, calls = _build(BlinkRecipe(), target, params={"gpu": value})
+
+    configure = calls[1][0]
+    assert f"-DBLINK_GPU={upper}" in configure
+    assert len([arg for arg in configure if arg.startswith("-DBLINK_GPU=")]) == 1
+
+
+@pytest.mark.parametrize("value", GPU_CHOICES)
+def test_metadata_records_the_gpu_setting(tmp_path, value):
+    target = tmp_path / "blink"
+    _make_exe(target / "build" / "bin" / "pingpong_b")
+
+    (ok, result, _msg), _ = _build(BlinkRecipe(), target, params={"gpu": value})
+
+    assert ok is True
+    assert result is not None
+    assert result.metadata == {"gpu": value}
+
+
+def test_metadata_defaults_to_auto(tmp_path):
+    target = tmp_path / "blink"
+    _make_exe(target / "build" / "bin" / "pingpong_b")
+
+    (ok, result, _msg), _ = _build(BlinkRecipe(), target, params={})
+
+    assert ok is True
+    assert result is not None
+    assert result.metadata == {"gpu": "auto"}
+
+
+@pytest.mark.parametrize(("value", "label"), [("cuda", "cuda"), ("hip", "hip")])
+def test_cuda_configure_failure_names_the_gpu_setting(tmp_path, value, label):
+    target = tmp_path / "blink"
+
+    (ok, result, msg), calls = _build(BlinkRecipe(), target, fail_at=1, params={"gpu": value})
+
+    assert ok is False
+    assert result is None
+    lowered = msg.lower()
+    assert "gpu" in lowered
+    assert label in lowered
+    assert "configure" in lowered
+    assert "module" in lowered
+    assert "toolkit" in lowered or "rocm" in lowered
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("value", ["auto", "off"])
+def test_auto_and_off_configure_failure_keeps_the_plain_message(tmp_path, value):
+    target = tmp_path / "blink"
+
+    (ok, result, msg), _ = _build(BlinkRecipe(), target, fail_at=1, params={"gpu": value})
+
+    assert ok is False
+    assert result is None
+    assert "toolkit" not in msg.lower()
+    assert "configure" in msg.lower()
+
+
+def test_an_unknown_gpu_value_is_refused_before_cloning(tmp_path):
+    target = tmp_path / "blink"
+
+    (ok, result, msg), calls = _build(BlinkRecipe(), target, params={"gpu": "rocm"})
+
+    assert ok is False
+    assert result is None
+    assert "gpu" in msg.lower()
+    for choice in GPU_CHOICES:
+        assert choice in msg
+    assert calls == []
+
+
+def test_an_uppercase_gpu_value_is_accepted_as_lowercase(tmp_path):
+    target = tmp_path / "blink"
+    _make_exe(target / "build" / "bin" / "pingpong_b")
+
+    (ok, result, _msg), calls = _build(BlinkRecipe(), target, params={"gpu": "CUDA"})
+
+    assert ok is True
+    assert result is not None
+    assert result.metadata == {"gpu": "cuda"}
+    assert "-DBLINK_GPU=CUDA" in calls[1][0]
 
 
 def test_verify_existing_needs_executable_pingpong_b(tmp_path):
