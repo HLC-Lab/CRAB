@@ -963,6 +963,15 @@ def test_a_missing_salloc_is_the_same_one_fail_line(dw):
     assert "no-such-salloc" in result.stdout
 
 
+def test_a_missing_salloc_in_a_path_with_a_space_still_names_the_file(dw):
+    # GNU env adds a "use -[v]S" hint line after its own error when the command has a space.
+    result = dw.run(**salloc_env(dw, SALLOC=str(dw.dir / "no such dir" / "no-such-salloc")))
+    assert result.returncode == 1
+    assert re.search(r"\(salloc exit 127\)$", result.stdout, re.M)
+    assert "no-such-salloc" in result.stdout
+    assert "-[v]S" not in result.stdout
+
+
 # ---- 9. the screen ----------------------------------------------------------------------------
 
 
