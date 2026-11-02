@@ -15,6 +15,8 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-02
+
 ### Added
 
 - **Placement by intent.** An app's `bind` key says which cores, NICs and GPUs its ranks get
