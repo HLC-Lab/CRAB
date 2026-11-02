@@ -38,6 +38,10 @@ STOP_GRACE_SECONDS = 10.0
 # gives up on the rest.
 KILL_WAIT_SECONDS = 5.0
 
+# How much of an app's stderr is kept in memory: the last bytes, which is where a failure is
+# reported from. The whole stream still goes to the bindings log under mpirun and srun.
+STDERR_KEEP_BYTES = 4 * 1024 * 1024
+
 # Live app processes by pid, with the label their log lines use. A worker that is terminated
 # stops whatever is left here (stop_all_registered) even when the stop that SIGTERM interrupted
 # was the only thing that knew about them.
@@ -454,12 +458,22 @@ def run_job(
 
     # stderr needs its own reader: a pipe holds about 64 KiB, and an app that writes more
     # (chatty UCX or CUDA) blocks on its write until CRAB reads, which would be after it exits.
-    job.raw_stderr_buffer = []
+    job.raw_stderr_buffer = bytearray()
 
     def _stderr_reader():
+        cut = False
         try:
             for chunk in iter(lambda: process.stderr.read1(65536), b""):
-                job.raw_stderr_buffer.append(chunk)
+                buf = job.raw_stderr_buffer
+                buf += chunk
+                if len(buf) > STDERR_KEEP_BYTES:
+                    del buf[: len(buf) - STDERR_KEEP_BYTES]
+                    if not cut:
+                        cut = True
+                        logger.warning(
+                            f"App {job.id_num}: stderr is over {STDERR_KEEP_BYTES} bytes, "
+                            "keeping only the last of it"
+                        )
         except (ValueError, OSError):
             pass  # Process killed or pipe closed
 
@@ -478,7 +492,7 @@ def _collect_stderr(job) -> bytes:
     thread = getattr(job, "_stderr_thread", None)
     if thread:
         thread.join(timeout=2.0)
-        return b"".join(job.raw_stderr_buffer)
+        return bytes(job.raw_stderr_buffer)
     try:
         return job.process.stderr.read()
     except OSError:
