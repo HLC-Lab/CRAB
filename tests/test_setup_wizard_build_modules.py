@@ -31,7 +31,7 @@ def _run_source_build(monkeypatch, answer):
     saved = {}
     prompts = []
     captured = []
-    queue = ["4", answer]
+    queue = ["4", answer, ""]  # choice, module line, gpu (blank takes the default, auto)
 
     def fake_ask(prompt, *args, default=..., choices=None, **kwargs):
         prompts.append((prompt, default))
