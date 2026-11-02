@@ -256,7 +256,7 @@ class ExperimentRunner:
         # 3. Initialize Data Containers
         for app in self.apps:
             if app.collect_flag:
-                app.msg_size = msg_size_of(app.args)
+                app.msg_size = msg_size_of(app.args, app.default_msg_size)
                 self.data_containers.extend(setup_containers(app))
 
     def _check_nodes(self, placed: Placement, keys: list[str], configs: list[Any]) -> None:

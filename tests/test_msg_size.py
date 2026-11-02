@@ -4,6 +4,7 @@ the runner applied inline before the function existed (the CSV `msg_size` column
 from __future__ import annotations
 
 import pytest
+
 from crab.core.data.msg_size import msg_size_of
 
 
@@ -27,3 +28,21 @@ from crab.core.data.msg_size import msg_size_of
 )
 def test_msg_size_of(args: str, expected: int) -> None:
     assert msg_size_of(args) == expected
+
+
+@pytest.mark.parametrize(
+    ("args", "default", "expected"),
+    [
+        ("-iter 50", 1024, 1024),  # flag absent: the default is used
+        ("", 1024, 1024),
+        ("-msgsize 8", 1024, 8),  # an explicit flag beats the default
+        ("-msgsize abc", 1024, 0),  # unparsable stays 0, not the default
+        ("-msgsize", 1024, 0),  # flag last, no value: 0, not the default
+    ],
+)
+def test_msg_size_of_default(args: str, default: int, expected: int) -> None:
+    assert msg_size_of(args, default=default) == expected
+
+
+def test_msg_size_of_without_default_is_zero_when_absent() -> None:
+    assert msg_size_of("-iter 50") == 0
