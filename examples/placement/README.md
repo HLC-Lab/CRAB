@@ -49,6 +49,10 @@ partition or a GPU request: those belong to the cluster, so they live in its pre
 
    Blink must be built with GPU support (set up with `crab setup`, or give the app a `binary`).
 
+   `crab validate -p mycluster-gpu examples/placement/pinned_gpu.json` checks the config against the preset
+   without submitting. If the preset passes `--cpu-bind` to `srun`, it prints a warning that the flag is
+   replaced by CRAB's core binding. That is expected: `"cores": "nearest"` binds each rank itself.
+
 ## What to look at afterwards
 
 - `crab_run.json` in each run folder has `placements`: for every local rank the GPU, NIC, core and the
