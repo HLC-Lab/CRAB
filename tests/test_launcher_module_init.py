@@ -49,6 +49,7 @@ def _generate_script(
         patch.object(manager.subprocess, "Popen") as popen,
     ):
         popen.return_value.stdout.readline.return_value = b""
+        popen.return_value.stderr.read1.return_value = b""
         manager.run_job(
             job,
             LauncherSpec("direct", (), "", (), ()),

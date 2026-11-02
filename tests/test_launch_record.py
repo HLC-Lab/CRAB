@@ -39,6 +39,8 @@ class _FakePopen:
         self.returncode = None
         self.stdout = MagicMock()
         self.stdout.readline.return_value = b""
+        self.stderr = MagicMock()
+        self.stderr.read1.return_value = b""
 
 
 class _Job:
@@ -256,7 +258,8 @@ def test_the_tee_keeps_stderr_on_the_app_pipe_and_fills_the_bindings_log(
         assert job.process.wait(timeout=20) == 0
         job._stream_thread.join(timeout=5)
         assert b"".join(job.raw_stdout_buffer) == b"out\n"
-        assert job.process.stderr.read() == b"bind\n"
+        job._stderr_thread.join(timeout=5)
+        assert b"".join(job.raw_stderr_buffer) == b"bind\n"
         job.process.stderr.close()
 
     # tee may finish just after bash exits; wait for it through the file content
@@ -285,7 +288,8 @@ def test_srun_stderr_reaches_the_app_pipe_and_the_bindings_log(tmp_path: Path) -
     assert job.process.wait(timeout=20) == 0
     job._stream_thread.join(timeout=5)
     assert b"".join(job.raw_stdout_buffer) == b"out\n"
-    assert job.process.stderr.read() == b"mask\n"
+    job._stderr_thread.join(timeout=5)
+    assert b"".join(job.raw_stderr_buffer) == b"mask\n"
     job.process.stderr.close()
 
     log = exp_dir / "bindings_app_0.log"

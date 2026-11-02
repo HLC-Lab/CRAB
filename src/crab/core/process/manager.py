@@ -452,7 +452,37 @@ def run_job(
     job._stream_thread = threading.Thread(target=_silent_reader, daemon=True)
     job._stream_thread.start()
 
+    # stderr needs its own reader: a pipe holds about 64 KiB, and an app that writes more
+    # (chatty UCX or CUDA) blocks on its write until CRAB reads, which would be after it exits.
+    job.raw_stderr_buffer = []
+
+    def _stderr_reader():
+        try:
+            for chunk in iter(lambda: process.stderr.read1(65536), b""):
+                job.raw_stderr_buffer.append(chunk)
+        except (ValueError, OSError):
+            pass  # Process killed or pipe closed
+
+    job._stderr_thread = threading.Thread(target=_stderr_reader, daemon=True)
+    job._stderr_thread.start()
+
     logger.info(f"Launched App {job.id_num}  PID={process.pid}  nodes={job.node_list}")
+
+
+def _collect_stderr(job) -> bytes:
+    """The app's stderr: the reader thread's buffer once the thread has drained the pipe.
+
+    A job without a reader (not started by `run_job`) has its pipe read directly; that only
+    returns once the write end is closed, so call it after the process has exited.
+    """
+    thread = getattr(job, "_stderr_thread", None)
+    if thread:
+        thread.join(timeout=2.0)
+        return b"".join(job.raw_stderr_buffer)
+    try:
+        return job.process.stderr.read()
+    except OSError:
+        return b""
 
 
 def end_job(job, logger: CrabLogger) -> None:
@@ -475,14 +505,8 @@ def end_job(job, logger: CrabLogger) -> None:
         job.set_output(b"".join(getattr(job, "raw_stdout_buffer", [])), b"")
         return
 
-    # Reconstruct stdout from the buffer; read any remaining stderr directly
-    # (no concurrent reader on stderr, so this is safe and returns immediately
-    # once the write-end is closed by the killed process group).
     out = b"".join(getattr(job, "raw_stdout_buffer", []))
-    try:
-        err = job.process.stderr.read()
-    except OSError:
-        err = b""
+    err = _collect_stderr(job)
 
     # Reap the zombie so the OS can release the PID.
     job.process.wait()
@@ -505,10 +529,7 @@ def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:
         job._stream_thread.join(timeout=2.0)
 
     out = b"".join(getattr(job, "raw_stdout_buffer", []))
-    try:
-        err = job.process.stderr.read()
-    except OSError:
-        err = b""
+    err = _collect_stderr(job)
 
     job.set_output(out, err)
     return False
