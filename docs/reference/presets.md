@@ -128,8 +128,9 @@ A Slurm preset and a local one, from the shared presets (shortened):
 `topology` describes the hardware of one node type: which GPUs and NIC ports it has, which NUMA
 domain each sits in and which NIC is nearest to which GPU. It is plain data. Write it by hand from
 the cluster's documentation, or paste the block a probe printed; both use this schema. CRAB checks
-the block when the preset loads and stores it in the job's `execution.json`. No setting reads it
-yet.
+the block when the preset loads and stores it in the job's `execution.json`. An app's
+[`bind`](configuration.md#placement-by-intent-bind) reads it to choose GPUs, NICs and cores. The node check
+before the first run of such an experiment, and `crab probe --check`, compare a node with it.
 
 ```json
 "topology": {

@@ -319,7 +319,20 @@ def _place(
         for i, (key, cfg) in enumerate(zip(keys, configs, strict=True))
     ]
     directives = [global_opts.get("sbatch_directives"), global_opts.get("system_sbatch")]
-    bound = apply_binds(keys, configs, envs, ppns, nodes, set(reuse), literal, settings, directives)
+    chain_head = {i: reuse.get(i, i) for i in range(len(keys))}
+    bound = apply_binds(
+        keys,
+        configs,
+        envs,
+        ppns,
+        nodes,
+        chain_head,
+        literal,
+        tuple(gpus),
+        tuple(nics),
+        settings,
+        directives,
+    )
     for i, applied in enumerate(bound):
         if applied is not None:
             nics[i] = applied.nics if applied.nics is not None else nics[i]

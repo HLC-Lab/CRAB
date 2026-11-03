@@ -8,9 +8,9 @@ unlike a literal `cpus`, which is sorted) and one NIC per rank.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 from crab.core.execution.bind import Bind, parse_bind
 from crab.core.execution.bind_resolve import RankPlacement, resolve
@@ -28,6 +28,47 @@ class AppBind:
     gpus: tuple[int, ...] | None
     warnings: tuple[str, ...]
     ranks: tuple[RankPlacement, ...] = ()
+
+
+class _Held(NamedTuple):
+    """What an earlier app holds: its config key, chain group (the head's index), nodes, cores, GPUs, NICs.
+
+    `exclusive` is `bind.nic.exclusive` of an app that picks its NICs with `bind`.
+    """
+
+    app: str
+    group: int
+    nodes: frozenset[str]
+    cores: frozenset[int]
+    gpus: frozenset[int]
+    nics: frozenset[str]
+    exclusive: bool
+
+
+def _refuse_shared_nics(
+    held: Sequence[_Held],
+    group: int,
+    nodes: Sequence[str],
+    my_nics: frozenset[str],
+    exclusive: bool,
+    where: str,
+) -> None:
+    """Refuse a NIC that an exclusive app holds, or that an exclusive app would take from another app."""
+    for h in held:
+        common = h.nics & my_nics
+        if h.group == group or not (h.nodes & set(nodes)) or not common:
+            continue
+        device = sorted(common)[0]
+        if h.exclusive:
+            raise ValueError(
+                f"{where}: NIC {device} is held exclusively by app {h.app} "
+                "(bind.nic exclusive) on the same node"
+            )
+        if exclusive:
+            raise ValueError(
+                f"{where}: bind.nic exclusive: NIC {device} is also used by app {h.app} "
+                "on the same node"
+            )
 
 
 def _refuse_conflicts(
@@ -61,57 +102,52 @@ def _refuse_slurm_gpu_binding(bind: Bind, directives: Sequence[Any], where: str)
         )
 
 
-def _gpu_overlap_warnings(
-    where: str,
-    nodes: frozenset[str],
-    gpus: frozenset[int],
-    held_gpus: Sequence[tuple[str, frozenset[str], frozenset[int]]],
-) -> tuple[str, ...]:
-    """One sentence per earlier app on a shared node that holds some of the GPUs this app was given."""
-    sentences = []
-    for other, other_nodes, other_gpus in held_gpus:
-        common = gpus & other_gpus
-        if common and nodes & other_nodes:
-            listed = ", ".join(str(g) for g in sorted(common))
-            sentences.append(f"{where}: GPU {listed} of the node are also bound by app {other}")
-    return tuple(sentences)
-
-
 def apply_binds(
     keys: Sequence[str],
     configs: Sequence[Mapping[str, Any]],
     envs: Sequence[Mapping[str, str]],
     ppns: Sequence[int],
     nodes: Sequence[Sequence[str]],
-    chained: Collection[int],
+    chain_head: Mapping[int, int],
     literal_cpus: Sequence[tuple[int, ...] | None],
+    literal_gpus: Sequence[tuple[int, ...] | None],
+    literal_nics: Sequence[tuple[str, ...] | None],
     settings: ExecutionSettings,
     directives: Sequence[Any] = (),
 ) -> list[AppBind | None]:
     """One entry per app: None when it has no `bind` (or one that asks for nothing).
 
-    `chained` holds the indexes of apps that start after another and run on its cores;
-    `literal_cpus` is each app's parsed `cpus`, so apps are placed after the cores earlier apps
-    on the same nodes already hold; `directives` are the raw sbatch directive sources.
+    `chain_head` maps each app's index to the index of the head of its chain: an app that starts
+    after another runs on the nodes of its head and shares that chain's group, and a head maps to
+    itself. An app is placed after the cores and the GPUs held by apps of other groups on the same
+    nodes. `literal_cpus` and `literal_gpus` are each app's parsed `cpus` and `gpus`, which the app
+    holds when it has no `bind` on that axis; an app's `bind.gpu: per-rank` GPUs are held too, while
+    `shared` and `all` hold none. `literal_nics` are each app's parsed `nics`: an app that names NICs
+    (by `bind.nic` or `nics`) cannot use a NIC an earlier `bind.nic.exclusive` app of another group
+    holds on the same node, and an `exclusive` app cannot take one such an app uses. An app that
+    names no NIC is not checked. `directives` are the raw sbatch directive sources.
 
     Raises:
         ValueError: an invalid `bind`, a `bind` and a literal key on the same axis, a `bind` on an
             app without a topology in the preset, or a request the topology cannot meet.
     """
     applied: list[AppBind | None] = []
-    held: list[tuple[frozenset[str], frozenset[int]]] = []
-    held_gpus: list[tuple[str, frozenset[str], frozenset[int]]] = []
+    held: list[_Held] = []
     for i, key in enumerate(keys):
         where = f"app {key}"
+        group = chain_head[i]
+        chained = group != i
         cores: frozenset[int] = frozenset(literal_cpus[i] or ())
+        gpus_held: frozenset[int] = frozenset(literal_gpus[i] or ())
+        nics_held: frozenset[str] = frozenset(literal_nics[i] or ())
+        nic_exclusive = False
         result: AppBind | None = None
-        per_rank_gpus: frozenset[int] = frozenset()
         if "bind" in configs[i]:
             bind = parse_bind(configs[i]["bind"], where)
             if bind != Bind():
                 _refuse_conflicts(bind, configs[i], envs[i], where, settings)
                 _refuse_slurm_gpu_binding(bind, directives, where)
-                if i in chained and bind.cores == "nearest":
+                if chained and bind.cores == "nearest":
                     raise ValueError(
                         f"{where}: bind.cores cannot be set on an app that starts after another; "
                         "it runs on the cores of the app before it"
@@ -121,8 +157,15 @@ def apply_binds(
                         f"{where}: bind needs a topology in the preset, and this preset has none "
                         "(crab probe prints one for a node)"
                     )
-                taken = frozenset().union(*(c for n, c in held if n & set(nodes[i])))
-                placed = resolve(bind, settings.topology, ppns[i], taken, where)
+                taken = frozenset().union(
+                    *(h.cores for h in held if h.group != group and h.nodes & set(nodes[i]))
+                )
+                taken_gpus = frozenset().union(
+                    *(h.gpus for h in held if h.group != group and h.nodes & set(nodes[i]))
+                )
+                placed = resolve(
+                    bind, settings.topology, ppns[i], taken, where, taken_gpus=taken_gpus
+                )
                 cpus = tuple(r.cores[0] for r in placed.ranks) if bind.cores == "nearest" else None
                 nics = (
                     tuple(",".join(r.nics) for r in placed.ranks)
@@ -134,18 +177,16 @@ def apply_binds(
                     if bind.gpu in ("per-rank", "shared")
                     else None
                 )
-                warnings = placed.warnings
                 if bind.gpu == "per-rank" and gpus is not None:
-                    per_rank_gpus = frozenset(gpus)
-                    if i not in chained:  # it starts after another app, so it never runs beside it
-                        warnings += _gpu_overlap_warnings(
-                            where, frozenset(nodes[i]), per_rank_gpus, held_gpus
-                        )
-                result = AppBind(cpus, nics, gpus, warnings, placed.ranks)
+                    gpus_held = frozenset(gpus)
+                result = AppBind(cpus, nics, gpus, placed.warnings, placed.ranks)
                 cores = placed.cores_used or cores
+                if bind.nic.pick != "default":
+                    nics_held = frozenset(dev for r in placed.ranks for dev in r.nics)
+                    nic_exclusive = bind.nic.exclusive
+        _refuse_shared_nics(held, group, nodes[i], nics_held, nic_exclusive, where)
         applied.append(result)
-        if i not in chained:
-            held.append((frozenset(nodes[i]), cores))
-            if per_rank_gpus:
-                held_gpus.append((key, frozenset(nodes[i]), per_rank_gpus))
+        held.append(
+            _Held(key, group, frozenset(nodes[i]), cores, gpus_held, nics_held, nic_exclusive)
+        )
     return applied

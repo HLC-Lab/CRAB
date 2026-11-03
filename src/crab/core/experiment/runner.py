@@ -160,6 +160,8 @@ class ExperimentRunner:
                 tuple(self.apps[i].nics or ()),
                 tuple(self.apps[i].gpus or ()),
                 tuple(self.apps[i].cpu_list or ()),
+                key=keys[i],
+                ppn=self.apps[i].ppn,
             )
             for i, _ in flagged
         ]

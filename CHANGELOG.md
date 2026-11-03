@@ -15,8 +15,33 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **`crab probe` warns when it probably describes a login node, or when `nvidia-smi` sees other GPUs
+  than sysfs.** It still exits 0 and prints the block; the warnings appear only when it reads the live
+  node, not with `--sysfs` or `--node-file`.
+
+### Changed
+
+- **The message of a failed Blink build with a `gpu` setting of `cuda` or `hip` no longer says the
+  toolkit is the cause.** It now names the toolkit as one possible cause and points at CMake's output.
+- **The node check names the app and the local rank that need a NIC port it finds wrong.** Before, the
+  message gave only the port and its state; now it ends with, for example, `needed by app 0 local rank 2`.
+- **Apps that bind `gpu: "per-rank"` and run at the same time get different GPUs of the node.** Before,
+  each such app started at GPU 0. Now an app skips the GPUs the earlier apps hold, and the run stops
+  before it is submitted when too few are free; use `"gpu": "shared"` to put apps on the same GPUs on
+  purpose. Breaking: a config whose co-running per-rank apps need more GPUs than a node has now fails. See
+  [ADR-044](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-044-co-running-apps-get-disjoint-devices/).
+- **`bind.nic` `exclusive` also keeps other apps on the same node off the NIC.** Before, it only
+  refused two ranks of one app sharing a NIC. Now a NIC held by an `exclusive` app, or one an
+  `exclusive` app would take from another app, stops the run before it is submitted. Apps that name
+  no NIC are not checked.
+
 ### Fixed
 
+- **With no GPU bound, `cores: "nearest"` follows the NIC of a `tag` or `spread` pick.** Each rank takes
+  a core in the NUMA domain of its NIC. When that domain has no free core, the rank takes a core of
+  another domain and the resolved placement carries a warning that names the NIC.
 - **An app's output that is not valid UTF-8 no longer crashes the run.** CRAB decodes an app's
   standard output and standard error with replacement characters. Before, a run ended with a
   `UnicodeDecodeError` when an app printed other bytes, or when the 4 MiB cap on standard error cut
