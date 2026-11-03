@@ -35,9 +35,15 @@ FACTS = {"nics": {"nic0:1": "0000:01:00.0"}, "gpus": ["0000:02:00.0"], "numa": {
 
 
 def answer(
-    host: str, problems: list[str] | None = None, facts: dict[str, Any] | None = None
+    host: str,
+    problems: list[str] | None = None,
+    facts: dict[str, Any] | None = None,
+    notes: list[str] | None = None,
 ) -> str:
-    return json.dumps({"host": host, "problems": problems or [], "facts": facts or FACTS})
+    doc: dict[str, Any] = {"host": host, "problems": problems or [], "facts": facts or FACTS}
+    if notes is not None:
+        doc["notes"] = notes
+    return json.dumps(doc)
 
 
 class FakeLauncher:
@@ -201,7 +207,7 @@ def test_setup_runs_the_node_check_for_a_bind_app_and_passes(
 ) -> None:
     seen: list[Any] = []
 
-    def fake(topology: Any, devices: Any, spec: Any, spec_dir: str) -> list[str]:
+    def fake(topology: Any, devices: Any, spec: Any, spec_dir: str, **kwargs: Any) -> list[str]:
         seen.append((devices, spec.kind, spec_dir))
         return []
 
@@ -219,7 +225,10 @@ def test_setup_stops_with_the_per_node_report_when_a_node_is_off(
 ) -> None:
     monkeypatch.setattr(
         "crab.core.experiment.runner.run_node_check",
-        lambda *args: ["n0: nic1:1 is not active (1: DOWN)", "n1: no answer from the node check"],
+        lambda *args, **kwargs: [
+            "n0: nic1:1 is not active (1: DOWN)",
+            "n1: no answer from the node check",
+        ],
     )
     runner = make_runner(tmp_path, {"gpu": "per-rank", "nic": "nearest"})
     with pytest.raises(RuntimeError) as error:
@@ -234,7 +243,7 @@ def test_setup_stops_with_the_per_node_report_when_a_node_is_off(
 def test_an_experiment_without_bind_is_not_checked(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def boom(*args: Any) -> list[str]:
+    def boom(*args: Any, **kwargs: Any) -> list[str]:
         raise AssertionError("the node check must not run")
 
     monkeypatch.setattr("crab.core.experiment.runner.run_node_check", boom)
@@ -250,7 +259,7 @@ def placements(tmp_path: Path) -> dict[str, Any]:
 def test_setup_records_the_resolved_placement_and_the_node_check_outcome(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("crab.core.experiment.runner.run_node_check", lambda *args: [])
+    monkeypatch.setattr("crab.core.experiment.runner.run_node_check", lambda *args, **kwargs: [])
     bind = {"gpu": "per-rank", "nic": "nearest", "cores": "nearest"}
     make_runner(tmp_path, bind).setup()
     record = placements(tmp_path)["exp"]
@@ -291,7 +300,7 @@ def test_a_failed_node_check_still_leaves_its_problems_in_the_record(
 ) -> None:
     monkeypatch.setattr(
         "crab.core.experiment.runner.run_node_check",
-        lambda *args: ["n0: nic0:1 is not on this node"],
+        lambda *args, **kwargs: ["n0: nic0:1 is not on this node"],
     )
     with pytest.raises(RuntimeError, match="node check failed before the first run"):
         make_runner(tmp_path, {"nic": "spread"}).setup()
@@ -365,3 +374,97 @@ def test_a_single_attempt_is_not_retried(tmp_path: Path) -> None:
         SHAPES["four-gpus-four-nics"](), apps("n1", "n2"), SRUN, str(tmp_path), fake, attempts=1
     )
     assert fake.calls == 1 and "after 1 attempt(s)" in problems[0]
+
+
+NOTE = "visible GPUs not verified: nvidia-smi gave no count"
+
+
+def test_notes_from_the_nodes_fill_the_sink_by_host_and_are_logged_but_are_not_problems(
+    tmp_path: Path,
+) -> None:
+    fake = FakeLauncher(answer("n2", notes=[NOTE]) + "\n" + answer("n1", notes=["a", "b"]) + "\n")
+    sink: list[str] = []
+    topology = SHAPES["four-gpus-four-nics"]()
+    problems = run_node_check(
+        topology, apps("n1", "n2"), SRUN, str(tmp_path), fake, notes=sink, sleep=fake.pauses.append
+    )
+    assert problems == []
+    assert sink == ["n1: a", "n1: b", f"n2: {NOTE}"]
+    log = (tmp_path / "node_check.log").read_text()
+    assert log.endswith(f"=== notes\nn1: a\nn1: b\nn2: {NOTE}\n")
+
+
+def test_without_notes_the_sink_stays_empty_and_the_log_has_no_notes_section(
+    tmp_path: Path,
+) -> None:
+    fake = FakeLauncher(answer("n1") + "\n" + answer("n2", notes=[]) + "\n")
+    sink: list[str] = []
+    topology = SHAPES["four-gpus-four-nics"]()
+    problems = run_node_check(
+        topology, apps("n1", "n2"), SRUN, str(tmp_path), fake, notes=sink, sleep=fake.pauses.append
+    )
+    assert problems == [] and sink == []
+    assert "=== notes" not in (tmp_path / "node_check.log").read_text()
+
+
+def test_notes_are_optional_for_the_caller(tmp_path: Path) -> None:
+    fake = FakeLauncher(answer("n1", notes=[NOTE]) + "\n" + answer("n2") + "\n")
+    assert check(fake, tmp=tmp_path) == []
+    assert "=== notes\nn1: " + NOTE in (tmp_path / "node_check.log").read_text()
+
+
+def test_setup_records_the_notes_of_the_node_check_and_does_not_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake(
+        topology: Any, devices: Any, spec: Any, spec_dir: str, notes: list[str] | None = None
+    ) -> list[str]:
+        assert notes is not None
+        notes.append(f"n0: {NOTE}")
+        return []
+
+    monkeypatch.setattr("crab.core.experiment.runner.run_node_check", fake)
+    runner = make_runner(tmp_path, {"gpu": "per-rank"})
+    runner.setup()
+    assert placements(tmp_path)["exp"]["node_check"] == {
+        "nodes": ["n0"],
+        "passed": True,
+        "problems": [],
+        "notes": [f"n0: {NOTE}"],
+    }
+    runner.log.info.assert_any_call(f"Node check note: n0: {NOTE}")
+    runner.log.info.assert_any_call("Node check passed on 1 node(s)")
+
+
+def test_setup_records_no_notes_key_when_the_check_has_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("crab.core.experiment.runner.run_node_check", lambda *args, **kwargs: [])
+    make_runner(tmp_path, {"gpu": "per-rank"}).setup()
+    assert "notes" not in placements(tmp_path)["exp"]["node_check"]
+
+
+@pytest.mark.parametrize("raw", [None, 5, "ab"])
+def test_a_notes_value_that_is_not_a_list_is_ignored(tmp_path: Path, raw: Any) -> None:
+    doc = json.loads(answer("n2"))
+    doc["notes"] = raw
+    fake = FakeLauncher(answer("n1") + "\n" + json.dumps(doc) + "\n")
+    sink: list[str] = []
+    topology = SHAPES["four-gpus-four-nics"]()
+    problems = run_node_check(
+        topology, apps("n1", "n2"), SRUN, str(tmp_path), fake, notes=sink, sleep=fake.pauses.append
+    )
+    assert problems == [] and sink == []
+    assert "=== notes" not in (tmp_path / "node_check.log").read_text()
+
+
+def test_a_note_that_is_not_text_is_kept_as_its_text(tmp_path: Path) -> None:
+    doc = json.loads(answer("n1"))
+    doc["notes"] = [3]
+    fake = FakeLauncher(json.dumps(doc) + "\n" + answer("n2") + "\n")
+    sink: list[str] = []
+    topology = SHAPES["four-gpus-four-nics"]()
+    run_node_check(
+        topology, apps("n1", "n2"), SRUN, str(tmp_path), fake, notes=sink, sleep=fake.pauses.append
+    )
+    assert sink == ["n1: 3"]

@@ -53,6 +53,17 @@ def visible_gpu_count() -> int | None:
     return count_gpu_lines(done.stdout) if done.returncode == 0 else None
 
 
+def notes_for(used: Used, visible_gpus: int | None) -> list[str]:
+    """What the node could not check, as sentences: not a problem, only worth recording.
+
+    A node that sets GPUs but could not count the visible ones (no `nvidia-smi`, a timeout, a failing
+    exit) skips the visible-GPU check silently otherwise; on AMD or Intel nodes that is normal.
+    """
+    if used.gpus and visible_gpus is None:
+        return ["visible GPUs not verified: nvidia-smi gave no count"]
+    return []
+
+
 def allowed_cores(proc: Path = Path("/proc")) -> frozenset[int] | None:
     """The cores this process may run on (`Cpus_allowed_list`), None when it cannot be read."""
     try:
@@ -173,7 +184,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """`python -m crab.core.execution.node_check SPEC.json`: one JSON line about this node.
 
     The spec is `{"topology": <topology block>, "nics": [...], "gpus": bool, "cores": [...]}`; the line is
-    `{"host", "problems", "facts"}`.
+    `{"host", "problems", "facts"}`, plus `"notes"` when the node could not check something.
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) != 1:
@@ -195,6 +206,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             "problems": problems,
             "facts": node_facts(node),
         }
+        notes = notes_for(used, gpus)
+        if notes:
+            line["notes"] = notes
     except Exception as error:  # a node that cannot even check must say so, not stay silent
         crash = f"the node check crashed: {type(error).__name__}: {error}"
         line = {"host": socket.gethostname(), "problems": [crash], "facts": None}

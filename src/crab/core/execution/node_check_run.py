@@ -84,6 +84,8 @@ def run_node_check(
     attempts: int = CHECK_ATTEMPTS,
     pause: float = RETRY_PAUSE_S,
     sleep: Callable[[float], None] = time.sleep,
+    *,
+    notes: list[str] | None = None,
 ) -> list[str]:
     """Check every node the apps use; return what is wrong, one sentence each (empty when all is well).
 
@@ -92,6 +94,9 @@ def run_node_check(
     (a first step on a fresh allocation can miss a node); only the last attempt counts. Under the
     `direct` launcher there is one process, so only this host answers and not hearing from the
     other nodes is not a problem.
+
+    What a node could not check (its optional `notes`) is not a problem: when `notes` is a list, the
+    host-prefixed notes, sorted by host, are appended to it and written to the log after the attempts.
     """
     nodes = tuple(dict.fromkeys(node for app in apps for node in app.nodes))
     used = used_by(apps)
@@ -127,6 +132,14 @@ def run_node_check(
         if complete or attempt == attempts:
             break
         sleep(pause)
+    found: list[str] = []
+    for host, doc in sorted(answers.items()):
+        raw = doc.get("notes")  # a note must never fail the run: take a list, ignore anything else
+        found += [f"{host}: {note}" for note in (raw if isinstance(raw, list) else [])]
+    if found:
+        log.append("=== notes\n" + "\n".join(found) + "\n")
+    if notes is not None:
+        notes.extend(found)
     try:
         with open(os.path.join(spec_dir, LOG_NAME), "w") as handle:
             handle.write("\n".join(log))

@@ -163,8 +163,16 @@ class ExperimentRunner:
             )
             for i, _ in flagged
         ]
-        problems = run_node_check(topology, devices, self.launchers[flagged[0][0]], self.exp_dir)
+        notes: list[str] = []
+        problems = run_node_check(
+            topology, devices, self.launchers[flagged[0][0]], self.exp_dir, notes=notes
+        )
+        for note in notes:
+            self.log.info(f"Node check note: {note}")
         nodes = sorted({node for device in devices for node in device.nodes})
+        node_check: dict[str, Any] = {"nodes": nodes, "passed": not problems, "problems": problems}
+        if notes:
+            node_check["notes"] = notes
         record_placement(
             os.path.dirname(self.exp_dir),
             self.name,
@@ -180,7 +188,7 @@ class ExperimentRunner:
                     }
                     for i, applied in flagged
                 },
-                "node_check": {"nodes": nodes, "passed": not problems, "problems": problems},
+                "node_check": node_check,
             },
         )
         if problems:

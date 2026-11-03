@@ -174,7 +174,8 @@ The fields:
   one entry per local rank (`gpu`, `nics`, `cores`, the GPU to NIC distance `dist`, and `nic_share`, the number of
   ranks that use its first NIC) and the resolver's `warnings`. `node_check` says which nodes were checked against
   the topology before the first run and whether they `passed`; a failed check is recorded with its `problems`
-  before the experiment stops.
+  before the experiment stops. When a node could not verify something (for example, `nvidia-smi` gave no GPU
+  count), `notes` lists it; a note does not fail the check.
 - `allocations` records, for each experiment, how its nodes were laid out: the allocation `mode`
   and each app's nodes under `apps`, keyed by the same app keys as `launches`. A random layout
   also has `seed`, the seed given in the config or the one CRAB drew. With `partitions`, the
