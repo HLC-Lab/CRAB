@@ -10,6 +10,7 @@ Nothing here starts a process or sends a signal: `Popen` is a fake that records 
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import shlex
@@ -73,6 +74,7 @@ class _FakePopen:
         self.returncode = None
         self.stdout = MagicMock()
         self.stdout.readline.return_value = b""
+        self.stderr = io.BytesIO(b"")  # run_job drains stderr in a thread through read1
 
 
 @pytest.fixture(autouse=True)
