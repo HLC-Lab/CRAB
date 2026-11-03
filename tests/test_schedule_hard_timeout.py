@@ -51,9 +51,9 @@ def _run_with_hanging_app(
 ) -> tuple[str, int, list[tuple[int, int]], dict[str, int]]:
     """Run one hanging app until the experiment timeout; return the registry status, the app's
     pid, every (pgid, signal) the recorder saw, and the app's group as it was at the first signal."""
-    from crab.core.process import manager
+    from crab.core.process import stop
 
-    monkeypatch.setattr(manager, "STOP_GRACE_SECONDS", 1.0)
+    monkeypatch.setattr(stop, "STOP_GRACE_SECONDS", 1.0)
     pid_file = tmp_path / "app.pid"
     app_path = tmp_path / "hang.py"
     _wrapper(app_path, f"sh -c {script.format(pid=pid_file)!r}")

@@ -16,6 +16,7 @@ import pytest
 
 from crab.core.experiment.runner import ExperimentRunner
 from crab.core.process import manager as process_manager
+from crab.core.process import stop
 from settings_fixtures import slurm_settings
 
 _WRAPPER = (
@@ -40,10 +41,10 @@ class _FakePopen:
 @pytest.fixture(autouse=True)
 def _forget_registered_processes() -> Iterator[None]:
     """run_job registers every process it starts; drop them so later tests see a clean registry."""
-    before = set(process_manager._registry)
+    before = set(stop._registry)
     yield
-    for pid in set(process_manager._registry) - before:
-        process_manager._registry.pop(pid, None)
+    for pid in set(stop._registry) - before:
+        stop._registry.pop(pid, None)
 
 
 def _runner(

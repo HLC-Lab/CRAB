@@ -19,6 +19,7 @@ import pytest
 from crab.core.execution.launcher import dialect
 from crab.core.execution.settings import LauncherSpec
 from crab.core.process import manager as process_manager
+from crab.core.process import stop
 from crab.core.provenance import record_launch
 
 # The `layout` fixture replaces subprocess.Popen for the whole module; shim runs need the real one.
@@ -68,10 +69,10 @@ class _Job:
 @pytest.fixture(autouse=True)
 def _forget_registered_processes() -> Iterator[None]:
     """run_job registers every process it starts; drop them so later tests see a clean registry."""
-    before = set(process_manager._registry)
+    before = set(stop._registry)
     yield
-    for pid in set(process_manager._registry) - before:
-        process_manager._registry.pop(pid, None)
+    for pid in set(stop._registry) - before:
+        stop._registry.pop(pid, None)
 
 
 @pytest.fixture

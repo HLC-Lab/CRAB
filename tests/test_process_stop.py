@@ -20,8 +20,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from crab.core.process import manager
-from crab.core.process.manager import STOP_GRACE_SECONDS, stop_processes
+from crab.core.process import manager, stop
+from crab.core.process.stop import STOP_GRACE_SECONDS, stop_processes
 from signal_guard import REAL_KILLPG
 
 IGNORE_TERM = "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)"
@@ -220,12 +220,12 @@ def test_two_wrappers_with_stubborn_children_share_one_grace(tmp_path: Path) -> 
 @NEEDS_PROC
 def test_group_members_tells_a_live_group_from_a_gone_one() -> None:
     with _children(["sleep", "30"]) as (proc,):
-        assert manager._group_members(proc.pid) is True
+        assert stop._group_members(proc.pid) is True
 
         REAL_KILLPG(proc.pid, signal.SIGKILL)
         proc.wait()
 
-        assert manager._group_members(proc.pid) is False
+        assert stop._group_members(proc.pid) is False
 
 
 @NEEDS_PROC
@@ -233,12 +233,12 @@ def test_group_members_does_not_count_a_zombie() -> None:
     with _children(["true"]) as (proc,):
         _wait_until(lambda: _state(proc.pid) == "Z", "the child to become a zombie")
 
-        assert manager._group_members(proc.pid) is False
+        assert stop._group_members(proc.pid) is False
 
 
 @pytest.mark.parametrize("pgid", [1, 0, -5, os.getpgrp()])
 def test_group_members_refuses_a_group_that_could_hit_more_than_the_app(pgid: int) -> None:
-    assert manager._group_members(pgid) is False
+    assert stop._group_members(pgid) is False
 
 
 @pytest.fixture
@@ -262,7 +262,7 @@ def test_a_pid_that_could_hit_more_than_the_app_is_never_signalled_and_is_warned
     recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch, pid: int
 ) -> None:
     # The group "has members", so only the guard in front of the signals refuses it.
-    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
+    monkeypatch.setattr(stop, "_group_members", lambda pgid: True)
     fake = MagicMock()
     fake.pid = pid
     fake.poll.return_value = None
@@ -279,7 +279,7 @@ def test_a_pid_that_could_hit_more_than_the_app_is_never_signalled_and_is_warned
 def test_a_normal_pid_gets_sigterm_then_sigkill_when_it_stays(
     recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
+    monkeypatch.setattr(stop, "_group_members", lambda pgid: True)
     fake = MagicMock()
     fake.pid = 424242
     fake.poll.return_value = None  # never exits
@@ -298,7 +298,7 @@ def _raising_killpg(monkeypatch: pytest.MonkeyPatch, error: type[OSError]) -> li
         raise error
 
     monkeypatch.setattr(os, "killpg", killpg)
-    monkeypatch.setattr(manager, "_group_members", lambda pgid: False)
+    monkeypatch.setattr(stop, "_group_members", lambda pgid: False)
     return calls
 
 
@@ -336,8 +336,8 @@ def test_a_group_that_is_not_ours_is_warned_about_and_not_signalled_again(
 def test_a_process_that_survives_sigkill_is_warned_about_and_the_stop_returns(
     recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
-    monkeypatch.setattr(manager, "KILL_WAIT_SECONDS", 0.3)
+    monkeypatch.setattr(stop, "_group_members", lambda pgid: True)
+    monkeypatch.setattr(stop, "KILL_WAIT_SECONDS", 0.3)
     fake = _fake_process(424242)
     fake.wait.side_effect = subprocess.TimeoutExpired("app", 0.3)
     logger = MagicMock()
@@ -355,8 +355,8 @@ def test_a_process_that_survives_sigkill_is_warned_about_and_the_stop_returns(
 def test_survivors_of_sigkill_share_one_bounded_wait(
     recorder: list[tuple[int, int]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(manager, "_group_members", lambda pgid: True)
-    monkeypatch.setattr(manager, "KILL_WAIT_SECONDS", 0.3)
+    monkeypatch.setattr(stop, "_group_members", lambda pgid: True)
+    monkeypatch.setattr(stop, "KILL_WAIT_SECONDS", 0.3)
 
     def stubborn(pid: int) -> MagicMock:
         fake = _fake_process(pid)
@@ -388,12 +388,12 @@ def test_a_refused_process_does_not_keep_a_normal_one_from_being_stopped(
             raise PermissionError
 
     monkeypatch.setattr(os, "killpg", killpg)
-    monkeypatch.setattr(manager, "_group_members", lambda pgid: False)
-    monkeypatch.setattr(manager, "_registry", {})
+    monkeypatch.setattr(stop, "_group_members", lambda pgid: False)
+    monkeypatch.setattr(stop, "_registry", {})
     refused, normal = _fake_process(424242), _fake_process(424243)
     for fake in (refused, normal):
         fake.returncode = None
-        manager.register_process(fake, "App")
+        stop.register_process(fake, "App")
     logger = MagicMock()
 
     stop_processes([refused, normal], logger, grace=0.2)
@@ -401,8 +401,8 @@ def test_a_refused_process_does_not_keep_a_normal_one_from_being_stopped(
     assert calls == [(424242, signal.SIGTERM), (424243, signal.SIGTERM)]
     normal.wait.assert_called_once()
     refused.wait.assert_not_called()
-    assert 424243 not in manager._registry
-    assert 424242 in manager._registry
+    assert 424243 not in stop._registry
+    assert 424242 in stop._registry
     assert logger.warning.call_count == 1
     assert "PID 424242: not signalled" in _logged(logger)
 
@@ -443,36 +443,36 @@ def test_end_job_returns_at_once_when_the_stop_left_the_process_running(
 
 
 def test_stop_processes_empties_the_registry() -> None:
-    from crab.core.process import manager
+    from crab.core.process import stop
 
     with _children(["sleep", "30"]) as (proc,):
-        manager.register_process(proc, "App 0")
-        assert proc.pid in manager._registry
+        stop.register_process(proc, "App 0")
+        assert proc.pid in stop._registry
 
         stop_processes([proc], MagicMock(), grace=5)
 
-        assert proc.pid not in manager._registry
+        assert proc.pid not in stop._registry
 
 
 def test_stop_all_registered_stops_what_is_left_and_clears_the_registry() -> None:
-    from crab.core.process import manager, stop_all_registered
+    from crab.core.process import stop, stop_all_registered
 
     logger = MagicMock()
     with _children(["sleep", "30"], [sys.executable, "-c", IGNORE_TERM]) as (term, ignoring):
         time.sleep(0.5)
-        manager.register_process(term, "App 0")
-        manager.register_process(ignoring, "App 1")
+        stop.register_process(term, "App 0")
+        stop.register_process(ignoring, "App 1")
 
         stop_all_registered(logger, grace=0.5)
 
         assert term.returncode == -signal.SIGTERM
         assert ignoring.returncode == -signal.SIGKILL
-        assert manager._registry == {}
+        assert stop._registry == {}
     assert "App 1: still running after 0.5s, sending SIGKILL" in _logged(logger)
 
 
 def test_wait_timed_forgets_a_process_that_exited_by_itself() -> None:
-    from crab.core.process import manager, wait_timed
+    from crab.core.process import stop, wait_timed
 
     proc = subprocess.Popen(
         ["true"], start_new_session=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -481,8 +481,8 @@ def test_wait_timed_forgets_a_process_that_exited_by_itself() -> None:
     job.process = proc
     job._stream_thread = None
     job.raw_stdout_buffer = []
-    manager.register_process(proc, "App 0")
+    stop.register_process(proc, "App 0")
 
     assert wait_timed(job, 5, MagicMock()) is False
 
-    assert proc.pid not in manager._registry
+    assert proc.pid not in stop._registry

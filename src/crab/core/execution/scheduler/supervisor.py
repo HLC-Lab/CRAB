@@ -125,7 +125,7 @@ def _cancel_deadline() -> float:
     """Seconds from the forwarded SIGTERM to the SIGKILL of the worker's group."""
     # Imported here, not at the top: it pulls in about 125 modules, and the SIGTERM handler must
     # be installed before any heavy import.
-    from crab.core.process.manager import STOP_GRACE_SECONDS
+    from crab.core.process.stop import STOP_GRACE_SECONDS
 
     default = STOP_GRACE_SECONDS + WORKER_EXTRA_SECONDS
     try:

@@ -105,8 +105,8 @@ IGNORE_APP = "import signal, time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)
 # Shortens the grace and, when asked, removes every teardown but the worker's own safety net.
 GRACE_DRIVER = (
     "import sys\n"
-    "import crab.core.process.manager as manager\n"
-    "manager.STOP_GRACE_SECONDS = 3.0\n"
+    "import crab.core.process.stop as stop\n"
+    "stop.STOP_GRACE_SECONDS = 3.0\n"
     "if sys.argv[2] == 'no-teardown':\n"
     "    from crab.core.experiment.runner import ExperimentRunner\n"
     "    ExperimentRunner.teardown = lambda self: None\n"
