@@ -149,6 +149,18 @@ def test_to_json_writes_core_lists_as_runs() -> None:
             "topology.nics[0].tags: must be a list of strings.",
         ),
         (
+            broken(nics=[{"dev": "mlx5_0:1", "tags": [None]}]),
+            "topology.nics[0].tags[0]: must be a string, got None.",
+        ),
+        (
+            broken(nics=[{"dev": "mlx5_0:1", "tags": [3]}]),
+            "topology.nics[0].tags[0]: must be a string, got 3.",
+        ),
+        (
+            broken(nics=[{"dev": "mlx5_0:1", "tags": ["ok", None]}]),
+            "topology.nics[0].tags[1]: must be a string, got None.",
+        ),
+        (
             broken(nics=[{"dev": "mlx5_0:1", "rate_mbps": 0}]),
             "topology.nics[0].rate_mbps: must be a positive integer",
         ),
