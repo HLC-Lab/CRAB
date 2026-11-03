@@ -288,6 +288,10 @@ def run_job(
                 buf += chunk
                 if len(buf) > STDERR_KEEP_BYTES:
                     del buf[: len(buf) - STDERR_KEEP_BYTES]
+                    for _ in range(3):  # the cut must not leave half a character at the start
+                        if not buf or buf[0] & 0xC0 != 0x80:
+                            break
+                        del buf[0]
                     if not cut:
                         cut = True
                         logger.warning(
