@@ -233,6 +233,18 @@ For the control run, set `"nic": "default"`: nothing is set for the NIC and UCX 
 cores stay the same. [`examples/placement/`](https://github.com/HLC-Lab/CRAB/tree/develop/examples/placement)
 has the pair. The [reference](../reference/configuration.md#placement-by-intent-bind) lists every `bind` value.
 
+Apps that run at the same time on a node get different GPUs. Here two apps share the nodes (see
+[Shared nodes](../reference/configuration.md#shared-nodes)) and each binds `"gpu": "per-rank"` with two ranks
+per node, on a node with four GPUs:
+
+```json
+"0": { "path": "blink/alltoall/alltoall_comm_only.py", "ppn": 2, "bind": { "gpu": "per-rank" } },
+"1": { "path": "blink/allgather/allgather_comm_only.py", "ppn": 2, "bind": { "gpu": "per-rank" } }
+```
+
+App 0 gets GPUs 0 and 1 and app 1 gets GPUs 2 and 3. If the apps need more GPUs than the node has, the run
+stops before it is submitted. To put them on the same GPUs on purpose, set `"gpu": "shared"` on both.
+
 ## Choosing an allocation mode
 
 | Mode | `allocation.mode` | Use when |

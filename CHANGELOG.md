@@ -17,6 +17,11 @@ its notes live in the tag and the GitHub release.
 
 ### Changed
 
+- **Apps that bind `gpu: "per-rank"` and run at the same time get different GPUs of the node.** Before,
+  each such app started at GPU 0. Now an app skips the GPUs the earlier apps hold, and the run stops
+  before it is submitted when too few are free; use `"gpu": "shared"` to put apps on the same GPUs on
+  purpose. Breaking: a config whose co-running per-rank apps need more GPUs than a node has now fails. See
+  [ADR-044](https://hlc-crab.readthedocs.io/en/latest/dev/dashboard/decisions/adr-044-co-running-apps-get-disjoint-devices/).
 - **`bind.nic` `exclusive` also keeps other apps on the same node off the NIC.** Before, it only
   refused two ranks of one app sharing a NIC. Now a NIC held by an `exclusive` app, or one an
   `exclusive` app would take from another app, stops the run before it is submitted. Apps that name
