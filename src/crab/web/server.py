@@ -110,6 +110,7 @@ def create_app(
     from crab.web.api.experiments import router as experiments_router
     from crab.web.api.jobs import router as jobs_router
     from crab.web.api.jobs_report import router as jobs_report_router
+    from crab.web.api.jobs_submit import router as jobs_submit_router
     from crab.web.api.local import router as local_router
     from crab.web.api.remotes import router as remotes_router
     from crab.web.api.results import router as results_router
@@ -120,6 +121,7 @@ def create_app(
     app.include_router(wrappers_router)
     app.include_router(experiments_router)
     app.include_router(local_router)
+    app.include_router(jobs_submit_router)
     app.include_router(jobs_router)
     app.include_router(jobs_report_router)
     app.include_router(results_router)

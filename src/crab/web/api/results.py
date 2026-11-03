@@ -8,8 +8,8 @@ engine/CLI stays authoritative, the dashboard never guesses a path).
 
 Fetching a large result tree over SFTP can take a while, so it runs as a
 background task with its own accept/poll/pop tracker: the same shape as
-`api/jobs.py`'s async-submit tracker (`_submissions`/`_run_submission`/
-`submit_job`/`get_submission`), copied rather than shared (two small independent trackers, not a premature shared abstraction).
+the async-submit tracker (`_submissions` in `api/jobs.py`; `_run_submission`/
+`submit_job`/`get_submission` in `api/jobs_submit.py`), copied rather than shared (two small independent trackers, not a premature shared abstraction).
 """
 
 from __future__ import annotations
