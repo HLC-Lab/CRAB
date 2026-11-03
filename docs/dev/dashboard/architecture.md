@@ -27,7 +27,7 @@ crab web → uvicorn (127.0.0.1) → browser SPA        researcher's CRAB checko
 | `run.py` | `crab web` entry: uvicorn on localhost, opens the browser |
 | `settings.py` | `platformdirs` paths; env overrides `CRAB_WEB_CONFIG_DIR` / `CRAB_WEB_DATA_DIR` / `CRAB_WEB_LIBRARY_DIR` / `CRAB_WEB_PORT` |
 | `errors.py` | Error taxonomy; every API error is the stable envelope `{code, message, detail?}` |
-| `api/` | Routes only, no business logic: `remotes.py`, `bootstrap.py`, `wrappers.py`, `experiments.py`, `local.py`, `jobs.py`, `results.py` |
+| `api/` | Routes only, no business logic: `remotes.py`, `bootstrap.py`, `wrappers.py`, `experiments.py`, `local.py`, `jobs.py`, `jobs_report.py`, `results.py` |
 | `connections/` | `transport.py` (`Transport` ABC; `SSHTransport` via asyncssh, `LocalTransport` via subprocess), `manager.py` (one reused live connection per remote, liveness eviction) |
 | `remoteops/` | `crab_cli.py` (builds/runs `bash -lc "… crab <args> --json"`, parses JSON), `bootstrap.py` (guided CRAB install, for profiles without a `crab_command`) |
 | `store/` | `profiles.py` (`clusters.json`), `library.py` (experiment configs) — atomic writes, slug-validated ids |
