@@ -7,6 +7,7 @@ from the shape matrix; nothing here is tied to one machine.
 from __future__ import annotations
 
 import dataclasses
+import re
 from typing import Any
 
 import pytest
@@ -48,7 +49,7 @@ def place(
 
 def test_bind_gives_each_rank_a_nic_and_a_core_next_to_it_in_rank_order() -> None:
     placed = place([{"bind": {"gpu": "none", "cores": "nearest", "nic": "spread"}}])
-    assert placed.cpu_lists[0] == (0, 1, 2, 3)
+    assert placed.cpu_lists[0] == (0, 1, 8, 9)
     assert placed.nics[0] == ("nic0:1", "nic1:1", "nic2:1", "nic3:1")
 
 
@@ -269,52 +270,59 @@ def test_check_config_runs_the_bind_check_with_the_preset_topology() -> None:
 
 
 PER_RANK = {"bind": {"gpu": "per-rank"}}
+SHARED = {"bind": {"gpu": "shared"}}
 
 
-def test_apps_on_the_same_gpus_of_a_node_get_a_warning_and_keep_their_placement() -> None:
+def test_two_per_rank_apps_on_a_node_get_different_gpus() -> None:
     placed = place([PER_RANK, PER_RANK], ppn=2)
-    assert placed.gpus == [(0, 1), (0, 1)]
-    first, second = placed.binds
-    assert first is not None and second is not None
-    assert first.warnings == ()
-    assert second.warnings == ("app 1: GPU 0, 1 of the node are also bound by app 0",)
-    assert second.warnings[0] in placed.warnings
-
-
-def test_apps_on_different_nodes_do_not_share_gpus() -> None:
-    placed = place([PER_RANK, PER_RANK], nodes=[["h0"], ["h1"]], ppn=2)
-    assert placed.gpus == [(0, 1), (0, 1)]
-    assert [b.warnings for b in placed.binds if b is not None] == [(), ()]
-
-
-def test_a_chained_app_runs_after_its_head_so_it_shares_no_gpu_with_it() -> None:
-    placed = place([PER_RANK, {"start": "s0", **PER_RANK}], ppn=2)
-    assert placed.gpus == [(0, 1), (0, 1)]
-    assert [b.warnings for b in placed.binds if b is not None] == [(), ()]
-
-
-def test_explicit_gpu_sharing_is_not_warned_about_in_either_direction() -> None:
-    shared = {"bind": {"gpu": "shared"}}
-    for configs in ([PER_RANK, shared], [shared, PER_RANK], [shared, shared]):
-        placed = place(configs, ppn=2)
-        assert [b.warnings for b in placed.binds if b is not None] == [(), ()]
-
-
-def test_an_app_that_holds_no_gpu_leaves_the_next_app_unwarned() -> None:
-    holds_none = {"bind": {"gpu": "all", "cores": "nearest"}}
-    placed = place([holds_none, {"bind": {"gpu": "per-rank", "cores": "nearest"}}], ppn=2)
+    assert placed.gpus == [(0, 1), (2, 3)]
     assert not any("also bound" in w for w in placed.warnings)
 
 
-def test_the_gpu_warning_comes_after_the_resolvers_own_warnings_and_names_every_other_app() -> None:
-    body = {"bind": {"gpu": "per-rank", "cores": "nearest"}}
-    placed = place([body, body, body], ppn=2)
-    third = placed.binds[2]
-    assert third is not None
-    assert "no physical core list" in third.warnings[0]
-    assert third.warnings[1:] == (
-        "app 2: GPU 0, 1 of the node are also bound by app 0",
-        "app 2: GPU 0, 1 of the node are also bound by app 1",
-    )
-    first = placed.binds[0]
-    assert first is not None and not any("also bound" in w for w in first.warnings)
+def test_apps_on_different_nodes_both_start_at_gpu_zero() -> None:
+    placed = place([PER_RANK, PER_RANK], nodes=[["h0"], ["h1"]], ppn=2)
+    assert placed.gpus == [(0, 1), (0, 1)]
+
+
+def test_a_chained_app_reuses_its_heads_gpus() -> None:
+    placed = place([PER_RANK, {"start": "s0", **PER_RANK}], ppn=2)
+    assert placed.gpus == [(0, 1), (0, 1)]
+
+
+def test_a_chained_app_avoids_the_gpus_of_another_chain() -> None:
+    # app 1 is the head of its chain and holds none; app 0 runs beside it and holds 0 and 1
+    placed = place([PER_RANK, {"bind": {"gpu": "all"}}, {"start": "s1", **PER_RANK}], ppn=2)
+    assert placed.gpus[2] == (2, 3)
+    assert placed.gpus[1] is None
+    reuse = place([PER_RANK, PER_RANK, {"start": "s1", **PER_RANK}], ppn=2)
+    assert reuse.gpus == [(0, 1), (2, 3), (2, 3)]
+
+
+def test_shared_gpus_are_never_reserved() -> None:
+    assert place([SHARED, PER_RANK], ppn=2).gpus == [(0, 1), (0, 1)]
+    assert place([PER_RANK, SHARED], ppn=2).gpus == [(0, 1), (0, 1)]
+    assert place([SHARED, SHARED], ppn=2).gpus == [(0, 1), (0, 1)]
+
+
+def test_literal_gpus_of_an_earlier_app_are_avoided() -> None:
+    placed = place([{"gpus": [0, 1]}, PER_RANK], ppn=2)
+    assert placed.gpus == [(0, 1), (2, 3)]
+    # a literal `gpus` app after a per-rank app is not checked
+    assert place([PER_RANK, {"gpus": [0, 1]}], ppn=2).gpus == [(0, 1), (0, 1)]
+
+
+def test_too_few_free_gpus_stop_the_run_with_the_numbers() -> None:
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "app 2: bind.gpu per-rank needs 2 GPUs per node (ppn 2), "
+            "0 of the topology's 4 are free (4 held by other apps on the node)"
+        ),
+    ):
+        place([PER_RANK, PER_RANK, PER_RANK], ppn=2)
+
+
+def test_an_app_that_holds_no_gpu_leaves_the_next_app_its_gpus() -> None:
+    holds_none = {"bind": {"gpu": "all", "cores": "nearest"}}
+    placed = place([holds_none, {"bind": {"gpu": "per-rank", "cores": "nearest"}}], ppn=2)
+    assert placed.gpus[1] == (0, 1)

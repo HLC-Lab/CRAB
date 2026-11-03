@@ -89,19 +89,31 @@ def _gpu_order(topology: Topology, order: str) -> list[int]:
     ]
 
 
-def _assign_gpus(bind: Bind, topology: Topology, ppn: int, where: str) -> list[int | None]:
+def _assign_gpus(
+    bind: Bind, topology: Topology, ppn: int, where: str, taken_gpus: frozenset[int]
+) -> list[int | None]:
     if bind.gpu in ("none", "all"):
         return [None] * ppn
     count = len(topology.gpus)
     if count == 0:
         raise ValueError(f'{where}: bind.gpu "{bind.gpu}" needs GPUs, but the topology lists none.')
     order = _gpu_order(topology, bind.order)
-    if bind.gpu == "per-rank" and ppn > count:
+    if bind.gpu == "shared":
+        return [order[rank % count] for rank in range(ppn)]
+    free = [gpu for gpu in order if gpu not in taken_gpus]
+    if ppn > len(free):
+        held = len(taken_gpus & set(range(count)))
+        if held == 0:
+            raise ValueError(
+                f"{where}: bind.gpu per-rank needs {ppn} GPUs per node (ppn {ppn}), the topology has {count}; "
+                'lower ppn or use bind.gpu "shared".'
+            )
         raise ValueError(
-            f"{where}: bind.gpu per-rank needs {ppn} GPUs per node (ppn {ppn}), the topology has {count}; "
+            f"{where}: bind.gpu per-rank needs {ppn} GPUs per node (ppn {ppn}), "
+            f"{len(free)} of the topology's {count} are free ({held} held by other apps on the node); "
             'lower ppn or use bind.gpu "shared".'
         )
-    return [order[rank % count] for rank in range(ppn)]
+    return list(free[:ppn])
 
 
 def _domain_cores(topology: Topology, domain: int, siblings: bool) -> list[int]:
@@ -111,6 +123,23 @@ def _domain_cores(topology: Topology, domain: int, siblings: bool) -> list[int]:
     return [core for core in every if core not in physical] if siblings else physical
 
 
+def _first_free(
+    topology: Topology, domains: Sequence[int], smt: bool, used: set[int]
+) -> int | None:
+    """The first free core: physical cores of the domains in order, then (with `smt`) their siblings."""
+    passes = [False, True] if smt else [False]
+    return next(
+        (
+            c
+            for siblings in passes
+            for d in domains
+            for c in _domain_cores(topology, d, siblings)
+            if c not in used
+        ),
+        None,
+    )
+
+
 def _assign_cores(
     bind: Bind,
     topology: Topology,
@@ -118,7 +147,9 @@ def _assign_cores(
     taken: frozenset[int],
     where: str,
     warnings: list[str],
+    preferred: Sequence[tuple[int, str] | None] = (),
 ) -> list[tuple[int, ...]]:
+    """`preferred[rank]` is the (NUMA domain, NIC dev) a rank without a GPU domain tries first."""
     if bind.cores == "launcher":
         return [() for _ in gpus]
     if not topology.numa:
@@ -134,17 +165,17 @@ def _assign_cores(
     for rank, gpu in enumerate(gpus):
         fixed = _gpu_domain(topology, gpu)
         domains = [fixed] if fixed is not None else sorted(topology.numa)
-        passes = [False, True] if bind.smt else [False]
-        choice = next(
-            (
-                c
-                for siblings in passes
-                for d in domains
-                for c in _domain_cores(topology, d, siblings)
-                if c not in used
-            ),
-            None,
-        )
+        near = preferred[rank] if fixed is None and rank < len(preferred) else None
+        choice = None
+        if near is not None and near[0] in topology.numa:
+            choice = _first_free(topology, [near[0]], bind.smt, used)
+        if choice is None:
+            choice = _first_free(topology, domains, bind.smt, used)
+            if choice is not None and near is not None:
+                warnings.append(
+                    f"{where}: bind.cores nearest: local rank {rank} has no free core in NUMA domain "
+                    f"{near[0]} of its NIC {near[1]}; took a core of another domain"
+                )
         if choice is None:
             total = sum(
                 len(topology.numa[d]) if bind.smt else len(_domain_cores(topology, d, False))
@@ -267,17 +298,28 @@ def _assign_nics(
     return chosen
 
 
+def _cores_follow_nics(bind: Bind, gpus: Sequence[int | None]) -> bool:
+    """True when no GPU is bound and the NIC pick (tag, spread) does not depend on the core."""
+    return (
+        bind.cores == "nearest"
+        and all(gpu is None for gpu in gpus)
+        and bind.nic.pick in ("tag", "spread")
+    )
+
+
 def resolve(
     bind: Bind,
     topology: Topology,
     ppn: int,
     taken_cores: frozenset[int] = frozenset(),
     where: str = "app",
+    taken_gpus: frozenset[int] = frozenset(),
 ) -> Resolved:
     """The placement of each local rank 0..ppn-1 on one node.
 
     `taken_cores` are the cores earlier apps of the same co-run group hold, so apps are placed
-    disjointly in app order. `where` names the app in messages, e.g. `app 0`.
+    disjointly in app order. `where` names the app in messages, e.g. `app 0`. `taken_gpus` are the
+    GPUs those apps hold: `bind.gpu per-rank` skips them (`shared` and `all` ignore them).
 
     Raises:
         ValueError: the request cannot be met by this topology; the message gives the numbers.
@@ -285,9 +327,20 @@ def resolve(
     if ppn < 1:
         raise ValueError(f"{where}: ppn must be at least 1, got {ppn}.")
     warnings: list[str] = []
-    gpus = _assign_gpus(bind, topology, ppn, where)
-    cores = _assign_cores(bind, topology, gpus, taken_cores, where, warnings)
-    nics = _assign_nics(bind, topology, gpus, cores, where, warnings)
+    gpus = _assign_gpus(bind, topology, ppn, where, taken_gpus)
+    if _cores_follow_nics(bind, gpus):
+        # tag and spread do not read the cores, so the NICs come first and the cores follow them.
+        nics = _assign_nics(bind, topology, gpus, [()] * ppn, where, warnings)
+        preferred = [
+            (domain, group[0].dev)
+            if group and (domain := _nic_domain(topology, group[0])) is not None
+            else None
+            for group in nics
+        ]
+        cores = _assign_cores(bind, topology, gpus, taken_cores, where, warnings, preferred)
+    else:
+        cores = _assign_cores(bind, topology, gpus, taken_cores, where, warnings)
+        nics = _assign_nics(bind, topology, gpus, cores, where, warnings)
     first = [group[0].dev if group else None for group in nics]
     shares = {dev: first.count(dev) for dev in set(first) if dev is not None}
     if bind.nic.exclusive and any(count > 1 for count in shares.values()):

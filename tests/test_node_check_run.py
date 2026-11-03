@@ -227,7 +227,7 @@ def test_setup_runs_the_node_check_for_a_bind_app_and_passes(
     runner = make_runner(tmp_path, {"gpu": "per-rank", "nic": "nearest", "cores": "nearest"})
     runner.setup()
     ((devices, kind, spec_dir),) = seen
-    assert devices == [AppDevices(("n0",), ("nic0:1", "nic1:1"), (0, 1), (0, 1))]
+    assert devices == [AppDevices(("n0",), ("nic0:1", "nic1:1"), (0, 1), (0, 1), key="0", ppn=2)]
     assert kind == "srun" and spec_dir == runner.exp_dir
     runner.log.info.assert_any_call("Node check passed on 1 node(s)")
 

@@ -33,19 +33,36 @@ Runner = Callable[[list[str]], "subprocess.CompletedProcess[str]"]
 @dataclass(frozen=True)
 class AppDevices:
     """What one `bind` app relies on: its nodes, NIC entries (a rank may hold several, comma-joined),
-    GPU indexes and the cores it is bound to."""
+    GPU indexes and the cores it is bound to. `key` (its config key) and `ppn` name the app's local ranks
+    for the node check's messages; an app without them is still checked, only not named."""
 
     nodes: tuple[str, ...]
     nics: tuple[str, ...]
     gpus: tuple[int, ...]
     cores: tuple[int, ...]
+    key: str = ""
+    ppn: int = 0
 
 
 def used_by(apps: Sequence[AppDevices]) -> Used:
-    """The NIC ports, GPU use and cores of all the apps together."""
+    """The NIC ports, GPU use and cores of all the apps together, and who needs each port.
+
+    Local rank r holds entry `nics[r % len(nics)]` (`process/manager.py`), which may be several ports.
+    """
     nics = frozenset(port for app in apps for entry in app.nics for port in entry.split(","))
+    holders: dict[str, set[tuple[str, int]]] = {}
+    for app in apps:
+        if not app.key or app.ppn <= 0 or not app.nics:
+            continue
+        for rank in range(app.ppn):
+            for port in app.nics[rank % len(app.nics)].split(","):
+                holders.setdefault(port, set()).add((app.key, rank))
+    needed_by = {port: tuple(sorted(found)) for port, found in holders.items()}
     return Used(
-        nics, any(app.gpus for app in apps), frozenset(c for app in apps for c in app.cores)
+        nics,
+        any(app.gpus for app in apps),
+        frozenset(c for app in apps for c in app.cores),
+        needed_by,
     )
 
 
@@ -107,6 +124,10 @@ def run_node_check(
             {
                 "topology": topology_to_json(topology),
                 "nics": sorted(used.nics),
+                "needed_by": {
+                    port: [[key, rank] for key, rank in used.needed_by[port]]
+                    for port in sorted(used.needed_by)
+                },
                 "gpus": used.gpus,
                 "cores": sorted(used.cores),
             },
