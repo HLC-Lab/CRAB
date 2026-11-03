@@ -6,7 +6,7 @@
 // strings, collect is boolean. (More fields land in later increments.)
 
 import type { AppConfig, CrabConfig, Experiment } from "@/api/types";
-import { sliceColor, sliceName } from "@/lib/slices";
+import { PLACEHOLDER, hasAllocation } from "@/lib/configShared";
 
 /** config.json format version; matches CONFIG_SCHEMA_VERSION in core/engine.py. */
 export const CONFIG_SCHEMA_VERSION = 2;
@@ -100,8 +100,6 @@ function parseEnd(s: string): Pick<AppDraft, "endKind" | "endTimed"> {
 
 export type AllocMode = "linear" | "interleaved" | "random" | "shared";
 
-/** Values of `cores` the engine accepts (CORES_MODES in core/config_checks.py). */
-export const CORES_MODES = ["disjoint", "shared"];
 export type AllocBy = "app" | "groups";
 
 export interface PartitionDraft {
@@ -150,21 +148,6 @@ export function cloneExperiment(e: ExperimentDraft): ExperimentDraft {
   };
 }
 
-/**
- * Whether the user has actually configured an allocation. There is no explicit
- * on/off toggle: the `allocation` key is emitted only when there is real content,
- * so an untouched editor leaves the config at the engine's default (linear, equal
- * split) rather than writing a redundant `{"mode":"linear"}`. A non-linear mode,
- * a split, or at least one named node group all count as content. (`stride`/`seed`
- * only apply to non-linear modes, so they are covered by the mode check.)
- */
-export function hasAllocation(a: AllocationDraft): boolean {
-  if (a.mode !== "linear") return true;
-  if (a.cores.trim()) return true; // an invalid leftover, kept so validation can name it
-  if (a.by === "groups") return a.partitions.some((p) => p.name.trim());
-  return !!a.split.trim();
-}
-
 export function emptyPartition(name = ""): PartitionDraft {
   return { name, share: "", rest: {} };
 }
@@ -182,7 +165,6 @@ function engineBool(v: unknown): boolean {
   return v === true;
 }
 
-const PLACEHOLDER = /^\{\w+\}$/;
 function numOrToken(raw: string): number | string {
   const s = raw.trim();
   return PLACEHOLDER.test(s) ? s : Number(s);
@@ -312,9 +294,6 @@ export interface OptionsDraft {
   // contains whitespace). Kept as loaded and re-emitted until the user edits the field.
   launcherFlagsRaw?: unknown;
 }
-
-/** Launcher kinds the engine accepts (LAUNCHER_KINDS in core/execution/settings.py). */
-export const LAUNCHER_KINDS = ["srun", "mpirun", "direct"];
 
 export function emptyOptions(): OptionsDraft {
   return {
@@ -681,427 +660,18 @@ export function fromConfig(config: CrabConfig): Draft {
   return draft;
 }
 
-// -- Shape validation --------------------------------------------------------
-// Structural checks only (not engine semantics): the things that make a config
-// well-formed enough to submit. Returns a list of human-readable issues.
-
-const _posInt = (s: string) => /^[0-9]+$/.test(s.trim()) && parseInt(s, 10) > 0;
-const _numeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
-// A {name} placeholder, kept as text by toAllocation for SbatchMan to substitute.
-const _token = (s: string) => PLACEHOLDER.test(s.trim());
-
-/** Validate the tunable option fields. `where` prefixes messages (e.g. an experiment name). */
-export function validateOptions(o: OptionsDraft, where = ""): string[] {
-  const issues: string[] = [];
-  const at = where ? `${where}: ` : "";
-  if (o.minruns.trim() && !_posInt(o.minruns))
-    issues.push(`${at}min runs must be a positive integer.`);
-  if (o.maxruns.trim() && !_posInt(o.maxruns))
-    issues.push(`${at}max runs must be a positive integer.`);
-  if (
-    o.minruns.trim() &&
-    o.maxruns.trim() &&
-    _posInt(o.minruns) &&
-    _posInt(o.maxruns) &&
-    parseInt(o.maxruns, 10) < parseInt(o.minruns, 10)
-  )
-    issues.push(`${at}max runs must be ≥ min runs.`);
-  if (o.timeout.trim() && !_numeric(o.timeout))
-    issues.push(`${at}timeout must be a number (seconds).`);
-  if (o.alpha.trim() && !_numeric(o.alpha)) issues.push(`${at}alpha must be a number.`);
-  if (o.beta.trim() && !_numeric(o.beta)) issues.push(`${at}beta must be a number.`);
-  issues.push(...validateLauncher(o, at));
-  return issues;
-}
-
-// Mirrors has_token in core/execution/tokens.py: a "{" anywhere means SbatchMan substitutes later.
-function hasBrace(v: unknown): boolean {
-  if (typeof v === "string") return v.includes("{");
-  if (Array.isArray(v)) return v.some(hasBrace);
-  if (v !== null && typeof v === "object") return Object.values(v).some(hasBrace);
-  return false;
-}
-
-/** Mirrors check_launcher_options in core/execution/launch_checks.py. */
-function validateLauncher(o: OptionsDraft, at: string): string[] {
-  const issues: string[] = [];
-  if (o.launcher.trim() && !hasBrace(o.launcher) && !LAUNCHER_KINDS.includes(o.launcher.trim()))
-    issues.push(
-      `${at}launcher '${o.launcher.trim()}' must be one of ${LAUNCHER_KINDS.join(", ")}.`,
-    );
-  const raw = o.launcherFlagsRaw;
-  if (raw !== undefined && !hasBrace(raw)) {
-    if (!Array.isArray(raw) || !raw.every((f) => typeof f === "string"))
-      issues.push(`${at}launcher_flags must be a list of strings.`);
-  }
-  return issues;
-}
-
-/** Mirrors _check_shared_scope and the shared-with-partitions check in core/config_checks.py. */
-function validateSharedScope(a: AllocationDraft, at: string): string[] {
-  const issues: string[] = [];
-  const cores = a.cores.trim();
-  if (a.mode === "shared") {
-    const set: [string, boolean][] = [
-      ["split", a.by === "app" && !!a.split.trim() && !hasBrace(a.split)],
-      ["stride", !!a.stride.trim() && !hasBrace(a.stride)],
-      ["seed", !!a.seed.trim() && !hasBrace(a.seed)],
-    ];
-    for (const [key, present] of set) {
-      if (present)
-        issues.push(
-          `${at}allocation: ${key} cannot be used with mode 'shared' (every app gets all the nodes)`,
-        );
-    }
-  } else if (cores && !hasBrace(cores)) {
-    issues.push(`${at}allocation: cores is only valid with mode 'shared'`);
-    return issues;
-  }
-  if (cores && !hasBrace(cores) && !CORES_MODES.includes(cores))
-    issues.push(`${at}allocation: cores '${cores}' is not one of: ${CORES_MODES.join(", ")}`);
-  if (a.mode === "shared" && a.by === "groups" && a.partitions.some((p) => p.name.trim()))
-    issues.push(
-      `${at}allocation.mode 'shared' cannot be used with partitions ` +
-        "(the top-level mode lays out the partition blocks); " +
-        "set mode 'shared' inside a partition instead",
-    );
-  return issues;
-}
-
-/** Validate an allocation and return its defined node-group names (for per-app checks). */
-export function validateAllocation(
-  a: AllocationDraft,
-  where = "",
-): { issues: string[]; groups: Set<string> } {
-  const issues: string[] = [];
-  const groups = new Set<string>();
-  const at = where ? `${where}: ` : "";
-  if (!hasAllocation(a)) return { issues, groups };
-  issues.push(...validateSharedScope(a, at));
-  if (a.mode === "interleaved" && a.stride.trim() && !_posInt(a.stride) && !_token(a.stride))
-    issues.push(`${at}allocation stride must be a positive integer.`);
-  if (a.mode === "random" && a.seed.trim() && !/^[0-9]+$/.test(a.seed.trim()) && !_token(a.seed))
-    issues.push(`${at}allocation seed must be an integer.`);
-  if (a.by === "app" && a.split.trim()) {
-    const parts = a.split.split(",").map((s) => s.trim());
-    if (!parts.every((s) => _numeric(s) || _token(s)))
-      issues.push(`${at}allocation split must be a comma-separated list of numbers.`);
-  }
-  if (a.by === "groups") {
-    const named = a.partitions.filter((p) => p.name.trim());
-    if (!named.length && a.mode !== "shared")
-      issues.push(`${at}add at least one node group, or allocate by app instead.`);
-    named.forEach((p) => {
-      if (groups.has(p.name.trim())) issues.push(`${at}duplicate node group "${p.name.trim()}".`);
-      else groups.add(p.name.trim());
-      if (p.share.trim() && !_numeric(p.share) && !_token(p.share))
-        issues.push(`${at}node group "${p.name.trim()}": share must be a number.`);
-    });
-    const shared = named.filter((p) => p.share.trim());
-    if (shared.length && shared.length !== named.length)
-      issues.push(`${at}set a share on every node group, or on none (for an equal split).`);
-    else if (shared.length && shared.every((p) => _numeric(p.share))) {
-      const sum = shared.reduce((t, p) => t + Number(p.share), 0);
-      if (Math.abs(sum - 100) > 0.01)
-        issues.push(`${at}node-group shares should sum to 100 (currently ${sum}).`);
-    }
-  }
-  return { issues, groups };
-}
-
-// Slurm directive keys CRAB writes itself, with what to say instead
-// (core/execution/launch_checks.py MANAGED_DIRECTIVES). The engine refuses them.
-const TASKS_TAIL = "CRAB sets the task count from numnodes and ppn";
-const MANAGED_SBATCH: Record<string, string> = {
-  nodes: "use numnodes",
-  N: "use numnodes",
-  "ntasks-per-node": "use ppn",
-  ntasks: TASKS_TAIL,
-  n: TASKS_TAIL,
-};
-const LOG_SBATCH = new Set(["output", "error", "o", "e"]);
-
-// CRAB_* launch variables the engine no longer reads, with their replacement
-// (core/execution/settings.py DROPPED_KEYS).
-const DROPPED_ENV_KEYS: Record<string, string> = {
-  CRAB_WL_MANAGER: "launcher",
-  CRAB_SCHEDULER: "scheduler",
-  CRAB_MPIRUN: "launchers.mpirun.command",
-  CRAB_MPIRUN_ADDITIONAL_FLAGS: "launchers.mpirun.flags",
-  CRAB_MPIRUN_MAP_BY_NODE_FLAG: "launchers.mpirun.flags",
-  CRAB_MPIRUN_HOSTNAMES_FLAG: "nothing: delete it (mpirun finds the job's nodes itself)",
-  CRAB_PINNING_FLAGS: "launchers.srun.flags",
-};
-
-/** A directive's key as the engine's merge reads it: leading dashes off, up to "=" or a space. */
-function engineDirectiveKey(line: string): string {
-  const clean = line.trim().replace(/^-+/, "");
-  return clean.includes("=") ? clean.split("=")[0] : clean.split(/\s+/)[0];
-}
-
-export function validateSbatch(s: SbatchDraft): string[] {
-  const issues: string[] = [];
-  for (const line of s.lines.map((l) => l.trim()).filter(Boolean)) {
-    const key = engineDirectiveKey(line);
-    if (!key) continue;
-    const flag = `${key.length === 1 ? "-" : "--"}${key}`;
-    if (key in MANAGED_SBATCH)
-      issues.push(
-        `sbatch_directives: '${line}' sets '${key}', which CRAB manages itself: ${MANAGED_SBATCH[key]}`,
-      );
-    else if (LOG_SBATCH.has(key))
-      issues.push(
-        `Slurm directive "${flag}" overrides CRAB's log redirection (allowed, but be aware).`,
-      );
-  }
-  return issues;
-}
-
-/** Mirror of placement.parse_cpus: the problem with a core list, or "" when it parses. */
-function cpusProblem(text: string): string {
-  const cores: number[] = [];
-  for (const raw of text.split(",")) {
-    const item = raw.trim();
-    const span = /^([0-9]+)-([0-9]+)$/.exec(item);
-    if (/^[0-9]+$/.test(item)) cores.push(parseInt(item, 10));
-    else if (span && parseInt(span[1], 10) <= parseInt(span[2], 10))
-      for (let c = parseInt(span[1], 10); c <= parseInt(span[2], 10); c++) cores.push(c);
-    else
-      return `cpus '${text}' has the invalid item '${item}'; use N or A-B (A <= B), comma-separated`;
-  }
-  if (new Set(cores).size !== cores.length) return `cpus '${text}' lists a core more than once`;
-  return "";
-}
-
-/** Mirror of placement.parse_app_env, plus the editor's own row checks. */
-function envProblems(rows: EnvRow[]): string[] {
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const r of rows) {
-    const key = r.key.trim();
-    if (!key) {
-      if (r.value.trim()) out.push("env: a value needs a variable name");
-    } else if (key in DROPPED_ENV_KEYS) {
-      out.push(`env: ${key} is no longer read; use ${DROPPED_ENV_KEYS[key]}`);
-    } else if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-      out.push(`env: key '${key}' is not a valid shell variable name`);
-    } else if (seen.has(key)) {
-      out.push(`env: '${key}' is listed twice`);
-    }
-    if (key) seen.add(key);
-  }
-  return out;
-}
-
-/** The target cluster's wrapper catalog: relpaths as the wrappers list holds them. */
-export interface WrapperCatalog {
-  wrappers: ReadonlySet<string>;
-  cluster: string;
-}
-
-/**
- * With a catalog, an app path outside it is a problem. A path the catalog cannot judge is never
- * flagged: a {name} placeholder (resolved at run time) or an absolute path. An EMPTY catalog is
- * treated as unknown (the listing may have failed or the clone may be missing), so no check runs
- * rather than flagging every app.
- */
-export function validateDraft(d: Draft, catalog?: WrapperCatalog): string[] {
-  const issues: string[] = [];
-  const numeric = _numeric;
-
-  if (!d.numnodes.trim()) issues.push("Number of nodes is required.");
-  else if (!_posInt(d.numnodes)) issues.push("Number of nodes must be a positive integer.");
-  if (d.ppn.trim() && !_posInt(d.ppn)) issues.push("Procs per node must be a positive integer.");
-  if (!d.experiments.length) issues.push("Add at least one experiment.");
-  issues.push(...validateOptions(d.options));
-  issues.push(...validateSbatch(d.sbatch));
-
-  const global = validateAllocation(d.allocation);
-  issues.push(...global.issues);
-
-  const names = new Set<string>();
-  d.experiments.forEach((e, ei) => {
-    const nm = e.name.trim();
-    const label = nm || `#${ei}`;
-    if (!nm) issues.push(`Experiment ${label} needs a name.`);
-    else if (names.has(nm)) issues.push(`Duplicate experiment name "${nm}".`);
-    else names.add(nm);
-
-    issues.push(...validateOptions(e.options, `Experiment "${label}"`));
-    if (e.ppn.trim() && !_posInt(e.ppn))
-      issues.push(`Experiment "${label}": processes per node must be a positive integer.`);
-    // An override REPLACES the global allocation entirely (force-emitted, even bare linear ⇒ no
-    // groups), so an app may only reference the local groups.
-    let groups = global.groups;
-    if (e.overrideAlloc) {
-      const local = validateAllocation(e.allocation, `Experiment "${label}"`);
-      issues.push(...local.issues);
-      groups = local.groups;
-    }
-
-    if (!e.apps.length) issues.push(`Experiment "${label}" has no apps.`);
-    e.apps.forEach((a, ai) => {
-      const wrapperPath = a.path.trim();
-      if (!wrapperPath) issues.push(`${label} · app #${ai}: wrapper path is required.`);
-      else if (
-        catalog &&
-        catalog.wrappers.size > 0 &&
-        !wrapperPath.includes("{") &&
-        !wrapperPath.startsWith("/") &&
-        !catalog.wrappers.has(wrapperPath)
-      )
-        issues.push(`${label} · app #${ai}: wrapper ${wrapperPath} is not on ${catalog.cluster}.`);
-      if (a.startKind === "delay" && !numeric(a.startDelay))
-        issues.push(`${label} · app #${ai}: start delay must be a number.`);
-      if (a.endKind === "timed" && !numeric(a.endTimed))
-        issues.push(`${label} · app #${ai}: timed duration must be a number.`);
-      if (a.startKind === "after") {
-        const ref = parseInt(a.startAfter, 10);
-        if (!(ref >= 0 && ref < e.apps.length && ref !== ai))
-          issues.push(`${label} · app #${ai}: "after" must reference another app.`);
-      }
-      if (a.ppn.trim() && !_posInt(a.ppn))
-        issues.push(`${label} · app #${ai}: processes per node must be a positive integer.`);
-      // The engine skips its placement checks for an app that holds a {name} placeholder.
-      const hasToken = a.cpus.includes("{") || a.env.some((r) => (r.key + r.value).includes("{"));
-      if (!hasToken) {
-        if (a.cpus.trim()) {
-          const problem = cpusProblem(a.cpus.trim());
-          if (problem) issues.push(`${label} · app #${ai}: ${problem}`);
-        }
-        for (const problem of envProblems(a.env)) issues.push(`${label} · app #${ai}: ${problem}`);
-      }
-      // A partition reference is invalid whenever it names no defined node group —
-      // including when none exist (e.g. after switching to "by app" or disabling allocation).
-      if (a.partition.trim() && !groups.has(a.partition.trim()))
-        issues.push(
-          `${label} · app #${ai}: partition "${a.partition.trim()}" is not a defined node group.`,
-        );
-    });
-  });
-  return issues;
-}
-
 // -- Flow diagram ------------------------------------------------------------
-// An abstract (not-to-scale) view of an experiment's apps: columns are
-// sequential stages (an "after app N" app sits one stage right of N), apps in
-// the same column run in parallel. End-behavior (victim/aggressor/timed) is
-// not shown here; it's already surfaced by each app's own "Ends" dropdown in
-// the editor. `measured` reflects `collect`. Duration is intentionally not
-// depicted.
+// Lives in lib/flow.ts; re-exported so callers keep importing from here.
+export { allocationSummary, flowForest } from "@/lib/flow";
+export type { FlowNode, FlowTree } from "@/lib/flow";
+export { CORES_MODES, LAUNCHER_KINDS, hasAllocation } from "@/lib/configShared";
 
-export interface FlowNode {
-  index: number;
-  name: string;
-  measured: boolean; // the `collect` flag: metrics are parsed and stored
-  note: string; // small qualifier, e.g. "+5s"
-  group?: string; // node-group name, when the effective allocation is partitioned
-  color?: string; // the group's slice color, when grouped (see lib/slices.ts)
-  nodes?: number; // approximate node count for this app (sizing aid, not engine placement)
-}
-
-/** A flow node plus the apps that depend on it (their `start` is "s<index>"). */
-export interface FlowTree extends FlowNode {
-  children: FlowTree[];
-}
-
-function _wrapperName(path: string): string {
-  // Full relative path (so suite/benchmark is visible), minus the .py extension.
-  return path.trim().replace(/\.py$/, "");
-}
-
-/**
- * Approximate per-app node allocation, for the flow-diagram badges. Returns a
- * value only when allocation is actually configured (named groups, or a split):
- * we never guess the engine's default placement. `share% × numnodes` for groups
- * (equal split when shares are unset), `split% × numnodes` for by-app. Indexed
- * by app position. Best-effort sizing aid — NOT authoritative placement.
- */
-export function allocationSummary(
-  apps: AppDraft[],
-  alloc: AllocationDraft,
-  numnodes: string,
-): { group?: string; color?: string; nodes?: number }[] {
-  const out = apps.map(() => ({}) as { group?: string; color?: string; nodes?: number });
-  if (!apps.length || !hasAllocation(alloc)) return out;
-  const n = parseInt(numnodes.trim(), 10);
-  const total = Number.isFinite(n) && n > 0 ? n : 0;
-
-  if (alloc.by === "groups") {
-    // Keyed by the resolved display name (own name, else the positional "group
-    // N" fallback), matching how AuthorView's namedSlices/dropdown resolve group
-    // identity — otherwise an unnamed slice's apps would show correctly in the
-    // editor/dropdown but lose their color/node-count badge here.
-    const indexed = alloc.partitions.map((p, i) => ({ p, i, name: sliceName(p.name, i) }));
-    const allShared =
-      indexed.length > 0 && indexed.every(({ p }) => p.share.trim() && _numeric(p.share));
-    const groupNodes: Record<string, number> = {};
-    const groupColor: Record<string, string> = {};
-    for (const { p, i, name } of indexed) {
-      groupColor[name] = sliceColor(i);
-      if (total) {
-        groupNodes[name] = allShared
-          ? Math.round((Number(p.share) / 100) * total)
-          : Math.floor(total / indexed.length);
-      }
-    }
-    apps.forEach((a, i) => {
-      const g = a.partition.trim();
-      out[i] = {
-        group: g || undefined,
-        nodes: g && g in groupNodes ? groupNodes[g] : undefined,
-        color: g && g in groupColor ? groupColor[g] : undefined,
-      };
-    });
-  } else if (alloc.split.trim() && total) {
-    const split = alloc.split.split(",").map((s) => Number(s.trim()));
-    if (split.length === apps.length && split.every((x) => !Number.isNaN(x))) {
-      apps.forEach((_, i) => (out[i] = { nodes: Math.round((split[i] / 100) * total) }));
-    }
-  }
-  return out;
-}
-
-/**
- * Build the dependency forest of an experiment's apps. An app whose `start` is
- * "s<index>" (startKind "after") becomes a child of that app, drawn directly off
- * it; apps that start at run start or after a delay are roots (they run together).
- * Cycles and forward/invalid references degrade gracefully to roots. Pass the
- * effective allocation + numnodes to annotate nodes with allocation badges.
- */
-export function flowForest(apps: AppDraft[], alloc?: AllocationDraft, numnodes = ""): FlowTree[] {
-  const badges = alloc ? allocationSummary(apps, alloc, numnodes) : [];
-  const nodes: FlowTree[] = apps.map((a, i) => ({
-    index: i,
-    name: _wrapperName(a.path) || `app ${i}`,
-    measured: a.collect,
-    note: a.startKind === "delay" ? `+${a.startDelay || 0}s` : "",
-    group: badges[i]?.group,
-    color: badges[i]?.color,
-    nodes: badges[i]?.nodes,
-    children: [],
-  }));
-
-  // The app each one starts after, if any and valid.
-  const parentOf = apps.map((a, i) => {
-    if (a.startKind !== "after") return -1;
-    const ref = parseInt(a.startAfter, 10);
-    return Number.isInteger(ref) && ref >= 0 && ref < apps.length && ref !== i ? ref : -1;
-  });
-  // Drop a parent link that would close a cycle, so rendering can't recurse forever.
-  const wouldCycle = (i: number): boolean => {
-    const seen = new Set<number>([i]);
-    for (let p = parentOf[i]; p >= 0; p = parentOf[p]) {
-      if (seen.has(p)) return true;
-      seen.add(p);
-    }
-    return false;
-  };
-  const roots: FlowTree[] = [];
-  apps.forEach((_, i) => {
-    const p = parentOf[i];
-    if (p >= 0 && !wouldCycle(i)) nodes[p].children.push(nodes[i]);
-    else roots.push(nodes[i]);
-  });
-  return roots;
-}
+// -- Shape validation --------------------------------------------------------
+// Lives in lib/configValidate.ts; re-exported so callers keep importing from here.
+export {
+  validateAllocation,
+  validateDraft,
+  validateOptions,
+  validateSbatch,
+} from "@/lib/configValidate";
+export type { WrapperCatalog } from "@/lib/configValidate";

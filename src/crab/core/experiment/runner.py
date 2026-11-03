@@ -1,5 +1,4 @@
 import os
-import re
 import shutil
 import time
 from dataclasses import asdict
@@ -11,7 +10,7 @@ from crab.core.data.parse import collect_run, setup_containers
 from crab.core.data.utils import log_data
 from crab.core.execution.bind_resolve import RESOLVER_VERSION
 from crab.core.execution.node_check_run import AppDevices, run_node_check
-from crab.core.execution.placement import Placement, app_ppn, parse_ppn, place_experiment
+from crab.core.execution.placement import Placement, parse_ppn, place_experiment
 from crab.core.execution.settings import (
     SLURM_DEFAULT,
     ExecutionSettings,
@@ -20,19 +19,12 @@ from crab.core.execution.settings import (
 )
 from crab.core.execution.topology import device_env, topology_sha256
 from crab.core.provenance import record_experiment_allocation, record_placement
-from crab.core.wrapper_paths import (
-    load_module,
-    missing_wrappers_hint,
-    moved_wrapper_note,
-    resolve_wrapper_path,
-    wrapper_path_problem,
-)
 from crab.log import CrabLogger
-from crab.wrappers.base import base
 
 from ..allocation import NodeAllocator
 from ..data import check_CI
 from ..process import cancel_leftover_steps, stop_processes
+from .apps import load_apps
 from .artifacts import copy_artifacts
 from .registry import write_registry_row
 from .schedule import build_schedule, kill_f_apps, run_events
@@ -88,116 +80,12 @@ class ExperimentRunner:
 
         # 1. Load Applications
         self.apps = []
-        app_configs = self.config.get("apps", {})
-        sorted_keys = sorted(app_configs.keys(), key=lambda x: int(x) if x.isdigit() else x)
-
-        # App Instantiation
-        idx_counter = 0
-        wrapper_paths: list[str] = []
-        placed_keys: list[str] = []
-        placed_configs: list[dict[str, Any]] = []
-        for key in sorted_keys:
-            details = app_configs[key]
-            config_key = str(key)  # `key` is reused below
-            path = details.get("path")
-            if not path:
-                continue
-
-            moved_note = moved_wrapper_note(path)
-            if moved_note:
-                self.log.warning(moved_note)
-            config_path = path
-            resolved = resolve_wrapper_path(path)
-            if resolved is None:
-                # `crab worker` reaches this point without the orchestrator's check.
-                problem = wrapper_path_problem(config_path)
-                self.log.error(problem)
-                raise FileNotFoundError(problem)
-            path = resolved
-
-            if not os.path.exists(path):
-                self.log.error(f"Wrapper not found at: {path}")
-                hint = missing_wrappers_hint()
-                raise FileNotFoundError(
-                    f"Wrapper not found: {path}" + (f". {hint}" if hint else "")
-                )
-
-            # Load App Class
-            mod_app = load_module(path)
-            args = details.get("args", "")
-            collect = parse_bool(details.get("collect", False), "collect")
-
-            # Instantiate the app
-            app_instance = mod_app.app(idx_counter, collect, args)
-
-            # --- DYNAMIC CONFIG INJECTION ---
-            # Any key in the JSON 'apps' config that isn't a reserved CRAB keyword
-            # gets injected as an attribute into the app instance.
-            reserved_keys = [
-                "path",
-                "args",
-                "collect",
-                "start",
-                "end",
-                "partition",
-                "cpus",
-                "env",
-                "ppn",
-                "nics",
-                "gpus",
-                "bind",
-            ]
-            for key, value in details.items():
-                if key not in reserved_keys:
-                    setattr(app_instance, key, value)
-            app_instance.ppn = app_ppn(details, self.exp_opts)
-            # --------------------------------
-
-            # Find the binary now so a missing one fails the experiment before any run
-            # starts. A wrapper that builds its own command (QE) is checked when it names a
-            # binary source; one that names none may not launch a binary at all.
-            launches_via_base = type(app_instance).run_app is base.run_app
-            names_a_binary = bool(app_instance.benchmark_id or app_instance.executable)
-            if launches_via_base or names_a_binary:
-                app_instance.resolve_binary()
-
-            # --- ARCHITECTURE GUARDRAIL ---
-            receipt = app_instance.get_receipt()
-            target_arch = receipt.get("target_arch") if receipt else None
-
-            if target_arch == "gpu":
-                # Check for GPU-specific SLURM flags or environment variables
-                sd = self.global_opts.get("sbatch_directives", {})
-                if isinstance(sd, dict):
-                    partition = sd.get("partition", "")
-                elif isinstance(sd, list):
-                    partition = ""
-                    for _d in sd:
-                        _m = re.match(r"--partition[= ](\S+)", str(_d))
-                        if _m:
-                            partition = _m.group(1)
-                            break
-                else:
-                    partition = ""
-                if "cpu" in partition:
-                    raise RuntimeError(
-                        f"Architecture Mismatch: {receipt.get('name', 'app')} is built for GPU but partition is {partition}"
-                    )
-            # ------------------------------
-
-            # Timing & Partition Metadata
-            start_val = str(details.get("start", "0"))
-            manual_partition = details.get("partition")
-            app_instance.partition_id = manual_partition  # string name or None
-            app_instance.start_string = start_val
-            app_instance.config_end = details.get("end", "")
-            app_instance.config_key = config_key  # the key crab_run.json uses for this app
-
-            self.apps.append(app_instance)
-            wrapper_paths.append(path)
-            placed_keys.append(config_key)
-            placed_configs.append(details)
-            idx_counter += 1
+        loaded = load_apps(
+            self.config.get("apps", {}), self.exp_opts, self.global_opts, self.log, self.apps
+        )
+        wrapper_paths = loaded.wrapper_paths
+        placed_keys = loaded.placed_keys
+        placed_configs = loaded.placed_configs
 
         # Resolve each app's launcher now, so a bad override or option fails before any run
         launchers: list[LauncherSpec] = []

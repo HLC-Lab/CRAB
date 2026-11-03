@@ -14,6 +14,7 @@ import pytest
 
 from crab.core.execution.settings import LauncherSpec
 from crab.core.process import manager as process_manager
+from crab.core.process import stop
 
 SRUN = LauncherSpec("srun", ("srun",), "", (), ())
 DIRECT = LauncherSpec("direct", (), "", (), ())
@@ -58,10 +59,10 @@ class _Job:
 @pytest.fixture(autouse=True)
 def _fake_popen(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr(process_manager.subprocess, "Popen", _FakePopen)
-    before = set(process_manager._registry)
+    before = set(stop._registry)
     yield
-    for pid in set(process_manager._registry) - before:
-        process_manager._registry.pop(pid, None)
+    for pid in set(stop._registry) - before:
+        stop._registry.pop(pid, None)
 
 
 def _script(job: _Job) -> list[str]:

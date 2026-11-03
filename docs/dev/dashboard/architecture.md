@@ -27,7 +27,7 @@ crab web → uvicorn (127.0.0.1) → browser SPA        researcher's CRAB checko
 | `run.py` | `crab web` entry: uvicorn on localhost, opens the browser |
 | `settings.py` | `platformdirs` paths; env overrides `CRAB_WEB_CONFIG_DIR` / `CRAB_WEB_DATA_DIR` / `CRAB_WEB_LIBRARY_DIR` / `CRAB_WEB_PORT` |
 | `errors.py` | Error taxonomy; every API error is the stable envelope `{code, message, detail?}` |
-| `api/` | Routes only, no business logic: `remotes.py`, `bootstrap.py`, `wrappers.py`, `experiments.py`, `local.py`, `jobs.py`, `results.py` |
+| `api/` | Routes only, no business logic: `remotes.py`, `bootstrap.py`, `wrappers.py`, `experiments.py`, `local.py`, `jobs.py`, `jobs_submit.py`, `jobs_report.py`, `results.py` |
 | `connections/` | `transport.py` (`Transport` ABC; `SSHTransport` via asyncssh, `LocalTransport` via subprocess), `manager.py` (one reused live connection per remote, liveness eviction) |
 | `remoteops/` | `crab_cli.py` (builds/runs `bash -lc "… crab <args> --json"`, parses JSON), `bootstrap.py` (guided CRAB install, for profiles without a `crab_command`) |
 | `store/` | `profiles.py` (`clusters.json`), `library.py` (experiment configs) — atomic writes, slug-validated ids |
@@ -137,7 +137,7 @@ is Remotes · Author · Wrappers · Jobs · Results (`App.vue`); `/` redirects t
 | Where | Role |
 |---|---|
 | `src/api/` | `client.ts` (the only place `fetch` is called; errors normalized to the envelope) + `types.ts` |
-| `src/lib/config.ts` | The config brain: UI `Draft` ⇄ engine JSON (`toConfig`/`fromConfig`), validation, flow-diagram layout. Pure — no IO — and covered by the round-trip unit suite |
+| `src/lib/config.ts` | The config brain: UI `Draft` ⇄ engine JSON (`toConfig`/`fromConfig`). Validation lives in `configValidate.ts`, flow-diagram layout in `flow.ts`, helpers both sides share in `configShared.ts`; `config.ts` re-exports their public names. All pure — no IO — and covered by the unit suite |
 | `src/stores/` | Pinia: `app` (health/theme), `remotes`, `author` (draft + library), `catalog` (per-cluster benchmark/node cache), `wrappers`, `jobs`, `jobDetail`, `report`, `results` |
 | `src/views/`, `src/components/` | Presentation; components never fetch directly |
 
