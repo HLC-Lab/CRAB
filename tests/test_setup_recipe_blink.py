@@ -192,6 +192,23 @@ def test_cuda_configure_failure_names_the_gpu_setting(tmp_path, value, label):
     assert len(calls) == 2
 
 
+@pytest.mark.parametrize(
+    ("value", "hint"),
+    [("cuda", "the CUDA toolkit"), ("hip", "ROCm/HIP")],
+)
+def test_a_gpu_configure_failure_names_the_toolkit_as_one_possible_cause(tmp_path, value, hint):
+    target = tmp_path / "blink"
+
+    (_ok, _result, msg), _ = _build(BlinkRecipe(), target, fail_at=1, params={"gpu": value})
+
+    assert f"gpu = {value}" in msg
+    assert "CMake's output" in msg
+    assert "if the toolkit was not found" in msg
+    assert f"load a module that provides {hint}" in msg
+    assert "set gpu to auto or off" in msg
+    assert f"gpu = {value}: load" not in msg
+
+
 @pytest.mark.parametrize("value", ["auto", "off"])
 def test_auto_and_off_configure_failure_keeps_the_plain_message(tmp_path, value):
     target = tmp_path / "blink"
@@ -202,6 +219,7 @@ def test_auto_and_off_configure_failure_keeps_the_plain_message(tmp_path, value)
     assert result is None
     assert "toolkit" not in msg.lower()
     assert "configure" in msg.lower()
+    assert msg == "CMake configure failed."
 
 
 def test_an_unknown_gpu_value_is_refused_before_cloning(tmp_path):

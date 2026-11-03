@@ -17,6 +17,8 @@ its notes live in the tag and the GitHub release.
 
 ### Changed
 
+- **The message of a failed Blink build with a `gpu` setting of `cuda` or `hip` no longer says the
+  toolkit is the cause.** It now names the toolkit as one possible cause and points at CMake's output.
 - **The node check names the app and the local rank that need a NIC port it finds wrong.** Before, the
   message gave only the port and its state; now it ends with, for example, `needed by app 0 local rank 2`.
 - **Apps that bind `gpu: "per-rank"` and run at the same time get different GPUs of the node.** Before,

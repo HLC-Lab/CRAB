@@ -191,8 +191,8 @@ The GPU backend question comes after the module line. The answers mean:
 | `hip` | Builds with HIP. If CMake finds no HIP toolkit, the configure step fails. |
 
 The default `auto` is right on a machine without a GPU toolkit. When `cuda` or `hip` fails, the
-message names the `gpu` setting and tells you to load a module that provides the toolkit, or to set
-`gpu` to `auto` or `off`. The receipt records the answer you gave, not the backend CMake found:
+message names the `gpu` setting and CMake's output, and says that if the toolkit was not found you
+should load a module that provides it, or set `gpu` to `auto` or `off`. The receipt records the answer you gave, not the backend CMake found:
 with `auto`, it does not say whether the build has GPU support.
 
 !!! note "Blink with CUDA on Leonardo"

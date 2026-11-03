@@ -94,8 +94,9 @@ class BlinkRecipe(BenchmarkRecipe):
                 return (
                     False,
                     None,
-                    f"CMake configure failed with gpu = {gpu}: load {_GPU_TOOLKIT_HINTS[gpu]}, "
-                    "or set gpu to auto or off.",
+                    f"CMake configure failed with gpu = {gpu} (see the last lines of CMake's "
+                    "output above); if the toolkit was not found, "
+                    f"load {_GPU_TOOLKIT_HINTS[gpu]}, or set gpu to auto or off.",
                 )
             return False, None, "CMake configure failed."
 
