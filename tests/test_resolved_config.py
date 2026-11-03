@@ -180,7 +180,7 @@ def test_a_malformed_header_is_refused(bad: Any) -> None:
 
 def test_the_config_checks_ignore_the_header_key() -> None:
     config = config_with({"0": {"path": "x.py"}}, resolved_for=marker())
-    assert isinstance(check_config(config, settings_with()), list)
+    assert check_config(config, settings_with()) == []
 
 
 # --- the engine writes the files ----------------------------------------------------------------
