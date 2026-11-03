@@ -1,5 +1,5 @@
-// Small pure helpers shared by the config mapping (lib/config.ts) and the
-// flow diagram (lib/flow.ts). Kept free of Vue/IO. Types only are imported from
+// Small pure helpers shared by the config mapping (lib/config.ts), the flow
+// diagram (lib/flow.ts) and the validation (lib/configValidate.ts). Kept free of Vue/IO. Types only are imported from
 // config.ts, so there is no runtime cycle.
 
 import type { AllocationDraft } from "@/lib/config";
@@ -21,3 +21,12 @@ export function hasAllocation(a: AllocationDraft): boolean {
 
 /** A non-negative decimal number written out as digits ("4", "2.5"). */
 export const isNumeric = (s: string) => /^[0-9]+(\.[0-9]+)?$/.test(s.trim());
+
+/** Values of `cores` the engine accepts (CORES_MODES in core/config_checks.py). */
+export const CORES_MODES = ["disjoint", "shared"];
+
+/** Launcher kinds the engine accepts (LAUNCHER_KINDS in core/execution/settings.py). */
+export const LAUNCHER_KINDS = ["srun", "mpirun", "direct"];
+
+/** An exact `{name}` token: a SbatchMan sweep variable that is substituted later. */
+export const PLACEHOLDER = /^\{\w+\}$/;

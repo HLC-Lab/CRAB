@@ -137,7 +137,7 @@ is Remotes · Author · Wrappers · Jobs · Results (`App.vue`); `/` redirects t
 | Where | Role |
 |---|---|
 | `src/api/` | `client.ts` (the only place `fetch` is called; errors normalized to the envelope) + `types.ts` |
-| `src/lib/config.ts` | The config brain: UI `Draft` ⇄ engine JSON (`toConfig`/`fromConfig`), validation, flow-diagram layout. Pure — no IO — and covered by the round-trip unit suite |
+| `src/lib/config.ts` | The config brain: UI `Draft` ⇄ engine JSON (`toConfig`/`fromConfig`). Validation lives in `configValidate.ts`, flow-diagram layout in `flow.ts`, helpers both sides share in `configShared.ts`; `config.ts` re-exports their public names. All pure — no IO — and covered by the unit suite |
 | `src/stores/` | Pinia: `app` (health/theme), `remotes`, `author` (draft + library), `catalog` (per-cluster benchmark/node cache), `wrappers`, `jobs`, `jobDetail`, `report`, `results` |
 | `src/views/`, `src/components/` | Presentation; components never fetch directly |
 
