@@ -230,6 +230,9 @@ def _parse_nic(
     tags = body.get("tags", [])
     if not isinstance(tags, list):
         raise ValueError(f"{here}.tags: must be a list of strings.")
+    for position, tag in enumerate(tags):
+        if not isinstance(tag, str):
+            raise ValueError(f"{here}.tags[{position}]: must be a string, got {tag!r}.")
     rate = body.get("rate_mbps")
     if rate is not None and (type(rate) is not int or rate < 1):
         raise ValueError(f"{here}.rate_mbps: must be a positive integer, got {rate!r}.")
