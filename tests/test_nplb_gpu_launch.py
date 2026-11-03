@@ -25,6 +25,7 @@ from crab.cli.presets import resolve_presets
 from crab.core.execution.placement import app_ppn, place_experiment
 from crab.core.execution.settings import ExecutionSettings, from_preset, resolve_launcher
 from crab.core.process import manager as process_manager
+from crab.core.process import stop
 from crab.wrappers.base import base
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples" / "nplb"
@@ -78,10 +79,10 @@ class _FakePopen:
 def _fake_popen(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     _FakePopen.calls = []
     monkeypatch.setattr(process_manager.subprocess, "Popen", _FakePopen)
-    before = set(process_manager._registry)
+    before = set(stop._registry)
     yield
-    for pid in set(process_manager._registry) - before:
-        process_manager._registry.pop(pid, None)
+    for pid in set(stop._registry) - before:
+        stop._registry.pop(pid, None)
 
 
 def _settings() -> ExecutionSettings:
