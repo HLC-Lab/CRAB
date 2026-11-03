@@ -15,6 +15,12 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+### Added
+
+- **`crab probe` warns when it probably describes a login node, or when `nvidia-smi` sees other GPUs
+  than sysfs.** It still exits 0 and prints the block; the warnings appear only when it reads the live
+  node, not with `--sysfs` or `--node-file`.
+
 ### Changed
 
 - **The message of a failed Blink build with a `gpu` setting of `cuda` or `hip` no longer says the

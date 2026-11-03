@@ -613,7 +613,20 @@ What goes into the block:
 - `nic_env` is set to `UCX_NET_DEVICES` when NIC ports were found. Change it if the stack selects NICs
   in another way.
 
-The command exits 1 with a one-line message when the sysfs folder or the node file cannot be read.
+On a live node (no `--sysfs` and no `--node-file`) it also warns, in the text output and under `warnings`
+in `--json`:
+
+- when `SLURMD_NODENAME` does not name this host. Slurm sets it for the tasks it starts, so its absence
+  means the command probably describes a login node. It is a doubt, not a verdict: probing by ssh into an
+  allocated node, or on a workstation without Slurm, triggers it too, and the command does not exit
+  non-zero for it;
+- when `nvidia-smi` sees a different number of GPUs than sysfs lists. A Slurm job that asked for part of
+  the node sees only its own GPUs while sysfs lists them all, so with fewer visible, probe on a
+  whole-node allocation. With more visible, the block is missing some.
+
+Exit codes: 0 on a valid block, also for a node with no GPU or no active port, which is a valid thing to
+describe (a warning names it); 1 when the sysfs folder or the node file cannot be read or does not
+parse, with a one-line message; 2 for bad arguments. `--check` exits 1 on any problem.
 
 ### `crab probe --check`
 

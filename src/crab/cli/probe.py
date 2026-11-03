@@ -1,6 +1,6 @@
 """`crab probe`: describe this node's GPUs and NICs as a preset `topology` block (ADR-043).
 
-Reads Linux sysfs only. Run it on a compute node (inside an allocation, not on a login node, which
+Reads Linux sysfs; only to warn, a live read also counts the GPUs `nvidia-smi` sees. Run it on a compute node (inside an allocation, not on a login node, which
 has other hardware), review what it prints and paste the block into a preset override. `--json`
 also prints the raw node data, which `--node-file` reads back to rebuild the block elsewhere.
 """
@@ -10,7 +10,9 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +54,37 @@ def _human(result: dict[str, Any]) -> None:
         print(f"warning: {warning}")
     print("\ntopology block (review it, then put it in a preset):")
     print(json.dumps(block, indent=2))
+
+
+def _live_warnings(
+    host: str, environ: Mapping[str, str], gpus_in_block: int, vendor: str, visible: int | None
+) -> list[str]:
+    """Doubts that only a live read can raise: a login node, and `nvidia-smi` seeing other GPUs than sysfs.
+
+    `SLURMD_NODENAME` is set by slurmd for the tasks it starts, to the short hostname. It is a doubt,
+    not a verdict: probing over ssh into an allocated node, or outside Slurm, also leaves it unset.
+    """
+    warnings: list[str] = []
+    named = environ.get("SLURMD_NODENAME", "")
+    if not named or named.split(".")[0] != host.split(".")[0]:
+        warnings.append(
+            f"no Slurm task seen on {host} (SLURMD_NODENAME is not set to this host): on a login node "
+            "this describes the login node, not a compute node; run it inside an allocation, "
+            "for example with srun"
+        )
+    if vendor == "nvidia" and visible is not None and visible != gpus_in_block:
+        if visible < gpus_in_block:
+            warnings.append(
+                f"{visible} of the {gpus_in_block} GPUs sysfs lists are visible to this process "
+                "(a Slurm job sees only the GPUs it was given): probe on a whole-node allocation "
+                "to get every GPU"
+            )
+        else:
+            warnings.append(
+                f"nvidia-smi sees {visible} GPUs but sysfs listed {gpus_in_block}: "
+                "the block is missing some"
+            )
+    return warnings
 
 
 def _read_node(args: argparse.Namespace) -> dict[str, Any]:
@@ -123,6 +156,11 @@ def handle_probe(args: argparse.Namespace) -> None:
     except ValueError as error:
         print(f"crab: {error}", file=sys.stderr)
         sys.exit(1)
+    if not args.node_file and args.sysfs == "/sys":
+        visible = visible_gpu_count() if block["gpu_vendor"] == "nvidia" else None
+        warnings += _live_warnings(
+            node["hostname"], os.environ, len(block["gpus"]), block["gpu_vendor"], visible
+        )
     contract.emit({"node": node, "topology": block, "warnings": warnings}, args.json, _human)
 
 
