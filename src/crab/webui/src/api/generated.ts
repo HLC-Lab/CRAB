@@ -576,7 +576,7 @@ export interface paths {
      * Get Results Experiments
      * @description Per-experiment status/run-failure counts for one job.
      *
-     *     Not registry-dependent, unlike `job_experiments` (`api/jobs.py`) --
+     *     Not registry-dependent, unlike `job_experiments` (`api/jobs_report.py`) --
      *     Results must work identically for CLI-only jobs,
      *     and a live/cached `crab history` call already has everything needed
      *     without a registry join. Opening a job shortly after the picker loaded

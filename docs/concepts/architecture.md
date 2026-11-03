@@ -11,7 +11,7 @@ else builds on these.
 |-------|----------|-----|
 | Entry point (CLI) | `src/crab/cli/` | Collect configuration, choose a preset, hand off to the engine. |
 | Engine | `src/crab/core/engine.py` | The control core. Runs in one of two modes (orchestrator or worker). |
-| Experiment runner | `src/crab/core/experiment/runner.py` | Drives a single experiment: load apps, allocate nodes, run, check convergence, save data. |
+| Experiment runner | `src/crab/core/experiment/runner.py` | Drives a single experiment: load apps (`experiment/apps.py`), allocate nodes, run, check convergence, save data. |
 | Launcher | `src/crab/core/execution/launcher/` | Translate "run this command on these nodes" into `srun` / `mpirun` invocations. |
 | Wrappers | `wrappers/` | Per-application adapters: how to launch and how to parse output. |
 | Setup (recipes + receipts) | `src/crab/setup/` | Build benchmarks and record where their binaries live. |

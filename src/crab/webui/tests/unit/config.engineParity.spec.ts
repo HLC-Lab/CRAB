@@ -37,7 +37,7 @@ describe("text booleans (core/config_checks.py parse_bool: 'true'/'false' in any
   });
 });
 
-describe("text collect (core/experiment/runner.py reads collect with parse_bool)", () => {
+describe("text collect (core/experiment/apps.py reads collect with parse_bool)", () => {
   it("keeps an app measured when collect arrives as text", () => {
     const round = toConfig(fromConfig(oneApp({ collect: "True" })));
     expect(round.experiments.ex1.apps[0].collect).toBe(true);

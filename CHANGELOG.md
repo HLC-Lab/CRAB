@@ -15,6 +15,15 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An app's output that is not valid UTF-8 no longer crashes the run.** CRAB decodes an app's
+  standard output and standard error with replacement characters. Before, a run ended with a
+  `UnicodeDecodeError` when an app printed other bytes, or when the 4 MiB cap on standard error cut
+  inside a multibyte character.
+- **A `null` tag in the `topology` of a preset is an error.** It used to be accepted and read as the
+  tag `None`. The message names the NIC and the tag position.
+
 ## [1.4.0] - 2026-11-02
 
 ### Added
