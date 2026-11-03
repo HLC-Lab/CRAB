@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 from crab.core.execution.settings import LauncherSpec
 from crab.core.process import manager as process_manager
 from crab.core.process.manager import end_job, run_job, wait_timed
+from crab.wrappers.base import base
 
 DIRECT = LauncherSpec("direct", (), "", (), ())
 KIB = 1024
@@ -36,6 +37,13 @@ class _Job:
 
     def set_output(self, out: bytes, err: bytes) -> None:
         self.output = (out, err)
+
+
+class _DecodingJob(_Job):
+    """Decodes the way every real wrapper does: through `base.set_output`."""
+
+    def set_output(self, out: bytes, err: bytes) -> None:
+        base.set_output(self, out, err)
 
 
 def _python(code: str) -> str:
@@ -100,3 +108,41 @@ def test_a_stopped_app_keeps_the_stderr_it_wrote_before_the_stop(tmp_path: Path)
 
     assert job.output is not None
     assert len(job.output[1]) == 200 * KIB
+
+
+def _decoding_job(tmp_path: Path, code: str) -> _DecodingJob:
+    run_dir = tmp_path / "run_1" / "app_0"
+    run_dir.mkdir(parents=True)
+    return _DecodingJob(run_dir, _python(code))
+
+
+def test_a_stderr_cut_inside_a_multibyte_character_does_not_crash_the_run(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(process_manager, "STDERR_KEEP_BYTES", 1001)  # odd: cuts inside an 'é'
+    job = _decoding_job(
+        tmp_path, "import sys; sys.stderr.buffer.write('é'.encode() * 5000); print('ok')"
+    )
+    run_job(job, DIRECT, MagicMock())
+
+    assert not wait_timed(job, timeout_sec=10.0, logger=MagicMock())
+
+    assert job.stdout == "ok\n"
+    assert isinstance(job.stderr, str)
+    assert job.stderr.endswith("é")
+
+
+def test_an_app_that_prints_bytes_that_are_not_utf8_does_not_crash_the_run(
+    tmp_path: Path,
+) -> None:
+    job = _decoding_job(
+        tmp_path,
+        "import sys; sys.stdout.buffer.write(b'\\xff\\xfe'); sys.stdout.flush(); "
+        "sys.stderr.buffer.write(b'\\xff\\xfe')",
+    )
+    run_job(job, DIRECT, MagicMock())
+
+    assert not wait_timed(job, timeout_sec=10.0, logger=MagicMock())
+
+    assert "�" in job.stdout
+    assert "�" in job.stderr
