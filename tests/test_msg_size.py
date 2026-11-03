@@ -1,5 +1,6 @@
-"""`msg_size_of` reads an app's message size from its `-msgsize` argument. These cases pin the rules
-the runner applied inline before the function existed (the CSV `msg_size` column holds the result)."""
+"""`msg_size_of` reads an app's message size from its `-msgsize` argument. These cases pin how it
+reads that argument and when it falls back to the wrapper's default (the CSV `msg_size` column holds
+the result)."""
 
 from __future__ import annotations
 

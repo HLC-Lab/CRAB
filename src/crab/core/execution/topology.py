@@ -1,8 +1,9 @@
 """A preset's `topology`: the GPUs, NICs and NUMA domains of one node type (ADR-043).
 
 The block is plain data, handwritten from a cluster's documentation or written by `crab probe`;
-both use this schema. Nothing here reads the machine, and nothing applies the block yet: it is
-parsed, validated and carried in `ExecutionSettings` and `execution.json`.
+both use this schema. Nothing here reads the machine. The block is parsed, validated and carried
+in `ExecutionSettings` and `execution.json`; `bind_apply.py` and `bind_resolve.py` place an app's
+ranks from it and `node_check.py` checks a node against it.
 
 Every error is a `ValueError` that starts with where the problem is, such as
 `preset 'lab': topology.nics[2].near_gpu`. Imports nothing from `placement.py`, which imports
