@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Per-job detail view: every experiment from this exact
-// submission, sourced from web/api/jobs.py's job_experiments (not the whole
+// submission, sourced from web/api/jobs_report.py's job_experiments (not the whole
 // use-case history — see ReportView.vue for that secondary view, linked
 // below). Reuses ExperimentCard.vue and useReportStore for the shared
 // per-experiment logs/selection state; useJobsStore only for looking up a

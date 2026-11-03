@@ -130,6 +130,8 @@ def test_a_stderr_cut_inside_a_multibyte_character_does_not_crash_the_run(
     assert job.stdout == "ok\n"
     assert isinstance(job.stderr, str)
     assert job.stderr.endswith("é")
+    assert "�" not in job.stderr
+    assert set(job.stderr) == {"é"}
 
 
 def test_an_app_that_prints_bytes_that_are_not_utf8_does_not_crash_the_run(

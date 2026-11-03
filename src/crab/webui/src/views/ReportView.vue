@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Per-use-case experiment report: every experiment ever run under
-// one config name, sourced from `crab history --json` (web/api/jobs.py's
+// one config name, sourced from `crab history --json` (web/api/jobs_report.py's
 // use_case_report), not just what this dashboard's registry knows about.
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, useRoute } from "vue-router";
