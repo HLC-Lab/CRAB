@@ -48,7 +48,7 @@ def place(
 
 def test_bind_gives_each_rank_a_nic_and_a_core_next_to_it_in_rank_order() -> None:
     placed = place([{"bind": {"gpu": "none", "cores": "nearest", "nic": "spread"}}])
-    assert placed.cpu_lists[0] == (0, 1, 2, 3)
+    assert placed.cpu_lists[0] == (0, 1, 8, 9)
     assert placed.nics[0] == ("nic0:1", "nic1:1", "nic2:1", "nic3:1")
 
 

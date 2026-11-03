@@ -284,6 +284,63 @@ def test_tags_select_nics_and_a_missing_tag_lists_what_exists() -> None:
         run(SHAPES["four-gpus-four-nics"](), {"nic": {"tag": "leaf-Z"}}, 1)
 
 
+def two_domains_four_nics_no_gpu() -> Topology:
+    """Two NUMA domains of 8 cores, no GPU, two NICs in each domain (tagged a and b)."""
+    nics = [
+        {"dev": f"nic{k}:1", "numa": 0 if k < 2 else 1, "tags": ["a" if k < 2 else "b"]}
+        for k in range(4)
+    ]
+    return make(
+        {
+            "gpu_vendor": "nvidia",
+            "nic_env": "UCX_NET_DEVICES",
+            "numa": {"0": "0-7", "1": "8-15"},
+            "gpus": [],
+            "nics": nics,
+        }
+    )
+
+
+def test_cores_follow_a_tagged_nic_when_no_gpu_is_bound() -> None:
+    topology = two_domains_four_nics_no_gpu()
+    result = run(topology, {"cores": "nearest", "nic": {"tag": "b"}}, 2)
+    assert [r.nics[0] for r in result.ranks] == ["nic2:1", "nic3:1"]
+    assert [domain_of(topology, r.cores[0]) for r in result.ranks] == [1, 1]
+
+
+def test_cores_follow_a_spread_nic_when_no_gpu_is_bound() -> None:
+    topology = two_domains_four_nics_no_gpu()
+    result = run(topology, {"cores": "nearest", "nic": "spread"}, 3)
+    assert [r.nics[0] for r in result.ranks] == ["nic0:1", "nic1:1", "nic2:1"]
+    assert [r.cores for r in result.ranks] == [(0,), (1,), (8,)]
+
+
+def _dev_domain(topology: Topology, dev: str) -> int | None:
+    return next(nic.numa for nic in topology.nics if nic.dev == dev)
+
+
+def test_a_nic_pick_defined_from_the_core_keeps_cores_first_without_a_gpu() -> None:
+    topology = two_domains_four_nics_no_gpu()
+    far = run(topology, {"cores": "nearest", "nic": "far"}, 2)
+    assert [r.cores for r in far.ranks] == [(0,), (1,)]
+    assert [_dev_domain(topology, r.nics[0]) for r in far.ranks] == [1, 1]
+    single = run(topology, {"cores": "nearest", "nic": "single"}, 2)
+    assert [r.cores for r in single.ranks] == [(0,), (1,)]
+    assert {r.nics for r in single.ranks} == {("nic0:1",)}
+
+
+def test_a_nic_domain_with_no_free_core_falls_back_with_a_warning() -> None:
+    topology = two_domains_four_nics_no_gpu()
+    result = run(topology, {"cores": "nearest", "nic": {"tag": "b"}}, 9)
+    assert [domain_of(topology, r.cores[0]) for r in result.ranks] == [1] * 8 + [0]
+    assert result.ranks[8].cores == (0,)
+    assert result.ranks[8].nics == ("nic2:1",)
+    assert any(
+        "local rank 8 has no free core in NUMA domain 1 of its NIC nic2:1" in w
+        for w in result.warnings
+    )
+
+
 def test_a_stack_that_cannot_select_a_nic_only_allows_the_default() -> None:
     topology = SHAPES["no-nic-selection"]()
     with pytest.raises(ValueError, match="this topology cannot select a NIC per rank"):

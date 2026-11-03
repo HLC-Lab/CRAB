@@ -17,6 +17,9 @@ its notes live in the tag and the GitHub release.
 
 ### Fixed
 
+- **With no GPU bound, `cores: "nearest"` follows the NIC of a `tag` or `spread` pick.** Each rank takes
+  a core in the NUMA domain of its NIC. When that domain has no free core, the rank takes a core of
+  another domain and the resolved placement carries a warning that names the NIC.
 - **An app's output that is not valid UTF-8 no longer crashes the run.** CRAB decodes an app's
   standard output and standard error with replacement characters. Before, a run ended with a
   `UnicodeDecodeError` when an app printed other bytes, or when the 4 MiB cap on standard error cut

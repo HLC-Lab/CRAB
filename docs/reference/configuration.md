@@ -480,7 +480,7 @@ the cores and devices from the `topology` of the preset you run with
 | Key | Values |
 |---|---|
 | `nic` | `"default"` sets nothing and is the control run. `"nearest"` is the NIC nearest to the rank's GPU or core, `"far"` one in another NUMA domain, `"spread"` goes round robin over all NICs, `"single"` gives every rank the same one. `{"pick": "nearest", "ports": 2}` gives each rank both ports of its card; `{"tag": "x"}` takes the NICs the preset labelled `x`; `"exclusive": true` in the object form refuses a NIC shared by two ranks. |
-| `cores` | `"launcher"` (the default) leaves the cores to the launcher. `"nearest"` gives each rank a physical core, taking apps that share nodes in order and never the same core twice. `{"smt": true}` also uses SMT siblings. |
+| `cores` | `"launcher"` (the default) leaves the cores to the launcher. `"nearest"` gives each rank a physical core, taking apps that share nodes in order and never the same core twice. Without a GPU, when the NIC is picked with `"tag"` or `"spread"`, each rank takes a core in the NUMA domain of its NIC when it has a free one, and says so in a warning when it does not. `{"smt": true}` also uses SMT siblings. |
 | `gpu` | `"none"` (the default) and `"all"` set nothing, so every rank sees every GPU. `"per-rank"` gives rank `i` GPU `i` of the order below and refuses a ppn above the GPU count; `"shared"` goes round robin. |
 | `order` | `"pack"` (the default) or `"spread"`, the order in which GPUs are taken. |
 
