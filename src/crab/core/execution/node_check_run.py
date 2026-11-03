@@ -140,11 +140,12 @@ def run_node_check(
         log.append("=== notes\n" + "\n".join(found) + "\n")
     if notes is not None:
         notes.extend(found)
+    log_note = f"raw output in {LOG_NAME}"
     try:
         with open(os.path.join(spec_dir, LOG_NAME), "w") as handle:
             handle.write("\n".join(log))
-    except OSError:
-        pass
+    except OSError as error:
+        log_note = f"raw output could not be saved: {error}"
     tail = (done.stderr or "").strip().splitlines()[-3:]
     if not answers:
         return [
@@ -155,7 +156,7 @@ def run_node_check(
         if host not in answers:
             problems.append(
                 f"{host}: no answer from the node check after {attempts} attempt(s) "
-                f"(launcher error tail: {' | '.join(tail[-2:]) or 'none'}; raw output in {LOG_NAME})"
+                f"(launcher error tail: {' | '.join(tail[-2:]) or 'none'}; {log_note})"
             )
     for host in sorted(answers):
         problems += [f"{host}: {problem}" for problem in answers[host]["problems"]]

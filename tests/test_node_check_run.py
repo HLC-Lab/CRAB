@@ -140,6 +140,18 @@ def test_a_node_that_does_not_answer_is_named(tmp_path: Path) -> None:
     assert fake.calls == 2
 
 
+def test_a_log_that_cannot_be_written_is_not_claimed_in_the_no_answer_message(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "node_check.log").mkdir()  # opening it for writing raises IsADirectoryError
+    fake = FakeLauncher(answer("n1") + "\n", "srun: error: step failed\n")
+    [problem] = check(fake, tmp=tmp_path)
+    assert problem.startswith("n2: no answer from the node check after 2 attempt(s) ")
+    assert "raw output in node_check.log" not in problem
+    assert "raw output could not be saved: " in problem
+    assert "Is a directory" in problem
+
+
 def test_nodes_that_differ_from_each_other_are_named(tmp_path: Path) -> None:
     other = {**FACTS, "gpus": []}
     fake = FakeLauncher(answer("n1") + "\n" + answer("n2", facts=other) + "\n")
