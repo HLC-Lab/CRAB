@@ -31,12 +31,44 @@ class AppBind:
 
 
 class _Held(NamedTuple):
-    """What an earlier app holds: its chain's group (the head's index), its nodes, cores and GPUs."""
+    """What an earlier app holds: its config key, chain group (the head's index), nodes, cores, GPUs, NICs.
 
+    `exclusive` is `bind.nic.exclusive` of an app that picks its NICs with `bind`.
+    """
+
+    app: str
     group: int
     nodes: frozenset[str]
     cores: frozenset[int]
     gpus: frozenset[int]
+    nics: frozenset[str]
+    exclusive: bool
+
+
+def _refuse_shared_nics(
+    held: Sequence[_Held],
+    group: int,
+    nodes: Sequence[str],
+    my_nics: frozenset[str],
+    exclusive: bool,
+    where: str,
+) -> None:
+    """Refuse a NIC that an exclusive app holds, or that an exclusive app would take from another app."""
+    for h in held:
+        common = h.nics & my_nics
+        if h.group == group or not (h.nodes & set(nodes)) or not common:
+            continue
+        device = sorted(common)[0]
+        if h.exclusive:
+            raise ValueError(
+                f"{where}: NIC {device} is held exclusively by app {h.app} "
+                "(bind.nic exclusive) on the same node"
+            )
+        if exclusive:
+            raise ValueError(
+                f"{where}: bind.nic exclusive: NIC {device} is also used by app {h.app} "
+                "on the same node"
+            )
 
 
 def _refuse_conflicts(
@@ -79,6 +111,7 @@ def apply_binds(
     chain_head: Mapping[int, int],
     literal_cpus: Sequence[tuple[int, ...] | None],
     literal_gpus: Sequence[tuple[int, ...] | None],
+    literal_nics: Sequence[tuple[str, ...] | None],
     settings: ExecutionSettings,
     directives: Sequence[Any] = (),
 ) -> list[AppBind | None]:
@@ -89,7 +122,10 @@ def apply_binds(
     itself. An app is placed after the cores and the GPUs held by apps of other groups on the same
     nodes. `literal_cpus` and `literal_gpus` are each app's parsed `cpus` and `gpus`, which the app
     holds when it has no `bind` on that axis; an app's `bind.gpu: per-rank` GPUs are held too, while
-    `shared` and `all` hold none. `directives` are the raw sbatch directive sources.
+    `shared` and `all` hold none. `literal_nics` are each app's parsed `nics`: an app that names NICs
+    (by `bind.nic` or `nics`) cannot use a NIC an earlier `bind.nic.exclusive` app of another group
+    holds on the same node, and an `exclusive` app cannot take one such an app uses. An app that
+    names no NIC is not checked. `directives` are the raw sbatch directive sources.
 
     Raises:
         ValueError: an invalid `bind`, a `bind` and a literal key on the same axis, a `bind` on an
@@ -103,6 +139,8 @@ def apply_binds(
         chained = group != i
         cores: frozenset[int] = frozenset(literal_cpus[i] or ())
         gpus_held: frozenset[int] = frozenset(literal_gpus[i] or ())
+        nics_held: frozenset[str] = frozenset(literal_nics[i] or ())
+        nic_exclusive = False
         result: AppBind | None = None
         if "bind" in configs[i]:
             bind = parse_bind(configs[i]["bind"], where)
@@ -143,6 +181,12 @@ def apply_binds(
                     gpus_held = frozenset(gpus)
                 result = AppBind(cpus, nics, gpus, placed.warnings, placed.ranks)
                 cores = placed.cores_used or cores
+                if bind.nic.pick != "default":
+                    nics_held = frozenset(dev for r in placed.ranks for dev in r.nics)
+                    nic_exclusive = bind.nic.exclusive
+        _refuse_shared_nics(held, group, nodes[i], nics_held, nic_exclusive, where)
         applied.append(result)
-        held.append(_Held(group, frozenset(nodes[i]), cores, gpus_held))
+        held.append(
+            _Held(key, group, frozenset(nodes[i]), cores, gpus_held, nics_held, nic_exclusive)
+        )
     return applied

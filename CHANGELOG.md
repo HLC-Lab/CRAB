@@ -15,6 +15,13 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+### Changed
+
+- **`bind.nic` `exclusive` also keeps other apps on the same node off the NIC.** Before, it only
+  refused two ranks of one app sharing a NIC. Now a NIC held by an `exclusive` app, or one an
+  `exclusive` app would take from another app, stops the run before it is submitted. Apps that name
+  no NIC are not checked.
+
 ### Fixed
 
 - **With no GPU bound, `cores: "nearest"` follows the NIC of a `tag` or `spread` pick.** Each rank takes

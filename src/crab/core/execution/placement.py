@@ -321,7 +321,17 @@ def _place(
     directives = [global_opts.get("sbatch_directives"), global_opts.get("system_sbatch")]
     chain_head = {i: reuse.get(i, i) for i in range(len(keys))}
     bound = apply_binds(
-        keys, configs, envs, ppns, nodes, chain_head, literal, tuple(gpus), settings, directives
+        keys,
+        configs,
+        envs,
+        ppns,
+        nodes,
+        chain_head,
+        literal,
+        tuple(gpus),
+        tuple(nics),
+        settings,
+        directives,
     )
     for i, applied in enumerate(bound):
         if applied is not None:
