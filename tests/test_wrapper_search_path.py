@@ -189,7 +189,7 @@ def test_the_runner_warns_once_with_the_new_path_for_an_old_flat_path(
         loaded.append(path)
         raise RuntimeError("stop")
 
-    monkeypatch.setattr("crab.core.experiment.runner.load_module", stop)
+    monkeypatch.setattr("crab.core.experiment.apps.load_module", stop)
     monkeypatch.setenv("CRAB_WL_MANAGER", "local")
     runner = ExperimentRunner(
         exp_name="exp",

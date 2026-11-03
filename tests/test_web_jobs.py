@@ -11,7 +11,8 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
-from crab.web.api.jobs import _run_submission, worst_status  # noqa: E402
+from crab.web.api.jobs import worst_status  # noqa: E402
+from crab.web.api.jobs_submit import _run_submission  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import NotFoundError, RemoteConnectionError  # noqa: E402
@@ -412,7 +413,7 @@ def test_submit_returns_202_with_a_pending_entry_before_any_work_runs(tmp_path: 
     """The response must not wait on the SSH round-trip — proven by replacing the
     background task with a no-op rather than racing a real one (see the module docstring
     above `_run_submission`'s tests for why timing-based assertions aren't used here)."""
-    import crab.web.api.jobs as jobs_api
+    import crab.web.api.jobs_submit as jobs_api
 
     class _DummyTask:
         def add_done_callback(self, cb):

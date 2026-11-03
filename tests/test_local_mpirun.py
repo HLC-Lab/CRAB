@@ -15,6 +15,7 @@ import pytest
 
 from crab.core.execution.settings import from_preset, resolve_launcher
 from crab.core.process import manager as process_manager
+from crab.core.process import stop
 
 _ENVIRON = {"PATH": "/p", "CRAB_ROOT": "/c", "UCX_TLS": "rc"}
 
@@ -22,7 +23,7 @@ _ENVIRON = {"PATH": "/p", "CRAB_ROOT": "/c", "UCX_TLS": "rc"}
 @pytest.fixture(autouse=True)
 def _own_process_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     """The fake process must not stay in the real registry, where `stop_all_registered` finds it."""
-    monkeypatch.setattr(process_manager, "_registry", {})
+    monkeypatch.setattr(stop, "_registry", {})
 
 
 class _FakePopen:

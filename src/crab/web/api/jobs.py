@@ -1,5 +1,5 @@
-"""``/api/jobs``: submit an authored config to a connected cluster, then
-monitor/cancel/read logs for it.
+"""``/api/jobs``: monitor, cancel and read logs of the jobs the dashboard submitted
+(the submit routes live in `api/jobs_submit.py`, the reports in `api/jobs_report.py`).
 
 The local job registry (``store/jobs.py``) only records what the dashboard
 itself submitted (cluster, Slurm job id, data_dir, a config snapshot); live
@@ -10,7 +10,6 @@ this module never assumes a job's state without asking the cluster.
 from __future__ import annotations
 
 import asyncio
-import uuid
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,18 +21,13 @@ from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import (
     CrabWebError,
-    InputError,
     NotFoundError,
     RemoteCommandError,
     RemoteConnectionError,
-    logger,
 )
 from crab.web.remoteops.crab_cli import RemotePath, run_crab_json
-from crab.web.remoteops.transfer import stage_config
-from crab.web.settings import Settings
 from crab.web.store.cache import LocalCache
 from crab.web.store.jobs import JobRecord, JobsStore
-from crab.web.store.library import LibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.trackers import ExpiringTracker
 
@@ -59,16 +53,6 @@ _TERMINAL_STATES = {
 # Worst-first: a purged job's data_dir can hold several experiments' metadata.csv
 # rows (one crab run submission runs many); the job resolves to the worst one.
 _HISTORY_STATUS_PRIORITY = ("FAILED", "TIMEOUT", "COMPLETED")
-
-
-class SubmitRequest(BaseModel):
-    profile_name: str
-    config_id: str | None = None
-    config: dict | None = None
-    name: str | None = None
-    preset: str | None = None
-    only: list[str] | None = None
-    rerun_of: str | None = None
 
 
 def _jobs_store(request: Request) -> JobsStore:
@@ -150,142 +134,6 @@ def _live_transport(profile_name: str, request: Request) -> Transport:
             f"'{profile_name}' is not connected. Connect the cluster first, then retry."
         )
     return transport
-
-
-def _resolve_config(body: SubmitRequest, request: Request) -> tuple[dict, str]:
-    """Return ``(config, name)`` from either a saved library entry or an inline config."""
-    if body.config_id:
-        entry = LibraryStore(request.app.state.settings).get(body.config_id)
-        return entry.config, entry.name
-    if body.config is not None:
-        if not body.name:
-            raise InputError("`name` is required when submitting an inline config.")
-        return body.config, body.name
-    raise InputError("Either `config_id` or `config` is required.")
-
-
-class SubmissionAccepted(BaseModel):
-    submission_id: str
-
-
-class SubmissionStatus(BaseModel):
-    """Polled result of an async submit/rerun. `status` is one of
-    "pending", "done", "error"."""
-
-    status: str
-    record: JobRecord | None = None
-    message: str | None = None
-    detail: str | None = None
-
-
-async def _run_submission(
-    tracker: ExpiringTracker,
-    submission_id: str,
-    transport: Transport,
-    profile: Profile,
-    config: dict,
-    name: str,
-    preset: str,
-    only: list[str] | None,
-    settings: Settings,
-    rerun_of: str | None = None,
-) -> None:
-    """The actual staging/run work, off the request cycle (async submit).
-
-    Takes plain values, not the request, since `request` is request-scoped and
-    this keeps running after the response that created it has been sent.
-    Never lets an exception escape uncaught: an unhandled error in a
-    fire-and-forget task is only logged by asyncio's default handler, which
-    would leave the tracker stuck at "pending" forever with no way to notice.
-    """
-    try:
-        staged_path = await stage_config(transport, profile, config, name, settings=settings)
-        run_args = ["run", RemotePath(staged_path), "-p", preset]
-        if only:
-            run_args += ["--only", ",".join(only)]
-        run_args.append("--json")
-        result = await run_crab_json(transport, profile, run_args, timeout=60.0)
-        record = JobsStore(settings).create(
-            cluster=profile.name,
-            job_id=str(result["job_id"]),
-            data_dir=result["data_dir"],
-            system=result["system"],
-            config_name=name,
-            config_snapshot=config,
-            rerun_of=rerun_of,
-            rerun_experiments=only,
-        )
-        tracker[submission_id] = {"status": "done", "record": record}
-    except CrabWebError as e:
-        tracker[submission_id] = {"status": "error", "message": e.message, "detail": e.detail}
-    except Exception as e:
-        logger.exception("Unhandled error in background submission %s", submission_id)
-        tracker[submission_id] = {"status": "error", "message": str(e), "detail": None}
-
-
-@router.post("/submit", status_code=202)
-async def submit_job(body: SubmitRequest, request: Request) -> SubmissionAccepted:
-    """Validate synchronously, then stage/run in the background.
-
-    Everything that can fail instantly (profile exists, connected, config
-    resolves, a preset is chosen) still happens before responding, same as
-    before: only the SSH round-trip (staging + `crab run`) moves off the
-    request cycle, since that's what used to make a submit or rerun feel like
-    it hung with no feedback.
-    """
-    profile = _profiles(request).get(body.profile_name)
-    transport = _live_transport(body.profile_name, request)
-    config, name = _resolve_config(body, request)
-
-    preset = body.preset or profile.preset
-    if not preset:
-        raise InputError("No preset selected and this remote has no default preset.")
-
-    submission_id = str(uuid.uuid4())
-    tracker = _submissions(request)
-    tracker[submission_id] = {"status": "pending"}
-
-    task = asyncio.create_task(
-        _run_submission(
-            tracker,
-            submission_id,
-            transport,
-            profile,
-            config,
-            name,
-            preset,
-            body.only,
-            request.app.state.settings,
-            body.rerun_of,
-        )
-    )
-    pending_tasks = request.app.state.pending_submission_tasks
-    pending_tasks.add(task)
-    task.add_done_callback(pending_tasks.discard)
-
-    return SubmissionAccepted(submission_id=submission_id)
-
-
-@router.get("/submissions/{submission_id}")
-async def get_submission(submission_id: str, request: Request) -> SubmissionStatus:
-    """Poll a submission's status; 404 once a terminal result has been fetched.
-
-    Entries are dropped from the tracker as soon as a terminal status is
-    returned; an entry nobody polls expires on its own (`web/trackers.py`).
-    """
-    tracker = _submissions(request)
-    entry = tracker.get(submission_id)
-    if entry is None:
-        raise NotFoundError(f"No submission with id '{submission_id}'.")
-    response = SubmissionStatus(
-        status=entry["status"],
-        record=entry.get("record"),
-        message=entry.get("message"),
-        detail=entry.get("detail"),
-    )
-    if entry["status"] != "pending":
-        tracker.pop(submission_id, None)
-    return response
 
 
 class JobListItem(JobRecord):
@@ -460,201 +308,3 @@ async def job_logs(record_id: str, request: Request, experiment: str | None = No
 
     data, stale, cached_at = await _live_or_cached(request, "logs", cache_key, fetch)
     return {**data, "stale": stale, "cached_at": cached_at}
-
-
-class ReportExperiment(BaseModel):
-    """One `crab history` row for a use case, joined with local submit metadata if known."""
-
-    cluster: str
-    system: str
-    job_name: str
-    experiment_name: str
-    timestamp: str
-    numnodes: str
-    ppn: str
-    apps_list: str
-    status: str
-    tags: str
-    relative_path: str
-    # How many of this experiment's internal runs (min/maxruns
-    # retry loop) failed, vs how many were attempted -- lets a client tell
-    # "one bad run tainted the overall status, but most runs succeeded and
-    # have real data" apart from "everything failed." Empty string (not
-    # None) for a `metadata.csv` written before this field existed, matching
-    # the contract's degrade-gracefully convention -- never migrated in
-    # place (owner's explicit call, see ADR-023).
-    total_runs: str = ""
-    failed_runs: str = ""
-    # The allocation seed of a random experiment; "" for deterministic
-    # allocations and for a `metadata.csv` written before this field existed.
-    seed: str = ""
-    record_id: str | None = None
-    job_id: str | None = None
-    submitted_at: str | None = None
-
-
-class StaleCluster(BaseModel):
-    """One cluster whose history in this report came from the local cache, not live."""
-
-    cluster: str
-    cached_at: str
-
-
-class UseCaseReport(BaseModel):
-    config_name: str
-    experiments: list[ReportExperiment]
-    clusters_skipped: list[str]
-    clusters_stale: list[StaleCluster]
-
-
-def _job_basename(relative_path: str) -> str:
-    """First path component of a history row's ``./<job_basename>/<exp_basename>``."""
-    parts = [p for p in relative_path.split("/") if p and p != "."]
-    return parts[0] if parts else ""
-
-
-class JobDetail(BaseModel):
-    """Every `crab history` row for one exact submission."""
-
-    record_id: str
-    config_name: str
-    cluster: str
-    system: str
-    job_id: str
-    submitted_at: str
-    experiments: list[ReportExperiment]
-    stale: bool
-    cached_at: str | None = None
-    rerun_of: JobRecord | None = None
-    rerun_experiments: list[str] | None = None
-    reruns: list[JobRecord]
-
-
-@router.get("/{record_id}/experiments")
-async def job_experiments(record_id: str, request: Request) -> JobDetail:
-    """Every `crab history` row for this exact submission, not the whole use case.
-
-    Same worst-first-independent matching as `_resolve_via_history`/`use_case_report`
-    (a data_dir's basename against a history row's `relative_path` prefix), but
-    returns every matching row instead of collapsing to one worst status.
-    """
-    jobs_store = _jobs_store(request)
-    rec = jobs_store.get(record_id)
-    profile = _profiles(request).get(rec.cluster)
-    basename = Path(rec.data_dir).name
-
-    parent = None
-    if rec.rerun_of:
-        try:
-            parent = jobs_store.get(rec.rerun_of)
-        except NotFoundError:
-            parent = None
-    reruns = [r for r in jobs_store.list() if r.rerun_of == rec.id]
-
-    async def fetch() -> dict:
-        transport = _live_transport(rec.cluster, request)
-        return await run_crab_json(
-            transport, profile, ["history", "-s", rec.system, "--json"], timeout=30.0
-        )
-
-    history, stale, cached_at = await _live_or_cached(
-        request, "history", f"cluster:{rec.cluster}:system:{rec.system}", fetch
-    )
-
-    experiments = [
-        ReportExperiment(
-            cluster=rec.cluster,
-            record_id=rec.id,
-            job_id=rec.job_id,
-            submitted_at=rec.submitted_at,
-            **row,
-        )
-        for row in history["experiments"]
-        if _job_basename(row.get("relative_path", "")) == basename
-    ]
-
-    return JobDetail(
-        record_id=rec.id,
-        config_name=rec.config_name,
-        cluster=rec.cluster,
-        system=rec.system,
-        job_id=rec.job_id,
-        submitted_at=rec.submitted_at,
-        experiments=experiments,
-        stale=stale,
-        cached_at=cached_at,
-        rerun_of=parent,
-        rerun_experiments=rec.rerun_experiments,
-        reruns=reruns,
-    )
-
-
-@router.get("/report/{config_name}")
-async def use_case_report(config_name: str, request: Request) -> UseCaseReport:
-    """Every experiment ever run under `config_name`, across every connected cluster.
-
-    Sourced from `crab history --json` (authoritative: matches manual runs too,
-    not only ones submitted through this dashboard), then joined against the
-    local job registry just for submit metadata (job id, submitted_at). A
-    disconnected cluster is skipped and named in `clusters_skipped` rather than
-    silently omitted, same convention as `list_jobs`'s `connected` flag. A
-    disconnected cluster with a prior cached fetch falls back to it instead of
-    being skipped, named in `clusters_stale` rather than
-    `clusters_skipped`: the caller can still tell the two cases apart.
-    """
-    records_by_cluster: dict[str, dict[str, JobRecord]] = {}
-    for rec in _jobs_store(request).list():
-        records_by_cluster.setdefault(rec.cluster, {})[Path(rec.data_dir).name] = rec
-
-    experiments: list[ReportExperiment] = []
-    clusters_skipped: list[str] = []
-    clusters_stale: list[StaleCluster] = []
-    for profile in _profiles(request).list():
-
-        async def fetch(profile: Profile = profile) -> dict:
-            transport = _live_transport(profile.name, request)
-            return await run_crab_json(transport, profile, ["history", "--json"], timeout=30.0)
-
-        try:
-            history, stale, cached_at = await _live_or_cached(
-                request, "history", f"cluster:{profile.name}", fetch
-            )
-        except RemoteConnectionError:
-            clusters_skipped.append(profile.name)
-            continue
-
-        if stale:
-            assert cached_at is not None
-            clusters_stale.append(StaleCluster(cluster=profile.name, cached_at=cached_at))
-
-        known_jobs = records_by_cluster.get(profile.name, {})
-        for row in history["experiments"]:
-            known = known_jobs.get(_job_basename(row["relative_path"]))
-            # A row's `job_name` is the config's internal `global_options.name`,
-            # which can differ from the library display name used as `config_name`
-            # here (e.g. a submitted config named "msgsize_scaling_study" saved in
-            # the library as "Message-size scaling study..."). The local registry
-            # record carries the display name, so prefer that join; only fall back
-            # to matching `job_name` directly for runs with no local record (manual
-            # `crab run` on the cluster, never submitted through this dashboard).
-            if known is not None:
-                if known.config_name != config_name:
-                    continue
-            elif row["job_name"] != config_name:
-                continue
-            experiments.append(
-                ReportExperiment(
-                    cluster=profile.name,
-                    record_id=known.id if known else None,
-                    job_id=known.job_id if known else None,
-                    submitted_at=known.submitted_at if known else None,
-                    **row,
-                )
-            )
-
-    return UseCaseReport(
-        config_name=config_name,
-        experiments=experiments,
-        clusters_skipped=clusters_skipped,
-        clusters_stale=clusters_stale,
-    )
