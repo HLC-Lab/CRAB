@@ -63,6 +63,8 @@ class Placement:
     `co_run[i]` is None for an app alone on its nodes, else "shared" or "disjoint" by the cores
     setting of the group of apps it runs with (an app after another takes its head's value).
     `nics[i]` is app i's own `nics` list, or None when it sets none (a chained app keeps its own).
+    `gpus[i]` is app i's own `gpus` list, or the GPUs its `bind` chose, or None when neither sets any.
+    `binds[i]` is what app i's `bind` settled (an `AppBind`), or None when it has no `bind`.
     """
 
     cpu_lists: list[tuple[int, ...] | None]
@@ -257,10 +259,13 @@ def place_experiment(
     `exp_opts` is the experiment's merged options, where each app's ranks per node come from.
 
     Raises:
-        ValueError: an invalid `cpus`, `env`, `nics` or `ppn`, `nics` together with
-            `env.UCX_NET_DEVICES`, a `cpus` on a chained app, a chained app
-            with more ranks than its head's cores, or a failure of `plan`; every message starts
-            with `experiment <exp>: `.
+        ValueError: an invalid `cpus`, `env`, `nics`, `gpus`, `bind` or `ppn`, `nics` together with
+            `env.UCX_NET_DEVICES`, `gpus` together with the GPU variable of the env, a `bind` that
+            sets what a literal key or env variable also sets, a `bind.gpu` together with
+            `--gpus-per-task` or `--gpu-bind` in the sbatch directives, a `bind` without a topology
+            in the preset or one the topology cannot meet, a `cpus` or `bind.cores` on a chained
+            app, a chained app with more ranks than its head's cores, or a failure of `plan`;
+            every message starts with `experiment <exp>: `.
     """
     try:
         return _place(keys, configs, nodes, allocation, exp_opts, settings, node_list, global_opts)

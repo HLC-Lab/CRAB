@@ -86,8 +86,9 @@ class base:
         self.process = process
 
     def set_output(self, stdout, stderr):
-        self.stdout = stdout.decode("utf-8")
-        self.stderr = stderr.decode("utf-8")
+        # An app's output is not guaranteed UTF-8, and the stderr cap can cut inside a character.
+        self.stdout = stdout.decode("utf-8", errors="replace")
+        self.stderr = stderr.decode("utf-8", errors="replace")
 
     def set_nodes(self, node_list):
         self.node_list = node_list

@@ -3,6 +3,7 @@ import re
 import shlex
 import subprocess
 import threading
+from typing import Any
 
 from crab.core.execution.launcher import (
     MpirunLauncher,
@@ -279,7 +280,7 @@ def run_job(
     # (chatty UCX or CUDA) blocks on its write until CRAB reads, which would be after it exits.
     job.raw_stderr_buffer = bytearray()
 
-    def _stderr_reader():
+    def _stderr_reader() -> None:
         cut = False
         try:
             for chunk in iter(lambda: process.stderr.read1(65536), b""):
@@ -302,7 +303,7 @@ def run_job(
     logger.info(f"Launched App {job.id_num}  PID={process.pid}  nodes={job.node_list}")
 
 
-def _collect_stderr(job) -> bytes:
+def _collect_stderr(job: Any) -> bytes:
     """The app's stderr: the reader thread's buffer once the thread has drained the pipe.
 
     A job without a reader (not started by `run_job`) has its pipe read directly; that only
