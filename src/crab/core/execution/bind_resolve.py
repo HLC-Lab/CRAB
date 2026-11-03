@@ -89,19 +89,31 @@ def _gpu_order(topology: Topology, order: str) -> list[int]:
     ]
 
 
-def _assign_gpus(bind: Bind, topology: Topology, ppn: int, where: str) -> list[int | None]:
+def _assign_gpus(
+    bind: Bind, topology: Topology, ppn: int, where: str, taken_gpus: frozenset[int]
+) -> list[int | None]:
     if bind.gpu in ("none", "all"):
         return [None] * ppn
     count = len(topology.gpus)
     if count == 0:
         raise ValueError(f'{where}: bind.gpu "{bind.gpu}" needs GPUs, but the topology lists none.')
     order = _gpu_order(topology, bind.order)
-    if bind.gpu == "per-rank" and ppn > count:
+    if bind.gpu == "shared":
+        return [order[rank % count] for rank in range(ppn)]
+    free = [gpu for gpu in order if gpu not in taken_gpus]
+    if ppn > len(free):
+        held = len(taken_gpus & set(range(count)))
+        if held == 0:
+            raise ValueError(
+                f"{where}: bind.gpu per-rank needs {ppn} GPUs per node (ppn {ppn}), the topology has {count}; "
+                'lower ppn or use bind.gpu "shared".'
+            )
         raise ValueError(
-            f"{where}: bind.gpu per-rank needs {ppn} GPUs per node (ppn {ppn}), the topology has {count}; "
+            f"{where}: bind.gpu per-rank needs {ppn} GPUs per node (ppn {ppn}), "
+            f"{len(free)} of the topology's {count} are free ({held} held by other apps on the node); "
             'lower ppn or use bind.gpu "shared".'
         )
-    return [order[rank % count] for rank in range(ppn)]
+    return list(free[:ppn])
 
 
 def _domain_cores(topology: Topology, domain: int, siblings: bool) -> list[int]:
@@ -301,11 +313,13 @@ def resolve(
     ppn: int,
     taken_cores: frozenset[int] = frozenset(),
     where: str = "app",
+    taken_gpus: frozenset[int] = frozenset(),
 ) -> Resolved:
     """The placement of each local rank 0..ppn-1 on one node.
 
     `taken_cores` are the cores earlier apps of the same co-run group hold, so apps are placed
-    disjointly in app order. `where` names the app in messages, e.g. `app 0`.
+    disjointly in app order. `where` names the app in messages, e.g. `app 0`. `taken_gpus` are the
+    GPUs those apps hold: `bind.gpu per-rank` skips them (`shared` and `all` ignore them).
 
     Raises:
         ValueError: the request cannot be met by this topology; the message gives the numbers.
@@ -313,7 +327,7 @@ def resolve(
     if ppn < 1:
         raise ValueError(f"{where}: ppn must be at least 1, got {ppn}.")
     warnings: list[str] = []
-    gpus = _assign_gpus(bind, topology, ppn, where)
+    gpus = _assign_gpus(bind, topology, ppn, where, taken_gpus)
     if _cores_follow_nics(bind, gpus):
         # tag and spread do not read the cores, so the NICs come first and the cores follow them.
         nics = _assign_nics(bind, topology, gpus, [()] * ppn, where, warnings)
