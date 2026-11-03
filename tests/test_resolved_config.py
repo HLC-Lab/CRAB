@@ -58,6 +58,54 @@ def test_has_bind_only_for_a_bind_that_asks_for_something() -> None:
     assert not has_bind({})
 
 
+@pytest.mark.parametrize(
+    "bind",
+    [
+        {"gpu": "none", "nic": "default"},
+        {"gpu": "none"},
+        {"nic": "default"},
+        {"nic": {"pick": "default"}},
+        {"nic": {"pick": "default", "ports": 1, "exclusive": False}},
+        {"cores": "launcher"},
+        {"order": "pack"},
+        {"gpu": "none", "nic": "default", "cores": "launcher", "order": "pack"},
+    ],
+)
+def test_a_bind_spelling_the_defaults_places_nothing(bind: dict[str, Any]) -> None:
+    """`apply_binds` treats a bind that parses to `Bind()` as no bind (bind_apply.py), so it writes no header."""
+    assert not has_bind(config_with({"0": {"bind": bind}}))
+
+
+@pytest.mark.parametrize(
+    "bind",
+    [
+        {"gpu": "per-rank"},
+        {"nic": {"pick": "spread"}},
+        {"nic": {"tag": "fast"}},
+        {"cores": "nearest"},
+        {"cores": {"smt": True}},
+        {"order": "spread"},
+        {"gpu": "per-rank", "nic": "default"},
+    ],
+)
+def test_a_bind_that_asks_for_something_counts(bind: dict[str, Any]) -> None:
+    assert has_bind(config_with({"0": {"bind": bind}}))
+
+
+@pytest.mark.parametrize(
+    "bind",
+    [{"gpu": "sideways"}, {"colour": "red"}, "nearest", ["gpu"], {"nic": "nearest"}],
+)
+def test_an_invalid_bind_still_counts(bind: object) -> None:
+    """Validation reports the broken bind elsewhere; the header must not hide a broken config."""
+    assert has_bind(config_with({"0": {"bind": bind}}))
+
+
+def test_one_app_that_asks_makes_the_config_count_beside_a_default_one() -> None:
+    apps = {"0": {"bind": {"gpu": "none"}}, "1": {"bind": {"cores": "nearest"}}}
+    assert has_bind(config_with(apps))
+
+
 def test_the_header_names_the_preset_topology_resolver_and_crab_version() -> None:
     header = resolved_header(ENV, settings_with())
     assert header == {
@@ -132,7 +180,7 @@ def test_a_malformed_header_is_refused(bad: Any) -> None:
 
 def test_the_config_checks_ignore_the_header_key() -> None:
     config = config_with({"0": {"path": "x.py"}}, resolved_for=marker())
-    assert isinstance(check_config(config, settings_with()), list)
+    assert check_config(config, settings_with()) == []
 
 
 # --- the engine writes the files ----------------------------------------------------------------

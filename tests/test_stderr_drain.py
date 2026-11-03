@@ -110,6 +110,36 @@ def test_a_stopped_app_keeps_the_stderr_it_wrote_before_the_stop(tmp_path: Path)
     assert len(job.output[1]) == 200 * KIB
 
 
+def test_a_stderr_pipe_held_open_by_an_orphan_logs_that_the_tail_may_be_incomplete(
+    tmp_path: Path,
+) -> None:
+    # The child inherits the stderr pipe and outlives the app, so the reader thread is still
+    # alive when `_collect_stderr` gives up after its 2 s join (the stdout reader waits 2 s too,
+    # so the test takes about 4 s). The child sleeps 6 s, past both joins, and exits by itself.
+    job = _job(
+        tmp_path,
+        "import subprocess, sys; "
+        "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(6)']); print('ok')",
+    )
+    logger = MagicMock()
+    run_job(job, DIRECT, logger)
+
+    assert not wait_timed(job, timeout_sec=10.0, logger=logger)
+
+    messages = [str(call.args[0]) for call in logger.warning.call_args_list]
+    assert any("App 0" in m and "stderr" in m and "incomplete" in m for m in messages), messages
+
+
+def test_an_app_that_exits_normally_leaves_no_incomplete_stderr_warning(tmp_path: Path) -> None:
+    job = _job(tmp_path, "import sys; sys.stderr.write('e'); print('ok')")
+    logger = MagicMock()
+    run_job(job, DIRECT, logger)
+
+    assert not wait_timed(job, timeout_sec=10.0, logger=logger)
+
+    assert not any("incomplete" in str(call) for call in logger.warning.call_args_list)
+
+
 def _decoding_job(tmp_path: Path, code: str) -> _DecodingJob:
     run_dir = tmp_path / "run_1" / "app_0"
     run_dir.mkdir(parents=True)

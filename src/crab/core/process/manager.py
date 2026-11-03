@@ -323,6 +323,17 @@ def _collect_stderr(job: Any) -> bytes:
         return b""
 
 
+def _warn_if_stderr_open(job: Any, logger: CrabLogger) -> None:
+    """Call after `_collect_stderr`: a reader that is still alive means an orphan of the app holds
+    the stderr pipe, so the end of the stderr was not collected."""
+    thread = getattr(job, "_stderr_thread", None)
+    if thread is not None and thread.is_alive():
+        logger.warning(
+            f"App {job.id_num}: its stderr pipe is still open, "
+            "so the end of the stderr may be incomplete"
+        )
+
+
 def end_job(job, logger: CrabLogger) -> None:
     """Stops a job (SIGTERM first, SIGKILL after the grace) and retrieves output."""
     if not (hasattr(job, "process") and job.process):
@@ -345,6 +356,7 @@ def end_job(job, logger: CrabLogger) -> None:
 
     out = b"".join(getattr(job, "raw_stdout_buffer", []))
     err = _collect_stderr(job)
+    _warn_if_stderr_open(job, logger)
 
     # Reap the zombie so the OS can release the PID.
     job.process.wait()
@@ -368,6 +380,7 @@ def wait_timed(job, timeout_sec: float, logger: CrabLogger) -> bool:
 
     out = b"".join(getattr(job, "raw_stdout_buffer", []))
     err = _collect_stderr(job)
+    _warn_if_stderr_open(job, logger)
 
     job.set_output(out, err)
     return False

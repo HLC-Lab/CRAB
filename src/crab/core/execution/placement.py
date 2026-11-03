@@ -1,9 +1,14 @@
-"""Which cores each co-located app gets, and the environment each app's ranks run with (ADR-033).
+"""What each co-located app's ranks get: cores, environment, NICs and GPUs (ADR-033, ADR-043).
 
 An app's reserved `cpus` key is a core list ("0-15,32", one core per rank) and `env` is an object
-of variables for its ranks. Apps whose nodes overlap run at the same time on the same hosts
+of variables for its ranks; `nics`, `gpus` and `bind` set the NICs and GPUs (and, for `bind`, the
+cores). Apps whose nodes overlap run at the same time on the same hosts
 (`allocation.mode: "shared"`); `cores: "disjoint"` (the default there) keeps them on different
 cores, `cores: "shared"` lets them compete for the same ones.
+
+The literal keys are read first, then each `bind` is placed after the cores that earlier apps on
+the same nodes hold. The module then checks that apps running together do not use the same cores
+and, under Slurm, that `cpus` comes with `--exclusive` and is set on every app of a group or none.
 
 Pure apart from `os.cpu_count`, read only for a bare `localhost` preset host. Every error is a
 `ValueError`; the experiment-level entry points prefix it with `experiment <name>: `.
@@ -62,7 +67,8 @@ class Placement:
     under `cores: "shared"` (it competes for cores and must not be bound by the launcher).
     `co_run[i]` is None for an app alone on its nodes, else "shared" or "disjoint" by the cores
     setting of the group of apps it runs with (an app after another takes its head's value).
-    `nics[i]` is app i's own `nics` list, or None when it sets none (a chained app keeps its own).
+    `nics[i]` is app i's own `nics` list, or the NICs its `bind` chose (one entry per rank, the
+    rank's NIC ports joined by commas), or None when neither sets any (a chained app keeps its own).
     `gpus[i]` is app i's own `gpus` list, or the GPUs its `bind` chose, or None when neither sets any.
     `binds[i]` is what app i's `bind` settled (an `AppBind`), or None when it has no `bind`.
     """

@@ -178,6 +178,47 @@ def test_invalid_blocks_name_the_field(data: Any, message: str) -> None:
     assert str(error.value).startswith(WHERE)
 
 
+def _gpus_at(*addresses: str | None) -> dict[str, Any]:
+    """MINIMAL with one GPU per address (None leaves the pci out) and no NICs."""
+    gpus = [
+        {"numa": 0} if address is None else {"numa": 0, "pci": address} for address in addresses
+    ]
+    return broken(gpus=gpus, nics=[])
+
+
+def test_gpus_listed_out_of_pci_order_are_rejected() -> None:
+    with pytest.raises(ValueError) as error:
+        parse_topology(_gpus_at("0000:c1:00.0", "0000:41:00.0"), WHERE)
+    text = str(error.value)
+    assert text.startswith(f"{WHERE}: topology.gpus[1].pci")
+    assert "0000:41:00.0 comes after 0000:c1:00.0" in text
+    assert "ascending PCI order" in text
+
+
+def test_upper_case_pci_addresses_are_not_valid_at_all() -> None:
+    """PCI_ADDRESS is lower-case only, so the order check never meets an upper-case address."""
+    with pytest.raises(ValueError, match=r"gpus\[1\]\.pci: '0000:C1:00\.0' is not valid"):
+        parse_topology(_gpus_at("0000:41:00.0", "0000:C1:00.0"), WHERE)
+
+
+def test_gpus_in_ascending_pci_order_keep_their_text() -> None:
+    addresses = ["0000:41:00.0", "0000:61:00.0", "0000:c1:00.0", "0000:e1:00.0"]
+    parsed = parse_topology(_gpus_at(*addresses), WHERE)
+    assert [gpu.pci for gpu in parsed.gpus] == addresses
+
+
+def test_pci_order_is_not_checked_when_a_gpu_has_no_address() -> None:
+    parsed = parse_topology(_gpus_at("0000:c1:00.0", None, "0000:41:00.0"), WHERE)
+    assert [gpu.pci for gpu in parsed.gpus] == ["0000:c1:00.0", None, "0000:41:00.0"]
+
+
+def test_two_gpus_cannot_share_a_pci_address() -> None:
+    with pytest.raises(ValueError) as error:
+        parse_topology(_gpus_at("0000:41:00.0", "0000:41:00.0"), WHERE)
+    assert str(error.value).startswith(f"{WHERE}: topology.gpus[1].pci")
+    assert "ascending PCI order" in str(error.value)
+
+
 def test_hash_ignores_source_and_changes_with_the_devices() -> None:
     first = parse_topology(FULL, WHERE)
     reprobed = parse_topology({**FULL, "source": {"kind": "probe", "date": "2027-01-01"}}, WHERE)

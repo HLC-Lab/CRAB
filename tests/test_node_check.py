@@ -26,6 +26,7 @@ from crab.core.execution.node_check import (
     compare_nodes,
     count_gpu_lines,
     node_facts,
+    notes_for,
     visible_gpu_count,
 )
 from crab.core.execution.probe_sysfs import collect_node
@@ -351,3 +352,35 @@ def test_a_node_that_cannot_check_prints_its_crash_instead_of_staying_silent(
     line = json.loads(capsys.readouterr().out)
     assert line["facts"] is None and len(line["problems"]) == 1
     assert line["problems"][0].startswith("the node check crashed: FileNotFoundError: ")
+
+
+def test_a_note_says_the_visible_gpus_could_not_be_counted_only_when_gpus_are_used() -> None:
+    note = ["visible GPUs not verified: nvidia-smi gave no count"]
+    assert notes_for(Used(gpus=True), None) == note
+    assert notes_for(Used(gpus=True), 4) == []
+    assert notes_for(Used(gpus=True), 3) == []
+    assert notes_for(Used(gpus=False), None) == []
+    assert notes_for(Used(nics=frozenset({"mlx5_0:1"}), cores=frozenset({0, 1})), None) == []
+
+
+def test_main_adds_notes_to_its_line_only_when_the_gpu_count_is_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fs = four_by_four(tmp_path / "sys")
+    topology_block, _ = build_topology(node_of(fs), "2026-11-01")
+    spec = tmp_path / "spec.json"
+    spec.write_text(json.dumps({"topology": topology_block, "gpus": True}))
+    monkeypatch.setattr(node_check, "collect_node", lambda path: node_of(fs))
+    monkeypatch.setattr(node_check, "allowed_cores", lambda: None)
+    monkeypatch.setattr(node_check, "visible_gpu_count", lambda: None)
+    assert node_check.main([str(spec)]) == 0
+    line = json.loads(capsys.readouterr().out)
+    assert line["problems"] == []
+    assert line["notes"] == ["visible GPUs not verified: nvidia-smi gave no count"]
+    monkeypatch.setattr(node_check, "visible_gpu_count", lambda: 4)
+    assert node_check.main([str(spec)]) == 0
+    assert "notes" not in json.loads(capsys.readouterr().out)
+    spec.write_text(json.dumps({"topology": topology_block, "gpus": False}))
+    monkeypatch.setattr(node_check, "visible_gpu_count", lambda: None)
+    assert node_check.main([str(spec)]) == 0
+    assert "notes" not in json.loads(capsys.readouterr().out)

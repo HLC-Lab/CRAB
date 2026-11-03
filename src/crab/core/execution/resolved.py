@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import crab
+from crab.core.execution.bind import Bind, parse_bind
 from crab.core.execution.bind_resolve import RESOLVER_VERSION
 from crab.core.execution.settings import ExecutionSettings
 from crab.core.execution.topology import topology_sha256
@@ -20,13 +21,24 @@ RESOLVED_KEY = "resolved_for"
 
 
 def has_bind(config: Mapping[str, Any]) -> bool:
-    """True when some app of some experiment has a non-empty `bind`."""
+    """True when some app of some experiment has a `bind` that asks for something.
+
+    A `bind` that parses to the defaults (`Bind()`) places nothing, as in `apply_binds`, so it does not
+    count. A `bind` that does not parse counts: validation reports it elsewhere.
+    """
     for experiment in (config.get("experiments") or {}).values():
         apps = experiment.get("apps") if isinstance(experiment, dict) else None
         for app in (apps or {}).values():
-            if isinstance(app, dict) and app.get("bind"):
+            if isinstance(app, dict) and app.get("bind") and _asks_for_something(app["bind"]):
                 return True
     return False
+
+
+def _asks_for_something(bind: object) -> bool:
+    try:
+        return parse_bind(bind, "bind") != Bind()
+    except ValueError:
+        return True
 
 
 def resolved_header(

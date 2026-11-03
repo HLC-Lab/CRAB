@@ -266,3 +266,55 @@ def test_check_config_runs_the_bind_check_with_the_preset_topology() -> None:
     assert any("no physical core list" in w for w in check_config(config, settings_for()))
     with pytest.raises(ValueError, match="bind needs a topology in the preset"):
         check_config(config, slurm_settings())
+
+
+PER_RANK = {"bind": {"gpu": "per-rank"}}
+
+
+def test_apps_on_the_same_gpus_of_a_node_get_a_warning_and_keep_their_placement() -> None:
+    placed = place([PER_RANK, PER_RANK], ppn=2)
+    assert placed.gpus == [(0, 1), (0, 1)]
+    first, second = placed.binds
+    assert first is not None and second is not None
+    assert first.warnings == ()
+    assert second.warnings == ("app 1: GPU 0, 1 of the node are also bound by app 0",)
+    assert second.warnings[0] in placed.warnings
+
+
+def test_apps_on_different_nodes_do_not_share_gpus() -> None:
+    placed = place([PER_RANK, PER_RANK], nodes=[["h0"], ["h1"]], ppn=2)
+    assert placed.gpus == [(0, 1), (0, 1)]
+    assert [b.warnings for b in placed.binds if b is not None] == [(), ()]
+
+
+def test_a_chained_app_runs_after_its_head_so_it_shares_no_gpu_with_it() -> None:
+    placed = place([PER_RANK, {"start": "s0", **PER_RANK}], ppn=2)
+    assert placed.gpus == [(0, 1), (0, 1)]
+    assert [b.warnings for b in placed.binds if b is not None] == [(), ()]
+
+
+def test_explicit_gpu_sharing_is_not_warned_about_in_either_direction() -> None:
+    shared = {"bind": {"gpu": "shared"}}
+    for configs in ([PER_RANK, shared], [shared, PER_RANK], [shared, shared]):
+        placed = place(configs, ppn=2)
+        assert [b.warnings for b in placed.binds if b is not None] == [(), ()]
+
+
+def test_an_app_that_holds_no_gpu_leaves_the_next_app_unwarned() -> None:
+    holds_none = {"bind": {"gpu": "all", "cores": "nearest"}}
+    placed = place([holds_none, {"bind": {"gpu": "per-rank", "cores": "nearest"}}], ppn=2)
+    assert not any("also bound" in w for w in placed.warnings)
+
+
+def test_the_gpu_warning_comes_after_the_resolvers_own_warnings_and_names_every_other_app() -> None:
+    body = {"bind": {"gpu": "per-rank", "cores": "nearest"}}
+    placed = place([body, body, body], ppn=2)
+    third = placed.binds[2]
+    assert third is not None
+    assert "no physical core list" in third.warnings[0]
+    assert third.warnings[1:] == (
+        "app 2: GPU 0, 1 of the node are also bound by app 0",
+        "app 2: GPU 0, 1 of the node are also bound by app 1",
+    )
+    first = placed.binds[0]
+    assert first is not None and not any("also bound" in w for w in first.warnings)
