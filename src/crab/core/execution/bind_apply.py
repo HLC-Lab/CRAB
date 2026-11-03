@@ -8,9 +8,9 @@ unlike a literal `cpus`, which is sorted) and one NIC per rank.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 from crab.core.execution.bind import Bind, parse_bind
 from crab.core.execution.bind_resolve import RankPlacement, resolve
@@ -28,6 +28,14 @@ class AppBind:
     gpus: tuple[int, ...] | None
     warnings: tuple[str, ...]
     ranks: tuple[RankPlacement, ...] = ()
+
+
+class _Held(NamedTuple):
+    """What an earlier app holds: its chain's group (the head's index), its nodes and its cores."""
+
+    group: int
+    nodes: frozenset[str]
+    cores: frozenset[int]
 
 
 def _refuse_conflicts(
@@ -83,14 +91,16 @@ def apply_binds(
     envs: Sequence[Mapping[str, str]],
     ppns: Sequence[int],
     nodes: Sequence[Sequence[str]],
-    chained: Collection[int],
+    chain_head: Mapping[int, int],
     literal_cpus: Sequence[tuple[int, ...] | None],
     settings: ExecutionSettings,
     directives: Sequence[Any] = (),
 ) -> list[AppBind | None]:
     """One entry per app: None when it has no `bind` (or one that asks for nothing).
 
-    `chained` holds the indexes of apps that start after another and run on its cores;
+    `chain_head` maps each app's index to the index of the head of its chain: an app that starts
+    after another runs on the nodes of its head and shares that chain's group, and a head maps to
+    itself. An app is placed after the cores held by apps of other groups on the same nodes.
     `literal_cpus` is each app's parsed `cpus`, so apps are placed after the cores earlier apps
     on the same nodes already hold; `directives` are the raw sbatch directive sources.
 
@@ -99,10 +109,12 @@ def apply_binds(
             app without a topology in the preset, or a request the topology cannot meet.
     """
     applied: list[AppBind | None] = []
-    held: list[tuple[frozenset[str], frozenset[int]]] = []
+    held: list[_Held] = []
     held_gpus: list[tuple[str, frozenset[str], frozenset[int]]] = []
     for i, key in enumerate(keys):
         where = f"app {key}"
+        group = chain_head[i]
+        chained = group != i
         cores: frozenset[int] = frozenset(literal_cpus[i] or ())
         result: AppBind | None = None
         per_rank_gpus: frozenset[int] = frozenset()
@@ -111,7 +123,7 @@ def apply_binds(
             if bind != Bind():
                 _refuse_conflicts(bind, configs[i], envs[i], where, settings)
                 _refuse_slurm_gpu_binding(bind, directives, where)
-                if i in chained and bind.cores == "nearest":
+                if chained and bind.cores == "nearest":
                     raise ValueError(
                         f"{where}: bind.cores cannot be set on an app that starts after another; "
                         "it runs on the cores of the app before it"
@@ -121,7 +133,9 @@ def apply_binds(
                         f"{where}: bind needs a topology in the preset, and this preset has none "
                         "(crab probe prints one for a node)"
                     )
-                taken = frozenset().union(*(c for n, c in held if n & set(nodes[i])))
+                taken = frozenset().union(
+                    *(h.cores for h in held if h.group != group and h.nodes & set(nodes[i]))
+                )
                 placed = resolve(bind, settings.topology, ppns[i], taken, where)
                 cpus = tuple(r.cores[0] for r in placed.ranks) if bind.cores == "nearest" else None
                 nics = (
@@ -137,15 +151,15 @@ def apply_binds(
                 warnings = placed.warnings
                 if bind.gpu == "per-rank" and gpus is not None:
                     per_rank_gpus = frozenset(gpus)
-                    if i not in chained:  # it starts after another app, so it never runs beside it
+                    if not chained:  # it starts after another app, so it never runs beside it
                         warnings += _gpu_overlap_warnings(
                             where, frozenset(nodes[i]), per_rank_gpus, held_gpus
                         )
                 result = AppBind(cpus, nics, gpus, warnings, placed.ranks)
                 cores = placed.cores_used or cores
         applied.append(result)
-        if i not in chained:
-            held.append((frozenset(nodes[i]), cores))
+        held.append(_Held(group, frozenset(nodes[i]), cores))
+        if not chained:
             if per_rank_gpus:
                 held_gpus.append((key, frozenset(nodes[i]), per_rank_gpus))
     return applied
