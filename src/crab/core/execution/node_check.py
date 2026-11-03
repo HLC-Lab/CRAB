@@ -15,7 +15,7 @@ import socket
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -27,11 +27,33 @@ NVIDIA_SMI_TIMEOUT_S = 20
 
 @dataclass(frozen=True)
 class Used:
-    """What a placement relies on: the NIC ports it names, whether it sets GPUs, the cores it binds."""
+    """What a placement relies on: the NIC ports it names, whether it sets GPUs, the cores it binds.
+
+    `needed_by` maps a port to the `(app key, local rank)` pairs that hold it, so a problem with the port
+    can name them; a port missing from it is reported without that suffix.
+    """
 
     nics: frozenset[str] = frozenset()
     gpus: bool = False
     cores: frozenset[int] = frozenset()
+    needed_by: Mapping[str, tuple[tuple[str, int], ...]] = field(default_factory=dict)
+
+
+def needed_by_text(needers: Sequence[tuple[str, int]]) -> str:
+    """`app 0 local ranks 1, 3 and app 1 local rank 0`: one phrase per app, in the order given."""
+    ranks_of: dict[str, list[int]] = {}
+    for key, rank in needers:
+        ranks_of.setdefault(key, []).append(rank)
+    phrases = [
+        f"app {key} local {'rank' if len(ranks) == 1 else 'ranks'} {', '.join(map(str, ranks))}"
+        for key, ranks in ranks_of.items()
+    ]
+    return " and ".join(phrases)
+
+
+def _suffix(used: Used, dev: str) -> str:
+    needers = used.needed_by.get(dev)
+    return f", needed by {needed_by_text(needers)}" if needers else ""
 
 
 def count_gpu_lines(listing: str) -> int:
@@ -106,14 +128,15 @@ def check_node(
     expected = {nic.dev: nic for nic in topology.nics}
     for dev in sorted(used.nics):
         port = ports.get(dev)
+        needed = _suffix(used, dev)
         if port is None:
-            problems.append(f"{dev} is not on this node")
+            problems.append(f"{dev} is not on this node{needed}")
             continue
         if "ACTIVE" not in (port["state"] or ""):
-            problems.append(f"{dev} is not active ({port['state']})")
+            problems.append(f"{dev} is not active ({port['state']}){needed}")
         want = expected[dev].pci if dev in expected else None
         if want is not None and port["pci"] != want:
-            problems.append(f"{dev} is at PCI {port['pci']}, the topology says {want}")
+            problems.append(f"{dev} is at PCI {port['pci']}, the topology says {want}{needed}")
     if used.gpus:
         gpus = node["gpus"]
         if len(gpus) != len(topology.gpus):
@@ -183,7 +206,8 @@ def compare_nodes(facts: Mapping[str, Mapping[str, Any]]) -> list[str]:
 def main(argv: Sequence[str] | None = None) -> int:
     """`python -m crab.core.execution.node_check SPEC.json`: one JSON line about this node.
 
-    The spec is `{"topology": <topology block>, "nics": [...], "gpus": bool, "cores": [...]}`; the line is
+    The spec is `{"topology": <topology block>, "nics": [...], "needed_by": {port: [[app key, local rank],
+    ...]}, "gpus": bool, "cores": [...]}` (a spec without `needed_by` names no needers); the line is
     `{"host", "problems", "facts"}`, plus `"notes"` when the node could not check something.
     """
     args = list(sys.argv[1:] if argv is None else argv)
@@ -194,10 +218,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         spec = json.loads(Path(args[0]).read_text())
         topology = parse_topology(spec["topology"], "node check")
         node = collect_node(Path("/sys"))
+        needed_by = {
+            port: tuple((str(key), int(rank)) for key, rank in needers)
+            for port, needers in spec.get("needed_by", {}).items()
+        }
         used = Used(
             frozenset(spec.get("nics", [])),
             bool(spec.get("gpus")),
             frozenset(spec.get("cores", [])),
+            needed_by,
         )
         gpus = visible_gpu_count() if used.gpus else None
         problems = check_node(node, topology, used, gpus, allowed_cores())

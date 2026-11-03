@@ -17,6 +17,8 @@ its notes live in the tag and the GitHub release.
 
 ### Changed
 
+- **The node check names the app and the local rank that need a NIC port it finds wrong.** Before, the
+  message gave only the port and its state; now it ends with, for example, `needed by app 0 local rank 2`.
 - **Apps that bind `gpu: "per-rank"` and run at the same time get different GPUs of the node.** Before,
   each such app started at GPU 0. Now an app skips the GPUs the earlier apps hold, and the run stops
   before it is submitted when too few are free; use `"gpu": "shared"` to put apps on the same GPUs on
