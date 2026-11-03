@@ -61,6 +61,22 @@ def _refuse_slurm_gpu_binding(bind: Bind, directives: Sequence[Any], where: str)
         )
 
 
+def _gpu_overlap_warnings(
+    where: str,
+    nodes: frozenset[str],
+    gpus: frozenset[int],
+    held_gpus: Sequence[tuple[str, frozenset[str], frozenset[int]]],
+) -> tuple[str, ...]:
+    """One sentence per earlier app on a shared node that holds some of the GPUs this app was given."""
+    sentences = []
+    for other, other_nodes, other_gpus in held_gpus:
+        common = gpus & other_gpus
+        if common and nodes & other_nodes:
+            listed = ", ".join(str(g) for g in sorted(common))
+            sentences.append(f"{where}: GPU {listed} of the node are also bound by app {other}")
+    return tuple(sentences)
+
+
 def apply_binds(
     keys: Sequence[str],
     configs: Sequence[Mapping[str, Any]],
@@ -84,10 +100,12 @@ def apply_binds(
     """
     applied: list[AppBind | None] = []
     held: list[tuple[frozenset[str], frozenset[int]]] = []
+    held_gpus: list[tuple[str, frozenset[str], frozenset[int]]] = []
     for i, key in enumerate(keys):
         where = f"app {key}"
         cores: frozenset[int] = frozenset(literal_cpus[i] or ())
         result: AppBind | None = None
+        per_rank_gpus: frozenset[int] = frozenset()
         if "bind" in configs[i]:
             bind = parse_bind(configs[i]["bind"], where)
             if bind != Bind():
@@ -116,9 +134,18 @@ def apply_binds(
                     if bind.gpu in ("per-rank", "shared")
                     else None
                 )
-                result = AppBind(cpus, nics, gpus, placed.warnings, placed.ranks)
+                warnings = placed.warnings
+                if bind.gpu == "per-rank" and gpus is not None:
+                    per_rank_gpus = frozenset(gpus)
+                    if i not in chained:  # it starts after another app, so it never runs beside it
+                        warnings += _gpu_overlap_warnings(
+                            where, frozenset(nodes[i]), per_rank_gpus, held_gpus
+                        )
+                result = AppBind(cpus, nics, gpus, warnings, placed.ranks)
                 cores = placed.cores_used or cores
         applied.append(result)
         if i not in chained:
             held.append((frozenset(nodes[i]), cores))
+            if per_rank_gpus:
+                held_gpus.append((key, frozenset(nodes[i]), per_rank_gpus))
     return applied

@@ -28,6 +28,34 @@ ACCEPTING = [
     "smt-two-sockets",
     "captured-four-gpu-four-nic-infiniband",
 ]
+NO_CORE_LIST = (
+    "app 0: the topology has no physical core list, so every core counts as physical (SMT unknown)"
+)
+# check_config raises for a refusal and returns warnings otherwise: "accepts" is the exact warnings per
+# shape and example (the control twin selects no NIC, so it gets none of the NIC ones).
+WARNINGS = {
+    "four-gpus-four-nics": ([NO_CORE_LIST], [NO_CORE_LIST]),
+    "eight-gpus-two-nics": (
+        [
+            NO_CORE_LIST,
+            "app 0: no NIC is near GPU 1; took the NICs of its NUMA domain 0",
+            "app 0: no NIC is near GPU 2; took the NICs of its NUMA domain 0",
+            "app 0: no NIC is near GPU 3; took the NICs of its NUMA domain 0",
+            "app 0: 4 ranks share NIC nic0:1",
+        ],
+        [NO_CORE_LIST],
+    ),
+    "smt-two-sockets": (
+        [
+            "app 0: no NIC is near GPU 1; took the NICs of its NUMA domain 0",
+            "app 0: no NIC is near GPU 3; took the NICs of its NUMA domain 1",
+            "app 0: 2 ranks share NIC nic0:1",
+            "app 0: 2 ranks share NIC nic1:1",
+        ],
+        [],
+    ),
+    "captured-four-gpu-four-nic-infiniband": ([], []),
+}
 TOO_SMALL = ["two-gpus-two-port-cards", "amd-single-socket", "cpu-only"]
 
 
@@ -76,8 +104,9 @@ def test_the_control_twin_differs_only_in_the_nic_choice_and_the_names() -> None
 
 @pytest.mark.parametrize("shape", ACCEPTING)
 def test_the_pre_submit_check_accepts_the_example_on_a_layout_with_the_hardware(shape: str) -> None:
-    for name in ("pinned_gpu.json", "pinned_gpu_control.json"):
-        assert isinstance(check_config(load(name), settings_for(shape)), list)
+    pinned, control = WARNINGS[shape]
+    assert check_config(load("pinned_gpu.json"), settings_for(shape)) == pinned, shape
+    assert check_config(load("pinned_gpu_control.json"), settings_for(shape)) == control, shape
 
 
 @pytest.mark.parametrize("shape", ACCEPTING)

@@ -210,7 +210,23 @@ def _parse_gpus(
         numa = _index(body.get("numa"), f"{here}.numa")
         _check_domain(numa, domains, f"{here}.numa")
         gpus.append(Gpu(numa, _text(body.get("pci"), f"{here}.pci", PCI_ADDRESS)))
+    _check_pci_order(gpus, where)
     return tuple(gpus)
+
+
+def _check_pci_order(gpus: list[Gpu], where: str) -> None:
+    """GPU n is the nth lowest PCI address (the rank shim sets CUDA_DEVICE_ORDER=PCI_BUS_ID)."""
+    addresses = [gpu.pci for gpu in gpus]
+    if any(address is None for address in addresses):
+        return
+    for position in range(1, len(addresses)):
+        previous = str(addresses[position - 1])
+        current = str(addresses[position])
+        if current <= previous:
+            raise ValueError(
+                f"{where}[{position}].pci: {current} comes after {previous}; "
+                "list GPUs in ascending PCI order (GPU n is the nth lowest address)."
+            )
 
 
 def _parse_nic(
