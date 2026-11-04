@@ -578,8 +578,10 @@ crab update --json
 ## `crab probe`
 
 Describes the node it runs on (GPUs, RDMA NIC ports, NUMA domains) as a preset
-[`topology`](presets.md#topology) block. It reads Linux sysfs only, so it needs no vendor tool. Run it
-on a compute node, inside an allocation: a login node has other hardware. Review what it prints, then
+[`topology`](presets.md#topology) block. The block is built from Linux sysfs alone, so building it needs no vendor tool. A live run
+(no `--sysfs`, no `--node-file`) on a node with NVIDIA GPUs also runs `nvidia-smi` to count the GPUs this
+process sees, only to add a warning (see the warnings below); without `nvidia-smi` the probe still works
+and the block is the same. Run it on a compute node, inside an allocation: a login node has other hardware. Review what it prints, then
 paste the block into a preset override.
 
 ```bash
