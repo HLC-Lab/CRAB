@@ -20,11 +20,9 @@ from typing import Any
 
 from crab.cli import contract
 from crab.core.execution.node_check import Used, allowed_cores, check_node, visible_gpu_count
-from crab.core.execution.probe_sysfs import collect_node
+from crab.core.execution.probe_sysfs import DEFAULT_SYSFS, collect_node
 from crab.core.execution.probe_topology import build_topology
 from crab.core.execution.topology import Topology, parse_topology
-
-DEFAULT_SYSFS = "/sys"
 
 
 def _load_node(path: str) -> dict[str, Any]:

@@ -13,6 +13,8 @@ import socket
 from pathlib import Path
 from typing import Any
 
+DEFAULT_SYSFS = "/sys"
+
 GPU_VENDORS = {"0x10de": "nvidia", "0x1002": "amd", "0x8086": "intel"}
 
 
