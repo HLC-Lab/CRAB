@@ -58,6 +58,39 @@ def test_two_apps_that_name_the_same_port_are_both_listed() -> None:
     assert used_by(apps).needed_by["a:1"] == (("0", 0), ("1", 0))
 
 
+def test_numeric_app_keys_sort_by_value_not_as_text() -> None:
+    apps = [
+        AppDevices(nodes=("n1",), nics=("a:1",), gpus=(), cores=(), key="10", ppn=1),
+        AppDevices(nodes=("n1",), nics=("a:1",), gpus=(), cores=(), key="2", ppn=1),
+    ]
+    assert used_by(apps).needed_by["a:1"] == (("2", 0), ("10", 0))
+
+
+def test_a_key_that_is_not_a_number_sorts_after_the_numeric_ones() -> None:
+    apps = [
+        AppDevices(nodes=("n1",), nics=("a:1",), gpus=(), cores=(), key=key, ppn=1)
+        for key in ("victim", "10", "2")
+    ]
+    assert used_by(apps).needed_by["a:1"] == (("2", 0), ("10", 0), ("victim", 0))
+
+
+def test_the_local_rank_is_the_last_tiebreak_for_one_app() -> None:
+    app = AppDevices(nodes=("n1",), nics=("a:1",), gpus=(), cores=(), key="2", ppn=3)
+    assert used_by([app]).needed_by["a:1"] == (("2", 0), ("2", 1), ("2", 2))
+
+
+def test_the_message_names_app_2_before_app_10(tmp_path: Path) -> None:
+    fs = four_by_four(tmp_path)
+    node = node_with(fs, "mlx5_2:1", state="DOWN")
+    apps = [
+        AppDevices(nodes=("n",), nics=("mlx5_2:1",), gpus=(), cores=(), key=key, ppn=1)
+        for key in ("10", "2")
+    ]
+    assert check_node(node, topology_of(fs), used_by(apps)) == [
+        "mlx5_2:1 is not active (DOWN), needed by app 2 local rank 0 and app 10 local rank 0"
+    ]
+
+
 def test_an_app_without_a_key_or_ppn_adds_no_needers() -> None:
     apps = [
         AppDevices(("n1",), ("a:1",), (), ()),
