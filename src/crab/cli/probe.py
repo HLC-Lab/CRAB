@@ -1,8 +1,10 @@
 """`crab probe`: describe this node's GPUs and NICs as a preset `topology` block (ADR-043).
 
-Reads Linux sysfs; only to warn, a live read also counts the GPUs `nvidia-smi` sees. Run it on a compute node (inside an allocation, not on a login node, which
-has other hardware), review what it prints and paste the block into a preset override. `--json`
-also prints the raw node data, which `--node-file` reads back to rebuild the block elsewhere.
+The block is built from Linux sysfs alone. A live read (no `--sysfs`, no `--node-file`) also counts
+the GPUs `nvidia-smi` sees, only to warn. Run it on a compute node inside an allocation (a login
+node has other hardware), review what it prints and paste the block into a preset override.
+`--json` also prints the raw node data, which `--node-file` reads back to rebuild the block
+elsewhere.
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from crab.core.execution.node_check import Used, allowed_cores, check_node, visi
 from crab.core.execution.probe_sysfs import collect_node
 from crab.core.execution.probe_topology import build_topology
 from crab.core.execution.topology import Topology, parse_topology
+
+DEFAULT_SYSFS = "/sys"
 
 
 def _load_node(path: str) -> dict[str, Any]:
@@ -156,7 +160,7 @@ def handle_probe(args: argparse.Namespace) -> None:
     except ValueError as error:
         print(f"crab: {error}", file=sys.stderr)
         sys.exit(1)
-    if not args.node_file and args.sysfs == "/sys":
+    if not args.node_file and args.sysfs == DEFAULT_SYSFS:
         visible = visible_gpu_count() if block["gpu_vendor"] == "nvidia" else None
         warnings += _live_warnings(
             node["hostname"], os.environ, len(block["gpus"]), block["gpu_vendor"], visible
@@ -168,7 +172,9 @@ def register(subparsers: Any) -> None:
     parser = subparsers.add_parser(
         "probe", help="Describe this node's GPUs and NICs as a preset topology block"
     )
-    parser.add_argument("--sysfs", default="/sys", help="sysfs root to read (default /sys).")
+    parser.add_argument(
+        "--sysfs", default=DEFAULT_SYSFS, help=f"sysfs root to read (default {DEFAULT_SYSFS})."
+    )
     parser.add_argument(
         "--node-file",
         help="Rebuild the block from a file saved with `crab probe --json` instead of reading sysfs.",

@@ -64,8 +64,12 @@ def run_live(
     tmp_path: Path,
     visible: int | None,
     **options: Any,
-) -> tuple[str, int]:
-    """Run the command as on a live node: `_read_node` returns a fixture node, so `/sys` is not read."""
+) -> str:
+    """Run the command as on a live node and return its stdout (`_read_node` returns a fixture node).
+
+    The real signal is that `probe.handle_probe(args)` returns without raising `SystemExit`: an
+    exit would propagate and fail the calling test.
+    """
     node = collect_node(four_by_four(tmp_path / "sys").root, hostname="n1")
     monkeypatch.setattr(probe, "_read_node", lambda args: node)
     monkeypatch.setattr(probe, "visible_gpu_count", lambda: visible)
@@ -74,27 +78,38 @@ def run_live(
     defaults |= {"check": False, "preset": None, "topology_file": None}
     args = argparse.Namespace(**{**defaults, **options})
     probe.handle_probe(args)
-    return capsys.readouterr().out, 0
+    return capsys.readouterr().out
 
 
 def test_a_live_probe_prints_both_warnings_and_exits_0(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    out, code = run_live(monkeypatch, capsys, tmp_path, visible=2)
+    out = run_live(monkeypatch, capsys, tmp_path, visible=2)
     warnings = json.loads(out)["warnings"]
-    assert code == 0
     assert LOGIN in warnings
     assert any(w.startswith("2 of the 4 GPUs sysfs lists are visible") for w in warnings)
-    human, _ = run_live(monkeypatch, capsys, tmp_path / "again", visible=2, json=False)
+    human = run_live(monkeypatch, capsys, tmp_path / "again", visible=2, json=False)
     assert f"warning: {LOGIN}" in human
 
 
 def test_a_probe_of_a_sysfs_copy_or_a_saved_node_adds_neither_warning(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    out, _ = run_live(monkeypatch, capsys, tmp_path, visible=2, sysfs=str(tmp_path / "sys"))
+    out = run_live(monkeypatch, capsys, tmp_path, visible=2, sysfs=str(tmp_path / "sys"))
     assert json.loads(out)["warnings"] == []
-    out, _ = run_live(
+    out = run_live(
         monkeypatch, capsys, tmp_path / "again", visible=2, node_file=str(tmp_path / "n.json")
     )
     assert json.loads(out)["warnings"] == []
+
+
+def test_an_unreadable_node_file_exits_1_and_names_the_file(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    missing = tmp_path / "missing.json"
+    defaults = {"sysfs": "/sys", "json": True, "check": False, "preset": None}
+    args = argparse.Namespace(**defaults, node_file=str(missing), topology_file=None)
+    with pytest.raises(SystemExit) as exit_info:
+        probe.handle_probe(args)
+    assert exit_info.value.code == 1
+    assert capsys.readouterr().err.startswith(f"crab: cannot read {missing}: ")

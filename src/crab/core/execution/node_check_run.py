@@ -44,6 +44,14 @@ class AppDevices:
     ppn: int = 0
 
 
+def _needer_order(pair: tuple[str, int]) -> tuple[int, int, str, int]:
+    """Sort key of an (app key, local rank): numeric keys by value ("2" before "10"), then other keys as text."""
+    key, rank = pair
+    if key.isdecimal():  # not isdigit: "²" is a digit that int() rejects
+        return (0, int(key), "", rank)
+    return (1, 0, key, rank)
+
+
 def used_by(apps: Sequence[AppDevices]) -> Used:
     """The NIC ports, GPU use and cores of all the apps together, and who needs each port.
 
@@ -57,7 +65,7 @@ def used_by(apps: Sequence[AppDevices]) -> Used:
         for rank in range(app.ppn):
             for port in app.nics[rank % len(app.nics)].split(","):
                 holders.setdefault(port, set()).add((app.key, rank))
-    needed_by = {port: tuple(sorted(found)) for port, found in holders.items()}
+    needed_by = {port: tuple(sorted(found, key=_needer_order)) for port, found in holders.items()}
     return Used(
         nics,
         any(app.gpus for app in apps),
