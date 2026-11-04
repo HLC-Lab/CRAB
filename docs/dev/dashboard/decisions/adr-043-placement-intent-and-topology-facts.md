@@ -32,6 +32,11 @@ distances from the PCI tree), so it needs neither `nvidia-smi` nor hwloc. It run
 from a copied sysfs tree or from the node data a previous run saved with `--json`. It never edits a
 preset, and it never writes a block without printing it first.
 
+**Amendment 2026-11-04.** A live `crab probe` (no `--sysfs`, no `--node-file`) on a node with NVIDIA
+GPUs also runs `nvidia-smi -L` to count the GPUs the process sees, only to warn when that count differs
+from the GPUs sysfs lists (a Slurm job sees only the GPUs it was given). The block itself still comes
+from sysfs alone, and a probe on a node without `nvidia-smi` works and prints the same block.
+
 **Three steps, each with one job.** Validation before submit resolves `bind` on paper against the
 preset, with the same code the worker runs. Before the first run of an experiment, a node check runs
 once per node through the experiment's launcher: it compares each node with the facts the placement
