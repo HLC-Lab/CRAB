@@ -76,6 +76,23 @@ def _discover() -> list[object]:
 MPIRUNS = _discover()
 
 
+@pytest.fixture(autouse=True)
+def _private_mpi_tmpdir(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Give each test its own session-directory base for the MPI runtime.
+
+    A launch that gets killed leaves its session directory in the shared /tmp, and a later
+    daemon that gets the same pid then fails with "A daemon failed to report back". The folder
+    is made with `mktemp` (short on purpose: the runtime puts unix sockets under it, and a
+    socket path is limited to about 100 characters).
+    """
+    base = str(tmp_path_factory.mktemp("m"))
+    monkeypatch.setenv("TMPDIR", base)
+    monkeypatch.setenv("PRTE_MCA_prte_tmpdir_base", base)
+    monkeypatch.setenv("OMPI_MCA_orte_tmpdir_base", base)
+
+
 def _launch_line(mpirun: str, hosts: tuple[str, ...], agent: Path | None) -> str:
     """The launch line for 2 ranks over `hosts`, each rank printing its number.
 
