@@ -167,7 +167,7 @@ def _assign_cores(
         domains = [fixed] if fixed is not None else sorted(topology.numa)
         near = preferred[rank] if fixed is None and rank < len(preferred) else None
         choice = None
-        if near is not None and near[0] in topology.numa:
+        if near is not None:
             choice = _first_free(topology, [near[0]], bind.smt, used)
         if choice is None:
             choice = _first_free(topology, domains, bind.smt, used)

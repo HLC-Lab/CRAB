@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from crab.core.execution.probe_sysfs import collect_node
+from crab.core.execution.probe_sysfs import DEFAULT_SYSFS, collect_node
 from crab.core.execution.topology import Topology, cores_text, parse_core_list, parse_topology
 
 NVIDIA_SMI_TIMEOUT_S = 20
@@ -217,7 +217,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         spec = json.loads(Path(args[0]).read_text())
         topology = parse_topology(spec["topology"], "node check")
-        node = collect_node(Path("/sys"))
+        node = collect_node(Path(DEFAULT_SYSFS))
         needed_by = {
             port: tuple((str(key), int(rank)) for key, rank in needers)
             for port, needers in spec.get("needed_by", {}).items()
