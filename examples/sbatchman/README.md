@@ -33,6 +33,10 @@ walks through the whole flow, from installing CRAB on the cluster to reading res
    path of your CRAB checkout). It defines one config per node count, `crab_run_2`, `crab_run_4`,
    `crab_run_8` and `crab_run_16`, and the jobs files read it from the folder they sit in.
 
+   Also check `time` and `qos`. `time` is 30 minutes by default, and a job runs six experiments
+   back to back, so raise it for the 12-job sweeps at 16 nodes and 4 MiB. `qos` is `normal` by
+   default; for a quick check set the site's debug QOS, after reading its node and time limits.
+
 3. Copy a jobs file next to it, check what SbatchMan would submit, then launch:
 
    ```bash

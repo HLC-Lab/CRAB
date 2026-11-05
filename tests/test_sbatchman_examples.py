@@ -132,9 +132,25 @@ def test_the_noise_files_sweep_nodes_and_message_size_one_job_each(path: Path) -
     assert len(tags) == 12
 
 
-@pytest.mark.parametrize("path", sorted(EXAMPLES.glob("*.yaml")), ids=lambda p: p.name)
+@pytest.mark.parametrize(
+    "path", [*sorted(EXAMPLES.glob("*.yaml")), EXAMPLES / "README.md"], ids=lambda p: p.name
+)
 def test_no_example_names_the_removed_preset_command(path: Path) -> None:
     assert "sbatchman-preset" not in path.read_text()
+
+
+def test_the_readme_tells_the_partner_to_check_time_and_qos() -> None:
+    lines = (EXAMPLES / "README.md").read_text().splitlines()
+    start = next(
+        i
+        for i, line in enumerate(lines)
+        if line.startswith("2. In your SbatchMan project directory")
+    )
+    end = next(i for i, line in enumerate(lines) if line.startswith("3. Copy a jobs file"))
+    step_two = "\n".join(lines[start:end])
+
+    assert "`time`" in step_two
+    assert "`qos`" in step_two
 
 
 def _leading_comment(path: Path) -> str:
@@ -152,6 +168,9 @@ def test_every_jobs_file_starts_with_the_setup_block(path: Path) -> None:
 
     assert "configs.leonardo.yaml" in header
     assert "set-cluster-name leonardo" in header
+    assert "sbatchman init" in header
+    for removed in ("configs.yaml", "--configs-file", "--nodes "):
+        assert removed not in header
 
 
 def test_blink_noise_is_one_four_node_incast_job() -> None:
