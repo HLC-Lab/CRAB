@@ -1,7 +1,11 @@
 # ADR-027 · SbatchMan worker seam v2: environment inheritance, GitHub-main install
 
 - **Date:** 2026-09-22
-- **Status:** accepted
+- **Status:** partly superseded by ADR-045 (install pin and the {token} constraint)
+
+**Update:** in SbatchMan 2.0.3 `{var}` is substituted in `command` and `preprocess` (not
+`{EXP_DIR}`; use `$SBATCHMAN_JOB_DIR`), and the install is `pip install sbatchman==2.0.3`. See
+[ADR-045](adr-045-sbatchman-line-configs-own-the-environment.md).
 
 ## Context
 

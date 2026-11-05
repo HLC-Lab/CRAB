@@ -35,6 +35,13 @@ convergence-target metric has tightened below `beta × mean`; once all targets c
 `maxruns`/`timeout` is hit), the experiment ends. Which metrics are targets is set by the
 `conv` flag in a wrapper's `metadata`, or by `convergeall`.
 
+### CRAB env block
+
+The environment entries a [SbatchMan config](#sbatchman-config) must carry so that `crab worker`
+finds CRAB and its wrappers inside the job: the CRAB virtual environment on `PATH`, `CRAB_ROOT`
+(where the install is), `CRAB_PATH_WRAPPERS` (where the wrappers are) and `CRAB_SYSTEM` (the
+system label). Contrast with a [preset](#preset), which `crab run` selects with `-p`.
+
 ### Engine
 
 The control core (`src/crab/core/engine.py`) that runs in one of two modes:
@@ -121,7 +128,8 @@ A named, [system-dependent](concepts/system-dependent-vs-independent.md) environ
 a file of the crab-wrappers clone (`presets/<cluster>.json`) or in your own [override](#override)
 files: scheduler, launcher and its flags, CPU pinning, modules (`header`), and Slurm directives
 (`sbatch`). Selected at run time with `-p <name>`. CRAB itself sets `CRAB_ROOT` in every preset's
-environment, so a preset does not write it.
+environment, so a preset does not write it. A preset belongs to `crab run`; on the SbatchMan line the
+job environment comes from a [SbatchMan config](#sbatchman-config) instead.
 
 ### Override
 
@@ -155,6 +163,13 @@ download and build a benchmark. Used only by `crab setup`, which turns a recipe 
 A single execution of all an [experiment's](#experiment) applications. An experiment performs many
 runs (at least `minruns` successful ones, at most `maxruns` in all) to gather enough samples for [convergence](#convergence).
 "Run" (one repetition) and "experiment" (the whole repeated study) are not interchangeable.
+
+### SbatchMan config
+
+One named entry, such as `crab_run_4`, in a cluster block of a SbatchMan configs file: the Slurm
+allocation, the modules and the environment a job gets. On the SbatchMan line it is the only
+source of a job's environment, and it must carry the [CRAB env block](#crab-env-block). Contrast
+with [preset](#preset), which belongs to `crab run`.
 
 ### Scheduler
 

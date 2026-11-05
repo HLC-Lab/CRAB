@@ -86,4 +86,5 @@ editor no longer offers the field and the generated YAML never writes `configs:`
 Leave it unset and let SbatchMan resolve its configuration itself; the partner guide on the
 `sbatchman` branch (`docs/using/sbatchman-integration.md`) describes the supported setup. The
 rest of this decision (file-based worker seam, generator not driver, `{var}` expansion left to
-SbatchMan) stands.
+SbatchMan) stands. In SbatchMan 2.0.3 the `configs:` key is supported (see
+[ADR-045](adr-045-sbatchman-line-configs-own-the-environment.md)).

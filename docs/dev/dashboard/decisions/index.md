@@ -35,7 +35,7 @@ deleted.
 | [024](adr-024-plotly-webgl-scatter.md) | Switch scatter/line charts to WebGL rendering (scattergl) | accepted |
 | [025](adr-025-sbatchman-worker-seam-and-campaign-generator.md) | SbatchMan integration: file-based worker seam, generator not driver | accepted |
 | [026](adr-026-sbatchman-dedicated-branch.md) | SbatchMan work moves to its own dedicated branch, launch removed | accepted |
-| [027](adr-027-sbatchman-seam-v2.md) | SbatchMan worker seam v2: environment inheritance, GitHub-main install | accepted |
+| [027](adr-027-sbatchman-seam-v2.md) | SbatchMan worker seam v2: environment inheritance, GitHub-main install | partly superseded by 045 (install pin and the {token} constraint) |
 | [028](adr-028-branch-model.md) | Keep `sbatchman` as a long-lived project branch fed by merges from the product line | accepted |
 | [029](adr-029-scheduler-and-launcher.md) | Support Slurm and a local backend before v1.0, launcher separate from scheduler | accepted |
 | [030](adr-030-compatibility-and-release-policy.md) | Version what partners keep, tag each partner release, update with one command | accepted |
@@ -53,3 +53,4 @@ deleted.
 | [042](adr-042-stable-from-2-0.md) | CRAB is declared stable from 2.0; 1.x may change its public surface | accepted |
 | [043](adr-043-placement-intent-and-topology-facts.md) | Placement intent lives in the config, topology facts live in the preset | accepted |
 | [044](adr-044-co-running-apps-get-disjoint-devices.md) | Co-running apps get disjoint devices | accepted |
+| [045](adr-045-sbatchman-line-configs-own-the-environment.md) | On the SbatchMan line, SbatchMan configs own the job environment | accepted |
