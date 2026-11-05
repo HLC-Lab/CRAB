@@ -1,0 +1,200 @@
+# A small co-run: an all-to-all baseline versus the same all-to-all next to an incast aggressor.
+#
+# Setup, once, from your SbatchMan project directory (the folder you launch from):
+#   sbatchman init
+#   sbatchman set-cluster-name leonardo
+#   cp <CRAB checkout>/examples/sbatchman/configs.leonardo.yaml .
+#   (edit it: fill in <YOUR_ACCOUNT> and <CRAB_DIR>)
+# Copy this file next to configs.leonardo.yaml, then check and launch:
+#   sbatchman launch -f blink-noise.yaml --dry-run
+#   sbatchman launch -f blink-noise.yaml
+# `configs.leonardo.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>; its
+# `nodes` list must hold every value of `nodes` below.
+# The `time` in configs.leonardo.yaml must cover six experiments in a row (three baselines and
+# three noise runs).
+#
+# Measures: how much incast noise slows an all-to-all, on 4 nodes: the victim (Blink alltoall_b)
+# gets 2 nodes and the aggressor 2, 1 MiB messages, 100 iterations. One job runs six experiments
+# (three baselines and three noise runs) in one allocation: r1_baseline, r1_noise, r2_baseline,
+# r2_noise, r3_baseline, r3_noise (CRAB runs the experiments of a config in sorted name order).
+# The baseline and the noise run on the same physical nodes, alternating three times. The nodes
+# are split 50/50, interleaved: the victim gets nodes 0, 2, ... and the aggressor the rest. A
+# baseline runs only the victim; a noise experiment adds the aggressor, which sends 2 MiB messages
+# continuously until the victim ends.
+#
+# This is the small version of a2a-vs-incast.yaml: widen the `nodes` and `msgsize` lists for a
+# sweep. Every `nodes` value needs a crab_run_<nodes> config in configs.leonardo.yaml.
+configs: configs.leonardo.yaml
+variables:
+  nodes:
+    - 4
+  msgsize:
+    - 1048576
+jobs:
+  - config: crab_run_{nodes}
+    tag: blink-noise-{nodes}n-{msgsize}B
+    preprocess: |
+      mkdir -p "$SBATCHMAN_JOB_DIR"
+      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
+      {
+        "schema_version": 2,
+        "global_options": {
+          "numnodes": "{nodes}",
+          "ppn": "4",
+          "name": "blink-noise-{nodes}n-{msgsize}B"
+        },
+        "experiments": {
+          "r1_baseline": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              }
+            }
+          },
+          "r1_noise": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              },
+              "1": {
+                "path": "blink/incast/incast_nb.py",
+                "args": "-msgsize 2097152 -endl",
+                "collect": false,
+                "start": "0",
+                "end": "f",
+                "partition": "aggressor"
+              }
+            }
+          },
+          "r2_baseline": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              }
+            }
+          },
+          "r2_noise": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              },
+              "1": {
+                "path": "blink/incast/incast_nb.py",
+                "args": "-msgsize 2097152 -endl",
+                "collect": false,
+                "start": "0",
+                "end": "f",
+                "partition": "aggressor"
+              }
+            }
+          },
+          "r3_baseline": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              }
+            }
+          },
+          "r3_noise": {
+            "local_options": {
+              "allocation": {
+                "mode": "interleaved",
+                "partitions": {
+                  "victim": {"share": 50},
+                  "aggressor": {"share": 50}
+                }
+              }
+            },
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize {msgsize} -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": "",
+                "partition": "victim"
+              },
+              "1": {
+                "path": "blink/incast/incast_nb.py",
+                "args": "-msgsize 2097152 -endl",
+                "collect": false,
+                "start": "0",
+                "end": "f",
+                "partition": "aggressor"
+              }
+            }
+          }
+        }
+      }
+      JSON
+    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"

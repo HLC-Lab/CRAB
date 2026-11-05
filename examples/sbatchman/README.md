@@ -1,32 +1,67 @@
 # SbatchMan example campaigns
 
-Three ready-to-launch campaigns for [SbatchMan](https://github.com/LorenzoPichetti/SbatchMan), the
-job manager that submits and tracks the runs. Copy a file to your SbatchMan project directory,
-generate `configs.yaml` once, and launch it as it is. Each job runs CRAB's worker (`crab worker`)
-on the allocation SbatchMan requests, and the worker runs the experiment embedded in the job. The
-[SbatchMan guide](../../docs/using/sbatchman-integration.md) walks through the whole flow, from
-installing CRAB on the cluster to reading results.
+Four ready-to-launch campaigns for [SbatchMan](https://github.com/LorenzoPichetti/SbatchMan), the
+job manager that submits and tracks the runs, plus the SbatchMan configs file they use. Each job
+runs CRAB's worker (`crab worker`) on the allocation SbatchMan requests, and the worker runs the
+experiment embedded in the job. The [SbatchMan guide](../../docs/using/sbatchman-integration.md)
+walks through the whole flow, from installing CRAB on the cluster to reading results.
 
 ## Files
 
-`smoke.yaml` runs one all-to-all (Blink `alltoall_b`) alone on 2 nodes with 4 ranks per node,
-1 MiB messages and 100 iterations per run. It is small enough for a debug queue. Launch it first
-to check that your project, your `configs.yaml` and CRAB's worker work together.
+| File | What it is |
+|---|---|
+| `configs.leonardo.yaml` | The SbatchMan configs file: the Leonardo allocation (account, partition, time, modules) and the CRAB env block every job needs. Every jobs file loads it. |
+| `smoke.yaml` | One all-to-all (Blink `alltoall_b`) alone on 2 nodes, 4 ranks per node, 1 MiB messages, 100 iterations. Run it first. |
+| `blink-noise.yaml` | The small co-run: one 4-node job, an all-to-all against continuous incast noise, 1 MiB messages. |
+| `a2a-vs-incast.yaml` | The sweep: how much incast noise slows an all-to-all, 12 jobs (`nodes` 4, 8, 16 times `msgsize` 1 KiB, 64 KiB, 1 MiB, 4 MiB). |
+| `a2a-vs-a2a.yaml` | The same sweep with all-to-all noise instead of incast. |
 
-`a2a-vs-incast.yaml` measures how much incast noise slows an all-to-all. `a2a-vs-a2a.yaml`
-measures how much all-to-all noise slows the same all-to-all. Each file has one job template and
-two variables: `nodes` takes 4, 8 and 16, and `msgsize` takes 1024, 65536, 1048576 and 4194304
-bytes. SbatchMan launches one job for every pair, so each file launches 12 jobs, tagged
-`a2a-incast-<nodes>n-<msgsize>B` (or `a2a-a2a-<nodes>n-<msgsize>B`).
+## Steps
 
-Every job runs six experiments, one after another, on one allocation:
+1. Install CRAB (with Blink built and the wrappers folder) and SbatchMan on the cluster, as
+   described in the [SbatchMan guide](../../docs/using/sbatchman-integration.md).
+
+2. In your SbatchMan project directory (the folder you launch from), once:
+
+   ```bash
+   sbatchman init
+   sbatchman set-cluster-name leonardo
+   cp <CRAB checkout>/examples/sbatchman/configs.leonardo.yaml .
+   ```
+
+   Edit the copy and fill in `<YOUR_ACCOUNT>` (your Slurm account) and `<CRAB_DIR>` (the absolute
+   path of your CRAB checkout). It defines one config per node count, `crab_run_2`, `crab_run_4`,
+   `crab_run_8` and `crab_run_16`, and the jobs files read it from the folder they sit in.
+
+3. Copy a jobs file next to it, check what SbatchMan would submit, then launch:
+
+   ```bash
+   cp <CRAB checkout>/examples/sbatchman/smoke.yaml .
+   sbatchman launch -f smoke.yaml --dry-run
+   sbatchman launch -f smoke.yaml
+   ```
+
+   Launch `smoke.yaml` first, then `blink-noise.yaml`, then a sweep file the same way.
+   `sbatchman status` shows the jobs.
+
+   SbatchMan skips a job identical to one that already ran in the project (same cluster, config,
+   tag and commands). To run it again, use `sbatchman launch -f <file> --force`.
+
+## What a noise job runs
+
+`blink-noise.yaml` is one job. The two sweep files have one job template and two variables:
+SbatchMan launches one job for every (`nodes`, `msgsize`) pair, tagged
+`a2a-incast-<nodes>n-<msgsize>B` (or `a2a-a2a-<nodes>n-<msgsize>B`), and `blink-noise.yaml` is tagged
+`blink-noise-4n-1048576B`.
+
+Every noise job runs six experiments, one after another, on one allocation:
 
 - `r1_baseline`, `r2_baseline` and `r3_baseline` run only the victim,
   `blink/alltoall/alltoall_b.py`, with `-msgsize <msgsize> -iter 100`. Its results are collected.
 - `r1_noise`, `r2_noise` and `r3_noise` run the same victim and an aggressor. The aggressor is
-  `blink/incast/incast_nb.py` (or `blink/alltoall/alltoall_nb.py`). It sends 2 MiB messages in
-  bursts of 1 second with a pause of 1 second (`-msgsize 2097152 -endl -blength 1 -bpause 1`).
-  It is not collected, and `"end": "f"` makes CRAB stop it when the victim finishes.
+  `blink/incast/incast_nb.py` (or `blink/alltoall/alltoall_nb.py` in `a2a-vs-a2a.yaml`). It sends
+  2 MiB messages continuously (`-msgsize 2097152 -endl`). It is not collected, and `"end": "f"`
+  makes CRAB stop it when the victim finishes.
 
 CRAB runs the experiments of a config in sorted name order. The names start with the round
 (`r1_`, `r2_`, `r3_`), so they sort, and run, as baseline, noise, baseline, noise, baseline,
@@ -44,11 +79,11 @@ is advice for any noise study, not a CRAB rule: CRAB runs whatever order the nam
 
 The price of one job per (nodes, msgsize) pair is stated plainly:
 
-- More jobs, so more queue waits: 12 jobs per file, 24 if you launch both.
+- More jobs, so more queue waits: 12 jobs per sweep file, 24 if you launch both.
 - Two sizes never share an allocation, so a comparison across message sizes spans different
   nodes. Compare baseline and noise inside a job, and read trends across sizes with that in mind.
-- A job runs six experiments back to back, so ask for a time limit that fits all of them at the
-  largest size and node count.
+- A job runs six experiments back to back, so the `time` in `configs.leonardo.yaml` must fit all
+  of them at the largest size and node count. CRAB gives each experiment 1200 seconds by default.
 
 ## The fairness rule
 
@@ -63,63 +98,6 @@ victim's node count and, with it, which switches its nodes sit behind, and the c
 mix that change with the noise. The tests in `tests/test_sbatchman_examples.py` check that the
 six experiments of a file share the allocation block and the same victim app, and that the
 noise experiments add exactly the one aggressor.
-
-## What you need
-
-- CRAB installed on the cluster, with Blink built (`crab setup`) and the wrappers folder
-  (`crab wrappers list` shows `blink/alltoall/alltoall_b.py`, `blink/alltoall/alltoall_nb.py` and
-  `blink/incast/incast_nb.py`).
-- A SbatchMan project directory on the cluster, with the cluster name set:
-  `sbatchman set-cluster-name <cluster name>`. The name must equal the `--system` value you give
-  `crab sbatchman-preset`.
-- A cluster that allows 16 nodes for the two noise files, and 2 for `smoke.yaml`.
-- A time limit for the largest noise job that fits six experiments, each with 10 to 20 runs of
-  100 iterations. CRAB gives each experiment 1200 seconds by default, so six experiments can use
-  two hours.
-
-## Steps
-
-Run these in the SbatchMan project directory.
-
-1. Generate the configs. Use your cluster name, partition, account and a time limit that fits the
-   largest job:
-
-   ```bash
-   crab sbatchman-preset --configs-file --nodes 2,4,8,16 --system <cluster name> \
-       --partition <partition> --account <account> --time 02:00:00 --tasks-per-node 4 > configs.yaml
-   ```
-
-   The file defines `crab_run_2`, `crab_run_4`, `crab_run_8` and `crab_run_16`, one per node
-   count. The jobs name them as `crab_run_{nodes}`. Leave out `2` if you only run the two noise
-   files.
-
-2. Copy the examples next to `configs.yaml`:
-
-   ```bash
-   cp <path to CRAB>/examples/sbatchman/*.yaml .
-   ```
-
-   The jobs files read `configs.yaml` from the folder they sit in.
-
-3. Check what SbatchMan would submit, then launch the smoke test:
-
-   ```bash
-   sbatchman launch -f smoke.yaml --dry-run
-   sbatchman launch -f smoke.yaml
-   ```
-
-4. When it finishes cleanly, launch the campaigns:
-
-   ```bash
-   sbatchman launch -f a2a-vs-incast.yaml --dry-run
-   sbatchman launch -f a2a-vs-incast.yaml
-   sbatchman launch -f a2a-vs-a2a.yaml
-   ```
-
-   Each file submits 12 jobs. To try one first, shrink the lists under `variables` as described
-   below.
-
-   `sbatchman status` shows the jobs.
 
 ## Where the results land
 
@@ -152,6 +130,6 @@ slowdown comes from one allocation, so a difference between two jobs may include
 between their nodes as well as in the noise.
 
 To change the study, edit the lists under `variables` (for example `nodes: [4]` and
-`msgsize: [1048576]` give a single job), and keep every `nodes` value covered by the `--nodes`
-list you gave `crab sbatchman-preset`. If you edit an experiment by hand, keep the victim and the
-allocation identical in all six, and run `crab validate` on the heredoc's JSON.
+`msgsize: [1048576]` give a single job), and keep every `nodes` value covered by the `nodes` list
+in `configs.leonardo.yaml`. If you edit an experiment by hand, keep the victim and the allocation
+identical in all six, and run `crab validate` on the heredoc's JSON.

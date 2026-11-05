@@ -1,15 +1,17 @@
 # All-to-all baseline versus the same all-to-all next to an all-to-all aggressor.
 #
 # Setup, once, from your SbatchMan project directory (the folder you launch from):
-#   sbatchman set-cluster-name <cluster name>
-#   crab sbatchman-preset --configs-file --nodes 4,8,16 --system <cluster name> \
-#       --partition <partition> --account <account> --time <hh:mm:ss> --tasks-per-node 4 > configs.yaml
-# Copy this file next to configs.yaml, then check and launch:
+#   sbatchman init
+#   sbatchman set-cluster-name leonardo
+#   cp <CRAB checkout>/examples/sbatchman/configs.leonardo.yaml .
+#   (edit it: fill in <YOUR_ACCOUNT> and <CRAB_DIR>)
+# Copy this file next to configs.leonardo.yaml, then check and launch:
 #   sbatchman launch -f a2a-vs-a2a.yaml --dry-run
 #   sbatchman launch -f a2a-vs-a2a.yaml
-# `configs.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>.
-# The `--nodes` list must hold every value of `nodes` below. Set --time for a job that runs six
-# experiments in a row (three baselines and three noise runs).
+# `configs.leonardo.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>; its
+# `nodes` list must hold every value of `nodes` below.
+# The `time` in configs.leonardo.yaml must cover six experiments in a row (three baselines and
+# three noise runs).
 #
 # Measures: how much all-to-all noise slows an all-to-all (Blink alltoall_b, the victim), at
 # several message sizes. `nodes` is the TOTAL allocation, 2N: 4, 8 and 16 give the victim 2, 4
@@ -27,12 +29,12 @@
 # and the aggressor partition gets the rest. A baseline experiment runs only the victim (the
 # aggressor nodes stay idle). A noise experiment adds the aggressor on those nodes. The victim
 # has the same node count and node placement in all six, and the only difference is the traffic.
-# The aggressor sends 2 MiB messages in bursts of 1 s with a 1 s pause, until the victim ends.
+# The aggressor sends 2 MiB messages continuously until the victim ends.
 #
 # To shrink the sweep, edit the two lists under `variables` (for example `nodes: [4]` and
 # `msgsize: [1048576]` give one job). Every `nodes` value needs a crab_run_<nodes> config, so the
-# `--nodes` list in configs.yaml must cover them.
-configs: configs.yaml
+# `nodes` list in configs.leonardo.yaml must cover them.
+configs: configs.leonardo.yaml
 variables:
   nodes:
     - 4
@@ -99,7 +101,7 @@ jobs:
               },
               "1": {
                 "path": "blink/alltoall/alltoall_nb.py",
-                "args": "-msgsize 2097152 -endl -blength 1 -bpause 1",
+                "args": "-msgsize 2097152 -endl",
                 "collect": false,
                 "start": "0",
                 "end": "f",
@@ -149,7 +151,7 @@ jobs:
               },
               "1": {
                 "path": "blink/alltoall/alltoall_nb.py",
-                "args": "-msgsize 2097152 -endl -blength 1 -bpause 1",
+                "args": "-msgsize 2097152 -endl",
                 "collect": false,
                 "start": "0",
                 "end": "f",
@@ -199,7 +201,7 @@ jobs:
               },
               "1": {
                 "path": "blink/alltoall/alltoall_nb.py",
-                "args": "-msgsize 2097152 -endl -blength 1 -bpause 1",
+                "args": "-msgsize 2097152 -endl",
                 "collect": false,
                 "start": "0",
                 "end": "f",

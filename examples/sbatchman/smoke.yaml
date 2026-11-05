@@ -1,20 +1,21 @@
 # Smoke test: an all-to-all alone on 2 nodes (4 ranks per node).
 #
 # Setup, once, from your SbatchMan project directory (the folder you launch from):
-#   sbatchman set-cluster-name <cluster name>
-#   crab sbatchman-preset --configs-file --nodes 2 --system <cluster name> \
-#       --partition <partition> --account <account> --time <hh:mm:ss> --tasks-per-node 4 > configs.yaml
-# Copy this file next to configs.yaml, then check and launch:
+#   sbatchman init
+#   sbatchman set-cluster-name leonardo
+#   cp <CRAB checkout>/examples/sbatchman/configs.leonardo.yaml .
+#   (edit it: fill in <YOUR_ACCOUNT> and <CRAB_DIR>)
+# Copy this file next to configs.leonardo.yaml, then check and launch:
 #   sbatchman launch -f smoke.yaml --dry-run
 #   sbatchman launch -f smoke.yaml
-# `configs.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>.
-# The `--nodes` list must hold every value of `nodes` below.
+# `configs.leonardo.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>; its
+# `nodes` list must hold every value of `nodes` below.
 #
 # Measures: the all-to-all (Blink alltoall_b) with no other traffic. Run it first: it is small
 # enough for a debug queue and shows that the project, the config file and CRAB's worker all work.
 # The victim sends 1 MiB messages (-msgsize 1048576) and measures 100 iterations per run
 # (-iter 100). Change those flags in "args" to try another size or iteration count.
-configs: configs.yaml
+configs: configs.leonardo.yaml
 variables:
   nodes:
     - 2

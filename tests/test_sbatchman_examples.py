@@ -28,10 +28,13 @@ from crab.core.wrapper_paths import wrapper_path_problem
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples" / "sbatchman"
 FILES = sorted(p for p in EXAMPLES.glob("*.yaml") if not p.name.startswith("configs."))
-EXPECTED_FILES = {"smoke.yaml", "a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"}
-NOISE_FILES = ["a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"]
+EXPECTED_FILES = {"smoke.yaml", "blink-noise.yaml", "a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"}
+SWEEP_FILES = ["a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"]
+SWEEPS = [EXAMPLES / name for name in SWEEP_FILES]
+NOISE_FILES = ["blink-noise.yaml", *SWEEP_FILES]
 NOISE = [EXAMPLES / name for name in NOISE_FILES]
 AGGRESSOR_PATH = {
+    "blink-noise.yaml": "blink/incast/incast_nb.py",
     "a2a-vs-incast.yaml": "blink/incast/incast_nb.py",
     "a2a-vs-a2a.yaml": "blink/alltoall/alltoall_nb.py",
 }
@@ -92,7 +95,7 @@ def _cases() -> list[Any]:
     ]
 
 
-def test_the_three_campaigns_are_shipped() -> None:
+def test_the_four_campaigns_are_shipped() -> None:
     assert {p.name for p in FILES} == EXPECTED_FILES
 
 
@@ -100,7 +103,7 @@ def test_the_three_campaigns_are_shipped() -> None:
 def test_the_file_has_the_shape_the_dashboard_writes(path: Path) -> None:
     doc = _load(path)
 
-    assert doc["configs"] == "configs.yaml"
+    assert doc["configs"] == "configs.leonardo.yaml"
     assert doc["variables"]["nodes"]
     assert len(doc["jobs"]) == 1
     for job in doc["jobs"]:
@@ -112,7 +115,7 @@ def test_the_file_has_the_shape_the_dashboard_writes(path: Path) -> None:
         assert job["command"] == 'crab worker --workdir "$SBATCHMAN_JOB_DIR"'
 
 
-@pytest.mark.parametrize("path", NOISE, ids=lambda p: p.name)
+@pytest.mark.parametrize("path", SWEEPS, ids=lambda p: p.name)
 def test_the_noise_files_sweep_nodes_and_message_size_one_job_each(path: Path) -> None:
     doc = _load(path)
     job = doc["jobs"][0]
@@ -127,6 +130,64 @@ def test_the_noise_files_sweep_nodes_and_message_size_one_job_each(path: Path) -
     # A tag is the job's name in SbatchMan: it differs for every (nodes, msgsize) pair.
     tags = {_tag(job, values) for values in _combinations(doc)}
     assert len(tags) == 12
+
+
+@pytest.mark.parametrize("path", sorted(EXAMPLES.glob("*.yaml")), ids=lambda p: p.name)
+def test_no_example_names_the_removed_preset_command(path: Path) -> None:
+    assert "sbatchman-preset" not in path.read_text()
+
+
+def _leading_comment(path: Path) -> str:
+    lines: list[str] = []
+    for line in path.read_text().splitlines():
+        if not line.startswith("#"):
+            break
+        lines.append(line)
+    return "\n".join(lines)
+
+
+@pytest.mark.parametrize("path", FILES, ids=lambda p: p.name)
+def test_every_jobs_file_starts_with_the_setup_block(path: Path) -> None:
+    header = _leading_comment(path)
+
+    assert "configs.leonardo.yaml" in header
+    assert "set-cluster-name leonardo" in header
+
+
+def test_blink_noise_is_one_four_node_incast_job() -> None:
+    doc = _load(EXAMPLES / "blink-noise.yaml")
+    job = doc["jobs"][0]
+    combinations = _combinations(doc)
+
+    assert doc["variables"] == {"nodes": [4], "msgsize": [1048576]}
+    assert len(combinations) == 1
+    assert "{nodes}" in job["tag"]
+    assert "{msgsize}" in job["tag"]
+    # SbatchMan skips a job identical to one that ran: the tag must not match a sweep job's tag.
+    sweep_tags = {
+        _tag(sweep_job, values)
+        for path in SWEEPS
+        for sweep_job in _jobs(path)
+        for values in _combinations(_load(path))
+    }
+    assert _tag(job, combinations[0]) not in sweep_tags
+    aggressor = _config(job, combinations[0])["experiments"]["r1_noise"]["apps"]["1"]
+    assert aggressor["path"] == "blink/incast/incast_nb.py"
+
+
+@pytest.mark.parametrize("path", NOISE, ids=lambda p: p.name)
+def test_the_noise_aggressor_runs_continuously(path: Path) -> None:
+    doc = _load(path)
+    for values in _combinations(doc):
+        experiments = _config(doc["jobs"][0], values)["experiments"]
+        for name, experiment in experiments.items():
+            if not name.endswith("noise"):
+                continue
+            args = experiment["apps"]["1"]["args"].split()
+
+            assert "-endl" in args, name
+            assert "-blength" not in args, name
+            assert "-bpause" not in args, name
 
 
 def test_the_smoke_file_stays_one_job_on_two_nodes() -> None:
@@ -211,7 +272,7 @@ def test_baseline_and_noise_share_the_job_the_allocation_and_the_victim(path: Pa
                 assert aggressor["partition"] == "aggressor"
                 assert aggressor["collect"] is False
                 assert aggressor["end"] == "f"
-                assert aggressor["args"] == "-msgsize 2097152 -endl -blength 1 -bpause 1"
+                assert aggressor["args"] == "-msgsize 2097152 -endl"
 
 
 @pytest.mark.parametrize("path", NOISE, ids=lambda p: p.name)
