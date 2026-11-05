@@ -1,6 +1,6 @@
 # SbatchMan example campaigns
 
-Four ready-to-launch campaigns for [SbatchMan](https://github.com/LorenzoPichetti/SbatchMan), the
+Six ready-to-launch campaigns for [SbatchMan](https://github.com/LorenzoPichetti/SbatchMan), the
 job manager that submits and tracks the runs, plus the SbatchMan configs file they use. Each job
 runs CRAB's worker (`crab worker`) on the allocation SbatchMan requests, and the worker runs the
 experiment embedded in the job. The [SbatchMan guide](../../docs/using/sbatchman-integration.md)
@@ -15,6 +15,9 @@ walks through the whole flow, from installing CRAB on the cluster to reading res
 | `blink-noise.yaml` | The small co-run: one 4-node job, an all-to-all against continuous incast noise, 1 MiB messages. |
 | `a2a-vs-incast.yaml` | The sweep: how much incast noise slows an all-to-all, 12 jobs (`nodes` 4, 8, 16 times `msgsize` 1 KiB, 64 KiB, 1 MiB, 4 MiB). |
 | `a2a-vs-a2a.yaml` | The same sweep with all-to-all noise instead of incast. |
+| `qe-alone.yaml` | Quantum ESPRESSO `pw.x` (a silicon SCF run) alone on 2 nodes, 4 ranks per node: the reference run. |
+| `qe-noise.yaml` | The `blink-noise.yaml` design with `pw.x` as the victim: one 4-node job, QE on 2 nodes against a continuous incast aggressor on the other 2, baseline and noise in one allocation. |
+| `qe/` | The input and pseudopotential the two QE files read from the checkout. |
 
 ## Steps
 
@@ -47,6 +50,9 @@ walks through the whole flow, from installing CRAB on the cluster to reading res
 
    Launch `smoke.yaml` first, then `blink-noise.yaml`, then a sweep file the same way.
    `sbatchman status` shows the jobs.
+
+   The two QE files need Quantum ESPRESSO registered in CRAB on the cluster (`crab setup`; a
+   module install is fine).
 
    SbatchMan skips a job identical to one that already ran in the project (same cluster, config,
    tag and commands). To run it again, use `sbatchman launch -f <file> --force`.
@@ -127,6 +133,9 @@ sample, with the columns `run_id` and `msg_size`, and the metric columns named
 1. Pool the rows of `0_Avg-Duration_s` from `r1_baseline`, `r2_baseline` and `r3_baseline`.
 2. Pool the rows from `r1_noise`, `r2_noise` and `r3_noise`.
 3. The slowdown is `mean(noise) / mean(baseline)`.
+
+For the QE files the victim is Quantum ESPRESSO, also app 0, and its metric column is
+`0_wall_time_seconds` (the wrapper records `wall_time`, in seconds).
 
 Repeat this for each job, then put the slowdowns side by side: along `nodes` to see how the
 effect changes with the allocation size, along `msgsize` to see which messages suffer. Each

@@ -28,7 +28,14 @@ from crab.core.wrapper_paths import wrapper_path_problem
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples" / "sbatchman"
 FILES = sorted(p for p in EXAMPLES.glob("*.yaml") if not p.name.startswith("configs."))
-EXPECTED_FILES = {"smoke.yaml", "blink-noise.yaml", "a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"}
+EXPECTED_FILES = {
+    "smoke.yaml",
+    "blink-noise.yaml",
+    "a2a-vs-incast.yaml",
+    "a2a-vs-a2a.yaml",
+    "qe-alone.yaml",
+    "qe-noise.yaml",
+}
 SWEEP_FILES = ["a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"]
 SWEEPS = [EXAMPLES / name for name in SWEEP_FILES]
 NOISE_FILES = ["blink-noise.yaml", *SWEEP_FILES]
@@ -46,7 +53,12 @@ EXPERIMENTS = [
     "r3_baseline",
     "r3_noise",
 ]
-HEREDOC = re.compile(r"<<'JSON'\n(.*?)\nJSON\n", re.DOTALL)
+# A quoted heredoc (<<'JSON') keeps the text as it is; the QE files use an unquoted one (<<JSON) so
+# the shell expands $CRAB_ROOT in the input paths.
+HEREDOC = re.compile(r"<<'?JSON'?\n(.*?)\nJSON\n", re.DOTALL)
+QE_FILES = ["qe-alone.yaml", "qe-noise.yaml"]
+QE_DIR = "$CRAB_ROOT/examples/sbatchman/qe"
+QE_WRAPPER = "quantum-espresso/pw/v7.py"
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -95,7 +107,7 @@ def _cases() -> list[Any]:
     ]
 
 
-def test_the_four_campaigns_are_shipped() -> None:
+def test_the_six_campaigns_are_shipped() -> None:
     assert {p.name for p in FILES} == EXPECTED_FILES
 
 
@@ -310,3 +322,82 @@ def test_the_smoke_victim_sets_a_message_size_and_iterations() -> None:
     config = _config(doc["jobs"][0], _combinations(doc)[0])
 
     assert config["experiments"]["run"]["apps"]["0"]["args"] == "-msgsize 1048576 -iter 100"
+
+
+def _qe_apps(path: Path) -> list[dict[str, Any]]:
+    """Every QE app of the file's first variable assignment, read after the heredoc JSON."""
+    doc = _load(path)
+    config = _config(doc["jobs"][0], _combinations(doc)[0])
+    return [
+        app
+        for experiment in config["experiments"].values()
+        for app in experiment["apps"].values()
+        if app["path"] == QE_WRAPPER
+    ]
+
+
+@pytest.mark.parametrize("name", QE_FILES)
+def test_the_qe_files_read_the_input_from_the_checkout(name: str) -> None:
+    path = EXAMPLES / name
+    job = _jobs(path)[0]
+    apps = _qe_apps(path)
+
+    assert apps
+    for app in apps:
+        assert app["input_file"].startswith(QE_DIR)
+        assert app["pseudo_dir"].startswith(QE_DIR)
+        input_file = REPO / app["input_file"].replace("$CRAB_ROOT/", "")
+        pseudo_dir = REPO / app["pseudo_dir"].replace("$CRAB_ROOT/", "")
+        assert input_file == EXAMPLES / "qe" / "si-scf.in"
+        assert input_file.is_file()
+        upf_files = sorted(p.name for p in pseudo_dir.glob("*.UPF"))
+        assert upf_files
+        assert any(upf in input_file.read_text() for upf in upf_files)
+    # The heredoc is unquoted so the shell expands $CRAB_ROOT: no other `$` or backtick may be in it.
+    assert "<<JSON\n" in job["preprocess"]
+    assert "<<'JSON'" not in job["preprocess"]
+    assert "$CRAB_ROOT" in _config_text(job)
+    assert not re.search(r"[$`]", _config_text(job).replace("$CRAB_ROOT", ""))
+
+
+def test_qe_alone_is_one_two_node_job() -> None:
+    doc = _load(EXAMPLES / "qe-alone.yaml")
+    config = _config(doc["jobs"][0], _combinations(doc)[0])
+
+    assert doc["variables"] == {"nodes": [2]}
+    assert len(doc["jobs"]) == 1
+    assert list(config["experiments"]) == ["run"]
+    apps = config["experiments"]["run"]["apps"]
+    assert list(apps) == ["0"]
+    assert apps["0"]["path"] == QE_WRAPPER
+    assert apps["0"]["collect"] is True
+
+
+def test_qe_noise_runs_qe_against_a_continuous_incast() -> None:
+    doc = _load(EXAMPLES / "qe-noise.yaml")
+    config = _config(doc["jobs"][0], _combinations(doc)[0])
+    experiments = config["experiments"]
+    first = experiments[EXPERIMENTS[0]]
+    allocation = first["local_options"]["allocation"]
+
+    assert doc["variables"] == {"nodes": [4]}
+    assert config["global_options"]["ppn"] == "4"
+    assert list(experiments) == EXPERIMENTS
+    assert allocation["mode"] == "interleaved"
+    assert allocation["partitions"] == {"victim": {"share": 50}, "aggressor": {"share": 50}}
+    for name, experiment in experiments.items():
+        assert experiment["local_options"]["allocation"] == allocation, name
+        assert experiment["apps"]["0"] == first["apps"]["0"], name
+        assert list(experiment["apps"]) == (["0"] if name.endswith("baseline") else ["0", "1"])
+    victim = first["apps"]["0"]
+    assert victim["path"] == QE_WRAPPER
+    assert victim["partition"] == "victim"
+    assert victim["collect"] is True
+    for name in EXPERIMENTS:
+        if name.endswith("noise"):
+            aggressor = experiments[name]["apps"]["1"]
+            assert aggressor["path"] == "blink/incast/incast_nb.py"
+            assert aggressor["partition"] == "aggressor"
+            assert aggressor["collect"] is False
+            assert aggressor["end"] == "f"
+            assert aggressor["args"] == "-msgsize 2097152 -endl"
