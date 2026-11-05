@@ -40,15 +40,29 @@ walks through the whole flow, from installing CRAB on the cluster to reading res
    back to back, so raise it for the 12-job sweeps at 16 nodes and 4 MiB. `qos` is `normal` by
    default; for a quick check set the site's debug QOS, after reading its node and time limits.
 
-3. Copy a jobs file next to it, check what SbatchMan would submit, then launch:
+3. Copy a jobs file next to it (the command below copies four), check what SbatchMan would submit, then launch:
 
    ```bash
-   cp <CRAB checkout>/examples/sbatchman/smoke.yaml .
+   cp <CRAB checkout>/examples/sbatchman/{smoke,blink-noise,qe-alone,qe-noise}.yaml .
    sbatchman launch -f smoke.yaml --dry-run
    sbatchman launch -f smoke.yaml
    ```
 
-   Launch `smoke.yaml` first, then `blink-noise.yaml`, then a sweep file the same way.
+   The `cp` line copies four files (the shell expands the braces). Do not copy with `*.yaml`: it
+   would overwrite the `configs.leonardo.yaml` you edited. Copy the sweep files
+   (`a2a-vs-incast.yaml`, `a2a-vs-a2a.yaml`) the same way when you want them.
+
+   Launch `smoke.yaml` first. Then launch the others one at a time, a dry run first:
+
+   ```bash
+   sbatchman launch -f blink-noise.yaml --dry-run
+   sbatchman launch -f blink-noise.yaml
+   sbatchman launch -f qe-alone.yaml --dry-run
+   sbatchman launch -f qe-alone.yaml
+   sbatchman launch -f qe-noise.yaml --dry-run
+   sbatchman launch -f qe-noise.yaml
+   ```
+
    `sbatchman status` shows the jobs.
 
    The two QE files need Quantum ESPRESSO registered in CRAB on the cluster (`crab setup`; a
