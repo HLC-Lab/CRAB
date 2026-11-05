@@ -9,8 +9,8 @@ const app = useAppStore();
 const nav = computed(() => [
   { to: "/remotes", label: "Remotes" },
   { to: "/wrappers", label: "Wrappers" },
-  // Only shown when launched with `crab web --sbatchman` (ADR-025). Always on
-  // on this branch (ADR-026): Author/Jobs/Results are unhooked here.
+  // The SbatchMan mode is always on on this branch (ADR-026): the backend
+  // injects the meta tag and Author/Jobs/Results are unhooked here.
   ...(app.sbatchman ? [{ to: "/sbatchman", label: "SbatchMan" }] : []),
 ]);
 

@@ -13,8 +13,9 @@ const routes = [
     name: "sbatchman",
     component: () => import("@/views/SbatchmanView.vue"),
     meta: { title: "SbatchMan" },
-    // Only reachable when launched with `crab web --sbatchman`; otherwise the
-    // deep link falls back to the default page (the nav item is hidden too).
+    // Reachable only in SbatchMan mode (the served page carries the meta tag,
+    // see lib/mode.ts); otherwise the deep link falls back to /remotes (the nav
+    // item is hidden too).
     beforeEnter: () => (isSbatchmanMode() ? true : { path: "/remotes" }),
   },
   {
