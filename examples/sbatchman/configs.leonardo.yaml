@@ -1,0 +1,43 @@
+# SbatchMan configs file for Leonardo (CINECA), in the format HICREST's `configs.yaml` files use.
+# Every example jobs file in this folder starts with `configs: configs.leonardo.yaml`, so
+# `sbatchman launch -f <jobs file>` loads it: you never run `sbatchman configure` by hand.
+# Copy it into your SbatchMan project directory (the folder you launch from), then fill in:
+#   <YOUR_ACCOUNT>  your Slurm account (`saldo -b` lists them)
+#   <CRAB_DIR>      the absolute path of your CRAB checkout (the folder holding `wrappers/` and `.venv/`)
+# The cluster name must match `sbatchman set-cluster-name leonardo`.
+#
+# Two parts: the allocation (account, partition, qos, time, nodes, modules) is plain SbatchMan, and
+# the "CRAB env block" is the env entries every job needs for `crab worker`. If you use another
+# SbatchMan configs file (for example HICREST's), keep the config name `crab_run_{nodes}` and add
+# these env entries to it; nothing else in the examples depends on this file.
+variables:
+  nodes: [2, 4, 8, 16]
+
+leonardo:
+  scheduler: slurm
+
+  default_conf:
+    account: "<YOUR_ACCOUNT>"
+    partition: "boost_usr_prod"
+    qos: "normal"      # boost_qos_dbg is the short debug QOS: check its node and time limits first
+    time: "00:30:00"
+    exclusive: true
+    modules:
+      - "gcc/12.2.0"
+      - "openmpi/4.1.6--gcc--12.2.0-cuda-12.2"
+    env:
+      # CRAB env block
+      - "PATH=<CRAB_DIR>/.venv/bin:$PATH"
+      - "CRAB_ROOT=<CRAB_DIR>"
+      - "CRAB_SYSTEM=leonardo"
+      - "CRAB_PATH_WRAPPERS=<CRAB_DIR>/wrappers"
+      # Leonardo network settings
+      - "CRAB_IB_DEVICES=mlx5_0#mlx5_1#mlx5_2#mlx5_3"
+      - "UCX_IB_SL=1"
+      - "NCCL_IB_SL=1"
+      # How srun pins ranks: the input variable of srun's --cpu-bind
+      - "SLURM_CPU_BIND=verbose,socket"
+
+  configs:
+    - name: "crab_run_{nodes}"
+      nodes: "{nodes}"

@@ -27,7 +27,7 @@ from crab.core.wrapper_paths import wrapper_path_problem
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples" / "sbatchman"
-FILES = sorted(EXAMPLES.glob("*.yaml"))
+FILES = sorted(p for p in EXAMPLES.glob("*.yaml") if not p.name.startswith("configs."))
 EXPECTED_FILES = {"smoke.yaml", "a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"}
 NOISE_FILES = ["a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"]
 NOISE = [EXAMPLES / name for name in NOISE_FILES]
