@@ -139,6 +139,49 @@ def worker_settings(work_dir: str, environ: dict[str, str]) -> tuple[ExecutionSe
     return SLURM_DEFAULT, "defaults (Slurm with srun; no execution.json, no CRAB_PRESET)"
 
 
+_SBATCHMAN_LIMITS = {
+    "bind": "`bind` needs a node topology and CRAB has none here",
+    "cpus": "`cpus` needs CRAB to see the allocation's exclusivity and it cannot here",
+}
+_MAX_LISTED_OFFENDERS = 5
+
+
+def _refuse_unsupported_under_sbatchman(benchmark_config: dict[str, Any], logger: Any) -> None:
+    """Exit 1 when an app asks for `bind` or `cpus` and the worker has no settings.
+
+    Only the defaults case (no execution.json, no CRAB_PRESET: SbatchMan provides the environment)
+    calls this. `bind` and `cpus` are keys of the app dicts under `experiments.<name>.apps.<id>`.
+    All offenders go into one critical message, sorted, at most `_MAX_LISTED_OFFENDERS` named.
+    """
+    offenders: list[tuple[str, str, str]] = []
+    for exp_name, experiment in (benchmark_config.get("experiments") or {}).items():
+        apps = experiment.get("apps") if isinstance(experiment, dict) else None
+        for app_key, app in (apps or {}).items():
+            if not isinstance(app, dict):
+                continue
+            for key in _SBATCHMAN_LIMITS:
+                if app.get(key) not in (None, "", [], {}):
+                    offenders.append((str(exp_name), str(app_key), key))
+    if not offenders:
+        return
+    offenders.sort()
+    listed = [
+        f"experiment '{exp_name}', app {app_key}: `{key}`"
+        for exp_name, app_key, key in offenders[:_MAX_LISTED_OFFENDERS]
+    ]
+    if len(offenders) > _MAX_LISTED_OFFENDERS:
+        listed.append(f"and {len(offenders) - _MAX_LISTED_OFFENDERS} more")
+    used = {key for _, _, key in offenders}
+    reasons = "; ".join(text for key, text in _SBATCHMAN_LIMITS.items() if key in used)
+    logger.critical(
+        f"worker: {'; '.join(listed)}. This is not supported when SbatchMan provides the "
+        f"environment (no execution.json, no CRAB_PRESET): {reasons}. Remove the key from the "
+        "config (SbatchMan's configs file owns allocation and environment), or run through "
+        "`crab run` with a preset."
+    )
+    sys.exit(1)
+
+
 def _parse_log_level(raw: str) -> LogLevel:
     """Convert a CLI string to a LogLevel, defaulting to INFO."""
     from crab.log import LogLevel
@@ -262,6 +305,8 @@ def execute_worker(work_dir: str, log_level_str: str = None):
 
         settings, source = worker_settings(work_dir, execution_env)
         logger.info(f"Execution settings from {source}")
+        if source.startswith("defaults"):
+            _refuse_unsupported_under_sbatchman(benchmark_config, logger)
         check_dropped_keys(execution_env, "worker environment")
 
         logger.info("Environment loaded, starting engine")
