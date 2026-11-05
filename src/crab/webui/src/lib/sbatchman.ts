@@ -286,7 +286,7 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
 }
 
 /** The "SbatchMan preset" field's placeholder and hint: what name goes there and where it
- * comes from (docs/using/sbatchman-integration.md, step 5). */
+ * comes from (docs/using/sbatchman-integration.md). */
 export const PRESET_PLACEHOLDER = "crab_run";
 export const PRESET_HINT =
-  "The SbatchMan preset this group runs with: the name you gave `crab sbatchman-preset --name` (default crab_run), or crab_run_{nodes} when the presets come from its configs file. See the guide, step 5.";
+  "The SbatchMan config this group runs with: its name in your SbatchMan configs file, for example crab_run_{nodes}. See the integration guide.";

@@ -400,10 +400,10 @@ describe("validateCampaign with a wrapper catalog", () => {
 describe("preset field copy", () => {
   it("tells the user which name to put and where it comes from", () => {
     expect(PRESET_PLACEHOLDER).toBe("crab_run");
-    expect(PRESET_HINT).toContain("crab sbatchman-preset --name");
-    expect(PRESET_HINT).toContain("crab_run");
     expect(PRESET_HINT).toContain("crab_run_{nodes}");
-    expect(PRESET_HINT).toContain("step 5");
+    expect(PRESET_HINT).toContain("configs file");
+    expect(PRESET_HINT).not.toContain("sbatchman-preset");
+    expect(PRESET_HINT).not.toContain("step 5");
     expect(PRESET_HINT).not.toContain("—");
   });
 });

@@ -6,8 +6,8 @@
 
 <template>
   <small class="note">
-    Jobs take their environment from the SbatchMan preset. On the cluster,
-    <code>crab sbatchman-preset</code> prints the command that creates it (guide step 5).
+    Jobs take their environment from the SbatchMan preset. Define it in your SbatchMan configs file
+    (see the integration guide).
   </small>
 </template>
 
@@ -17,8 +17,5 @@
   max-width: 38rem;
   color: var(--text3);
   font-size: var(--t-xs);
-}
-code {
-  font-family: var(--mono);
 }
 </style>
