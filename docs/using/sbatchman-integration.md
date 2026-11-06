@@ -171,9 +171,14 @@ The file has two parts. The first is the allocation, plain SbatchMan fields:
 | `partition` | `#SBATCH --partition`: the queue the jobs go to. | Use a partition your account may submit to. |
 | `qos` | `#SBATCH --qos`: the quality of service. | The template sets `normal`. For a quick check, set the site's debug QOS after reading its node and time limits. Remove the line where your site has no QoS. |
 | `time` | `#SBATCH --time`: the walltime limit of each job. | The template sets 30 minutes. Slurm kills a job that runs past it. A job that holds several experiments needs time for all of them, one after another ([step 6](#6-write-a-campaign)). |
-| `exclusive: true` | `#SBATCH --exclusive`: the job gets its nodes to itself. | Without it, jobs of one campaign can run at the same time on the same nodes and skew each other's network timings. |
+| `tasks_per_node` | `#SBATCH --ntasks-per-node`: the ranks per node. | The template sets 4. It must be at least the experiment's `ppn`: without `--exclusive`, Slurm gives one task per node when a job asks only for `--nodes`, and the worker launches `ppn` ranks per node. |
 | `modules` | `module load` lines the job runs first. | The template loads the gcc and openmpi modules Blink was built with on Leonardo. Use the modules your build needs. |
 | `nodes` (under `configs`) | `#SBATCH --nodes`: how many nodes each job gets. | The `variables: nodes` list of the file creates one config per value: `crab_run_2`, `crab_run_4`, `crab_run_8` and `crab_run_16`. |
+
+The template does not set `exclusive: true` (`#SBATCH --exclusive`): the jobs share nodes with other
+jobs, which starts them sooner on a busy machine, and the node timings are not clean. Add
+`exclusive: true` to `default_conf` when other jobs on the nodes must not disturb the timings, and
+expect a longer wait in the queue.
 
 The second part is the **CRAB env block**, the `env` entries every job needs so that `crab worker`
 runs. Each entry is exported in the job script as a plain `export` line, so `$PATH` is expanded
@@ -217,7 +222,9 @@ When an experiment co-runs apps, the Slurm allocation has to hold all of them. W
   every app. When the apps run on separate nodes, it is the sum of their nodes: the Blink noise
   examples give the victim and the aggressor half of the allocation each, so `nodes: 4` means 2
   nodes for the victim and 2 for the aggressor.
-- `exclusive: true`, so that jobs do not share nodes.
+- `tasks_per_node` must be at least the experiment's `ppn` (the examples use 4). The template does
+  not set `exclusive`, so the nodes are shared with other jobs; add `exclusive: true` when they
+  must not be.
 - `time` must cover all the experiments of the job together, run one after another. CRAB gives
   each experiment 1200 seconds by default.
 
@@ -593,7 +600,7 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `worker environment: CRAB_... is no longer read; use ...` in the job log | The configs file still exports an old `CRAB_*` launch variable | Remove that entry from `env` in the configs file ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | Track 2: **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
 | "SSH support isn't installed in this environment" in the dashboard | The laptop install lacks the `web` extra | `pip install -e ".[web]"` from your CRAB checkout, then restart `crab web` |
-| Timings vary between jobs of the same campaign, or `squeue` shows two of its jobs on the same nodes | The configs file lacks `exclusive: true`, so the jobs share nodes | Add `exclusive: true` to `default_conf` ([step 5](#5-get-the-sbatchman-configs-file)) and relaunch with `--force` |
+| Timings vary between jobs of the same campaign, or `squeue` shows two of its jobs on the same nodes | The nodes are shared with other jobs (the template does not set `exclusive`) | Add `exclusive: true` to `default_conf` ([step 5](#5-get-the-sbatchman-configs-file)) and relaunch with `--force`; expect a longer queue wait |
 | The worker exits at start with ``worker: experiment '<name>', app <n>: `bind` ...`` and `This is not supported when SbatchMan provides the environment` | An app in the experiment has a `bind` or `cpus` key, which this line does not support | Remove the key from the experiment in the jobs file. Binding comes from `SLURM_CPU_BIND` in the configs file ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | `Skipping job: An identical job already exists` and no job is submitted | SbatchMan found a job with the same cluster, config, tag and commands in the project | Add `--force` to `sbatchman launch -f <file>` ([step 7](#7-launch-it)). `sbatchman campaign` cannot force today |
 | `invalid account` from `sbatch` when SbatchMan submits the job | `<YOUR_ACCOUNT>` is still in the configs file, or the account is not yours | Fill in your Slurm account in the configs file ([step 5](#5-get-the-sbatchman-configs-file)) |

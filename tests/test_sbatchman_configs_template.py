@@ -7,6 +7,7 @@ the config name `crab_run_{nodes}`, so these tests pin that name, the env keys a
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -26,26 +27,28 @@ NEEDED_ENV_KEYS = {
     "NCCL_IB_SL",
     "SLURM_CPU_BIND",
 }
+# The keyword names of SbatchMan 2.0.3's `create_slurm_config`.
 ALLOWED_KEYS = {
-    "account",
+    "name",
+    "cluster_name",
     "partition",
-    "qos",
-    "time",
     "nodes",
     "ntasks",
-    "ntasks_per_node",
+    "tasks_per_node",
     "cpus_per_task",
-    "gpus",
     "mem",
+    "account",
+    "time",
+    "gpus",
+    "constraint",
+    "nodelist",
+    "exclude",
+    "qos",
+    "reservation",
     "exclusive",
     "modules",
     "env",
     "custom_headers",
-    "constraint",
-    "nodelist",
-    "exclude",
-    "reservation",
-    "name",
     "scheduler",
 }
 
@@ -128,3 +131,15 @@ def test_expanding_the_nodes_variable_names_one_config_per_value() -> None:
             wanted |= _expand(job["config"], jobs_doc["variables"]["nodes"])
         assert wanted, jobs_file
         assert wanted <= provided, (jobs_file, wanted - provided)
+
+
+def test_the_template_asks_for_the_ranks_per_node_and_not_for_exclusive_nodes() -> None:
+    default_conf = _load(TEMPLATE)["leonardo"]["default_conf"]
+    assert default_conf["tasks_per_node"] == 4
+    assert "exclusive" not in default_conf
+    jobs_files = sorted(p for p in EXAMPLES.glob("*.yaml") if not p.name.startswith("configs."))
+    assert jobs_files
+    for path in jobs_files:
+        ppns = [int(m) for m in re.findall(r'"ppn": "(\d+)"', path.read_text())]
+        assert ppns, path.name
+        assert max(ppns) <= default_conf["tasks_per_node"], path.name

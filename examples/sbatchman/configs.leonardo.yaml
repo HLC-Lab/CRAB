@@ -19,9 +19,12 @@ leonardo:
   default_conf:
     account: "<YOUR_ACCOUNT>"
     partition: "boost_usr_prod"
+    # The template asks for shared nodes (no `exclusive`), so jobs start sooner on a busy machine.
+    # Node timings are then not clean: other jobs can run on the same nodes.
+    # Add `exclusive: true` for measurements that need the nodes to themselves.
     qos: "normal"      # boost_qos_dbg is the short debug QOS: check its node and time limits first
     time: "00:30:00"
-    exclusive: true
+    tasks_per_node: 4  # ranks per node: without --exclusive Slurm gives one task per node; keep it >= the experiment's ppn
     modules:
       - "gcc/12.2.0"
       - "openmpi/4.1.6--gcc--12.2.0-cuda-12.2"
