@@ -5,7 +5,7 @@ this input.
 
 | File | What it is |
 |---|---|
-| `si-scf.in` | A `pw.x` self-consistent-field input for 8-atom cubic diamond silicon (`a` = 10.26 bohr, `ecutwfc = 40`, a 4x4x4 k-point grid). |
+| `si-scf.in` | A `pw.x` self-consistent-field input for a 128-atom silicon supercell (2x2x4 diamond cells of 10.26 bohr, `ecutwfc = 60`, a 2x2x1 k-point grid). One run takes about 20 s on one Leonardo node with 4 GPUs. |
 | `Si.pz-vbc.UPF` | The silicon LDA norm-conserving pseudopotential `si-scf.in` names under `ATOMIC_SPECIES`. It comes from the Quantum ESPRESSO pseudopotential library: <https://pseudopotentials.quantum-espresso.org/upf_files/Si.pz-vbc.UPF>. |
 | `README.md` | This file. |
 
@@ -21,5 +21,8 @@ The only QE module on Leonardo is a CUDA build behind the `profile/chem-phys` pr
 per node and loads that module. The receipt `crab setup` writes must load the profile too, or
 `module load quantum-espresso` finds nothing.
 
-The input is sized as a guess. To make a run longer or shorter, change `ecutwfc` (the plane-wave
-cutoff, in Ry) or the k-point grid on the `K_POINTS` line, and time it on the cluster.
+The input is sized from a timing on Leonardo (one node, 4 A100 GPUs, 4 MPI ranks): CRAB repeats an
+experiment until it converges (10 successful runs) and `qe-noise.yaml` runs six experiments in one
+job, so one run has to stay short. To make a run longer or shorter, change the supercell,
+`ecutwfc` (the plane-wave cutoff, in Ry) or the k-point grid on the `K_POINTS` line, and time it on
+the cluster.
