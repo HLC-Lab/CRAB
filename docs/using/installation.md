@@ -40,6 +40,15 @@ its own tree.
 the virtual environment and build artifacts, and `make setup` to re-run just the wizard.
 `make clean` leaves `wrappers/` alone.
 
+`make` ignores `PYTHONPATH` and `PYTHONHOME`, but your shell keeps them. A Python module on a
+cluster often sets `PYTHONPATH`; if `crab` or `pip` later fail with an `ImportError` from a path
+outside `.venv`, clear both variables before you activate the environment:
+
+```bash
+unset PYTHONPATH PYTHONHOME   # drop the module's Python search path for this shell
+source .venv/bin/activate
+```
+
 ### The `local/` folder
 
 `local/` sits at the root of the checkout (next to `src/` and `wrappers/`). Git ignores it, so
