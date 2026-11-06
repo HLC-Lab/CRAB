@@ -21,6 +21,10 @@ The only QE module on Leonardo is a CUDA build behind the `profile/chem-phys` pr
 per node and loads that module. The receipt `crab setup` writes must load the profile too, or
 `module load quantum-espresso` finds nothing.
 
+`qe-noise.yaml` also needs the Blink receipt's `pre_run` hook to start with `module purge`
+(`"pre_run": ["module purge", "module load gcc openmpi"]` in `local/receipts/blink.json`), see
+"Apps built with different module stacks" in `docs/using/sbatchman-integration.md`.
+
 The input is sized from a timing on Leonardo (one node, 4 A100 GPUs, 4 MPI ranks): CRAB repeats an
 experiment until it converges (10 successful runs) and `qe-noise.yaml` runs six experiments in one
 job, so one run has to stay short. To make a run longer or shorter, change the supercell,

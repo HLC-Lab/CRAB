@@ -383,6 +383,18 @@ def test_qe_alone_is_one_two_node_job() -> None:
     assert apps["0"]["collect"] is True
 
 
+def test_qe_noise_fits_the_debug_limit() -> None:
+    """One QE run takes about 24 s, so six experiments of 10 runs would not fit 30 minutes."""
+    noise = _load(EXAMPLES / "qe-noise.yaml")
+    alone = _load(EXAMPLES / "qe-alone.yaml")
+    noise_options = _config(noise["jobs"][0], _combinations(noise)[0])["global_options"]
+    alone_options = _config(alone["jobs"][0], _combinations(alone)[0])["global_options"]
+
+    assert noise_options["minruns"] == "5"
+    assert int(noise_options.get("maxruns", "20")) >= int(noise_options["minruns"])
+    assert "minruns" not in alone_options
+
+
 def test_qe_noise_runs_qe_against_a_continuous_incast() -> None:
     doc = _load(EXAMPLES / "qe-noise.yaml")
     config = _config(doc["jobs"][0], _combinations(doc)[0])

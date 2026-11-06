@@ -140,6 +140,27 @@ before its first run, with a message saying what was tried. For the Blink exampl
 `blink/alltoall/alltoall_b.py`, `blink/alltoall/alltoall_nb.py` and `blink/incast/incast_nb.py`
 must not show `missing`, and for the QE examples `quantum-espresso/pw/v7.py` must not either.
 
+#### Apps built with different module stacks
+
+When apps built with different module stacks share one job (for example QE from the HPC-X
+module and Blink from the gcc and openmpi modules, as in `qe-noise.yaml`), the app's `pre_run`
+hook runs in an environment that already holds the modules the job loaded for the other. A plain
+`module load gcc openmpi` does not unset what the HPC-X module set: `OPAL_PREFIX` and
+`HPCX_MPI_HOME` stay in the environment, and Blink's Open MPI loads HPC-X's plugins. Start each
+receipt's `pre_run` hook with `module purge`, so that one app's module variables do not leak into
+the next. For Blink, edit `local/receipts/blink.json` in the CRAB checkout:
+
+```json
+"pre_run": ["module purge", "module load gcc openmpi"]
+```
+
+- `module purge` unloads every module the job had loaded, `OPAL_PREFIX` and `HPCX_MPI_HOME`
+  included.
+- `module load gcc openmpi` then loads Blink's own stack, as before.
+
+The symptom of a missing `module purge` is `symbol lookup error` in the app's `bindings_app_<n>.log`
+and the app exiting with code 127.
+
 ### 4. Create a SbatchMan project
 
 SbatchMan keeps its job records in a project folder. Create one in the directory you will launch
@@ -645,6 +666,7 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | The worker exits at start with ``worker: experiment '<name>', app <n>: `bind` ...`` and `This is not supported when SbatchMan provides the environment` | An app in the experiment has a `bind` or `cpus` key, which this line does not support | Remove the key from the experiment in the jobs file. Binding comes from `SLURM_CPU_BIND` in the configs file ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | `error in Message Passing (mp) module ... error code 9100` from `pw.x` in the job log | The QE module on Leonardo is a GPU build, and the job had no GPU | Use the `crab_qe_{nodes}` config in the jobs file: it requests GPUs (`gpus: 4`) ([step 5](#5-get-the-sbatchman-configs-file)). Relaunch with `--force` |
 | `Cannot find 'mpirun' to detect its MPI` in the job log | The config the job uses loads no MPI module, so the worker finds no `mpirun` on its `PATH` | Add the MPI module to that config's `modules` in the configs file ([step 5](#5-get-the-sbatchman-configs-file)), then relaunch with `--force` |
+| `symbol lookup error` in `bindings_app_<n>.log` of an app, and the app exits with code 127 | The app shares the job with an app from another module stack (QE with HPC-X next to Blink with Open MPI), and the first stack's module variables (`OPAL_PREFIX`, `HPCX_MPI_HOME`) leaked into it | Start the app's receipt `pre_run` hook with `module purge` ([Apps built with different module stacks](#apps-built-with-different-module-stacks)), then relaunch with `--force` |
 | Slurm reports the job `COMPLETED`, but an experiment folder has no `data_app_0.csv`, or an empty one | A failed run does not fail the job: the worker finishes and Slurm reports success (QE failures looked like this) | Check that each experiment folder holds a non-empty `data_app_0.csv` (for QE, a `0_wall_time_seconds` column). When it does not, read `bindings_app_0.log` and `error_app_0.log` in that experiment folder, and `stderr.log` and `stdout.log` of the job |
 | The jobs keep old settings (for example an old `--qos` or `--exclusive`), and `sbatchman launch` printed no `Loading configs from file` line | A different `sbatchman` is first on the `PATH` (the shell has no CRAB environment active). An older one ignores the `configs:` line and reuses the configs it stored earlier | Activate the CRAB `.venv` (after `unset PYTHONPATH PYTHONHOME` if a Python module is loaded), check that `which sbatchman` prints a path inside it ([step 1](#1-install-crab)), then relaunch with `--force` |
 | `sbatch: error: Batch job submission failed: Socket timed out on send/recv operation`, and the job's state is `FAILED_SUBMISSION` (`job_id: 0`) although `Submitted job '...'` was printed | A transient error of the Slurm controller. SbatchMan records the job as failed and still prints its per-job line | Run the same `sbatchman launch -f <file> --force` again: the failed record counts as an existing job. Read the summary line (`Submitted successfully N jobs` and the failure count), not the per-job line |

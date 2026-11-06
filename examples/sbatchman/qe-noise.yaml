@@ -21,6 +21,11 @@
 # (a module install is fine). The QE module on Leonardo is a GPU build, so these jobs use the GPU
 # config (`crab_qe_<nodes>`, 4 GPUs per node). The input (a silicon SCF run) and its pseudopotential
 # are read from the CRAB checkout, see qe/README.md.
+# One QE run takes about 24 seconds, so the file asks for 5 successful runs per experiment
+# (`minruns`, CRAB's default is 10) to fit the 30-minute debug limit with its six experiments.
+# Raise `minruns` for a real study, and `time` in the configs file with it.
+# QE and Blink come from different module stacks: start the `pre_run` hook of the Blink receipt
+# with `module purge`, see "Apps built with different module stacks" in the SbatchMan guide.
 configs: configs.leonardo.yaml
 variables:
   nodes:
@@ -38,6 +43,7 @@ jobs:
         "global_options": {
           "numnodes": "{nodes}",
           "ppn": "4",
+          "minruns": "5",
           "name": "qe-noise-{nodes}n"
         },
         "experiments": {
