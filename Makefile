@@ -7,6 +7,10 @@ VENV_DIR = .venv
 PIP = $(VENV_DIR)/bin/pip
 CRAB_BIN = $(VENV_DIR)/bin/crab
 PY = $(VENV_DIR)/bin/python
+
+# A cluster's Python module exports PYTHONPATH, which precedes the venv's site-packages
+# in sys.path, so the venv's pip would import the module's pip and fail.
+unexport PYTHONPATH PYTHONHOME
 WEBUI = src/crab/webui
 WRAPPERS_URL ?= https://github.com/HLC-Lab/crab-wrappers.git
 
