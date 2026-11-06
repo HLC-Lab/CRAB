@@ -8,18 +8,20 @@
 # Copy this file next to configs.leonardo.yaml, then check and launch:
 #   sbatchman launch -f qe-alone.yaml --dry-run
 #   sbatchman launch -f qe-alone.yaml
-# `configs.leonardo.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>; its
-# `nodes` list must hold every value of `nodes` below.
+# `configs.leonardo.yaml` defines one SbatchMan config per node count for QE, named crab_qe_<nodes>;
+# its `nodes` list must hold every value of `nodes` below.
 #
-# Measures: Quantum ESPRESSO pw.x alone on 2 nodes: the reference run. Needs QE registered with
-# `crab setup` (a module install is fine). The input (a silicon SCF run) and its pseudopotential
-# are read from the CRAB checkout, see qe/README.md; the metric is `wall_time` in seconds.
+# Measures: Quantum ESPRESSO pw.x alone on 2 nodes: the reference run. The QE module on Leonardo is
+# a GPU build, so these jobs use the GPU config (`crab_qe_<nodes>`, 4 GPUs per node). Needs QE
+# registered with `crab setup` (a module install is fine). The input (a silicon SCF run) and its
+# pseudopotential are read from the CRAB checkout, see qe/README.md; the metric is `wall_time` in
+# seconds.
 configs: configs.leonardo.yaml
 variables:
   nodes:
     - 2
 jobs:
-  - config: crab_run_{nodes}
+  - config: crab_qe_{nodes}
     tag: qe-alone-{nodes}n
     # The heredoc is unquoted (<<JSON) so the shell expands $CRAB_ROOT, which SbatchMan sets.
     # Keep every other `$` and backtick out of the JSON.

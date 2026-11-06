@@ -57,6 +57,15 @@ EXPERIMENTS = [
 # the shell expands $CRAB_ROOT in the input paths.
 HEREDOC = re.compile(r"<<'?JSON'?\n(.*?)\nJSON\n", re.DOTALL)
 QE_FILES = ["qe-alone.yaml", "qe-noise.yaml"]
+# Leonardo's QE module is a CUDA build, so the QE files use the config that requests GPUs.
+CONFIG_OF = {
+    "smoke.yaml": "crab_run_{nodes}",
+    "blink-noise.yaml": "crab_run_{nodes}",
+    "a2a-vs-incast.yaml": "crab_run_{nodes}",
+    "a2a-vs-a2a.yaml": "crab_run_{nodes}",
+    "qe-alone.yaml": "crab_qe_{nodes}",
+    "qe-noise.yaml": "crab_qe_{nodes}",
+}
 QE_DIR = "$CRAB_ROOT/examples/sbatchman/qe"
 QE_WRAPPER = "quantum-espresso/pw/v7.py"
 
@@ -109,6 +118,7 @@ def _cases() -> list[Any]:
 
 def test_the_six_campaigns_are_shipped() -> None:
     assert {p.name for p in FILES} == EXPECTED_FILES
+    assert set(CONFIG_OF) == EXPECTED_FILES
 
 
 @pytest.mark.parametrize("path", FILES, ids=lambda p: p.name)
@@ -119,7 +129,7 @@ def test_the_file_has_the_shape_the_dashboard_writes(path: Path) -> None:
     assert doc["variables"]["nodes"]
     assert len(doc["jobs"]) == 1
     for job in doc["jobs"]:
-        assert job["config"] == "crab_run_{nodes}"
+        assert job["config"] == CONFIG_OF[path.name]
         assert "{nodes}" in job["tag"]
         assert HEREDOC.search(job["preprocess"])
         assert 'mkdir -p "$SBATCHMAN_JOB_DIR"' in job["preprocess"]

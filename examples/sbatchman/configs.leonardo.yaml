@@ -6,10 +6,12 @@
 #   <CRAB_DIR>      the absolute path of your CRAB checkout (the folder holding `wrappers/` and `.venv/`)
 # The cluster name must match `sbatchman set-cluster-name leonardo`.
 #
-# Two parts: the allocation (account, partition, qos, time, nodes, modules) is plain SbatchMan, and
-# the "CRAB env block" is the env entries every job needs for `crab worker`. If you use another
-# SbatchMan configs file (for example HICREST's), keep the config name `crab_run_{nodes}` and add
-# these env entries to it; nothing else in the examples depends on this file.
+# Two parts: the allocation (account, partition, qos, time, nodes, modules, gpus) is plain SbatchMan,
+# and the "CRAB env block" is the env entries every job needs for `crab worker`. There are two
+# configs per node count: `crab_run_{nodes}` (CPU, the Blink jobs) and `crab_qe_{nodes}` (4 GPUs per
+# node, the Quantum ESPRESSO jobs). If you use another SbatchMan configs file (for example HICREST's),
+# keep those config names and add these env entries to them; nothing else in the examples depends on
+# this file.
 variables:
   nodes: [2, 4, 8, 16]
 
@@ -25,9 +27,6 @@ leonardo:
     qos: "normal"      # boost_qos_dbg is the short debug QOS: check its node and time limits first
     time: "00:30:00"
     tasks_per_node: 4  # ranks per node: without --exclusive Slurm gives one task per node; keep it >= the experiment's ppn
-    modules:
-      - "gcc/12.2.0"
-      - "openmpi/4.1.6--gcc--12.2.0-cuda-12.2"
     env:
       # CRAB env block
       - "PATH=<CRAB_DIR>/.venv/bin:$PATH"
@@ -41,6 +40,25 @@ leonardo:
       # How srun pins ranks: the input variable of srun's --cpu-bind
       - "SLURM_CPU_BIND=verbose,socket"
 
+  # `modules` is set per config, not in default_conf: SbatchMan appends the list fields (`modules`,
+  # `env`) of a config to those of default_conf, so a shared list would stay loaded in every config
+  # and mix MPI stacks. The worker probes `mpirun` in its own environment before any app starts, so
+  # each config's modules must put an MPI `mpirun` on PATH.
   configs:
+    # CPU config for Blink: gcc and the Open MPI Blink is built with.
     - name: "crab_run_{nodes}"
       nodes: "{nodes}"
+      modules:
+        - "gcc/12.2.0"
+        - "openmpi/4.1.6--gcc--12.2.0-cuda-12.2"
+
+    # GPU config for Quantum ESPRESSO. The QE module is behind the `profile/chem-phys` profile and
+    # brings its own HPC-X `mpirun`.
+    - name: "crab_qe_{nodes}"
+      nodes: "{nodes}"
+      # The Leonardo QE module is a CUDA build: it aborts at start without GPUs. 4 GPUs per node,
+      # one per rank at `ppn: 4`.
+      gpus: 4
+      modules:
+        - "profile/chem-phys"
+        - "quantum-espresso"

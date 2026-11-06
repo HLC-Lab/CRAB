@@ -101,10 +101,12 @@ wrapper's `executable` on `PATH` in the job (see
   `quantum-espresso/pw/v7.py`, so register version 7. In `crab setup`, pick the Quantum ESPRESSO
   suite and, at the version question, keep only "Quantum ESPRESSO v7" ticked (untick v6). If your
   site has a QE module, choose the strategy "Map via cluster Environment Module system": the
-  wizard asks for the exact module command (for example `module load quantum-espresso/7.4.1`,
-  the module name your site uses) and then for the executable the module provides, which is
-  `pw.x`. The module command is saved in the receipt like Blink's. Without a QE module, choose
-  "Download and compile from source layout" instead.
+  wizard asks for the exact module command and then for the executable the module provides, which
+  is `pw.x`. On Leonardo give `module load profile/chem-phys quantum-espresso` (without a version
+  it takes the default): the QE module is only visible once the `profile/chem-phys` profile is
+  loaded, so a line with the module alone finds nothing. On another site, give the module name
+  that site uses. The module command is saved in the receipt like Blink's. Without a QE module,
+  choose "Download and compile from source layout" instead.
 - **Installed somewhere else?** Record it once: `crab receipts set <benchmark_id> --binary
   /path/to/program`. (A program you load with a module of your own can also go in the `modules`
   list of the configs file of [step 5](#5-get-the-sbatchman-configs-file); if the wrapper declares an
@@ -172,8 +174,24 @@ The file has two parts. The first is the allocation, plain SbatchMan fields:
 | `qos` | `#SBATCH --qos`: the quality of service. | The template sets `normal`. For a quick check, set the site's debug QOS after reading its node and time limits. Remove the line where your site has no QoS. |
 | `time` | `#SBATCH --time`: the walltime limit of each job. | The template sets 30 minutes. Slurm kills a job that runs past it. A job that holds several experiments needs time for all of them, one after another ([step 6](#6-write-a-campaign)). |
 | `tasks_per_node` | `#SBATCH --ntasks-per-node`: the ranks per node. | The template sets 4. It must be at least the experiment's `ppn`: without `--exclusive`, Slurm gives one task per node when a job asks only for `--nodes`, and the worker launches `ppn` ranks per node. |
-| `modules` | `module load` lines the job runs first. | The template loads the gcc and openmpi modules Blink was built with on Leonardo. Use the modules your build needs. |
-| `nodes` (under `configs`) | `#SBATCH --nodes`: how many nodes each job gets. | The `variables: nodes` list of the file creates one config per value: `crab_run_2`, `crab_run_4`, `crab_run_8` and `crab_run_16`. |
+| `modules` (under each config) | `module load` lines the job runs first. | `crab_run_{nodes}` loads the gcc and openmpi modules Blink was built with on Leonardo. `crab_qe_{nodes}` loads `profile/chem-phys` and `quantum-espresso`. Use the modules your build needs. |
+| `gpus` (under `crab_qe_{nodes}`) | `#SBATCH --gres=gpu:<n>`: the GPUs per node. | The template sets 4 for the QE config, one per rank at `ppn: 4`. The `crab_run_{nodes}` config sets none. |
+| `nodes` (under `configs`) | `#SBATCH --nodes`: how many nodes each job gets. | The `variables: nodes` list of the file creates one config per value for each of the two configs: `crab_run_2`, `crab_run_4`, `crab_run_8`, `crab_run_16` and `crab_qe_2`, `crab_qe_4`, `crab_qe_8`, `crab_qe_16`. |
+
+The file defines two configs per node count. `crab_run_{nodes}` is the CPU config the Blink examples
+use. `crab_qe_{nodes}` is the config the two QE examples use: the QE module on Leonardo is a CUDA
+build (`pw.x` links the CUDA libraries), and without a GPU `pw.x` aborts at start with `error in
+Message Passing (mp) module, error code 9100`; with `gpus: 4` the same run finishes.
+
+`modules` sits in each config and not in `default_conf` on purpose. SbatchMan appends the list
+fields (`modules`, `env`) of a config to those of `default_conf` when the config uses variables, so
+a `modules` list in `default_conf` would stay loaded in the QE config and mix two MPI stacks (the
+gcc and Open MPI modules of Blink with the HPC-X MPI of the QE module). The `env` list, the CRAB env
+block below, is the same for both configs and stays in `default_conf`.
+
+Each config's `modules` must also put an MPI `mpirun` on the `PATH`. The worker looks for `mpirun`
+in its own environment, before any app starts, to detect which MPI the site has. For QE that is the
+`mpirun` the QE module provides.
 
 The template does not set `exclusive: true` (`#SBATCH --exclusive`): the jobs share nodes with other
 jobs, which starts them sooner on a busy machine, and the node timings are not clean. Add
@@ -211,8 +229,9 @@ How SbatchMan applies the file:
   ranks per node.
 
 **Another configs file.** To use a different SbatchMan configs file (for example one your site or
-group maintains, such as HICREST's), keep the config name `crab_run_{nodes}` and add the CRAB env
-entries above to it. Nothing else in the example jobs files depends on the configs file.
+group maintains, such as HICREST's), keep the config names `crab_run_{nodes}` and `crab_qe_{nodes}`
+(the second only for the QE examples) and add the CRAB env entries above to them. Nothing else in
+the example jobs files depends on the configs file.
 
 #### Sizing the allocation for co-runs
 
@@ -602,6 +621,9 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | "SSH support isn't installed in this environment" in the dashboard | The laptop install lacks the `web` extra | `pip install -e ".[web]"` from your CRAB checkout, then restart `crab web` |
 | Timings vary between jobs of the same campaign, or `squeue` shows two of its jobs on the same nodes | The nodes are shared with other jobs (the template does not set `exclusive`) | Add `exclusive: true` to `default_conf` ([step 5](#5-get-the-sbatchman-configs-file)) and relaunch with `--force`; expect a longer queue wait |
 | The worker exits at start with ``worker: experiment '<name>', app <n>: `bind` ...`` and `This is not supported when SbatchMan provides the environment` | An app in the experiment has a `bind` or `cpus` key, which this line does not support | Remove the key from the experiment in the jobs file. Binding comes from `SLURM_CPU_BIND` in the configs file ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
+| `error in Message Passing (mp) module ... error code 9100` from `pw.x` in the job log | The QE module on Leonardo is a GPU build, and the job had no GPU | Use the `crab_qe_{nodes}` config in the jobs file: it requests GPUs (`gpus: 4`) ([step 5](#5-get-the-sbatchman-configs-file)). Relaunch with `--force` |
+| `Cannot find 'mpirun' to detect its MPI` in the job log | The config the job uses loads no MPI module, so the worker finds no `mpirun` on its `PATH` | Add the MPI module to that config's `modules` in the configs file ([step 5](#5-get-the-sbatchman-configs-file)), then relaunch with `--force` |
+| The job's status is `COMPLETED`, but a result is missing | A failed run does not fail the job: the worker finishes and Slurm reports success (QE failures looked like this) | Check that each experiment folder holds a non-empty `data_app_0.csv`, and read `stderr.log` and `stdout.log` of the job for the failure |
 | `Skipping job: An identical job already exists` and no job is submitted | SbatchMan found a job with the same cluster, config, tag and commands in the project | Add `--force` to `sbatchman launch -f <file>` ([step 7](#7-launch-it)). `sbatchman campaign` cannot force today |
 | `invalid account` from `sbatch` when SbatchMan submits the job | `<YOUR_ACCOUNT>` is still in the configs file, or the account is not yours | Fill in your Slurm account in the configs file ([step 5](#5-get-the-sbatchman-configs-file)) |
 | `sbatchman launch` submits no job and prints no error | The cluster block name in the configs file differs from `sbatchman set-cluster-name`, so SbatchMan skips the jobs | Run `sbatchman set-cluster-name leonardo` (the block's name) in the project ([step 4](#4-create-a-sbatchman-project)) |

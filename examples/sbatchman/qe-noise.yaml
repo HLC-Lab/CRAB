@@ -8,8 +8,8 @@
 # Copy this file next to configs.leonardo.yaml, then check and launch:
 #   sbatchman launch -f qe-noise.yaml --dry-run
 #   sbatchman launch -f qe-noise.yaml
-# `configs.leonardo.yaml` defines one SbatchMan config per node count, named crab_run_<nodes>; its
-# `nodes` list must hold every value of `nodes` below.
+# `configs.leonardo.yaml` defines one SbatchMan config per node count for QE, named crab_qe_<nodes>;
+# its `nodes` list must hold every value of `nodes` below.
 # The `time` in configs.leonardo.yaml must cover six experiments in a row (three baselines and
 # three noise runs).
 #
@@ -18,14 +18,15 @@
 # one job, r1_baseline, r1_noise, r2_baseline, r2_noise, r3_baseline, r3_noise in one allocation,
 # the nodes split 50/50 interleaved, and a continuous Blink incast aggressor (2 MiB messages) that
 # runs only in the noise experiments and stops when QE ends. Needs QE registered with `crab setup`
-# (a module install is fine). The input (a silicon SCF run) and its pseudopotential are read from
-# the CRAB checkout, see qe/README.md.
+# (a module install is fine). The QE module on Leonardo is a GPU build, so these jobs use the GPU
+# config (`crab_qe_<nodes>`, 4 GPUs per node). The input (a silicon SCF run) and its pseudopotential
+# are read from the CRAB checkout, see qe/README.md.
 configs: configs.leonardo.yaml
 variables:
   nodes:
     - 4
 jobs:
-  - config: crab_run_{nodes}
+  - config: crab_qe_{nodes}
     tag: qe-noise-{nodes}n
     # The heredoc is unquoted (<<JSON) so the shell expands $CRAB_ROOT, which SbatchMan sets.
     # Keep every other `$` and backtick out of the JSON.

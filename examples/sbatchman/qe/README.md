@@ -14,5 +14,12 @@ point at this folder), so nothing needs copying. The CRAB wrapper rewrites the `
 `pseudo_dir` lines of the input into the run folder, which is why the input carries placeholder
 values for them. No download happens on a compute node: the pseudopotential is committed here.
 
+Both jobs files use the `crab_qe_<nodes>` config of `configs.leonardo.yaml`, not `crab_run_<nodes>`.
+The only QE module on Leonardo is a CUDA build behind the `profile/chem-phys` profile
+(`module load profile/chem-phys quantum-espresso`): without a GPU, `pw.x` aborts at start with
+`error in Message Passing (mp) module, error code 9100`. `crab_qe_<nodes>` therefore requests 4 GPUs
+per node and loads that module. The receipt `crab setup` writes must load the profile too, or
+`module load quantum-espresso` finds nothing.
+
 The input is sized as a guess. To make a run longer or shorter, change `ecutwfc` (the plane-wave
 cutoff, in Ry) or the k-point grid on the `K_POINTS` line, and time it on the cluster.

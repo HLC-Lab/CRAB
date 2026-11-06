@@ -2,7 +2,8 @@
 
 `examples/sbatchman/configs.leonardo.yaml` is a template a partner copies: one cluster block that gives
 every job the Slurm allocation and the environment `crab worker` reads. The jobs files depend only on
-the config name `crab_run_{nodes}`, so these tests pin that name, the env keys and the placeholders.
+the config names `crab_run_{nodes}` (CPU, for Blink) and `crab_qe_{nodes}` (GPUs, for Quantum
+ESPRESSO), so these tests pin those names, their modules, the env keys and the placeholders.
 """
 
 from __future__ import annotations
@@ -16,7 +17,14 @@ import yaml
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples" / "sbatchman"
 TEMPLATE = EXAMPLES / "configs.leonardo.yaml"
-JOBS_FILES = ["smoke.yaml", "a2a-vs-incast.yaml", "a2a-vs-a2a.yaml"]
+JOBS_FILES = [
+    "smoke.yaml",
+    "blink-noise.yaml",
+    "a2a-vs-incast.yaml",
+    "a2a-vs-a2a.yaml",
+    "qe-alone.yaml",
+    "qe-noise.yaml",
+]
 NEEDED_ENV_KEYS = {
     "PATH",
     "CRAB_ROOT",
@@ -85,13 +93,36 @@ def test_the_template_defines_the_leonardo_cluster_block() -> None:
     assert isinstance(block["configs"], list)
 
 
-def test_the_config_is_named_crab_run_per_node_count() -> None:
+def _configs_by_name() -> dict[str, dict[str, Any]]:
     configs = _load(TEMPLATE)["leonardo"]["configs"]
-    assert len(configs) == 1
-    config = configs[0]
-    assert config["name"] == "crab_run_{nodes}"
-    assert config["nodes"] == "{nodes}"
-    assert "env" not in config
+    return {config["name"]: config for config in configs}
+
+
+def test_there_are_two_configs_per_node_count_and_none_sets_env() -> None:
+    configs = _load(TEMPLATE)["leonardo"]["configs"]
+    assert [config["name"] for config in configs] == ["crab_run_{nodes}", "crab_qe_{nodes}"]
+    for config in configs:
+        assert config["nodes"] == "{nodes}"
+        assert "env" not in config
+
+
+def test_modules_are_per_config_because_a_shared_list_would_be_appended_to() -> None:
+    """SbatchMan appends a config's list fields to `default_conf`'s: a shared list mixes MPI stacks."""
+    doc = _load(TEMPLATE)
+    assert "modules" not in doc["leonardo"]["default_conf"]
+    by_name = _configs_by_name()
+    assert by_name["crab_run_{nodes}"]["modules"] == [
+        "gcc/12.2.0",
+        "openmpi/4.1.6--gcc--12.2.0-cuda-12.2",
+    ]
+    assert by_name["crab_qe_{nodes}"]["modules"] == ["profile/chem-phys", "quantum-espresso"]
+
+
+def test_only_the_qe_config_asks_for_gpus() -> None:
+    by_name = _configs_by_name()
+    assert by_name["crab_qe_{nodes}"]["gpus"] == 4
+    assert "gpus" not in by_name["crab_run_{nodes}"]
+    assert "gpus" not in _load(TEMPLATE)["leonardo"]["default_conf"]
 
 
 def test_the_default_env_carries_everything_the_worker_needs() -> None:
@@ -121,9 +152,10 @@ def test_the_allocation_fields_are_valid_sbatchman_slurm_keys() -> None:
 
 def test_expanding_the_nodes_variable_names_one_config_per_value() -> None:
     doc = _load(TEMPLATE)
-    name = doc["leonardo"]["configs"][0]["name"]
-    provided = _expand(name, doc["variables"]["nodes"])
-    assert {"crab_run_2", "crab_run_4"} <= provided
+    provided: set[str] = set()
+    for config in doc["leonardo"]["configs"]:
+        provided |= _expand(config["name"], doc["variables"]["nodes"])
+    assert {"crab_run_2", "crab_run_4", "crab_qe_2", "crab_qe_4"} <= provided
     for jobs_file in JOBS_FILES:
         jobs_doc = _load(EXAMPLES / jobs_file)
         wanted: set[str] = set()

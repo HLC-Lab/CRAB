@@ -10,7 +10,7 @@ walks through the whole flow, from installing CRAB on the cluster to reading res
 
 | File | What it is |
 |---|---|
-| `configs.leonardo.yaml` | The SbatchMan configs file: the Leonardo allocation (account, partition, time, modules) and the CRAB env block every job needs. Every jobs file loads it. |
+| `configs.leonardo.yaml` | The SbatchMan configs file: the Leonardo allocation (account, partition, time) and the CRAB env block every job needs, with two configs per node count: `crab_run_<nodes>` (CPU, gcc and Open MPI modules, for the Blink files) and `crab_qe_<nodes>` (4 GPUs per node, the `profile/chem-phys` and `quantum-espresso` modules, for the QE files). Every jobs file loads it. |
 | `smoke.yaml` | One all-to-all (Blink `alltoall_b`) alone on 2 nodes, 4 ranks per node, 1 MiB messages, 100 iterations. Run it first. |
 | `blink-noise.yaml` | The small co-run: one 4-node job, an all-to-all against continuous incast noise, 1 MiB messages. |
 | `a2a-vs-incast.yaml` | The sweep: how much incast noise slows an all-to-all, 12 jobs (`nodes` 4, 8, 16 times `msgsize` 1 KiB, 64 KiB, 1 MiB, 4 MiB). |
@@ -33,8 +33,15 @@ walks through the whole flow, from installing CRAB on the cluster to reading res
    ```
 
    Edit the copy and fill in `<YOUR_ACCOUNT>` (your Slurm account) and `<CRAB_DIR>` (the absolute
-   path of your CRAB checkout). It defines one config per node count, `crab_run_2`, `crab_run_4`,
-   `crab_run_8` and `crab_run_16`, and the jobs files read it from the folder they sit in.
+   path of your CRAB checkout). It defines two configs per node count, `crab_run_2`, `crab_run_4`,
+   `crab_run_8` and `crab_run_16` for Blink, and `crab_qe_2` and so on for Quantum ESPRESSO, and the
+   jobs files read it from the folder they sit in.
+
+   The QE module on Leonardo (`quantum-espresso`, behind the `profile/chem-phys` profile) is a CUDA
+   build: `pw.x` aborts at start with `error in Message Passing (mp) module, error code 9100` when
+   the job has no GPU. So `crab_qe_<nodes>` asks for 4 GPUs per node (`gpus: 4`, one per rank at 4
+   ranks per node) and loads that module, whose own `mpirun` the worker needs. The modules are set
+   per config, not in `default_conf`, so the Blink and QE MPI stacks never mix.
 
    Also check `time` and `qos`. `time` is 30 minutes by default, and a job runs six experiments
    back to back, so raise it for the 12-job sweeps at 16 nodes and 4 MiB. `qos` is `normal` by
@@ -66,7 +73,8 @@ walks through the whole flow, from installing CRAB on the cluster to reading res
    `sbatchman status` shows the jobs.
 
    The two QE files need Quantum ESPRESSO registered in CRAB on the cluster (`crab setup`; a
-   module install is fine).
+   module install is fine, and on Leonardo the module command is `module load profile/chem-phys
+   quantum-espresso`). They use the `crab_qe_<nodes>` config.
 
    SbatchMan skips a job identical to one that already ran in the project (same cluster, config,
    tag and commands). To run it again, use `sbatchman launch -f <file> --force`.
