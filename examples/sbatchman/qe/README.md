@@ -26,7 +26,7 @@ per node and loads that module. The receipt `crab setup` writes must load the pr
 "Apps built with different module stacks" in `docs/using/sbatchman-integration.md`.
 
 The input is sized from a timing on Leonardo (one node, 4 A100 GPUs, 4 MPI ranks): CRAB repeats an
-experiment until it converges (10 successful runs) and `qe-noise.yaml` runs six experiments in one
-job, so one run has to stay short. To make a run longer or shorter, change the supercell,
-`ecutwfc` (the plane-wave cutoff, in Ry) or the k-point grid on the `K_POINTS` line, and time it on
-the cluster.
+experiment until it converges (10 successful runs by default; `qe-noise.yaml` asks for 5) and
+`qe-noise.yaml` runs six experiments in one job under a 30-minute limit, so one run has to stay
+short. To make a run longer or shorter, change the supercell, `ecutwfc` (the plane-wave cutoff, in
+Ry) or the k-point grid on the `K_POINTS` line, and time it on the cluster.
