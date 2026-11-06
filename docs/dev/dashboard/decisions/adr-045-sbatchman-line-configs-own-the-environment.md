@@ -25,9 +25,16 @@ and put the same facts in two places.
   the site's network settings. CRAB presets (`presets/*.json` in crab-wrappers,
   [ADR-041](adr-041-presets-in-crab-wrappers.md)) are not used there. The shared preset code stays
   in the tree because the product line uses it.
+- **The configs file has one config per job kind**, because SbatchMan appends the `modules` and
+  `env` lists of a config to those of `default_conf`: a shared `modules` list would stay loaded in
+  every config. `crab_run_{nodes}` is the CPU config (Blink) and `crab_qe_{nodes}` asks for 4 GPUs
+  (Quantum ESPRESSO, whose module on Leonardo is a CUDA build), each with its own `modules`. The
+  worker probes the MPI dialect with `mpirun` before any app starts, so each config's modules must
+  put an `mpirun` on `PATH`. The `env` list (the CRAB env block) stays in `default_conf`.
 - **`crab sbatchman-preset` does not exist** (it was removed). A partner starts from a committed
   configs file, `examples/sbatchman/configs.leonardo.yaml`. Any other configs file works if it
-  keeps the config name `crab_run_{nodes}` and carries the CRAB env block.
+  keeps the config names `crab_run_{nodes}` and `crab_qe_{nodes}` (the second only for QE jobs) and
+  carries the CRAB env block.
 - **`bind` and `cpus` are not supported there.** Without a CRAB preset the worker has no node
   topology ([ADR-043](adr-043-placement-intent-and-topology-facts.md)), so it exits at start
   with a message naming each offending experiment and app, instead of failing after the queue
@@ -54,6 +61,8 @@ works.
 - SbatchMan skips relaunching an identical job unless `--force` is given, and `sbatchman campaign`
   cannot force it.
 - The dashboard campaign generator does not write `configs:` yet.
+- The generator's QE campaigns would still name `crab_run_{nodes}` (CPU only), so they fail on
+  Leonardo until the generator is updated to name `crab_qe_{nodes}`.
 - Supporting `bind` and `cpus` under SbatchMan would need CRAB to read the topology from somewhere
   other than a preset.
 - Revisit this if the SbatchMan line is merged into one product line.

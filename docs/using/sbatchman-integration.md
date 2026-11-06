@@ -66,8 +66,22 @@ then opens the `crab setup` wizard. You can build the benchmarks there right awa
 for a recent Python before running it (for example `module load python/3.11`).
 
 `crab info` prints the CRAB version, the root directory, and `layout: checkout` for a checkout like
-this one. Activate the environment (`source <install dir>/CRAB/.venv/bin/activate`)
-in every new shell before the steps below.
+this one.
+
+Activate the environment (`source <install dir>/CRAB/.venv/bin/activate`) in **every** new shell
+before the steps below. If a cluster Python module is loaded in that shell, run
+`unset PYTHONPATH PYTHONHOME` first (see the
+[note in the installation page](installation.md#install-the-framework)). Then check which
+`sbatchman` the shell runs:
+
+```bash
+which sbatchman
+```
+
+The path it prints must be inside the CRAB `.venv` (`<install dir>/CRAB/.venv/bin/sbatchman`).
+A shell without the environment can find another SbatchMan install on its `PATH`, and an older one
+ignores the `configs:` line of a jobs file: the jobs then keep the settings stored by an earlier
+launch (see [troubleshooting](#troubleshooting)).
 
 ### 2. Install SbatchMan
 
@@ -355,8 +369,16 @@ sbatchman launch -f qe-noise.yaml --dry-run
 sbatchman launch -f qe-noise.yaml
 ```
 
+A healthy launch prints a `Loading configs from file ...` line, then a `Configuration '<name>' saved
+to ...` line for each config, then a line for each job, and ends with `Submitted successfully N
+jobs`. A launch that prints no `Loading configs` line did not read the configs file, and its jobs
+would run with older settings: check `which sbatchman` ([step 1](#1-install-crab)) and see
+[troubleshooting](#troubleshooting). Trust the summary line, not the per-job lines (see the `Socket
+timed out` row of the troubleshooting table).
+
 The two QE files need Quantum ESPRESSO registered in [step 3](#3-build-or-register-the-benchmarks).
-A sweep file you copied the same way launches 12 jobs, and each job runs six experiments, so size
+On Leonardo, one run of the example input takes about 18 s on 2 nodes with the GPU config, and
+`qe-alone.yaml` ends in about 4 minutes. A sweep file you copied the same way launches 12 jobs, and each job runs six experiments, so size
 `time` in the configs file for all six.
 
 SbatchMan skips a job identical to one already run in the project (same cluster, config, tag and
@@ -623,7 +645,9 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | The worker exits at start with ``worker: experiment '<name>', app <n>: `bind` ...`` and `This is not supported when SbatchMan provides the environment` | An app in the experiment has a `bind` or `cpus` key, which this line does not support | Remove the key from the experiment in the jobs file. Binding comes from `SLURM_CPU_BIND` in the configs file ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | `error in Message Passing (mp) module ... error code 9100` from `pw.x` in the job log | The QE module on Leonardo is a GPU build, and the job had no GPU | Use the `crab_qe_{nodes}` config in the jobs file: it requests GPUs (`gpus: 4`) ([step 5](#5-get-the-sbatchman-configs-file)). Relaunch with `--force` |
 | `Cannot find 'mpirun' to detect its MPI` in the job log | The config the job uses loads no MPI module, so the worker finds no `mpirun` on its `PATH` | Add the MPI module to that config's `modules` in the configs file ([step 5](#5-get-the-sbatchman-configs-file)), then relaunch with `--force` |
-| The job's status is `COMPLETED`, but a result is missing | A failed run does not fail the job: the worker finishes and Slurm reports success (QE failures looked like this) | Check that each experiment folder holds a non-empty `data_app_0.csv`, and read `stderr.log` and `stdout.log` of the job for the failure |
+| Slurm reports the job `COMPLETED`, but an experiment folder has no `data_app_0.csv`, or an empty one | A failed run does not fail the job: the worker finishes and Slurm reports success (QE failures looked like this) | Check that each experiment folder holds a non-empty `data_app_0.csv` (for QE, a `0_wall_time_seconds` column). When it does not, read `bindings_app_0.log` and `error_app_0.log` in that experiment folder, and `stderr.log` and `stdout.log` of the job |
+| The jobs keep old settings (for example an old `--qos` or `--exclusive`), and `sbatchman launch` printed no `Loading configs from file` line | A different `sbatchman` is first on the `PATH` (the shell has no CRAB environment active). An older one ignores the `configs:` line and reuses the configs it stored earlier | Activate the CRAB `.venv` (after `unset PYTHONPATH PYTHONHOME` if a Python module is loaded), check that `which sbatchman` prints a path inside it ([step 1](#1-install-crab)), then relaunch with `--force` |
+| `sbatch: error: Batch job submission failed: Socket timed out on send/recv operation`, and the job's state is `FAILED_SUBMISSION` (`job_id: 0`) although `Submitted job '...'` was printed | A transient error of the Slurm controller. SbatchMan records the job as failed and still prints its per-job line | Run the same `sbatchman launch -f <file> --force` again: the failed record counts as an existing job. Read the summary line (`Submitted successfully N jobs` and the failure count), not the per-job line |
 | `Skipping job: An identical job already exists` and no job is submitted | SbatchMan found a job with the same cluster, config, tag and commands in the project | Add `--force` to `sbatchman launch -f <file>` ([step 7](#7-launch-it)). `sbatchman campaign` cannot force today |
 | `invalid account` from `sbatch` when SbatchMan submits the job | `<YOUR_ACCOUNT>` is still in the configs file, or the account is not yours | Fill in your Slurm account in the configs file ([step 5](#5-get-the-sbatchman-configs-file)) |
 | `sbatchman launch` submits no job and prints no error | The cluster block name in the configs file differs from `sbatchman set-cluster-name`, so SbatchMan skips the jobs | Run `sbatchman set-cluster-name leonardo` (the block's name) in the project ([step 4](#4-create-a-sbatchman-project)) |
