@@ -2,7 +2,7 @@
 # The NPLB campaign tool for the lab console: one short command per task.
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
-# Verbs so far: help, fix-venv, page, reports, build. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# Verbs so far: help, fix-venv, page, reports, build, node. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -26,6 +26,7 @@ nplb VERB [ARGS]
   reports     list the saved reports, newest first
   build blink [HOST...]   rebuild the GPU Blink from main (old build moved aside), show the proof
   build check [HOST...]   read-only report on ompi-cuda, ucx-cuda, the Blink source and binaries
+  node check [HOST...]    one page of node health, host x check, the verdict first
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -70,6 +71,19 @@ cmd_build() {
     esac
 }
 
+# node check [HOST...]: node_tools.sh narrates on stderr and prints a paged report
+cmd_node() {
+    local sub=${1:-}
+    [[ $# -gt 0 ]] && shift
+    case $sub in
+        check) bash "$NPLB_DIR/node_tools.sh" check "$@" ;;
+        *)
+            echo "usage: nplb node check [HOST...]" >&2
+            return 2
+            ;;
+    esac
+}
+
 cmd_fix_venv() {
     local py="$CHECKOUT/.venv/bin/python"
     if [[ ! -x $py ]]; then
@@ -96,6 +110,7 @@ case $verb in
     page) cmd_page "$@" ;;
     reports) cmd_reports ;;
     build) cmd_build "$@" ;;
+    node) cmd_node "$@" ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2
