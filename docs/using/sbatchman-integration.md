@@ -219,8 +219,8 @@ build (`pw.x` links the CUDA libraries), and without a GPU `pw.x` aborts at star
 Message Passing (mp) module, error code 9100`; with `gpus: 4` the same run finishes.
 
 `modules` sits in each config and not in `default_conf` on purpose. SbatchMan appends the list
-fields (`modules`, `env`) of a config to those of `default_conf` when the config uses variables, so
-a `modules` list in `default_conf` would stay loaded in the QE config and mix two MPI stacks (the
+fields (`modules`, `env`) of a config to those of `default_conf`, and a config cannot replace the
+list there, so a `modules` list in `default_conf` would stay loaded in the QE config and mix two MPI stacks (the
 gcc and Open MPI modules of Blink with the HPC-X MPI of the QE module). The `env` list, the CRAB env
 block below, is the same for both configs and stays in `default_conf`.
 
@@ -251,11 +251,17 @@ How SbatchMan applies the file:
 - The job script runs `module load` for the `modules`, then exports `SBATCHMAN_JOB_DIR` and the
   other variables SbatchMan sets, then the config's `env`, then the job's `preprocess` and
   `command`. The worker started by `command` therefore inherits all of it.
-- A jobs file's `configs:` key loads the configs file on every `sbatchman launch`, and a relative
-  path is relative to the jobs file. Every example jobs file starts with
+- A jobs file's `configs:` key makes every `sbatchman launch -f` read the configs file, and a
+  relative path is relative to the jobs file. SbatchMan reloads the configs when the file, the
+  variable files it references or a generated script changed; otherwise it prints `are unchanged;
+  reusing existing configurations.` and keeps them. A dry run also writes the config templates, so
+  the next real launch shows "unchanged; reusing". Every example jobs file starts with
   `configs: configs.leonardo.yaml`, so you never run `sbatchman configure`.
-- The top-level cluster block of the file (`leonardo`) must match `sbatchman set-cluster-name`.
-  When they differ, SbatchMan silently skips the jobs.
+- The top-level cluster block of the file (`leonardo`) must match the cluster name, which comes
+  from `sbatchman set-cluster-name` or, when it is set, from the `SBATCHMAN_CLUSTER_NAME`
+  environment variable (the variable wins). When they differ, SbatchMan writes no config for the
+  block and `sbatchman launch -f` stops with `Error: No configurations found for cluster '<name>'.`
+  and exit code 1.
 - A variable defined twice replaces the earlier value, it does not merge: if you add your own
   `PATH=...` entry, include everything you need in it.
 - `bind` and `cpus` in a CRAB experiment are not supported on this line. A worker that finds
@@ -376,8 +382,9 @@ sbatchman launch -f smoke.yaml
 squeue --me
 ```
 
-`-f smoke.yaml` names the jobs file. `--dry-run` shows what SbatchMan would submit and changes
-nothing. `squeue --me` lists your Slurm jobs. Launch the small `smoke.yaml` first: when it finishes
+`-f smoke.yaml` names the jobs file. `--dry-run` lists the jobs SbatchMan would submit (`Would
+generate <config> / <tag>`) and submits nothing. It also writes the config templates, but it renders
+no run script. `squeue --me` lists your Slurm jobs. Launch the small `smoke.yaml` first: when it finishes
 cleanly, your project, configs file and CRAB's worker work together. Then launch the others the
 same way, one file at a time, a dry run first:
 
@@ -391,21 +398,26 @@ sbatchman launch -f qe-noise.yaml
 ```
 
 A healthy launch prints a `Loading configs from file ...` line, then a `Configuration '<name>' saved
-to ...` line for each config, then a line for each job, and ends with `Submitted successfully N
-jobs`. A launch that prints no `Loading configs` line did not read the configs file, and its jobs
-would run with older settings: check `which sbatchman` ([step 1](#1-install-crab)) and see
-[troubleshooting](#troubleshooting). Trust the summary line, not the per-job lines (see the `Socket
-timed out` row of the troubleshooting table).
+to ...` line for each config (or, when the configs are unchanged, one `are unchanged; reusing
+existing configurations.` line), then a `Submitted <config> / <tag>` line for each job, and ends
+with `Submitted successfully N jobs`. A launch that prints no `Loading configs` line did not read
+the configs file, and its jobs would run with older settings: check `which sbatchman`
+([step 1](#1-install-crab)) and see [troubleshooting](#troubleshooting). Read the summary count and
+`sbatchman status`, never the exit code or a per-job line: the exit code is 0 even when no job was
+submitted (see the `Socket timed out` row of the troubleshooting table).
 
 The two QE files need Quantum ESPRESSO registered in [step 3](#3-build-or-register-the-benchmarks).
 On Leonardo, one run of the example input takes about 18 s on 2 nodes with the GPU config, and
 `qe-alone.yaml` ends in about 4 minutes. A sweep file you copied the same way launches 12 jobs, and each job runs six experiments, so size
 `time` in the configs file for all six.
 
-SbatchMan skips a job identical to one already run in the project (same cluster, config, tag and
-commands, archived jobs included), printing `Skipping job: An identical job already exists`. To run it
-again, add `--force`: `sbatchman launch -f smoke.yaml --force`. `sbatchman campaign` cannot force
-today, so a rerun of a campaign launches 0 jobs.
+SbatchMan skips a job that matches one already in the project on cluster, config and tag (archived
+jobs included, and a job in any status blocks, a failed one too), printing `Skipping job: An
+identical job already exists`. The commands are compared only with `--compare-commands-in-dup-check`.
+Our tags encode `nodes` and `msgsize` but not the other arguments, so editing `args` and
+relaunching with the same tag is skipped until the tag changes or you use `--force`. To run a job
+again, add `--force`, which skips the check: `sbatchman launch -f smoke.yaml --force`.
+`sbatchman campaign` cannot force today, so a rerun of a campaign launches 0 jobs.
 
 ### 8. Monitor
 
@@ -669,8 +681,8 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `symbol lookup error` in `bindings_app_<n>.log` of an app, and the app exits with code 127 | The app shares the job with an app from another module stack (QE with HPC-X next to Blink with Open MPI), and the first stack's module variables (`OPAL_PREFIX`, `HPCX_MPI_HOME`) leaked into it | Start the app's receipt `pre_run` hook with `module purge` ([Apps built with different module stacks](#apps-built-with-different-module-stacks)), then relaunch with `--force` |
 | Slurm reports the job `COMPLETED`, but an experiment folder has no `data_app_0.csv`, or an empty one | A failed run does not fail the job: the worker finishes and Slurm reports success (QE failures looked like this) | Check that each experiment folder holds a non-empty `data_app_0.csv` (for QE, a `0_wall_time_seconds` column). When it does not, read `bindings_app_0.log` and `error_app_0.log` in that experiment folder, and `stderr.log` and `stdout.log` of the job |
 | The jobs keep old settings (for example an old `--qos` or `--exclusive`), and `sbatchman launch` printed no `Loading configs from file` line | A different `sbatchman` is first on the `PATH` (the shell has no CRAB environment active). An older one ignores the `configs:` line and reuses the configs it stored earlier | Activate the CRAB `.venv` (after `unset PYTHONPATH PYTHONHOME` if a Python module is loaded), check that `which sbatchman` prints a path inside it ([step 1](#1-install-crab)), then relaunch with `--force` |
-| `sbatch: error: Batch job submission failed: Socket timed out on send/recv operation`, and the job's state is `FAILED_SUBMISSION` (`job_id: 0`) although `Submitted job '...'` was printed | A transient error of the Slurm controller. SbatchMan records the job as failed and still prints its per-job line | Run the same `sbatchman launch -f <file> --force` again: the failed record counts as an existing job. Read the summary line (`Submitted successfully N jobs` and the failure count), not the per-job line |
-| `Skipping job: An identical job already exists` and no job is submitted | SbatchMan found a job with the same cluster, config, tag and commands in the project | Add `--force` to `sbatchman launch -f <file>` ([step 7](#7-launch-it)). `sbatchman campaign` cannot force today |
+| `sbatch: error: Batch job submission failed: Socket timed out on send/recv operation`, and the job's state is `FAILED_SUBMISSION` (`job_id: 0`) and `launch -f` printed `Failed to submit job: Job submission failed with error code N. ... Error stream: <sbatch's message>` instead of a `Submitted <config> / <tag>` line (the message is empty, `Failed to submit job: `, when `sbatch` wrote nothing to stderr) | A transient error of the Slurm controller. SbatchMan records the job as `FAILED_SUBMISSION` and does not count it in the summary | Read the `Failed to submit job:` lines and the summary count (`Submitted successfully N jobs`), check `sbatchman status`, and never rely on the exit code (it is 0 even when nothing was submitted). Run the same `sbatchman launch -f <file> --force` again: the failed record counts as an existing job |
+| `Skipping job: An identical job already exists` and no job is submitted | SbatchMan found a job with the same cluster, config and tag in the project, in any status and archived or not (commands are compared only with `--compare-commands-in-dup-check`) | Add `--force` to `sbatchman launch -f <file>` ([step 7](#7-launch-it)), or change the tag. `sbatchman campaign` cannot force today |
 | `invalid account` from `sbatch` when SbatchMan submits the job | `<YOUR_ACCOUNT>` is still in the configs file, or the account is not yours | Fill in your Slurm account in the configs file ([step 5](#5-get-the-sbatchman-configs-file)) |
-| `sbatchman launch` submits no job and prints no error | The cluster block name in the configs file differs from `sbatchman set-cluster-name`, so SbatchMan skips the jobs | Run `sbatchman set-cluster-name leonardo` (the block's name) in the project ([step 4](#4-create-a-sbatchman-project)) |
+| `Error: No configurations found for cluster '<name>'.` from `sbatchman launch -f`, exit code 1 | The cluster block name in the configs file differs from the cluster name (`sbatchman set-cluster-name`, or `SBATCHMAN_CLUSTER_NAME` when it is set), so SbatchMan wrote no config for it | Run `sbatchman set-cluster-name leonardo` (the block's name) in the project ([step 4](#4-create-a-sbatchman-project)), and unset `SBATCHMAN_CLUSTER_NAME` or set it to the block's name |
 | The dashboard or `sbatchman visualize` will not start: port in use | Both use `8765`, and `sbatchman visualize` cannot change it | Start the dashboard on another port with `crab web --port <other port>` (see [step 8](#8-monitor)) |
