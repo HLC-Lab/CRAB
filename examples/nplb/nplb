@@ -2,7 +2,7 @@
 # The NPLB campaign tool for the lab console: one short command per task.
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
-# Verbs so far: help, fix-venv. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# Verbs so far: help, fix-venv, page, reports. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -21,6 +21,9 @@ nplb VERB [ARGS]
 
   help        this page
   fix-venv    reinstall CRAB into the checkout venv (pip install -e .) and run pip check
+  page        replay a saved report page: page N|next|prev [REPORT] (reports are saved whole
+              and shown in numbered pages of at most 38 lines)
+  reports     list the saved reports, newest first
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -38,6 +41,17 @@ run_step() {
         return "$rc"
     fi
     return 0
+}
+
+# page and reports go through the pager engine; lib/pages.sh picks the python.
+cmd_page() {
+    . "$NPLB_DIR/lib/pages.sh"
+    nplb_page "$@"
+}
+
+cmd_reports() {
+    . "$NPLB_DIR/lib/pages.sh"
+    _nplb_pages_run reports
 }
 
 cmd_fix_venv() {
@@ -63,6 +77,8 @@ verb=${1:-help}
 case $verb in
     help | -h | --help) cmd_help ;;
     fix-venv) cmd_fix_venv ;;
+    page) cmd_page "$@" ;;
+    reports) cmd_reports ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2
