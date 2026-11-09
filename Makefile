@@ -1,12 +1,16 @@
-.PHONY: install setup clean venv _install_core _wrappers _check_python \
+.PHONY: install setup clean venv core _install_core _wrappers _check_python \
         verify verify-full fmt _verify_py _verify_fe _static_sync
 
 .DEFAULT_GOAL := install
 
-VENV_DIR = .venv
+VENV_DIR ?= .venv
 PIP = $(VENV_DIR)/bin/pip
 CRAB_BIN = $(VENV_DIR)/bin/crab
 PY = $(VENV_DIR)/bin/python
+
+# A cluster's Python module exports PYTHONPATH, which precedes the venv's site-packages
+# in sys.path, so the venv's pip would import the module's pip and fail.
+unexport PYTHONPATH PYTHONHOME
 WEBUI = src/crab/webui
 WRAPPERS_URL ?= https://github.com/HLC-Lab/crab-wrappers.git
 
@@ -57,7 +61,7 @@ fmt:
 
 # 0. The Guardrail (Fails instantly if Python is too old)
 _check_python:
-	@python3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 10) else sys.exit(0)' || \
+	@[ -x "$(PY)" ] || python3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 10) else sys.exit(0)' || \
 	(echo "============================================================"; \
 	 echo "[!] ERROR: CRAB requires Python 3.10 or higher."; \
 	 echo "    You are currently using: $$(python3 --version 2>&1)"; \
@@ -66,13 +70,18 @@ _check_python:
 	 echo "    Python environment before running \`make\` again."; \
 	 echo "============================================================"; exit 1)
 
-# 1. The Virtual Environment Builder
+# 1. The Virtual Environment Builder: an existing venv is reused, so the argcomplete lines are
+# appended once. Keep $(MAKE) out of this recipe: `make -n` would run it and build a real venv.
 venv: _check_python
-	python3 -m venv $(VENV_DIR)
-	$(PIP) install --upgrade pip
-	$(PIP) install argcomplete
-	@echo 'eval "$$(register-python-argcomplete crab)"' >> $(VENV_DIR)/bin/activate
-	@echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish
+	@if [ -x "$(PY)" ]; then \
+	    echo "[=] using the existing venv $(VENV_DIR)"; \
+	else \
+	    python3 -m venv $(VENV_DIR) && \
+	    $(PIP) install --upgrade pip && \
+	    $(PIP) install argcomplete && \
+	    echo 'eval "$$(register-python-argcomplete crab)"' >> $(VENV_DIR)/bin/activate && \
+	    echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish; \
+	fi
 
 # 2. The Traffic Cop (Checks if already installed)
 install:
@@ -91,11 +100,14 @@ install:
 	    $(MAKE) _install_core; \
 	fi
 
-# 3. The Actual Installation
-_install_core: venv
+# 3. CRAB and the wrappers, without the setup wizard (scripts and installers call this)
+core: venv
 	$(PIP) install -e .
 	@$(MAKE) --no-print-directory _wrappers
 	@echo "[✔] CRAB core installed in virtual environment."
+
+# 3b. The Actual Installation: core, then the setup wizard
+_install_core: core
 	@echo "Launching setup wizard to configure benchmarks..."
 	$(CRAB_BIN) setup
 
@@ -113,4 +125,9 @@ setup:
 
 clean:
 	@echo "Cleaning up build artifacts..."
-	rm -rf build/ dist/ *.egg-info $(VENV_DIR)
+	rm -rf build/ dist/ *.egg-info
+ifeq ($(VENV_DIR),.venv)
+	rm -rf $(VENV_DIR)
+else
+	@echo "[=] leaving the venv $(VENV_DIR) in place"
+endif
