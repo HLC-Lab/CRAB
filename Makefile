@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := install
 
-VENV_DIR = .venv
+VENV_DIR ?= .venv
 PIP = $(VENV_DIR)/bin/pip
 CRAB_BIN = $(VENV_DIR)/bin/crab
 PY = $(VENV_DIR)/bin/python
@@ -61,7 +61,7 @@ fmt:
 
 # 0. The Guardrail (Fails instantly if Python is too old)
 _check_python:
-	@python3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 10) else sys.exit(0)' || \
+	@[ -x "$(PY)" ] || python3 -c 'import sys; sys.exit(1) if sys.version_info < (3, 10) else sys.exit(0)' || \
 	(echo "============================================================"; \
 	 echo "[!] ERROR: CRAB requires Python 3.10 or higher."; \
 	 echo "    You are currently using: $$(python3 --version 2>&1)"; \
@@ -70,13 +70,18 @@ _check_python:
 	 echo "    Python environment before running \`make\` again."; \
 	 echo "============================================================"; exit 1)
 
-# 1. The Virtual Environment Builder
+# 1. The Virtual Environment Builder: an existing venv is reused, so the argcomplete lines are
+# appended once. Keep $(MAKE) out of this recipe: `make -n` would run it and build a real venv.
 venv: _check_python
-	python3 -m venv $(VENV_DIR)
-	$(PIP) install --upgrade pip
-	$(PIP) install argcomplete
-	@echo 'eval "$$(register-python-argcomplete crab)"' >> $(VENV_DIR)/bin/activate
-	@echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish
+	@if [ -x "$(PY)" ]; then \
+	    echo "[=] using the existing venv $(VENV_DIR)"; \
+	else \
+	    python3 -m venv $(VENV_DIR) && \
+	    $(PIP) install --upgrade pip && \
+	    $(PIP) install argcomplete && \
+	    echo 'eval "$$(register-python-argcomplete crab)"' >> $(VENV_DIR)/bin/activate && \
+	    echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish; \
+	fi
 
 # 2. The Traffic Cop (Checks if already installed)
 install:
@@ -117,4 +122,9 @@ setup:
 
 clean:
 	@echo "Cleaning up build artifacts..."
-	rm -rf build/ dist/ *.egg-info $(VENV_DIR)
+	rm -rf build/ dist/ *.egg-info
+ifeq ($(VENV_DIR),.venv)
+	rm -rf $(VENV_DIR)
+else
+	@echo "[=] leaving the venv $(VENV_DIR) in place"
+endif
