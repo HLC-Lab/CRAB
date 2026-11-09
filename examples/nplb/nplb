@@ -27,6 +27,9 @@ nplb VERB [ARGS]
   build blink [HOST...]   rebuild the GPU Blink from main (old build moved aside), show the proof
   build check [HOST...]   read-only report on ompi-cuda, ucx-cuda, the Blink source and binaries
   node check [HOST...]    one page of node health, host x check, the verdict first
+  node diag HOST          deep dive of one node: hardware or software, the verdict first
+  node fix [--sr 0|1] [--ar 0|1] [HOST...]
+                          asks first, then remounts NFS on the workers, optionally sets SR/AR
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -71,17 +74,27 @@ cmd_build() {
     esac
 }
 
-# node check [HOST...]: node_tools.sh narrates on stderr and prints a paged report
+# node check|diag|fix: node_tools.sh narrates on stderr and prints a paged report
 cmd_node() {
     local sub=${1:-}
     [[ $# -gt 0 ]] && shift
     case $sub in
         check) bash "$NPLB_DIR/node_tools.sh" check "$@" ;;
-        *)
-            echo "usage: nplb node check [HOST...]" >&2
-            return 2
+        diag)
+            if (($# == 1)); then
+                bash "$NPLB_DIR/node_tools.sh" diag "$@"
+            else
+                node_usage
+            fi
             ;;
+        fix) bash "$NPLB_DIR/node_tools.sh" fix "$@" ;;
+        *) node_usage ;;
     esac
+}
+
+node_usage() {
+    echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
+    return 2
 }
 
 cmd_fix_venv() {
