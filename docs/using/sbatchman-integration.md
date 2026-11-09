@@ -411,13 +411,47 @@ On Leonardo, one run of the example input takes about 18 s on 2 nodes with the G
 `qe-alone.yaml` ends in about 4 minutes. A sweep file you copied the same way launches 12 jobs, and each job runs six experiments, so size
 `time` in the configs file for all six.
 
-SbatchMan skips a job that matches one already in the project on cluster, config and tag (archived
-jobs included, and a job in any status blocks, a failed one too), printing `Skipping job: An
-identical job already exists`. The commands are compared only with `--compare-commands-in-dup-check`.
-Our tags encode `nodes` and `msgsize` but not the other arguments, so editing `args` and
-relaunching with the same tag is skipped until the tag changes or you use `--force`. To run a job
-again, add `--force`, which skips the check: `sbatchman launch -f smoke.yaml --force`.
-`sbatchman campaign` cannot force today, so a rerun of a campaign launches 0 jobs.
+SbatchMan skips a job that matches an earlier one and prints `Skipping job: An identical job
+already exists`: see [Running a job again](#running-a-job-again).
+
+#### Running a job again
+
+SbatchMan treats a launch as a duplicate when the cluster, the config and the tag match a job already
+in the project. Archived jobs count, and a job in any status blocks the launch, a failed one too. The
+commands are not compared (only `--compare-commands-in-dup-check` does that), so editing `args` and
+launching again with the same tag does nothing. There are two ways to get fresh data.
+
+**Change the tag** (works on SbatchMan 2.0.3 and 2.0.4). This is the recommended way. In the jobs
+file, add a suffix to the job's `tag`, here `-r2` for "run 2". The example files repeat the tag as
+the `name` in the `global_options` of the `config.json` that `preprocess` writes, so change both
+together:
+
+```yaml
+    tag: a2a-smoke-{nodes}-r2    # was a2a-smoke-{nodes}
+    preprocess: |
+      ...
+          "name": "a2a-smoke-{nodes}-r2"
+```
+
+The `...` stands for the lines of `smoke.yaml` between the two, and the `name` line was
+`"name": "a2a-smoke-{nodes}"`. (JSON takes no comment, so do not paste a `#` there.) The new tag is a new job, so
+`sbatchman launch -f smoke.yaml` submits it. Each rerun keeps the earlier data under the earlier
+tag, and the tags tell the runs apart in `sbatchman status`.
+
+**Pass `--force`:**
+
+```bash
+sbatchman launch -f smoke.yaml --force
+```
+
+`--force` skips the duplicate check, so every job of the file is submitted again. SbatchMan makes a
+new `<timestamp>` folder for the run under the same `<tag>` folder and does not touch the earlier one
+([step 9](#9-read-the-results)).
+
+A launch where nothing ran ends with `Submitted successfully 0 jobs`. Every job was either skipped as a
+duplicate or failed to submit: read the `Skipping job:` and `Failed to submit job:` lines above the
+summary. The exit code is 0 in both cases. `sbatchman campaign` cannot force today, so a rerun of a
+campaign launches 0 jobs.
 
 ### 8. Monitor
 
@@ -682,7 +716,7 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | Slurm reports the job `COMPLETED`, but an experiment folder has no `data_app_0.csv`, or an empty one | A failed run does not fail the job: the worker finishes and Slurm reports success (QE failures looked like this) | Check that each experiment folder holds a non-empty `data_app_0.csv` (for QE, a `0_wall_time_seconds` column). When it does not, read `bindings_app_0.log` and `error_app_0.log` in that experiment folder, and `stderr.log` and `stdout.log` of the job |
 | The jobs keep old settings (for example an old `--qos` or `--exclusive`), and `sbatchman launch` printed no `Loading configs from file` line | A different `sbatchman` is first on the `PATH` (the shell has no CRAB environment active). An older one ignores the `configs:` line and reuses the configs it stored earlier | Activate the CRAB `.venv` (after `unset PYTHONPATH PYTHONHOME` if a Python module is loaded), check that `which sbatchman` prints a path inside it ([step 1](#1-install-crab)), then relaunch with `--force` |
 | `sbatch: error: Batch job submission failed: Socket timed out on send/recv operation`, and the job's state is `FAILED_SUBMISSION` (`job_id: 0`) and `launch -f` printed `Failed to submit job: Job submission failed with error code N. ... Error stream: <sbatch's message>` instead of a `Submitted <config> / <tag>` line (the message is empty, `Failed to submit job: `, when `sbatch` wrote nothing to stderr) | A transient error of the Slurm controller. SbatchMan records the job as `FAILED_SUBMISSION` and does not count it in the summary | Read the `Failed to submit job:` lines and the summary count (`Submitted successfully N jobs`), check `sbatchman status`, and never rely on the exit code (it is 0 even when nothing was submitted). Run the same `sbatchman launch -f <file> --force` again: the failed record counts as an existing job |
-| `Skipping job: An identical job already exists` and no job is submitted | SbatchMan found a job with the same cluster, config and tag in the project, in any status and archived or not (commands are compared only with `--compare-commands-in-dup-check`) | Add `--force` to `sbatchman launch -f <file>` ([step 7](#7-launch-it)), or change the tag. `sbatchman campaign` cannot force today |
+| `Skipping job: An identical job already exists`, or `Submitted successfully 0 jobs`, and no job is submitted | SbatchMan found a job with the same cluster, config and tag in the project, in any status and archived or not (the summary says `0 jobs` as well when every `sbatch` failed: see the `Socket timed out` row) | Change the tag or pass `--force`: [Running a job again](#running-a-job-again). `sbatchman campaign` cannot force today |
 | `invalid account` from `sbatch` when SbatchMan submits the job | `<YOUR_ACCOUNT>` is still in the configs file, or the account is not yours | Fill in your Slurm account in the configs file ([step 5](#5-get-the-sbatchman-configs-file)) |
 | `Error: No configurations found for cluster '<name>'.` from `sbatchman launch -f`, exit code 1 | The cluster block name in the configs file differs from the cluster name (`sbatchman set-cluster-name`, or `SBATCHMAN_CLUSTER_NAME` when it is set), so SbatchMan wrote no config for it | Run `sbatchman set-cluster-name leonardo` (the block's name) in the project ([step 4](#4-create-a-sbatchman-project)), and unset `SBATCHMAN_CLUSTER_NAME` or set it to the block's name |
 | The dashboard or `sbatchman visualize` will not start: port in use | Both use `8765`, and `sbatchman visualize` cannot change it | Start the dashboard on another port with `crab web --port <other port>` (see [step 8](#8-monitor)) |

@@ -27,6 +27,7 @@ from crab.core.wrapper_paths import wrapper_path_problem
 
 REPO = Path(__file__).resolve().parents[1]
 EXAMPLES = REPO / "examples" / "sbatchman"
+GUIDE = REPO / "docs" / "using" / "sbatchman-integration.md"
 FILES = sorted(p for p in EXAMPLES.glob("*.yaml") if not p.name.startswith("configs."))
 EXPECTED_FILES = {
     "smoke.yaml",
@@ -229,6 +230,25 @@ def test_the_noise_aggressor_runs_continuously(path: Path) -> None:
             assert "-endl" in args, name
             assert "-blength" not in args, name
             assert "-bpause" not in args, name
+
+
+def test_guide_has_the_run_again_subsection() -> None:
+    """The guide's one place for rerunning a job: a developer's later answer is a one-section edit."""
+    lines = GUIDE.read_text().splitlines()
+    headings = [
+        i for i, line in enumerate(lines) if re.fullmatch(r"#{3,4} Running a job again", line)
+    ]
+
+    assert len(headings) == 1
+    section: list[str] = []
+    for line in lines[headings[0] + 1 :]:
+        if re.match(r"#{1,4} ", line):
+            break
+        section.append(line)
+    text = "\n".join(section)
+
+    assert "--force" in text
+    assert "tag" in text
 
 
 def test_the_smoke_file_stays_one_job_on_two_nodes() -> None:
