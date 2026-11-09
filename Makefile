@@ -1,4 +1,4 @@
-.PHONY: install setup clean venv _install_core _wrappers _check_python \
+.PHONY: install setup clean venv core _install_core _wrappers _check_python \
         verify verify-full fmt _verify_py _verify_fe _static_sync
 
 .DEFAULT_GOAL := install
@@ -100,11 +100,14 @@ install:
 	    $(MAKE) _install_core; \
 	fi
 
-# 3. The Actual Installation
-_install_core: venv
+# 3. CRAB and the wrappers, without the setup wizard (scripts and installers call this)
+core: venv
 	$(PIP) install -e .
 	@$(MAKE) --no-print-directory _wrappers
 	@echo "[✔] CRAB core installed in virtual environment."
+
+# 3b. The Actual Installation: core, then the setup wizard
+_install_core: core
 	@echo "Launching setup wizard to configure benchmarks..."
 	$(CRAB_BIN) setup
 
