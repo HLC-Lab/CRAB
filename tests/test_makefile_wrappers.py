@@ -66,6 +66,54 @@ def test_the_install_clones_wrappers_after_pip_and_before_setup(project) -> None
     assert at("pip install -e .") < at("git clone") < at("bin/crab setup")
 
 
+def _stub_venv(project: Path) -> Path:
+    """A stub venv: pip records its arguments and whether wrappers/ existed at that moment,
+    crab drops a marker file when called. Returns the pip log path."""
+    bin_dir = project / ".venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    log = project / "pip.log"
+    scripts = {
+        "python": "#!/bin/sh\nexit 0\n",
+        "pip": (
+            "#!/bin/sh\n"
+            f'echo "$@ wrappers-present=$([ -d "{project}/wrappers" ] && echo yes || echo no)"'
+            f' >> "{log}"\n'
+        ),
+        "crab": f'#!/bin/sh\ntouch "{project}/crab-was-called"\n',
+    }
+    for name, body in scripts.items():
+        stub = bin_dir / name
+        stub.write_text(body)
+        stub.chmod(0o755)
+    return log
+
+
+def test_make_core_installs_without_the_wizard(project) -> None:
+    log = _stub_venv(project)
+    (project / "wrappers").mkdir()
+
+    result = _make(project, "core")
+
+    assert result.returncode == 0, result.stderr
+    assert "install -e ." in log.read_text()
+    assert "wrappers/ already present" in result.stdout
+    assert "CRAB core installed" in result.stdout
+    assert "setup wizard" not in result.stdout
+    assert not (project / "crab-was-called").exists()
+
+
+def test_make_core_clones_missing_wrappers_after_pip(project, origin) -> None:
+    log = _stub_venv(project)
+
+    result = _make(project, "core", f"WRAPPERS_URL={origin}")
+
+    assert result.returncode == 0, result.stderr
+    assert log.read_text().strip() == "install -e . wrappers-present=no"
+    assert (project / "wrappers" / "README.md").read_text() == "w\n"
+    assert result.stdout.index("pip install -e .") < result.stdout.index("Cloning the wrappers")
+    assert not (project / "crab-was-called").exists()
+
+
 def _installed(project: Path) -> None:
     """Make the project look installed: an executable .venv/bin/crab stub."""
     stub = project / ".venv" / "bin" / "crab"

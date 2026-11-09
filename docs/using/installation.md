@@ -91,6 +91,46 @@ needs a wrapper stops with `wrappers/ is missing: run crab update` when the fold
 For the web dashboard, which runs on your laptop and drives clusters over SSH, install the `web`
 extra (`pip install -e ".[web]"`) and start it with `crab web`.
 
+### Using an existing virtual environment
+
+CRAB can install into a virtual environment you already have, for example one shared with other
+tools. By default `make` uses `.venv` in the checkout and reuses it when it exists, so a second
+`make` builds nothing and appends nothing to `activate`. To use another environment, name it:
+
+```bash
+make VENV_DIR=<path-to-venv>
+```
+
+- `VENV_DIR` is the folder of the virtual environment. If it already holds `bin/python`, `make`
+  installs CRAB into it. If not, `make` creates the environment there first.
+- `make` does not pick up an active `VIRTUAL_ENV`: an unrelated environment you happen to have
+  active would receive CRAB. Always pass `VENV_DIR` to use a specific one.
+- `make clean` deletes only the default `.venv`. With another `VENV_DIR` it removes the build
+  files and leaves the environment alone, printing `[=] leaving the venv <path> in place`.
+- The tab-completion lines are added to `activate` only when `make` creates the environment. An
+  environment that already exists keeps its `activate` file as it is.
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `argcomplete` is missing and `activate` has no completion lines | An earlier `make` failed halfway (for example offline) and left a half-built environment. `make` counts it as an existing one and skips the setup. | Delete that environment's folder and run `make` again. |
+
+### Installing without the wizard
+
+Scripts and installers need CRAB without the interactive setup wizard. `make core` installs it
+and stops there:
+
+```bash
+make core
+make core VENV_DIR=<path-to-venv>
+```
+
+`core` creates the virtual environment or reuses an existing one, runs `pip install -e .`, and
+puts the wrappers in `wrappers/` (it clones them when the folder is missing). It never starts
+`crab setup`. Plain `make` does the same and then starts the wizard.
+
+To register benchmarks afterwards, activate the environment and run `crab setup` (see
+[Set up benchmarks](#set-up-benchmarks-crab-setup)).
+
 ## Install with pip or pipx
 
 !!! note "Available from the first PyPI release"

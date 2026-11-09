@@ -92,9 +92,23 @@ application already installed on the cluster), run:
 crab setup
 ```
 
-and choose "Register a custom already-installed benchmark". The wizard prompts you for the
-`benchmark_id`, the path to the binary, any pre-run module loads, and an optional launcher
-override, then writes the receipt for you. This is the recommended path: no JSON editing required.
+and choose "Register a custom already-installed benchmark". The wizard asks, in this order:
+
+1. The display name (for example `HPL Linpack`).
+2. The benchmark ID, which names the receipt file and is the `benchmark_id` in experiment
+   configs. The default is the display name in lowercase, with spaces and dashes turned into
+   underscores. Only lowercase letters, digits and underscores are accepted; the prompt asks
+   again otherwise.
+3. The full path to the executable (`~` is expanded). If the file does not exist, the wizard
+   warns and asks whether to register the path anyway.
+4. The launcher. The first choice, and the default, is "preset": use the preset's launcher with
+   no override. The others are `srun` and `mpirun`. Pick one of them only when the benchmark must
+   not use the preset's launcher (for example `mpirun` for QE).
+5. The pre-run commands, one per prompt, for example `module load gcc/12 openmpi/4.1`. A blank
+   line ends the list.
+
+If a receipt with that ID exists, the wizard asks before it overwrites it. Then it writes the
+receipt for you. This is the recommended path: no JSON editing required.
 
 ## Writing a receipt by hand
 

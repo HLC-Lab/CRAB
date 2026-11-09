@@ -196,6 +196,13 @@ def _derive_benchmark_id(name: str) -> str:
     return sanitized.strip("_")
 
 
+def _validate_benchmark_id(value: str) -> bool | str:
+    """questionary validator: True for a clean, non-empty benchmark ID, else the error to show."""
+    if value and _derive_benchmark_id(value) == value:
+        return True
+    return "Use lowercase letters, digits and underscores only (for example 'my_bench_2')"
+
+
 def _ask_module_executable(recipe) -> str:
     """The command the module provides: the recipe's own when it declares one, else asked for.
 
@@ -269,15 +276,23 @@ def _run_custom_benchmark_wizard(
             )
             continue
 
-        console.print(f"\n  Benchmark ID: [bold cyan]{bench_id}[/bold cyan]")
-
-        if bench_id in taken_receipt_ids:
-            console.print(
-                f"[yellow]  Warning: A receipt for '[bold]{bench_id}[/bold]' already exists. "
-                f"You will be asked before it is overwritten.[/yellow]"
-            )
-
         break
+
+    id_answer = questionary.text(
+        "Benchmark ID (used for the receipt file and in experiment configs):",
+        default=bench_id,
+        validate=_validate_benchmark_id,
+    ).ask()
+    if id_answer is None:
+        console.print("[yellow]Registration cancelled.[/yellow]")
+        return
+    bench_id = id_answer
+
+    if bench_id in taken_receipt_ids:
+        console.print(
+            f"[yellow]  Warning: A receipt for '[bold]{bench_id}[/bold]' already exists. "
+            f"You will be asked before it is overwritten.[/yellow]"
+        )
 
     # ── Step 2: executable path ───────────────────────────────────────────────
     while True:
@@ -305,11 +320,12 @@ def _run_custom_benchmark_wizard(
     launcher_choice = questionary.select(
         "How should this benchmark be launched?",
         choices=[
-            Choice("mpirun  (OpenMPI / MPICH default)", value="mpirun"),
-            Choice("srun    (SLURM native launcher)", value="srun"),
             # "" means no override: the experiment uses the preset's launcher.
             Choice("preset  (use the preset's launcher, no override)", value=""),
+            Choice("srun    (SLURM native launcher)", value="srun"),
+            Choice("mpirun  (OpenMPI / MPICH default)", value="mpirun"),
         ],
+        default="",
         style=questionary.Style([("highlighted", "fg:cyan bold")]),
     ).ask()
 
