@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# The NPLB campaign tool for the lab console: one short command per task.
+#   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
+#                          or run examples/nplb/nplb directly)
+# Verbs so far: help, fix-venv. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
+# argparse, which sbatch copies into every job and the workers then crash.
+# To add a verb: write a cmd_<verb> function and one case arm below.
+set -u
+
+unset PYTHONPATH
+
+NPLB_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+CHECKOUT=$(cd "$NPLB_DIR/../.." && pwd)
+
+step() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+
+cmd_help() {
+    cat <<'EOF'
+nplb VERB [ARGS]
+
+  help        this page
+  fix-venv    reinstall CRAB into the checkout venv (pip install -e .) and run pip check
+
+Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
+EOF
+}
+
+# run_step LABEL CMD...: narrate, run, show the tail of the output when it fails
+run_step() {
+    local label=$1 out rc
+    shift
+    step "$label"
+    out=$("$@" 2>&1)
+    rc=$?
+    if ((rc != 0)); then
+        printf '%s\n' "$out" | tail -n 15
+        return "$rc"
+    fi
+    return 0
+}
+
+cmd_fix_venv() {
+    local py="$CHECKOUT/.venv/bin/python"
+    if [[ ! -x $py ]]; then
+        echo "no venv at $CHECKOUT/.venv: run make in $CHECKOUT"
+        return 1
+    fi
+    cd "$CHECKOUT" || return 1
+    if ! run_step "pip install -e ." "$py" -m pip install -e .; then
+        echo "FAIL venv: pip install -e . failed"
+        return 1
+    fi
+    if ! run_step "pip check" "$py" -m pip check; then
+        echo "FAIL venv: pip check reports broken requirements"
+        return 1
+    fi
+    echo "OK venv: pip check clean"
+}
+
+verb=${1:-help}
+[[ $# -gt 0 ]] && shift
+case $verb in
+    help | -h | --help) cmd_help ;;
+    fix-venv) cmd_fix_venv ;;
+    *)
+        echo "nplb: unknown verb '$verb', run: nplb help" >&2
+        exit 2
+        ;;
+esac

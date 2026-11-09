@@ -2,8 +2,11 @@
 #   . examples/nplb/env.sh
 # It puts the newest Open MPI's bin directory first in PATH (once, however often you source it),
 # moves to the checkout, loads <checkout>/local/nplb_env.sh if it exists (site settings such as
-# proxy exports; local/ is git-ignored), sets BLINK to the directory of the Blink receipt, and
-# prints what it found. A missing piece is a warning line, never an exit: this file is sourced.
+# proxy exports; local/ is git-ignored), unsets PYTHONPATH (the lab's points at an old system
+# argparse that breaks the jobs), warns when the checkout venv cannot import pandas (fix: nplb
+# fix-venv), defines the `nplb` command (examples/nplb/nplb) and exports NPLB_HOME, sets BLINK to
+# the directory of the Blink receipt, and prints what it found. A missing piece is a warning
+# line, never an exit: this file is sourced.
 # Env: NPLB_MPI_ROOT (where the openmpi-* directories live, default /usr/mpi/gcc).
 # Bash only.
 
@@ -27,6 +30,22 @@ cd "$_nplb_checkout" || echo "warning: cannot cd to $_nplb_checkout"
 # shellcheck disable=SC1091
 [ -f "$_nplb_checkout/local/nplb_env.sh" ] && . "$_nplb_checkout/local/nplb_env.sh"
 
+# PYTHONPATH off, after the site file (which may export one): the lab shell's points at an old
+# system argparse that sbatch copies into every job. Reported below, with the other output lines.
+_nplb_pp_was=""
+if [ -n "${PYTHONPATH:-}" ]; then
+    _nplb_pp_was=$PYTHONPATH
+fi
+unset PYTHONPATH
+
+_nplb_pandas=ok
+"$_nplb_checkout/.venv/bin/python" -c 'import pandas' >/dev/null 2>&1 || _nplb_pandas=missing
+
+# the nplb command: the dispatcher that lives next to this file
+NPLB_HOME=$_nplb_dir
+export NPLB_HOME
+nplb() { "$NPLB_HOME/nplb" "$@"; }
+
 _nplb_blink=$(
     "$_nplb_checkout/.venv/bin/python" -c \
         "import crab.setup.memory as m; print(m.get_receipt('blink')['binary_path'])" 2>/dev/null
@@ -35,6 +54,12 @@ if [ -n "$_nplb_blink" ]; then
     export BLINK="$_nplb_blink"
 fi
 
+if [ -n "$_nplb_pp_was" ]; then
+    echo "PYTHONPATH: unset (was $_nplb_pp_was)"
+fi
+if [ "$_nplb_pandas" != ok ]; then
+    echo "warning: the venv cannot import pandas, run: nplb fix-venv"
+fi
 if _nplb_cmd=$(command -v mpirun); then
     echo "mpirun: $_nplb_cmd"
 else
@@ -46,5 +71,5 @@ else
     echo "warning: no Blink directory (receipt 'blink' missing or its binary_path is not a directory)"
 fi
 
-unset _nplb_dir _nplb_checkout _nplb_mpi _nplb_rest _nplb_blink _nplb_cmd _d
+unset _nplb_dir _nplb_checkout _nplb_mpi _nplb_rest _nplb_blink _nplb_cmd _nplb_pp_was _nplb_pandas _d
 return 0 2>/dev/null || true
