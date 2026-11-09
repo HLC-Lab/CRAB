@@ -10,6 +10,7 @@ campaign.
 | `preflight.sh` | Checks over ssh that every node sees the CRAB checkout, the Blink programs and the same MPI, so ranks can start there. |
 | `sr_state.sh` | Reads the Selective Repeat setting of every active NIC on every node (read only). |
 | `sr_set.sh` | Sets the Selective Repeat setting of every active NIC on the given nodes and reads it back; see [below](#read-the-nic-side-of-the-network-configuration). |
+| `ar_set.sh` | Sets the adaptive routing bit (`adaptive_routing_forced_en` of `ROCE_ACCL`) of every active NIC on the given nodes and reads it back, with the same arguments and output as `sr_set.sh` but labelled `AR=`. Not persistent across reboots. It runs `sr_set.sh` with `ACCL_BIT=ar`, the variable `sr_set.sh` uses to select the bit (`sr`, the default, or `ar`). |
 | `probe.py` | Reads each node's RDMA NICs (ports, PCI address, speed, NUMA node, netdev, memory, GPU layout) and writes a cluster profile with the `nics` and `cpus` lists to use. |
 | `nic_check.sh` | Runs Blink in several placements on 2 nodes and shows per-rank bandwidth and the bytes each NIC sent, to confirm every rank uses its own NIC. |
 | `make_configs.py` | Writes the CRAB configs of both test sets from the profile (`md_set.py`, `colleague_set.py`, `naming.py`). |
