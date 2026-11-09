@@ -24,10 +24,12 @@ benchmarks you want available on this machine.
 ## Install the framework
 
 The recommended path is the Makefile, which creates an isolated virtual environment, installs
-CRAB in editable mode, and launches the setup wizard:
+CRAB in editable mode, and launches the setup wizard. The clone below takes the `sbatchman`
+branch, the line of CRAB that launches jobs through SbatchMan
+(see [Using CRAB with SbatchMan](sbatchman-integration.md)):
 
 ```bash
-git clone https://github.com/HLC-Lab/CRAB
+git clone --branch sbatchman https://github.com/HLC-Lab/CRAB
 cd CRAB
 make
 ```
@@ -60,11 +62,16 @@ it holds the files that belong to this machine and never conflict with an update
 | `local/receipts/` | One receipt per configured benchmark. | `crab setup` |
 | `local/wrappers/` | Private or in-progress wrappers, searched before `wrappers/`. | You, if you need it. |
 
-Before the first `crab run` on a cluster that needs a Slurm account, add an override file in
-`local/presets/` with your account. The shared presets carry the mark `--account=<YOUR_ACCOUNT>`,
-and `crab run` refuses to start while a mark is unset. It prints the file to write, and
-`crab presets show <name>` prints it too. The [presets page](presets.md#your-overrides) has a
-complete example. The shared presets themselves are the files in `wrappers/presets/`.
+When you launch jobs through SbatchMan, your Slurm account goes in the SbatchMan configs file
+([step 5 of the guide](sbatchman-integration.md#5-get-the-sbatchman-configs-file)), not in
+`local/presets/`: on this line the configs file owns the job environment.
+
+A direct `crab run` on a cluster that needs a Slurm account is different. Before its first run,
+add an override file in `local/presets/` with your account. The shared presets carry the mark
+`--account=<YOUR_ACCOUNT>`, and `crab run` refuses to start while a mark is unset. It prints the
+file to write, and `crab presets show <name>` prints it too. The
+[presets page](presets.md#your-overrides) has a complete example. The shared presets themselves
+are the files in `wrappers/presets/`.
 
 Once installed, activate the environment before using the `crab` command (this also enables
 shell tab-completion, registered during install):
@@ -328,9 +335,11 @@ wrappers.
 
 ## Next steps
 
-- On a cluster CRAB already knows (such as `leonardo`), set your project account before the first
-  run: the shared presets carry the mark `--account=<YOUR_ACCOUNT>`. Write an override file in
-  `local/presets/` that sets your account
-  ([how](presets.md#your-overrides)).
+- Set your project account before the first run. If SbatchMan launches your jobs, it goes in the
+  SbatchMan configs file
+  ([step 5 of the guide](sbatchman-integration.md#5-get-the-sbatchman-configs-file)). For a direct
+  `crab run` on a cluster CRAB already knows (such as `leonardo`), the shared presets carry the
+  mark `--account=<YOUR_ACCOUNT>`: write an override file in `local/presets/` that sets your
+  account ([how](presets.md#your-overrides)).
 - On a cluster CRAB doesn't already know, define a preset: [Configuring your cluster](presets.md).
 - Then write an experiment: [Configuration schema](../reference/configuration.md).

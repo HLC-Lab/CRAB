@@ -40,7 +40,7 @@ and how to parse its output, so any program can be a victim or an aggressor.
 From a git checkout, which is the main path today:
 
 ```bash
-git clone https://github.com/HLC-Lab/CRAB
+git clone --branch sbatchman https://github.com/HLC-Lab/CRAB
 cd CRAB
 make                        # creates .venv, installs CRAB, fetches the wrappers, runs the setup wizard
 source .venv/bin/activate
@@ -120,9 +120,9 @@ mkdocs serve                # serves http://127.0.0.1:8000
 
 ## SbatchMan
 
-The integration with SbatchMan lives on the `sbatchman` branch. Install that branch instead of the
-default one and follow
-[Using CRAB with SbatchMan](https://github.com/HLC-Lab/CRAB/blob/sbatchman/docs/using/sbatchman-integration.md).
+The integration with SbatchMan lives on the `sbatchman` branch, which the Install section above
+clones. Follow
+[Using CRAB with SbatchMan](docs/using/sbatchman-integration.md).
 
 ## License
 
