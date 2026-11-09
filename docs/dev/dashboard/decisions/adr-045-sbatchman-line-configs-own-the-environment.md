@@ -1,7 +1,7 @@
 # ADR-045 · On the SbatchMan line, SbatchMan configs own the job environment
 
 - **Date:** 2026-11-05
-- **Status:** accepted
+- **Status:** accepted; the SbatchMan pin moved to 2.0.4 on 2026-11-09 (see the update at the end)
 
 ## Context
 
@@ -66,3 +66,43 @@ works.
 - Supporting `bind` and `cpus` under SbatchMan would need CRAB to read the topology from somewhere
   other than a preset.
 - Revisit this if the SbatchMan line is merged into one product line.
+
+## Update 2026-11-09: SbatchMan 2.0.4
+
+The SbatchMan line now pins SbatchMan 2.0.4 (PyPI, released 2026-11-06), installed with
+`pip install "sbatchman==2.0.4"`. This supersedes the 2.0.3 pin in the Context above, which
+records the original decision. File references are paths inside the SbatchMan 2.0.4 sources,
+relative to `src/sbatchman/`.
+
+What changed in SbatchMan:
+
+- **The duplicate check ignores the command by default.** A job counts as a duplicate when
+  cluster, config and tag match. The command, `preprocess` and `postprocess` are compared only
+  with `--compare-commands-in-dup-check` (`cli.py:276-278`, `core/jobs_manager.py:47-100`).
+  Archived jobs count too, and a job in any status blocks a relaunch, a failed one included.
+  `--force` skips the check (`core/launcher.py:359-396`). **Tag rule:** a job whose arguments
+  change needs a changed tag, or `--force`. CRAB's example tags encode `nodes` and `msgsize`,
+  not the other arguments of the experiment.
+- **The configs registry is per cluster.** It is `SbatchMan/configs/<cluster>/configurations.yaml`.
+  When that file does not exist, SbatchMan reads the old shared
+  `SbatchMan/configs/configurations.yaml` instead and takes only the entry of the current cluster
+  (`config/project_config.py:111-145`). Writes always go to the per-cluster file
+  (`schedulers/base.py:197-235`).
+- **`SBATCHMAN_CLUSTER_NAME` sets the cluster name.** A non-empty value wins over the name stored
+  by `sbatchman set-cluster-name` (`config/global_config.py:44-60`). Job scripts export it
+  (`schedulers/base.py:98-102`).
+- **A cache can skip rewriting the configs.** A jobs file's `configs:` key is still read on every
+  `launch -f`. When the configs file, the variable files it references and all generated scripts
+  are unchanged, SbatchMan prints that the configurations are unchanged and does not rewrite them
+  (`core/launcher.py:699-743`, fingerprint in `core/launcher.py:38-89`). The cache key does not
+  include the cluster name (`core/launcher.py:714-717`).
+
+What did not change, and this ADR still relies on:
+
+- The run script keeps its order: `module load`, the `SBATCHMAN_*` exports, the config's `env`
+  entries, `preprocess`, then `command` (`schedulers/base.py:173`).
+- `$SBATCHMAN_JOB_DIR` is exported, and `{EXP_DIR}` is still not substituted in `command` or
+  `preprocess` (`schedulers/base.py:98-102`, `core/launcher.py:418-436`).
+- `{var}` is substituted in `command`, `preprocess` and the tag (`core/launcher.py:1136-1142`).
+- A list field of a config (`modules`, `env`) is appended to the same list of `default_conf`
+  (`core/config_manager.py:264-272`).

@@ -1,4 +1,4 @@
-"""The committed Leonardo SbatchMan configs file has the shape SbatchMan 2.0.3 and `crab worker` need.
+"""The committed Leonardo SbatchMan configs file has the shape SbatchMan 2.0.4 and `crab worker` need.
 
 `examples/sbatchman/configs.leonardo.yaml` is a template a partner copies: one cluster block that gives
 every job the Slurm allocation and the environment `crab worker` reads. The jobs files depend only on
@@ -35,7 +35,7 @@ NEEDED_ENV_KEYS = {
     "NCCL_IB_SL",
     "SLURM_CPU_BIND",
 }
-# The keyword names of SbatchMan 2.0.3's `create_slurm_config`.
+# The keyword names of SbatchMan 2.0.4's `create_slurm_config`.
 ALLOWED_KEYS = {
     "name",
     "cluster_name",

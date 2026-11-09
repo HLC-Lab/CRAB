@@ -25,7 +25,7 @@ section at the end lists the failures people hit and how to fix each one.
 
 | Machine | What runs there | Installed from |
 |---|---|---|
-| The cluster | CRAB (benchmarks, recipes, the `crab worker` that runs inside each job) and SbatchMan (its project, `launch`, `status`), side by side in one virtual environment. Also your configs file, your campaign files and the results. | CRAB `sbatchman` branch + SbatchMan 2.0.3 from PyPI |
+| The cluster | CRAB (benchmarks, recipes, the `crab worker` that runs inside each job) and SbatchMan (its project, `launch`, `status`), side by side in one virtual environment. Also your configs file, your campaign files and the results. | CRAB `sbatchman` branch + SbatchMan 2.0.4 from PyPI |
 | Your laptop (optional) | CRAB's web dashboard (`crab web`), where you author campaigns | CRAB, `sbatchman` branch, `web` extra |
 
 Every job SbatchMan submits runs `crab worker` inside the allocation it obtained. Both tools
@@ -88,11 +88,11 @@ launch (see [troubleshooting](#troubleshooting)).
 Install SbatchMan from PyPI into the same environment, then check that it runs:
 
 ```bash
-pip install "sbatchman==2.0.3"
+pip install "sbatchman==2.0.4"
 sbatchman --version
 ```
 
-`pip install "sbatchman==2.0.3"` installs exactly version 2.0.3, the version this guide was
+`pip install "sbatchman==2.0.4"` installs exactly version 2.0.4, the version this guide was
 written against, and `sbatchman --version` prints the installed version.
 
 ### 3. Build or register the benchmarks
@@ -658,7 +658,7 @@ Start with the job's `stderr.log` and `stdout.log`, in its job directory.
 | `crab update` stops with `The presets moved to crab-wrappers in this version, and <file> is gone: put your changes as patches in local/presets/<name>.json, run `git checkout <file>`, then `crab update` again` | The checkout has local edits to a presets file (`<file>` is `config/presets.json` or `src/crab/presets.json`) that this release removed: the presets now live in crab-wrappers | Move the values you changed into `local/presets/<name>.json` as patches ([Your overrides](presets.md#your-overrides)), run `git checkout <file>`, then run `crab update` again |
 | `crab update --head` stops with `CRAB is on release <tag>, not a branch: run `git checkout <branch>` in <dir>, then `crab update --head`` | A plain `crab update` left the checkout on a release tag, and `--head` needs a branch to follow | Run `git checkout sbatchman` in the CRAB checkout, then `crab update --head` |
 | `crab update` stops with `The wrappers clone <dir> has local edits (<files>): commit or stash them (or keep private wrappers in local/wrappers), then run crab update again.` | A tracked file in the `wrappers/` clone was edited by hand | Commit or stash the edits, or move private wrappers to `local/wrappers/` ([Writing a wrapper](#writing-a-wrapper-for-your-own-application)), then run `crab update` again |
-| `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job, or the job's `preprocess` did not write `config.json` there | Check that SbatchMan is 2.0.3 ([step 2](#2-install-sbatchman)) and that the jobs file's `preprocess` writes `$SBATCHMAN_JOB_DIR/config.json` as in [step 6](#6-write-a-campaign) |
+| `Worker fatal error: [Errno 2] No such file or directory: 'config.json'` in the job log | `SBATCHMAN_JOB_DIR` is empty in the job, or the job's `preprocess` did not write `config.json` there | Check that SbatchMan is 2.0.4 ([step 2](#2-install-sbatchman)) and that the jobs file's `preprocess` writes `$SBATCHMAN_JOB_DIR/config.json` as in [step 6](#6-write-a-campaign) |
 | `worker environment: CRAB_... is no longer read; use ...` in the job log | The configs file still exports an old `CRAB_*` launch variable | Remove that entry from `env` in the configs file ([CPU pinning and launch settings](#cpu-pinning-and-launch-settings)) |
 | Track 2: **Write files** is greyed out | The preview lists problems with the campaign, or no cluster is chosen | Fix each listed item; pick a connected cluster |
 | "SSH support isn't installed in this environment" in the dashboard | The laptop install lacks the `web` extra | `pip install -e ".[web]"` from your CRAB checkout, then restart `crab web` |
