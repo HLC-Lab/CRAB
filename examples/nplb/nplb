@@ -39,8 +39,8 @@ nplb VERB [ARGS]   (a verb without its arguments prints its own usage)
 
   report [N|--state L|--victim V|--layout L|--all]   slowdown tables against alone
   compare [VICTIM] [CONDITION] [--layout L]          one condition across the 8 network states
-
   diag run [TARGET]                   why a run failed: failed apps, error lines, cause
+  diag counters snapshot|diff         did the NICs see ECN/CNP marks (a proxy, not the switch)
 
   page N|next|prev [REPORT]           replay a page of a saved report (pages of at most 38 lines)
   reports                             list the saved reports, newest first
@@ -259,13 +259,21 @@ cmd_compare() {
 
 # diag run [TARGET]: diag_run.py is read only; its stdout is `#report NAME` and the report, which is paged
 # and saved as NAME. Exit 0 for OK, 1 for FAIL and UNKNOWN, 2 for a bad target or usage (stderr).
+# diag counters snapshot|diff [HOST...]: diag_counters.sh narrates on stderr and prints a paged report.
 cmd_diag() {
     local sub=${1:-} py="$CHECKOUT/.venv/bin/python" out rc name
     [[ $# -gt 0 ]] && shift
-    if [[ $sub != run ]]; then
-        echo "usage: nplb diag run [TARGET]" >&2
-        return 2
-    fi
+    case $sub in
+        run) ;;
+        counters)
+            bash "$NPLB_DIR/diag_counters.sh" "$@"
+            return $?
+            ;;
+        *)
+            echo "usage: nplb diag run [TARGET] | nplb diag counters snapshot|diff [HOST...]" >&2
+            return 2
+            ;;
+    esac
     [[ -x $py ]] || py=python3
     . "$NPLB_DIR/lib/pages.sh"
     out=$("$py" "$NPLB_DIR/diag_run.py" "$@")
