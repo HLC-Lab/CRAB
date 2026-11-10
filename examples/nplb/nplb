@@ -2,7 +2,7 @@
 # The NPLB campaign tool for the lab console: one short command per task.
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
-# Verbs so far: help, fix-venv, page, reports, build, node, topo. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# Verbs so far: help, fix-venv, page, reports, build, node, topo, net. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -33,6 +33,16 @@ nplb VERB [ARGS]
   topo [--from TSV] [HOST...]
                           LLDP probe, then the node-to-leaf map and the layout preview
                           (--from TSV skips the probe and reads an earlier one)
+  net declare nplb=on|off ar=on|off
+                          record the switch state you set by hand (the switches cannot be read)
+  net set sr=on|off [arnic=on|off] [HOST...]
+                          set the NIC selective repeat (and adaptive routing) bit, read it back
+  net show [HOST...]      declared switch state plus SR and NIC AR of every node, verdict first
+  net sheet STATE|--restore
+                          switch commands to paste for a state (nplb=on ar=off, base, nplb, ar,
+                          nplb+ar) or for the initial state
+  net record DIR [HOST...]
+                          write DIR/nplb_state.json, the network state of a run
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -100,6 +110,25 @@ cmd_topo() {
     bash "$NPLB_DIR/topo_tools.sh" topo "$@"
 }
 
+# net declare|set|show|sheet|record: net_tools.sh narrates on stderr and prints a paged report
+cmd_net() {
+    local sub=${1:-}
+    [[ $# -gt 0 ]] && shift
+    case $sub in
+        declare | set | show | sheet | record) bash "$NPLB_DIR/net_tools.sh" "$sub" "$@" ;;
+        *)
+            {
+                echo "usage: nplb net declare nplb=on|off ar=on|off"
+                echo "       nplb net set sr=on|off [arnic=on|off] [HOST...]"
+                echo "       nplb net show [HOST...]"
+                echo "       nplb net sheet STATE | --restore"
+                echo "       nplb net record DIR [HOST...]"
+            } >&2
+            return 2
+            ;;
+    esac
+}
+
 node_usage() {
     echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
     return 2
@@ -133,6 +162,7 @@ case $verb in
     build) cmd_build "$@" ;;
     node) cmd_node "$@" ;;
     topo) cmd_topo "$@" ;;
+    net) cmd_net "$@" ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2
