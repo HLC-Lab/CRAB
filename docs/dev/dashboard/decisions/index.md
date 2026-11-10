@@ -54,3 +54,4 @@ deleted.
 | [043](adr-043-placement-intent-and-topology-facts.md) | Placement intent lives in the config, topology facts live in the preset | accepted |
 | [044](adr-044-co-running-apps-get-disjoint-devices.md) | Co-running apps get disjoint devices | accepted |
 | [045](adr-045-sbatchman-line-configs-own-the-environment.md) | On the SbatchMan line, SbatchMan configs own the job environment | accepted |
+| [046](adr-046-results-through-sbatchman-visualize.md) | Results of SbatchMan-launched runs are explored with `sbatchman visualize`, on a laptop copy | accepted |
