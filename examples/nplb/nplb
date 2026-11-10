@@ -2,7 +2,7 @@
 # The NPLB campaign tool for the lab console: one short command per task.
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
-# Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign, next, queue. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -47,6 +47,9 @@ nplb VERB [ARGS]
   campaign [--estimate] [--order tier|state] [--budget-hours H] [--out DIR] [--local]
                           write the campaign blocks and schedule.tsv (local/campaign), or with
                           --estimate only show the hours, switch changes and assumptions
+  next                    the next schedule row: the network state it needs, the commands to run,
+                          progress per tier and the hours left from the real run times
+  queue                   the Slurm queue of the partition and the last runs of the run log
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -146,6 +149,41 @@ cmd_campaign() {
     return "$rc"
 }
 
+# next: which schedule row to run now (run_log.py), paged and saved as next
+cmd_next() {
+    local py="$CHECKOUT/.venv/bin/python" out rc
+    [[ -x $py ]] || py=python3
+    . "$NPLB_DIR/lib/pages.sh"
+    out=$("$py" "$NPLB_DIR/run_log.py" next "$@")
+    rc=$?
+    if [[ -n $out ]]; then
+        printf '%s\n' "$out" | nplb_paged next || ((rc != 0)) || rc=1
+    fi
+    return "$rc"
+}
+
+# queue: squeue runs here, in bash, and run_log.py gets its captured output (no squeue: no file)
+cmd_queue() {
+    local py="$CHECKOUT/.venv/bin/python" part=${PARTITION:-h100_4nodes} sq=${SQUEUE:-squeue}
+    local tmp out rc sq_rc
+    [[ -x $py ]] || py=python3
+    . "$NPLB_DIR/lib/pages.sh"
+    tmp=$(mktemp) || return 1
+    if command -v "$sq" >/dev/null 2>&1; then
+        timeout 30 "$sq" -h -p "$part" -o "%i %j %T %M %l %R" >"$tmp" 2>&1 </dev/null
+        sq_rc=$?
+        out=$(PARTITION=$part "$py" "$NPLB_DIR/run_log.py" queue --squeue-file "$tmp" --squeue-exit "$sq_rc" "$@")
+    else
+        out=$(PARTITION=$part "$py" "$NPLB_DIR/run_log.py" queue "$@")
+    fi
+    rc=$?
+    rm -f "$tmp"
+    if [[ -n $out ]]; then
+        printf '%s\n' "$out" | nplb_paged queue || ((rc != 0)) || rc=1
+    fi
+    return "$rc"
+}
+
 node_usage() {
     echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
     return 2
@@ -181,6 +219,8 @@ case $verb in
     topo) cmd_topo "$@" ;;
     net) cmd_net "$@" ;;
     campaign) cmd_campaign "$@" ;;
+    next) cmd_next "$@" ;;
+    queue) cmd_queue "$@" ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2
