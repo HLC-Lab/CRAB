@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from crab import paths
-from crab.cli.gitops import GitError, git, is_repo_root
+from crab.cli.gitops import GitError, git, is_repo_root, superproject_root
 from crab.cli.wrappers_clone import WRAPPERS_REPO_URL, modified_files, update_wrappers_clone
 
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(\+sbatchman)?$")
@@ -109,13 +109,25 @@ def _check_crab(root: Path, head: bool) -> None:
     """Refuse, before anything changes, a checkout `crab update` cannot move."""
     if not is_repo_root(root):
         raise UpdateError(f"{root} is not a git checkout; reinstall CRAB with git to update it.")
+    superproject = superproject_root(root)
+    if superproject is not None:
+        raise UpdateError(
+            f"CRAB is a submodule of {superproject}: update the umbrella (`git pull`, then "
+            "`git submodule update --init`), not CRAB itself."
+        )
     _refuse_local_edits(root)
     if head:
         _refuse_detached_head(root)
 
 
 def _check_wrappers(wrappers_dir: Path) -> None:
-    """Refuse, before CRAB moves, a wrappers clone whose tracked files have local edits."""
+    """Refuse, before CRAB moves, a wrappers clone that is a submodule or has local edits."""
+    superproject = superproject_root(wrappers_dir) if is_repo_root(wrappers_dir) else None
+    if superproject is not None:
+        raise UpdateError(
+            f"The wrappers clone {wrappers_dir} is a submodule of {superproject}: update the "
+            "umbrella (`git pull`, then `git submodule update --init`), not the wrappers alone."
+        )
     edited = modified_files(wrappers_dir)
     if edited:
         raise UpdateError(

@@ -268,9 +268,17 @@ def handle_wrappers_status(args: argparse.Namespace) -> None:
 def handle_wrappers_pull(args: argparse.Namespace) -> None:
     from crab.cli import contract, wrappers_clone
     from crab.cli.contract import CONTRACT_SCHEMA
-    from crab.cli.gitops import GitError
+    from crab.cli.gitops import GitError, is_repo_root, superproject_root
 
     root, wrappers_dir = _wrappers_folder()
+    superproject = superproject_root(wrappers_dir) if is_repo_root(wrappers_dir) else None
+    if superproject is not None:
+        _fail(
+            f"wrappers pull stopped: the wrappers clone {wrappers_dir} is a submodule of "
+            f"{superproject}: update the umbrella (`git pull`, then `git submodule update "
+            "--init`), not the wrappers alone.",
+            1,
+        )
     try:
         modified = wrappers_clone.modified_files(wrappers_dir)
     except GitError as exc:
