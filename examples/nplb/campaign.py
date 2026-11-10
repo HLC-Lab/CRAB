@@ -221,6 +221,7 @@ class Plan:
     victim: Victim
     sizes: Sequence[int]
     local: bool
+    iters: tuple[int, int] | None = None  # (-iter, -warmup) forced on every victim app
 
     @property
     def mode(self) -> gpu_set.Mode:
@@ -236,10 +237,12 @@ def victim_chain(
     for key, size in enumerate(plan.sizes):
         seconds += campaign_cost.START_UP_S
         if plan.local:
-            count, warmup = LOCAL_RUN
+            count, warmup = plan.iters or LOCAL_RUN
         else:
             name = plan.layout.name
             count, warmup, _ = campaign_cost.iterations(plan.victim.stem, size, name, contended)
+            if plan.iters is not None:
+                count, warmup = plan.iters
             per_iteration, _ = campaign_cost.iter_time(plan.victim.stem, size, name, contended)
             seconds += (count + warmup) * per_iteration
         args = f"-msgsize {size} -iter {count} -warmup {warmup} -grty 1 -maxsamples {count}"
@@ -309,13 +312,15 @@ def build_block(
     conditions: Sequence[Condition | str] | None = None,
     local: bool = False,
     prefix: str = "",
+    iters: tuple[int, int] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """(file stem, config) of one block.
 
     `sizes` default to `SIZES` (1 KiB and 1 MiB when `local`), `conditions` (names or objects,
     kept in the given order) to `CONDITIONS` (`LOCAL_CONDITIONS` when `local`). The stem is
     `<layout>_<victim>`, led by `<prefix>_` (campaign_plan's block names `t1`, `l`, ...), or by
-    `local_` when `local` and no prefix is given; the job name is `nplb_<stem>`.
+    `local_` when `local` and no prefix is given; the job name is `nplb_<stem>`. `iters` =
+    (`-iter` and `-maxsamples`, `-warmup`) replaces the chosen counts of every victim app.
 
     Raises:
         UsageError: unknown name, a size without a cost, or a walltime over `WALLTIME_CAP_S`.
@@ -329,7 +334,7 @@ def build_block(
     if conditions is None:
         conditions = LOCAL_CONDITIONS if local else CONDITIONS
     items = [c if isinstance(c, Condition) else find_conditions([c])[0] for c in conditions]
-    plan = Plan(chosen, plan_victim, sizes, local)
+    plan = Plan(chosen, plan_victim, sizes, local, iters)
     lead = f"{prefix}_" if prefix else "local_" if local else ""
     stem = f"{lead}{chosen.name}_{plan_victim.stem}"
     experiments: dict[str, Any] = {}
