@@ -2,7 +2,7 @@
 # The NPLB campaign tool for the lab console: one short command per task.
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
-# Verbs so far: help, fix-venv, page, reports, build, node. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# Verbs so far: help, fix-venv, page, reports, build, node, topo. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -30,6 +30,9 @@ nplb VERB [ARGS]
   node diag HOST          deep dive of one node: hardware or software, the verdict first
   node fix [--sr 0|1] [--ar 0|1] [HOST...]
                           asks first, then remounts NFS on the workers, optionally sets SR/AR
+  topo [--from TSV] [HOST...]
+                          LLDP probe, then the node-to-leaf map and the layout preview
+                          (--from TSV skips the probe and reads an earlier one)
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -92,6 +95,11 @@ cmd_node() {
     esac
 }
 
+# topo [--from TSV] [HOST...]: topo_tools.sh narrates on stderr and prints a paged report
+cmd_topo() {
+    bash "$NPLB_DIR/topo_tools.sh" topo "$@"
+}
+
 node_usage() {
     echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
     return 2
@@ -124,6 +132,7 @@ case $verb in
     reports) cmd_reports ;;
     build) cmd_build "$@" ;;
     node) cmd_node "$@" ;;
+    topo) cmd_topo "$@" ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2
