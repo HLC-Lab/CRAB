@@ -1,4 +1,4 @@
-# NPLB follow fixtures
+# NPLB follow and report fixtures
 
 Excerpts of two real runs of the NPLB campaign on the H100 lab cluster, taken from the result archives
 of 2026-10-29 (the Slurm job logs the worker wrote with ANSI colour codes, and the data root's
@@ -26,3 +26,14 @@ Files, per run (`<run>` is `a2a_run1` or `ag_run1`):
 Anonymised on 2026-11-10: the node names are `nodeA` and `nodeB`, the home path is `/home/user`.
 The files held no user names, addresses or credentials. Nothing else was edited, so the timestamps,
 PIDs and byte counts are the real ones.
+
+## Report fixtures
+
+Two more files from the same runs feed `examples/nplb/report.py` (`nplb report` and `nplb compare`) through
+`tests/test_nplb_report.py`:
+
+- `a2a_run1_ppn8_apps.csv` and `ag_run1_ppn8_apps.csv`: for the experiment `ppn8_alone` of `a2a_run1` and
+  `ag_run1`, one block per app. A line `### app <k> msgsize <S>` starts the block of app k (S is its
+  `-msgsize` in `config.json`), followed by the header and the first 12 sample rows of `data_app_<k>.csv`,
+  numbers as the engine wrote them. The tests rebuild a run folder from them and check the median,
+  99th percentile and slowdown that the report computes from the `Max-Duration_s` column.
