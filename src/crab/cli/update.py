@@ -136,6 +136,18 @@ def _check_wrappers(wrappers_dir: Path) -> None:
         )
 
 
+def _nearest_line_tag(root: Path) -> str:
+    """The nearest tag of the checkout's own release line, for a detached HEAD on no tag.
+
+    `develop` never merges from `sbatchman`, so a `+sbatchman` tag among the ancestors means the
+    checkout is on the SbatchMan line; the nearest tag overall could be a product tag merged in.
+    """
+    try:
+        return git(root, "describe", "--tags", "--abbrev=0", "--match", "*+sbatchman")
+    except UpdateError:
+        return git(root, "describe", "--tags", "--abbrev=0", "--exclude", "*+sbatchman")
+
+
 def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> dict[str, Any]:
     before = git(root, "rev-parse", "HEAD")
     branch = git(root, "rev-parse", "--abbrev-ref", "HEAD")
@@ -154,7 +166,7 @@ def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> d
         try:
             current = git(root, "describe", "--tags", "--exact-match")
         except UpdateError:
-            current = git(root, "describe", "--tags", "--abbrev=0")
+            current = _nearest_line_tag(root)
         git(root, "fetch", "-q", "--tags", "origin")
         target = _newest_tag(root, sbatchman_line=current.endswith("+sbatchman")) or current
         if target != current:
