@@ -432,6 +432,47 @@ def test_report_fits_a_page(tmp_path: Path) -> None:
     assert any(line.startswith("total   ") for line in report)
 
 
+def test_skipped_attempts_are_handled_rows(tmp_path: Path) -> None:
+    skipped = [run_line(2, "SKIPPED", job="-", note="the switch refuses it")]
+    skipped[0] = skipped[0].replace("\t/data/2\t", "\t-\t")
+    put_files(tmp_path, runs=[run_line(1, "OK", elapsed=300), *skipped], declared=("off", "off"))
+    schedule = run_log.read_schedule(tmp_path / "camp" / "schedule.tsv")
+    runs = run_log.read_runs(tmp_path / "work" / "campaign_runs.tsv")
+    assert "SKIPPED" in run_log.STATUSES
+    assert (runs[1].job, runs[1].data_dir, runs[1].status) == ("-", "-", "SKIPPED")
+    assert run_log.row_status(2, runs) == "SKIPPED"
+    assert run_log.row_status(2, [*runs, sample_run(2, "9", "OK", elapsed_s=5)]) == "DONE"
+    assert run_log.row_status(2, [*runs, sample_run(2, "9", "SUBMITTED")]) == "RUNNING"
+    assert run_log.row_status(2, [sample_run(2, "9", "CANCELLED"), *runs[1:]]) == "SKIPPED"
+    nxt = run_log.next_row(schedule, runs)
+    assert nxt is not None and nxt.n == 3
+    assert run_log.retry_rows(schedule, runs) == []
+    lines = next_lines(tmp_path)
+    assert lines[0].startswith("VERDICT: NEXT row 3/6")
+    assert "tier 1  1/5 done  0 failed  1 skipped  0.1 h elapsed  0.3 h left" in lines
+    assert "tier 2  0/1 done  0 failed  0 skipped  0.0 h elapsed  0.1 h left" in lines
+    assert "total   1/6 done  0 failed  1 skipped  0.1 h elapsed  0.3 h left" in lines
+
+
+def test_set_status_where_turns_only_the_named_rows(tmp_path: Path) -> None:
+    path = tmp_path / "work" / "campaign_runs.tsv"
+    for n in (1, 2, 3):
+        run_log.append_run(path, sample_run(n, "-", "SKIPPED", data_dir="-"))
+    run_log.append_run(path, sample_run(4, "4004"))
+    assert run_log.set_status_where(path, {2, 3, 4, 9}, "SKIPPED", "CANCELLED") == [2, 3]
+    assert [r.status for r in run_log.read_runs(path)] == [
+        "SKIPPED",
+        "CANCELLED",
+        "CANCELLED",
+        "SUBMITTED",
+    ]
+    assert run_log.set_status_where(path, {2}, "SKIPPED", "CANCELLED") == []
+    assert list(path.parent.glob("*.tmp")) == []
+    with pytest.raises(ValueError, match="BOGUS"):
+        run_log.set_status_where(path, {1}, "SKIPPED", "BOGUS")
+    assert run_log.set_status_where(tmp_path / "none.tsv", {1}, "SKIPPED", "CANCELLED") == []
+
+
 # --- queue (through the dispatcher: the squeue call lives in bash) -------------------------------
 
 

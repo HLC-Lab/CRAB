@@ -2,7 +2,8 @@
 # The NPLB campaign tool for the lab console: one short command per task.
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
-# Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign, next, queue, follow. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign, next, queue, follow,
+# run, cancel, skip. Exit 0 on success, 1 when a step failed, 2 on an unknown verb or a usage error.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -21,8 +22,7 @@ nplb VERB [ARGS]
 
   help        this page
   fix-venv    reinstall CRAB into the checkout venv (pip install -e .) and run pip check
-  page        replay a saved report page: page N|next|prev [REPORT] (reports are saved whole
-              and shown in numbered pages of at most 38 lines)
+  page N|next|prev [REPORT]   replay a page of a saved report (pages of at most 38 lines)
   reports     list the saved reports, newest first
   build blink [HOST...]   rebuild the GPU Blink from main (old build moved aside), show the proof
   build check [HOST...]   read-only report on ompi-cuda, ucx-cuda, the Blink source and binaries
@@ -31,28 +31,28 @@ nplb VERB [ARGS]
   node fix [--sr 0|1] [--ar 0|1] [HOST...]
                           asks first, then remounts NFS on the workers, optionally sets SR/AR
   topo [--from TSV] [HOST...]
-                          LLDP probe, then the node-to-leaf map and the layout preview
-                          (--from TSV skips the probe and reads an earlier one)
+                          LLDP probe, node-to-leaf map and layout preview (--from: reuse a probe)
   net declare nplb=on|off ar=on|off
                           record the switch state you set by hand (the switches cannot be read)
   net set sr=on|off [arnic=on|off] [HOST...]
                           set the NIC selective repeat (and adaptive routing) bit, read it back
   net show [HOST...]      declared switch state plus SR and NIC AR of every node, verdict first
   net sheet STATE|--restore
-                          switch commands to paste for a state (nplb=on ar=off, base, nplb, ar,
-                          nplb+ar) or for the initial state
-  net record DIR [HOST...]
-                          write DIR/nplb_state.json, the network state of a run
+                          switch commands to paste: nplb=on ar=off, base|nplb|ar|nplb+ar, --restore
+  net record DIR [HOST...]   write DIR/nplb_state.json, the network state of a run
 
   campaign [--estimate] [--order tier|state] [--budget-hours H] [--out DIR] [--local]
-                          write the campaign blocks and schedule.tsv (local/campaign), or with
-                          --estimate only show the hours, switch changes and assumptions
+                          write the blocks and schedule.tsv (local/campaign); --estimate: hours only
   next                    the next schedule row: the network state it needs, the commands to run,
                           progress per tier and the hours left from the real run times
   queue                   the Slurm queue of the partition and the last runs of the run log
-  follow [TARGET]         follow a submitted job: live narration on stderr, how it ended (no sacct
-                          needed), then a paged summary; Ctrl-C only stops following. TARGET is a
-                          schedule row, a job id or a data dir; none = the newest submitted run
+  follow [TARGET]         follow a submitted job live, say how it ended, page a summary; Ctrl-C only
+                          stops following. TARGET: row, job id or data dir; none = newest submitted
+  run N|next [--force] [--no-follow]
+                          check every gate, submit the block with crab run, then follow it
+  cancel                  scancel the newest submitted job of the run log (asks y/N first)
+  skip N.. | --state LABEL | --tier T [--why TEXT] [--undo]
+                          drop rows from the plan so next stops proposing them (--undo: restore)
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -204,6 +204,53 @@ cmd_follow() {
     return "$rc"
 }
 
+# run N|next [--force] [--no-follow]: run_cmd.py narrates on stderr and prints on stdout either a report
+# (exit 1: a refusal or a failed submit, paged and saved as run-gate; exit 0: `VERDICT: DONE ...`, saved
+# as run-next) or `submitted: ...` and a last line `job J`. After a submit the job is followed.
+cmd_run() {
+    local py="$CHECKOUT/.venv/bin/python" out rc last job follow=1 arg
+    local args=()
+    [[ -x $py ]] || py=python3
+    for arg in "$@"; do
+        if [[ $arg == --no-follow ]]; then follow=0; else args+=("$arg"); fi
+    done
+    . "$NPLB_DIR/lib/pages.sh"
+    out=$("$py" "$NPLB_DIR/run_cmd.py" run ${args[@]+"${args[@]}"})
+    rc=$?
+    last=${out##*$'\n'}
+    if ((rc == 0)) && [[ $last =~ ^job\ [0-9]+([_+][0-9]+)*$ ]]; then
+        if ((follow == 0)); then
+            printf '%s\n' "$out"
+            return 0
+        fi
+        job=${last#job }
+        printf '%s\n' "${out%$'\n'*}" >&2
+        cmd_follow "$job"
+        return $?
+    fi
+    if [[ -n $out ]]; then
+        if ((rc == 0)); then
+            printf '%s\n' "$out" | nplb_paged run-next || rc=1
+        else
+            printf '%s\n' "$out" | nplb_paged run-gate || true
+        fi
+    fi
+    return "$rc"
+}
+
+# cancel / skip: short answers on stdout, no pager; cancel asks on the terminal, so no capture
+cmd_cancel() {
+    local py="$CHECKOUT/.venv/bin/python"
+    [[ -x $py ]] || py=python3
+    "$py" "$NPLB_DIR/run_cmd.py" cancel "$@"
+}
+
+cmd_skip() {
+    local py="$CHECKOUT/.venv/bin/python"
+    [[ -x $py ]] || py=python3
+    "$py" "$NPLB_DIR/run_cmd.py" skip "$@"
+}
+
 node_usage() {
     echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
     return 2
@@ -242,6 +289,9 @@ case $verb in
     next) cmd_next "$@" ;;
     queue) cmd_queue "$@" ;;
     follow) cmd_follow "$@" ;;
+    run) cmd_run "$@" ;;
+    cancel) cmd_cancel "$@" ;;
+    skip) cmd_skip "$@" ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2

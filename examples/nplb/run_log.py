@@ -13,18 +13,20 @@ ATTEMPT, appended when a block is submitted and updated in place (tmp file + ren
     n state block layout victim job data_dir submitted status elapsed_s note
 
 `n` is the schedule row, `submitted` an ISO time ($NPLB_NOW or the clock), `status` one of SUBMITTED
-OK WARN FAIL CANCELLED, `elapsed_s` an integer or empty while running; tabs and newlines in a field
-become spaces. A schedule row is DONE when an attempt is OK or WARN, RUNNING when an attempt is
-SUBMITTED, FAILED when it has attempts but none OK/WARN/SUBMITTED; CANCELLED attempts count as none.
-`next` proposes the first row with no attempt (failed rows are listed to retry, never proposed
-again), compares the network state it needs with the declared one ($WORK/net_state.json), prints the
+OK WARN FAIL CANCELLED SKIPPED, `elapsed_s` an integer or empty while running; tabs and newlines in
+a field become spaces. A schedule row is DONE when an attempt is OK or WARN, RUNNING when an attempt is
+SUBMITTED, SKIPPED when an attempt is SKIPPED (written by `nplb skip` with job and data_dir `-`; the
+owner decided not to run the row), FAILED when it has attempts but none of those; CANCELLED attempts
+count as none. `next` proposes the first row with no attempt (failed rows are listed to retry, never
+proposed again, skipped rows are neither), compares the network state it needs with the declared one ($WORK/net_state.json), prints the
 commands, the progress per tier and a re-estimate of the time left: the estimates of the rows still
-to run times (elapsed / estimated) of the finished ones. Switch and SR change time is not in it.
+to run times (elapsed / estimated) of the finished ones; skipped rows are not in it. Switch and SR
+change time is not in it.
 `queue` reads squeue's output from a file the verb captured, so this module does no IO of its own on
 Slurm; the verb calls `squeue -h -p $PARTITION -o "%i %j %T %M %l %R"` (PARTITION default h100_4nodes).
 
-Importable: read_schedule, read_runs, append_run, update_run, next_row, retry_rows, progress,
-estimate_remaining, now_iso. Reports are plain text; the verbs page them. Exit 0, or 2 on a missing
+Importable: read_schedule, read_runs, append_run, update_run, set_status_where, row_status, next_row,
+retry_rows, progress, estimate_remaining, now_iso. Reports are plain text; the verbs page them. Exit 0, or 2 on a missing
 or bad schedule or runs file or clock (message on stderr). Stdlib only, Python 3.10.
 """
 
@@ -48,7 +50,7 @@ SCHEDULE_COLUMNS = (
     "n tier state nplb ar sr block layout victim est_min switch_change sr_change cum_h file".split()
 )
 RUN_COLUMNS = "n state block layout victim job data_dir submitted status elapsed_s note".split()
-STATUSES = ("SUBMITTED", "OK", "WARN", "FAIL", "CANCELLED")
+STATUSES = ("SUBMITTED", "OK", "WARN", "FAIL", "CANCELLED", "SKIPPED")
 FINISHED = ("OK", "WARN")
 TIMED = ("OK", "WARN", "FAIL")
 PAGE_COLS = 100
@@ -118,6 +120,7 @@ class TierProgress:
     failed: int
     elapsed_s: int
     left_h: float
+    skipped: int = 0
 
 
 @dataclass(frozen=True)
@@ -242,6 +245,34 @@ def update_run(path: Path, job: str, **fields: object) -> None:
     os.replace(tmp, path)
 
 
+def set_status_where(path: Path, numbers: set[int], old: str, new: str) -> list[int]:
+    """Turn the attempts of schedule rows `numbers` with status `old` into `new`; the rows changed.
+
+    Attempts with no Slurm job (job `-`, the SKIPPED ones) cannot be found by update_run, hence this.
+    Raises ValueError on a bad status; nothing is written when no attempt matches.
+    """
+    _check_status(old)
+    _check_status(new)
+    if not path.is_file():
+        return []
+    _read_table(path, list(RUN_COLUMNS))
+    lines = path.read_text(encoding="utf-8").split("\n")
+    changed: set[int] = set()
+    for index, line in enumerate(lines[1:], 1):
+        cells = line.split("\t")
+        if len(cells) != len(RUN_COLUMNS) or cells[RUN_COLUMNS.index("status")] != old:
+            continue
+        if int(cells[0]) in numbers:
+            cells[RUN_COLUMNS.index("status")] = new
+            lines[index] = "\t".join(cells)
+            changed.add(int(cells[0]))
+    if changed:
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text("\n".join(lines), encoding="utf-8")
+        os.replace(tmp, path)
+    return sorted(changed)
+
+
 def now_iso() -> str:
     """The submit time of a new attempt: $NPLB_NOW, else the clock (YYYY-MM-DDTHH:MM:SS)."""
     return net_state.now().strftime(net_state.ISO)
@@ -265,13 +296,15 @@ def attempts(runs: list[Run], n: int) -> list[Run]:
 
 
 def row_status(n: int, runs: list[Run]) -> str:
-    """DONE, RUNNING, FAILED, or NEW (no attempt)."""
+    """DONE, RUNNING, SKIPPED, FAILED, or NEW (no attempt)."""
     found = attempts(runs, n)
     statuses = {r.status for r in found}
     if statuses & set(FINISHED):
         return "DONE"
     if "SUBMITTED" in statuses:
         return "RUNNING"
+    if "SKIPPED" in statuses:
+        return "SKIPPED"
     return "FAILED" if found else "NEW"
 
 
@@ -299,7 +332,9 @@ def estimate_remaining(schedule: list[Row], runs: list[Run]) -> Estimate:
     measured = sum(r.elapsed_s or 0 for r in done)
     estimated = sum(est[r.n] * 60 for r in done)
     ratio = measured / estimated if estimated > 0 else 1.0
-    left = sum(row.est_min for row in schedule if row_status(row.n, runs) != "DONE")
+    left = sum(
+        row.est_min for row in schedule if row_status(row.n, runs) not in ("DONE", "SKIPPED")
+    )
     return Estimate(ratio, len({r.n for r in done}), left, left * ratio / 60)
 
 
@@ -312,7 +347,7 @@ def progress(schedule: list[Row], runs: list[Run]) -> list[TierProgress]:
         statuses = [row_status(row.n, runs) for row in rows]
         numbers = {row.n for row in rows}
         elapsed = sum(r.elapsed_s or 0 for r in runs if r.n in numbers and r.status in TIMED)
-        left = sum(row.est_min for row, s in zip(rows, statuses) if s != "DONE")
+        left = sum(row.est_min for row, s in zip(rows, statuses) if s not in ("DONE", "SKIPPED"))
         result.append(
             TierProgress(
                 tier,
@@ -321,6 +356,7 @@ def progress(schedule: list[Row], runs: list[Run]) -> list[TierProgress]:
                 statuses.count("FAILED"),
                 elapsed,
                 left * ratio / 60,
+                statuses.count("SKIPPED"),
             )
         )
     return result
@@ -400,7 +436,9 @@ def next_report(
         noun = "row" if len(retry) == 1 else "rows"
         lines = [f"VERDICT: RETRY {len(retry)} failed {noun}, nothing new to run"]
     else:
-        lines = [f"VERDICT: DONE all {len(schedule)} rows"]
+        skipped = sum(1 for row in schedule if row_status(row.n, runs) == "SKIPPED")
+        tail = f", {skipped} skipped" if skipped else ""
+        lines = [f"VERDICT: DONE all {len(schedule) - skipped} rows{tail}"]
     if retry:
         lines += ["", "to retry (failed, not proposed again; rerun with nplb run N):"]
         for item in retry[:RETRY_LINES]:
@@ -410,9 +448,13 @@ def next_report(
     est_all = estimate_remaining(schedule, runs)
     tiers = progress(schedule, runs)
     lines += ["", "progress:"]
+    show_skipped = any(t.skipped for t in tiers)  # the column appears once something is skipped
     for t in tiers:
+        skipped = t.skipped if show_skipped else None
         lines.append(
-            _progress_line(f"tier {t.tier}", t.rows, t.done, t.failed, t.elapsed_s, t.left_h)
+            _progress_line(
+                f"tier {t.tier}", t.rows, t.done, t.failed, t.elapsed_s, t.left_h, skipped
+            )
         )
     lines.append(
         _progress_line(
@@ -422,6 +464,7 @@ def next_report(
             sum(t.failed for t in tiers),
             sum(t.elapsed_s for t in tiers),
             sum(t.left_h for t in tiers),
+            sum(t.skipped for t in tiers) if show_skipped else None,
         )
     )
     basis = f"from {est_all.finished} finished rows" if est_all.finished else "no finished run yet"
@@ -435,9 +478,16 @@ def next_report(
 
 
 def _progress_line(
-    name: str, rows: int, done: int, failed: int, elapsed_s: int, left_h: float
+    name: str,
+    rows: int,
+    done: int,
+    failed: int,
+    elapsed_s: int,
+    left_h: float,
+    skipped: int | None = None,
 ) -> str:
-    return f"{name}  {done}/{rows} done  {failed} failed  {elapsed_s / 3600:.1f} h elapsed  {left_h:.1f} h left"
+    column = "" if skipped is None else f"  {skipped} skipped"
+    return f"{name}  {done}/{rows} done  {failed} failed{column}  {elapsed_s / 3600:.1f} h elapsed  {left_h:.1f} h left"
 
 
 def queue_report(runs: list[Run], squeue: Squeue, partition: str) -> list[str]:
