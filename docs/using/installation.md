@@ -42,14 +42,19 @@ its own tree.
 the virtual environment and build artifacts, and `make setup` to re-run just the wizard.
 `make clean` leaves `wrappers/` alone.
 
-`make` ignores `PYTHONPATH` and `PYTHONHOME`, but your shell keeps them. A Python module on a
-cluster often sets `PYTHONPATH`; if `crab` or `pip` later fail with an `ImportError` from a path
-outside `.venv`, clear both variables before you activate the environment:
+A Python module on a cluster often sets `PYTHONPATH`. Python searches it before the
+environment's own packages, so `pip` or `crab` can fail with an `ImportError` from a path outside
+`.venv`. `make` ignores `PYTHONPATH` and `PYTHONHOME`, and activating the environment clears both
+in your shell (`activate.fish` does the same for fish):
 
 ```bash
-unset PYTHONPATH PYTHONHOME   # drop the module's Python search path for this shell
-source .venv/bin/activate
+source .venv/bin/activate   # also clears PYTHONPATH and PYTHONHOME in this shell
 ```
+
+`deactivate` does not put them back. Open a new shell, or load the module again, if you need the
+module's search path. An environment created by an older checkout gets the same lines the next
+time you run `make` or `make core`; the output then says
+`added the PYTHONPATH reset to .venv/bin/activate`.
 
 ### The `local/` folder
 

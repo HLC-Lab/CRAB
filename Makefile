@@ -72,15 +72,28 @@ _check_python:
 
 # 1. The Virtual Environment Builder: an existing venv is reused, so the argcomplete lines are
 # appended once. Keep $(MAKE) out of this recipe: `make -n` would run it and build a real venv.
+# The activate files also clear PYTHONPATH and PYTHONHOME (a cluster Python module exports them);
+# an existing venv without that marker gets the lines once.
 venv: _check_python
-	@if [ -x "$(PY)" ]; then \
+	@m="# crab: clear PYTHONPATH (a cluster Python module sets it and breaks the venv's pip; deactivate does not restore it)"; \
+	if [ -x "$(PY)" ]; then \
 	    echo "[=] using the existing venv $(VENV_DIR)"; \
+	    if [ -f "$(VENV_DIR)/bin/activate" ] && ! grep -q 'crab: clear PYTHONPATH' "$(VENV_DIR)/bin/activate"; then \
+	        printf '%s\n%s\n' "$$m" 'unset PYTHONPATH PYTHONHOME' >> "$(VENV_DIR)/bin/activate" && \
+	        echo "[=] added the PYTHONPATH reset to $(VENV_DIR)/bin/activate"; \
+	    fi; \
+	    if [ -f "$(VENV_DIR)/bin/activate.fish" ] && ! grep -q 'crab: clear PYTHONPATH' "$(VENV_DIR)/bin/activate.fish"; then \
+	        printf '%s\n%s\n' "$$m" 'set -e PYTHONPATH PYTHONHOME' >> "$(VENV_DIR)/bin/activate.fish" && \
+	        echo "[=] added the PYTHONPATH reset to $(VENV_DIR)/bin/activate.fish"; \
+	    fi; \
 	else \
 	    python3 -m venv $(VENV_DIR) && \
 	    $(PIP) install --upgrade pip && \
 	    $(PIP) install argcomplete && \
 	    echo 'eval "$$(register-python-argcomplete crab)"' >> $(VENV_DIR)/bin/activate && \
-	    echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish; \
+	    echo 'register-python-argcomplete --shell fish crab | source' >> $(VENV_DIR)/bin/activate.fish && \
+	    printf '%s\n%s\n' "$$m" 'unset PYTHONPATH PYTHONHOME' >> $(VENV_DIR)/bin/activate && \
+	    printf '%s\n%s\n' "$$m" 'set -e PYTHONPATH PYTHONHOME' >> $(VENV_DIR)/bin/activate.fish; \
 	fi
 
 # 2. The Traffic Cop (Checks if already installed)
