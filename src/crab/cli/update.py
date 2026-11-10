@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from crab import paths
-from crab.cli.gitops import GitError, git, is_repo_root
+from crab.cli.gitops import GitError, git, is_repo_root, superproject_root
 from crab.cli.wrappers_clone import WRAPPERS_REPO_URL, modified_files, update_wrappers_clone
 
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(\+sbatchman)?$")
@@ -109,19 +109,43 @@ def _check_crab(root: Path, head: bool) -> None:
     """Refuse, before anything changes, a checkout `crab update` cannot move."""
     if not is_repo_root(root):
         raise UpdateError(f"{root} is not a git checkout; reinstall CRAB with git to update it.")
+    superproject = superproject_root(root)
+    if superproject is not None:
+        raise UpdateError(
+            f"CRAB is a submodule of {superproject}: update the umbrella (`git pull`, then "
+            "`git submodule update --init`), not CRAB itself."
+        )
     _refuse_local_edits(root)
     if head:
         _refuse_detached_head(root)
 
 
 def _check_wrappers(wrappers_dir: Path) -> None:
-    """Refuse, before CRAB moves, a wrappers clone whose tracked files have local edits."""
+    """Refuse, before CRAB moves, a wrappers clone that is a submodule or has local edits."""
+    superproject = superproject_root(wrappers_dir) if is_repo_root(wrappers_dir) else None
+    if superproject is not None:
+        raise UpdateError(
+            f"The wrappers clone {wrappers_dir} is a submodule of {superproject}: update the "
+            "umbrella (`git pull`, then `git submodule update --init`), not the wrappers alone."
+        )
     edited = modified_files(wrappers_dir)
     if edited:
         raise UpdateError(
             f"The wrappers clone {wrappers_dir} has local edits ({', '.join(edited)}): commit or "
             "stash them (or keep private wrappers in local/wrappers), then run crab update again."
         )
+
+
+def _nearest_line_tag(root: Path) -> str:
+    """The nearest tag of the checkout's own release line, for a detached HEAD on no tag.
+
+    `develop` never merges from `sbatchman`, so a `+sbatchman` tag among the ancestors means the
+    checkout is on the SbatchMan line; the nearest tag overall could be a product tag merged in.
+    """
+    try:
+        return git(root, "describe", "--tags", "--abbrev=0", "--match", "*+sbatchman")
+    except UpdateError:
+        return git(root, "describe", "--tags", "--abbrev=0", "--exclude", "*+sbatchman")
 
 
 def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> dict[str, Any]:
@@ -142,7 +166,7 @@ def _update_crab(root: Path, pip: Callable[[Path], None], to_release: bool) -> d
         try:
             current = git(root, "describe", "--tags", "--exact-match")
         except UpdateError:
-            current = git(root, "describe", "--tags", "--abbrev=0")
+            current = _nearest_line_tag(root)
         git(root, "fetch", "-q", "--tags", "origin")
         target = _newest_tag(root, sbatchman_line=current.endswith("+sbatchman")) or current
         if target != current:

@@ -38,3 +38,16 @@ def git(repo: Path, *args: str, timeout: float = 120, env: dict[str, str] | None
 def is_repo_root(path: Path) -> bool:
     """Whether `path` holds a `.git` entry (a clone's root, not a subfolder)."""
     return (path / ".git").exists()
+
+
+def superproject_root(path: Path) -> Path | None:
+    """The working tree of the superproject when `path` is a submodule of one, else None.
+
+    None also when `path` is not a repository or git cannot run: git prints nothing outside a
+    submodule, so a plain repository nested in another one is not mistaken for a submodule.
+    """
+    try:
+        found = git(path, "rev-parse", "--show-superproject-working-tree")
+    except GitError:
+        return None
+    return Path(found) if found else None
