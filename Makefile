@@ -124,13 +124,15 @@ _install_core: core
 	@echo "Launching setup wizard to configure benchmarks..."
 	$(CRAB_BIN) setup
 
-# 4. The wrappers checkout (a separate repository, ignored by this one)
+# 4. The wrappers checkout (a separate repository, ignored by this one); skipped when CRAB_PATH_WRAPPERS is set
 _wrappers:
-	@if [ ! -d wrappers ]; then \
+	@if [ -d wrappers ]; then \
+	    echo "[=] wrappers/ already present"; \
+	elif [ -n "$$CRAB_PATH_WRAPPERS" ]; then \
+	    echo "[=] wrappers come from CRAB_PATH_WRAPPERS"; \
+	else \
 	    echo "Cloning the wrappers into wrappers/..."; \
 	    git clone '$(WRAPPERS_URL)' wrappers || { echo "could not clone the wrappers from $(WRAPPERS_URL): run \`crab update\` once you are online" >&2; exit 1; }; \
-	else \
-	    echo "[=] wrappers/ already present"; \
 	fi
 
 setup:

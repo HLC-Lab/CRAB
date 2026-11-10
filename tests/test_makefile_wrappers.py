@@ -4,6 +4,7 @@ Makefile in a tmp dir and a local bare repository: no network."""
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -36,9 +37,19 @@ def origin(tmp_path: Path) -> str:
     return f"file://{bare}"
 
 
-def _make(project: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def _make(
+    project: Path, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run make with a child env that never inherits CRAB_PATH_WRAPPERS from the developer's
+    shell; a test passes it explicitly through `env`."""
+    child_env = {k: v for k, v in os.environ.items() if k != "CRAB_PATH_WRAPPERS"}
+    child_env.update(env or {})
     return subprocess.run(
-        ["make", "-C", str(project), *args], capture_output=True, text=True, check=False
+        ["make", "-C", str(project), *args],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=child_env,
     )
 
 
@@ -53,6 +64,45 @@ def test_wrappers_are_cloned_when_missing_and_left_alone_when_present(project, o
     assert second.returncode == 0, second.stderr
     assert "already present" in second.stdout
     assert (project / "wrappers" / "marker").read_text() == "keep\n"
+
+
+def test_wrappers_are_not_cloned_when_crab_path_wrappers_points_at_them(project, origin) -> None:
+    result = _make(
+        project,
+        "_wrappers",
+        f"WRAPPERS_URL={origin}",
+        env={"CRAB_PATH_WRAPPERS": "/somewhere/crab-wrappers"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "[=] wrappers come from CRAB_PATH_WRAPPERS" in result.stdout
+    assert not (project / "wrappers").exists()
+
+
+def test_a_present_wrappers_dir_wins_over_crab_path_wrappers(project, origin) -> None:
+    (project / "wrappers").mkdir()
+    result = _make(
+        project,
+        "_wrappers",
+        f"WRAPPERS_URL={origin}",
+        env={"CRAB_PATH_WRAPPERS": "/somewhere/crab-wrappers"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "[=] wrappers/ already present" in result.stdout
+    assert "CRAB_PATH_WRAPPERS" not in result.stdout
+
+
+def test_an_empty_crab_path_wrappers_still_clones(project, origin) -> None:
+    result = _make(project, "_wrappers", f"WRAPPERS_URL={origin}", env={"CRAB_PATH_WRAPPERS": ""})
+    assert result.returncode == 0, result.stderr
+    assert "CRAB_PATH_WRAPPERS" not in result.stdout
+    assert (project / "wrappers" / "README.md").read_text() == "w\n"
+
+
+def test_an_unset_crab_path_wrappers_still_clones(project, origin, monkeypatch) -> None:
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", "/leaks/from/the/developer/shell")
+    result = _make(project, "_wrappers", f"WRAPPERS_URL={origin}")
+    assert result.returncode == 0, result.stderr
+    assert (project / "wrappers" / "README.md").read_text() == "w\n"
 
 
 def test_the_install_clones_wrappers_after_pip_and_before_setup(project) -> None:
