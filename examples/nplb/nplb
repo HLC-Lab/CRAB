@@ -3,7 +3,7 @@
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
 # Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign, next, queue, follow,
-# run, cancel, skip, report, compare, diag. Exit 0 on success, 1 when a step failed, 2 on an unknown verb or a usage error.
+# run, cancel, skip, smoke, report, compare, diag. Exit 0 on success, 1 when a step failed, 2 on an unknown verb or a usage error.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -36,6 +36,7 @@ nplb VERB [ARGS]   (a verb without its arguments prints its own usage)
   follow [ROW|JOB|DIR]                follow a job live, say how it ended, page a summary
   cancel                              scancel the newest job of the run log (asks first)
   skip N.. [--undo]                   drop rows from the plan so next stops proposing them
+  smoke [FEATURE...]                  run the 5 smoke blocks one by one, one verdict page
 
   report [N|--state L|--victim V|--layout L|--all]   slowdown tables against alone
   compare [VICTIM] [CONDITION] [--layout L]          one condition across the 8 network states
@@ -46,7 +47,6 @@ nplb VERB [ARGS]   (a verb without its arguments prints its own usage)
   reports                             list the saved reports, newest first
   fix-venv                            reinstall CRAB into the venv and run pip check
   help                                this page
-
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
 }
@@ -302,6 +302,44 @@ cmd_skip() {
     "$py" "$NPLB_DIR/run_cmd.py" skip "$@"
 }
 
+# smoke [FEATURE...] | smoke plan [FEATURE...] [--estimate] | smoke follow | smoke cancel: the smoke test has its
+# own work folder <WORK>/smoke, so follow and cancel run under its env. smoke_run.py narrates on stderr (and
+# the live run pages go there too); its stdout is `#report smoke` and the verdict page, paged and saved as smoke.
+cmd_smoke() {
+    local sub=${1:-} py="$CHECKOUT/.venv/bin/python" out rc name base
+    base=${WORK:-${NPLB_WORK:-$CHECKOUT/local/nplb-work}}/smoke
+    [[ -x $py ]] || py=python3
+    case $sub in
+        follow | cancel)
+            shift
+            WORK=$base CAMPAIGN_DIR=$base/campaign NPLB_REPORT_DIR=$base/reports "cmd_$sub" "$@"
+            return $?
+            ;;
+        plan)
+            shift
+            . "$NPLB_DIR/lib/pages.sh"
+            out=$("$py" "$NPLB_DIR/smoke.py" plan "$@")
+            rc=$?
+            if [[ -n $out ]]; then
+                printf '%s\n' "$out" | nplb_paged smoke-plan || ((rc != 0)) || rc=1
+            fi
+            return "$rc"
+            ;;
+    esac
+    . "$NPLB_DIR/lib/pages.sh"
+    out=$("$py" "$NPLB_DIR/smoke_run.py" run "$@")
+    rc=$?
+    if [[ $out == '#report '* ]]; then
+        name=${out%%$'\n'*}
+        name=${name#'#report '}
+        out=${out#*$'\n'}
+        printf '%s\n' "$out" | nplb_paged "$name" || ((rc != 0)) || rc=1
+    elif [[ -n $out ]]; then
+        printf '%s\n' "$out"
+    fi
+    return "$rc"
+}
+
 node_usage() {
     echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
     return 2
@@ -343,6 +381,7 @@ case $verb in
     run) cmd_run "$@" ;;
     cancel) cmd_cancel "$@" ;;
     skip) cmd_skip "$@" ;;
+    smoke) cmd_smoke "$@" ;;
     report) cmd_report "$@" ;;
     compare) cmd_compare "$@" ;;
     diag) cmd_diag "$@" ;;
