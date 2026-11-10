@@ -1,0 +1,25 @@
+[2m[16:35:54][0m [32mINFO [0m [34mCRAB[0m  Worker mode detected  workdir=/home/user/crab/CRAB/data/nplb_h100_gpu/gpu_ag_comm_same_leaf_2026-10-29_16-35-53-182977
+[2m[16:35:54][0m [32mINFO [0m [34mCRAB[0m  Execution settings from execution.json
+[2m[16:35:54][0m [32mINFO [0m [34mCRAB[0m  Environment loaded, starting engine
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m  Worker started
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m  Allocated 2 node(s)
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m  Starting experiment [1/4]: ppn1_alone
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  Setting up...
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  Allocation: linear
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 0: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 1: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 2: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 3: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 4: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 5: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 6: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 7: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 8: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 9: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  App 10: nodeA,nodeB
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m  Execution started
+[2m[16:35:56][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m [2m│[0m [2mRun 1[0m  Started
+[2m[16:35:57][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 0[0m  Launched App 0  PID=729642  nodes=['nodeA', 'nodeB']
+[2m[16:36:08][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 0[0m  FINISHED  exit=0
+[2m[16:36:08][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 1[0m  Launched App 1  PID=729716  nodes=['nodeA', 'nodeB']
+[2m[16:36:18][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn1_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 1[0m  FINISHED  exit=0

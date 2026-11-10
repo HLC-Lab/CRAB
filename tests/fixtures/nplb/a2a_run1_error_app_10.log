@@ -1,0 +1,8 @@
+App 10 exit=17
+
+--- STDOUT ---
+All-to-all with 8 processes, msg-size: 536870912, test iterations: 100.
+[1793290272.945368] [nodeA:721074:0]           ib_md.c:296  UCX  ERROR ibv_reg_mr(address=0x7f1640000000, length=536870912, access=0xf) failed: Bad address
+[1793290272.945388] [nodeA:721074:0]          ucp_mm.c:81   UCX  ERROR failed to register address 0x7f1640000000 (host) length 536870912 on md[5]=mlx5_0: Input/output error (md supports: host|cuda)
+[1793290272.992196] [nodeA:721075:0]           ib_md.c:296  UCX  ERROR ibv_reg_mr(address=0x7f5680000000, length=536870912, access=0xf) failed: Bad address
+[1793290272.992224] [nodeA:721075:0]          ucp_mm.c:81   UCX  ERROR failed to register address 0x7f5680000000 (host) length 536870912 on md[5]=mlx5_2: Input/output error (md supports: host|cuda)

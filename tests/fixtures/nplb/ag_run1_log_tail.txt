@@ -1,0 +1,15 @@
+[2m[16:45:53][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 5[0m  FINISHED  exit=0
+[2m[16:45:53][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 6[0m  Launched App 6  PID=734428  nodes=['nodeA', 'nodeB']
+[2m[16:46:11][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 6[0m  FINISHED  exit=0
+[2m[16:46:11][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 7[0m  Launched App 7  PID=734644  nodes=['nodeA', 'nodeB']
+[2m[16:46:34][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 7[0m  FINISHED  exit=0
+[2m[16:46:34][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 8[0m  Launched App 8  PID=734890  nodes=['nodeA', 'nodeB']
+[2m[16:46:54][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 8[0m  FINISHED  exit=0
+[2m[16:46:54][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 9[0m  Launched App 9  PID=735114  nodes=['nodeA', 'nodeB']
+[2m[16:47:26][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 9[0m  FINISHED  exit=0
+[2m[16:47:26][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 10[0m  Launched App 10  PID=735412  nodes=['nodeA', 'nodeB']
+[2m[16:48:13][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m [2m│[0m [2mRun 1[0m [2m│[0m [2mApp 10[0m  FINISHED  exit=0
+[2m[16:48:13][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m  Converged at run 1 (1 successful)
+[2m[16:48:13][0m [32mINFO [0m [34mCRAB[0m [2m│[0m [2mppn8_alone[0m  Data saved to /home/user/crab/CRAB/data/nplb_h100_gpu/gpu_ag_comm_same_leaf_2026-10-29_16-35-53-182977/ppn8_alone
+[2m[16:48:15][0m [32mINFO [0m [34mCRAB[0m  All experiments finished
+[2m[16:48:15][0m [32mINFO [0m [34mCRAB[0m  Engine run finished  elapsed=0:12:21
