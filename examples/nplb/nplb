@@ -2,7 +2,7 @@
 # The NPLB campaign tool for the lab console: one short command per task.
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
-# Verbs so far: help, fix-venv, page, reports, build, node, topo, net. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
+# Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign. Exit 0 on success, 1 when a step failed, 2 on an unknown verb.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -43,6 +43,10 @@ nplb VERB [ARGS]
                           nplb+ar) or for the initial state
   net record DIR [HOST...]
                           write DIR/nplb_state.json, the network state of a run
+
+  campaign [--estimate] [--order tier|state] [--budget-hours H] [--out DIR] [--local]
+                          write the campaign blocks and schedule.tsv (local/campaign), or with
+                          --estimate only show the hours, switch changes and assumptions
 
 Source examples/nplb/env.sh first: it defines the nplb command and unsets PYTHONPATH.
 EOF
@@ -129,6 +133,19 @@ cmd_net() {
     esac
 }
 
+# campaign [ARGS]: campaign_plan.py narrates on stderr, its report is paged and saved as campaign
+cmd_campaign() {
+    local py="$CHECKOUT/.venv/bin/python" out rc
+    [[ -x $py ]] || py=python3
+    . "$NPLB_DIR/lib/pages.sh"
+    out=$("$py" "$NPLB_DIR/campaign_plan.py" "$@")
+    rc=$?
+    if [[ -n $out ]]; then
+        printf '%s\n' "$out" | nplb_paged campaign || ((rc != 0)) || rc=1
+    fi
+    return "$rc"
+}
+
 node_usage() {
     echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
     return 2
@@ -163,6 +180,7 @@ case $verb in
     node) cmd_node "$@" ;;
     topo) cmd_topo "$@" ;;
     net) cmd_net "$@" ;;
+    campaign) cmd_campaign "$@" ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2

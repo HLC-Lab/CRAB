@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from typing import NamedTuple
 
 # Seconds per iteration of the victim alone, on 2 H100 nodes with 8 ranks each (16 ranks, the rank
 # count of the campaign's victim). Source: the owner's October 2026 runs `a2a_run1.tgz` and
@@ -120,6 +121,42 @@ def iterations(
     seconds, source = iter_time(victim, size, layout, contended)
     count = min(ITER_MAX, max(ITER_MIN, round(target_s / seconds)))
     return count, max(10, count // 10), source
+
+
+class Estimate(NamedTuple):
+    """Expected run of one block: all apps, seconds (no walltime margin), victim time per tag."""
+
+    seconds: float
+    apps: int
+    victim_s: dict[str, float]
+
+
+def block_estimate(
+    victim: str, layout: str, sizes: Sequence[int], contended: Sequence[bool], local: bool = False
+) -> Estimate:
+    """What `campaign.victim_chain` adds up, for one experiment per entry of `contended`.
+
+    Every app costs `START_UP_S`; the victim of each size adds `(iter + warmup) x seconds per
+    iteration`, filed under its source tag in `victim_s` (a `local` block has no victim time, the
+    laptop run is a few seconds), and an aggressor adds one more start-up.
+    """
+    seconds = 0.0
+    apps = 0
+    victim_s: dict[str, float] = {}
+    for with_aggressor in contended:
+        for size in sizes:
+            seconds += START_UP_S
+            apps += 1
+            if local:
+                continue
+            count, warmup, source = iterations(victim, size, layout, with_aggressor)
+            point = (count + warmup) * iter_time(victim, size, layout, with_aggressor)[0]
+            seconds += point
+            victim_s[source] = victim_s.get(source, 0.0) + point
+        if with_aggressor:
+            seconds += START_UP_S
+            apps += 1
+    return Estimate(seconds, apps, victim_s)
 
 
 def walltime_needed(estimates: Sequence[float]) -> int:

@@ -87,6 +87,7 @@ class Layout:
     victim_ppn: int
     aggressor_ppn: int
     text: str  # where the apps run, for the descriptions
+    aggressor_text: str = "on the aggressor nodes"  # where the aggressor runs
 
 
 LAYOUTS = (
@@ -99,6 +100,7 @@ LAYOUTS = (
         4,
         4,
         "both apps on all four nodes, on separate GPUs, NIC ports and cores",
+        "alongside, on separate GPUs, ports and cores of the same nodes",
     ),
 )
 
@@ -110,7 +112,7 @@ class Condition:
     name: str
     size: int | None  # aggressor message size in bytes; None: the victim runs alone
     burst: tuple[int, int] | None  # (burst length, pause) in ms; None: steady
-    text: str
+    text: str  # holds `{where}` (where the aggressor runs) unless the victim runs alone
 
 
 def _size_label(size: int) -> str:
@@ -122,7 +124,7 @@ def _steady(size: int) -> Condition:
         f"steady_a{_size_label(size)}",
         size,
         None,
-        f"while a steady all-to-all of {size} bytes runs on the aggressor nodes "
+        f"while a steady all-to-all of {size} bytes runs {{where}} "
         "(it starts first and stops at the end)",
     )
 
@@ -134,7 +136,7 @@ def _burst(length: int, pause: int, size: int) -> Condition:
         size,
         (length, pause),
         f"while a bursty all-to-all of {size} bytes (bursts of {length} ms, pauses of {pause} ms, "
-        f"{duty} % duty) runs on the aggressor nodes (it starts first and stops at the end)",
+        f"{duty} % duty) runs {{where}} (it starts first and stops at the end)",
     )
 
 
@@ -256,7 +258,8 @@ def describe(plan: Plan, condition: Condition) -> str:
     """The plain-language description of one experiment."""
     span = f"{plan.sizes[0]} to {plan.sizes[-1]} bytes"
     where = "on two nodes" if plan.local else plan.layout.text
-    return f"Victim ({plan.victim.text}) over a size sweep from {span}, {where}, {condition.text}."
+    text = condition.text.format(where=plan.layout.aggressor_text)
+    return f"Victim ({plan.victim.text}) over a size sweep from {span}, {where}, {text}."
 
 
 def experiment(plan: Plan, condition: Condition) -> tuple[dict[str, Any], float]:
@@ -305,11 +308,14 @@ def build_block(
     sizes: Sequence[int] | None = None,
     conditions: Sequence[Condition | str] | None = None,
     local: bool = False,
+    prefix: str = "",
 ) -> tuple[str, dict[str, Any]]:
     """(file stem, config) of one block.
 
     `sizes` default to `SIZES` (1 KiB and 1 MiB when `local`), `conditions` (names or objects,
-    kept in the given order) to `CONDITIONS` (`LOCAL_CONDITIONS` when `local`).
+    kept in the given order) to `CONDITIONS` (`LOCAL_CONDITIONS` when `local`). The stem is
+    `<layout>_<victim>`, led by `<prefix>_` (campaign_plan's block names `t1`, `l`, ...), or by
+    `local_` when `local` and no prefix is given; the job name is `nplb_<stem>`.
 
     Raises:
         UsageError: unknown name, a size without a cost, or a walltime over `WALLTIME_CAP_S`.
@@ -324,7 +330,8 @@ def build_block(
         conditions = LOCAL_CONDITIONS if local else CONDITIONS
     items = [c if isinstance(c, Condition) else find_conditions([c])[0] for c in conditions]
     plan = Plan(chosen, plan_victim, sizes, local)
-    stem = f"{'local_' if local else ''}{chosen.name}_{plan_victim.stem}"
+    lead = f"{prefix}_" if prefix else "local_" if local else ""
+    stem = f"{lead}{chosen.name}_{plan_victim.stem}"
     experiments: dict[str, Any] = {}
     estimates: list[float] = []
     try:
@@ -374,6 +381,15 @@ def parse_sizes(text: str) -> list[int]:
     return sorted(sizes)
 
 
+def check_out_dir(out: Path) -> None:
+    """Refuse an output folder that is not inside a `local/` directory (UsageError)."""
+    if "local" not in out.resolve().parts:
+        raise UsageError(
+            "--out must be inside a local/ directory (git-ignored): the campaign files "
+            "that follow hold node names, and node names are never committed"
+        )
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Write the blocks of the NPLB contention campaign.")
     p.add_argument("--out", type=Path, required=True, help="directory for the block files")
@@ -394,11 +410,7 @@ def split(text: str | None, default: Sequence[str]) -> list[str]:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
-        if "local" not in args.out.resolve().parts:
-            raise UsageError(
-                "--out must be inside a local/ directory (git-ignored): the campaign files "
-                "that follow hold node names, and node names are never committed"
-            )
+        check_out_dir(args.out)
         layouts = split(args.layout, ["split-i", "shared"] if args.local else _list(LAYOUTS))
         victims = split(args.victim, _list(VICTIMS))
         names = find_conditions(args.conditions.split(",")) if args.conditions else None
