@@ -48,7 +48,9 @@ CAUSES = (
     ),
     Cause(
         "network / UCX transport error",
-        re.compile(r"Transport retry count exceeded|Endpoint timeout|(?:ucp_|UCX\s+ERROR).*(?i:timeout)"),
+        re.compile(
+            r"Transport retry count exceeded|Endpoint timeout|(?:ucp_|UCX\s+ERROR).*(?i:timeout)"
+        ),
     ),
     Cause("crash (segfault or signal)", re.compile(r"Segmentation fault|signal 11|Bus error")),
     Cause("time limit", re.compile(r"DUE TO TIME LIMIT|TIMEOUT")),
@@ -292,7 +294,9 @@ def decide(ev: Evidence, cause: str) -> tuple[str, str]:
     if ev.error_text.strip() or ev.ended in ("fail", "terminated"):
         return "FAIL", f"no failed app, the run did not finish, {cause}"
     if ev.ended == "missing":
-        missing = [n for n in ("slurm_output.log", "slurm_error.log") if not (ev.data_dir / n).is_file()]
+        missing = [
+            n for n in ("slurm_output.log", "slurm_error.log") if not (ev.data_dir / n).is_file()
+        ]
         return "UNKNOWN", f"missing {', '.join(missing)}: nothing to read"
     return "UNKNOWN", "slurm_output.log has no final line and slurm_error.log is empty or missing"
 
@@ -328,7 +332,12 @@ def build_report(ev: Evidence, width: int) -> tuple[str, list[str]]:
     lines += wrapped(next_step(ev, cause, hosts), width, rest="      ")
     if ev.failed:
         lines += ["", *failed_table(ev, width)]
-    lines += ["", f"UCX / MPI / CUDA lines ({len(distinct)} distinct):" if distinct else "UCX / MPI / CUDA lines: none"]
+    lines += [
+        "",
+        f"UCX / MPI / CUDA lines ({len(distinct)} distinct):"
+        if distinct
+        else "UCX / MPI / CUDA lines: none",
+    ]
     for count, text in distinct[:MAX_ROWS]:
         prefix = f"  x{count:<4}"
         lines += wrapped(text, width, prefix, " " * len(prefix), ERROR_LINES_PER_ROW)
@@ -336,7 +345,10 @@ def build_report(ev: Evidence, width: int) -> tuple[str, list[str]]:
         more = f"{len(distinct) - MAX_ROWS}{'+' if len(distinct) >= MAX_DISTINCT else ''}"
         lines.append(f"  ... {more} more")
     last = tail_lines(ev)
-    lines += ["", f"slurm_error.log, last {TAIL_LINES} lines:" if last else "slurm_error.log: no lines"]
+    lines += [
+        "",
+        f"slurm_error.log, last {TAIL_LINES} lines:" if last else "slurm_error.log: no lines",
+    ]
     for text in last:
         lines += wrapped(text, width, "  ", "  ", ERROR_LINES_PER_ROW)
     return verdict, lines + ["", *wrapped(f"data    {ev.data_dir}", width, rest="        ")]

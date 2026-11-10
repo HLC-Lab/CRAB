@@ -3,7 +3,7 @@
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
 # Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign, next, queue, follow,
-# run, cancel, skip, report, compare. Exit 0 on success, 1 when a step failed, 2 on an unknown verb or a usage error.
+# run, cancel, skip, report, compare, diag. Exit 0 on success, 1 when a step failed, 2 on an unknown verb or a usage error.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -39,6 +39,8 @@ nplb VERB [ARGS]   (a verb without its arguments prints its own usage)
 
   report [N|--state L|--victim V|--layout L|--all]   slowdown tables against alone
   compare [VICTIM] [CONDITION] [--layout L]          one condition across the 8 network states
+
+  diag run [TARGET]                   why a run failed: failed apps, error lines, cause
 
   page N|next|prev [REPORT]           replay a page of a saved report (pages of at most 38 lines)
   reports                             list the saved reports, newest first
@@ -255,6 +257,30 @@ cmd_compare() {
     return "$rc"
 }
 
+# diag run [TARGET]: diag_run.py is read only; its stdout is `#report NAME` and the report, which is paged
+# and saved as NAME. Exit 0 for OK, 1 for FAIL and UNKNOWN, 2 for a bad target or usage (stderr).
+cmd_diag() {
+    local sub=${1:-} py="$CHECKOUT/.venv/bin/python" out rc name
+    [[ $# -gt 0 ]] && shift
+    if [[ $sub != run ]]; then
+        echo "usage: nplb diag run [TARGET]" >&2
+        return 2
+    fi
+    [[ -x $py ]] || py=python3
+    . "$NPLB_DIR/lib/pages.sh"
+    out=$("$py" "$NPLB_DIR/diag_run.py" "$@")
+    rc=$?
+    if [[ $out == '#report '* ]]; then
+        name=${out%%$'\n'*}
+        name=${name#'#report '}
+        out=${out#*$'\n'}
+        printf '%s\n' "$out" | nplb_paged "$name" || ((rc != 0)) || rc=1
+    elif [[ -n $out ]]; then
+        printf '%s\n' "$out"
+    fi
+    return "$rc"
+}
+
 # cancel / skip: short answers on stdout, no pager; cancel asks on the terminal, so no capture
 cmd_cancel() {
     local py="$CHECKOUT/.venv/bin/python"
@@ -311,6 +337,7 @@ case $verb in
     skip) cmd_skip "$@" ;;
     report) cmd_report "$@" ;;
     compare) cmd_compare "$@" ;;
+    diag) cmd_diag "$@" ;;
     *)
         echo "nplb: unknown verb '$verb', run: nplb help" >&2
         exit 2
