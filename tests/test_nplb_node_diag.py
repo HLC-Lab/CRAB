@@ -718,7 +718,7 @@ def checkout(site) -> Path:
     chk = site["tmp"] / "chk"
     nplb_dir = chk / "examples" / "nplb"
     (nplb_dir / "lib").mkdir(parents=True)
-    for rel in ("nplb", "node_tools.sh", "pages.py", "lib/pages.sh"):
+    for rel in ("nplb", "node_tools.sh", "node_diag.sh", "node_fix.sh", "pages.py", "lib/pages.sh"):
         shutil.copy(NPLB / rel, nplb_dir / rel)
     return chk
 
