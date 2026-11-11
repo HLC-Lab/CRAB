@@ -41,7 +41,7 @@ function errorText(e: WrappersError): string {
 </script>
 
 <template>
-  <p v-if="error && !list" class="error">{{ errorText(error) }}</p>
+  <p v-if="error && !list" class="error" role="alert">{{ errorText(error) }}</p>
   <p v-else-if="!list" class="quiet">Loading wrappers from {{ target.label }}…</p>
   <p v-else-if="!list.wrappers.length" class="quiet">
     No wrappers found on {{ target.label }}. The Status tab can clone or pull them.

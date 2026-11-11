@@ -31,7 +31,13 @@ onMounted(() => app.checkHealth());
           >{{ item.label }}</RouterLink
         >
       </nav>
-      <button class="theme" title="Toggle theme" @click="app.toggleTheme()">
+      <button
+        class="theme"
+        title="Toggle theme"
+        aria-label="Dark mode"
+        :aria-pressed="app.theme === 'dark'"
+        @click="app.toggleTheme()"
+      >
         {{ app.theme === "dark" ? "☀" : "☾" }}
       </button>
     </header>

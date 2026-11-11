@@ -341,7 +341,12 @@ function startDrag(e: PointerEvent, i: number): void {
           <template v-if="!compact">
             <div class="top">
               <span class="dot" :style="{ background: ink(colorOf(i)), opacity: 0.5 }" />
-              <input v-model="p.name" class="nm" :placeholder="placeholder(i)" />
+              <input
+                v-model="p.name"
+                class="nm"
+                :placeholder="placeholder(i)"
+                :aria-label="`Name of slice ${i + 1}`"
+              />
             </div>
             <div class="meta">
               <div class="cnt">{{ nodeCounts[i] }} node{{ nodeCounts[i] === 1 ? "" : "s" }}</div>
@@ -352,6 +357,7 @@ function startDrag(e: PointerEvent, i: number): void {
                   min="1"
                   max="99"
                   :value="displayPct(i)"
+                  :aria-label="`Share of slice ${i + 1} in percent`"
                   :style="{ color: ink(colorOf(i)) }"
                   @input="onPctInput(i, ($event.target as HTMLInputElement).value)"
                   @blur="endPctEdit"
@@ -362,6 +368,7 @@ function startDrag(e: PointerEvent, i: number): void {
             <button
               class="rm"
               title="remove slice"
+              :aria-label="`Remove slice ${i + 1}`"
               :style="{ color: ink(colorOf(i)) }"
               @click="removeSlice(i)"
             >
@@ -378,7 +385,12 @@ function startDrag(e: PointerEvent, i: number): void {
     <div v-if="!solo && compact" class="slice-list">
       <div v-for="(p, i) in partitions" :key="i" class="slice-row">
         <span class="dot" :style="{ background: colorOf(i) }" />
-        <input v-model="p.name" class="nm" :placeholder="placeholder(i)" />
+        <input
+          v-model="p.name"
+          class="nm"
+          :placeholder="placeholder(i)"
+          :aria-label="`Name of slice ${i + 1}`"
+        />
         <span class="cnt">{{ nodeCounts[i] }} node{{ nodeCounts[i] === 1 ? "" : "s" }}</span>
         <span class="pctwrap">
           <input
@@ -387,12 +399,20 @@ function startDrag(e: PointerEvent, i: number): void {
             min="1"
             max="99"
             :value="displayPct(i)"
+            :aria-label="`Share of slice ${i + 1} in percent`"
             @input="onPctInput(i, ($event.target as HTMLInputElement).value)"
             @blur="endPctEdit"
           />
           <span class="u">%</span>
         </span>
-        <button class="rm" title="remove slice" @click="removeSlice(i)">&times;</button>
+        <button
+          class="rm"
+          title="remove slice"
+          :aria-label="`Remove slice ${i + 1}`"
+          @click="removeSlice(i)"
+        >
+          &times;
+        </button>
       </div>
     </div>
 
@@ -410,13 +430,30 @@ function startDrag(e: PointerEvent, i: number): void {
       <span class="sect">Placement</span>
       <div class="lrow">
         <div v-if="!hideMode" class="seg">
-          <button :class="{ on: a.mode === 'linear' }" @click="setMode('linear')">linear</button>
-          <button :class="{ on: a.mode === 'interleaved' }" @click="setMode('interleaved')">
+          <button
+            :class="{ on: a.mode === 'linear' }"
+            :aria-pressed="a.mode === 'linear'"
+            @click="setMode('linear')"
+          >
+            linear
+          </button>
+          <button
+            :class="{ on: a.mode === 'interleaved' }"
+            :aria-pressed="a.mode === 'interleaved'"
+            @click="setMode('interleaved')"
+          >
             interleaved
           </button>
-          <button :class="{ on: a.mode === 'random' }" @click="setMode('random')">random</button>
+          <button
+            :class="{ on: a.mode === 'random' }"
+            :aria-pressed="a.mode === 'random'"
+            @click="setMode('random')"
+          >
+            random
+          </button>
           <button
             :class="{ on: isShared }"
+            :aria-pressed="isShared"
             :disabled="!solo"
             :title="
               solo ? '' : 'Not available with node groups: remove the slices to share all nodes'

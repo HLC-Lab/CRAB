@@ -8,12 +8,20 @@ const online = computed(() => app.health !== null);
 
 <template>
   <footer class="statusbar">
-    <span class="dot" :class="{ ok: online, bad: !online }" />
+    <span class="dot" :class="{ ok: online, bad: !online }" aria-hidden="true" />
     <span v-if="online">
       backend ok · CRAB {{ app.health!.crab_version }} · api v{{ app.health!.api_schema }}
     </span>
-    <span v-else class="err">{{ app.backendError ?? "connecting…" }}</span>
-    <button class="refresh" title="Re-check backend" @click="app.checkHealth()">↻</button>
+    <span v-else-if="app.backendError" class="err" role="alert">{{ app.backendError }}</span>
+    <span v-else class="err">connecting…</span>
+    <button
+      class="refresh"
+      title="Re-check backend"
+      aria-label="Re-check backend"
+      @click="app.checkHealth()"
+    >
+      ↻
+    </button>
   </footer>
 </template>
 

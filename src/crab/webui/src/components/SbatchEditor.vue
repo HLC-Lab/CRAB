@@ -28,6 +28,7 @@ const text = computed({
       v-model="text"
       rows="4"
       spellcheck="false"
+      aria-label="SBATCH directives"
       placeholder="--time=00:20:00&#10;--exclusive"
     />
     <fieldset class="form">
