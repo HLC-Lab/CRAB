@@ -31,6 +31,41 @@ TOOL_NAMES = (
     "cut wc ls stat env readlink mktemp touch chmod ln tee cp id sleep rm git timeout"
 ).split()
 PLACEHOLDER = "AR: <fill in: command syntax not known yet>"
+OFF_SEQUENCE = [
+    "sys",
+    "packet event monitor",
+    "packet-loss self-heal",
+    "undo id 1001 match nplb-er mode2 qos-local-id 13",
+    "commit",
+    "q",
+    "q",
+    "nplb-er mode mode2",
+    "undo mode2 enable",
+    "commit",
+    "display this",
+]
+ON_SEQUENCE = [
+    "sys",
+    "nplb-er mode mode2",
+    "mode2 enable",
+    "commit",
+    "packet event monitor",
+    "packet-loss self-heal",
+    "id 1001 match nplb-er mode2 qos-local-id 13",
+    "commit",
+    "q",
+    "q",
+    "display this",
+]
+ON_NOTE = "if the id line says already configured, ignore it (it was never removed)"
+EVIDENCE = "NPLB commands: from the Leaf1 session screenshots; check one other switch with display this first"
+AR_DISCOVERY = [
+    "AR syntax unknown, find it on one switch:",
+    "display current-configuration | include load-balance|dlb|adaptive",
+    "load-balance ?",
+    "display load-balance ?",
+    "paste what it shows (screenshot), then we write the on/off lines",
+]
 USAGE_VERBS = ("declare", "set", "show", "sheet", "record")
 
 FAKE_SR_STATE = r"""#!/usr/bin/env bash
@@ -468,8 +503,8 @@ def in_order(lines: list[str], wanted: list[str]) -> bool:
 
 
 def test_sheet_for_each_state(site):
-    on_cmds = ["sys", "nplb-er mode mode2", "mode2 enable", "commit", "display this"]
-    off_cmds = ["undo mode2 enable", "commit", "display this"]
+    on_cmds = ON_SEQUENCE
+    off_cmds = OFF_SEQUENCE
     spellings = [
         (["nplb=on,ar=off"], "nplb=on ar=off"),
         (["nplb=on", "ar=off"], "nplb=on ar=off"),
@@ -485,13 +520,17 @@ def test_sheet_for_each_state(site):
         lines = content(done.stdout)
         assert lines[0] == f"VERDICT: sheet for {state}", args
         assert "switches: swA swB" in lines
-        assert PLACEHOLDER in stripped(lines)
+        assert PLACEHOLDER not in stripped(lines)
+        assert in_order(lines, AR_DISCOVERY), args
+        assert EVIDENCE in stripped(lines), args
         assert lines[-1] == f"then run: nplb net declare {state}"
         if "nplb=on" in state:
             assert in_order(lines, on_cmds), args
+            assert ON_NOTE in " ".join(stripped(lines)), args
         else:
             assert in_order(lines, off_cmds), args
             assert "mode2 enable" not in stripped(lines), args
+            assert ON_NOTE not in " ".join(stripped(lines)), args
         assert 0 < len(done.stdout.splitlines()) <= 38
         assert max(len(ln) for ln in done.stdout.splitlines()) <= 100
 
@@ -524,8 +563,51 @@ def test_sheet_restore_uses_the_initial_state(site):
     lines = content(done.stdout)
     assert lines[0] == "VERDICT: sheet for nplb=on ar=off"
     assert any(ln.startswith("restore initial state") for ln in lines)
-    assert in_order(lines, ["sys", "nplb-er mode mode2", "mode2 enable", "commit"])
+    assert in_order(lines, ON_SEQUENCE)
+    assert ON_NOTE in " ".join(stripped(lines))
     assert lines[-1] == "then run: nplb net declare nplb=on ar=off"
+
+
+def test_sheet_off_removes_the_self_heal_id_before_the_undo(site):
+    done = run(site, "sheet", "base")
+    assert done.returncode == 0, done.stderr
+    lines = stripped(content(done.stdout))
+    undo_id = lines.index("undo id 1001 match nplb-er mode2 qos-local-id 13")
+    undo_mode = lines.index("undo mode2 enable")
+    assert undo_id < undo_mode
+    assert "commit" in lines[undo_id + 1 : undo_mode]
+    assert in_order(lines, OFF_SEQUENCE)
+
+
+def test_sheet_on_restores_the_self_heal_id(site):
+    done = run(site, "sheet", "nplb")
+    assert done.returncode == 0, done.stderr
+    lines = stripped(content(done.stdout))
+    assert in_order(lines, ON_SEQUENCE)
+    assert any(ln.endswith(ON_NOTE) for ln in lines)
+    assert "undo id 1001 match nplb-er mode2 qos-local-id 13" not in lines
+
+
+def test_sheet_evidence_is_at_most_two_lines(site):
+    done = run(site, "sheet", "base")
+    lines = stripped(content(done.stdout))
+    at = [i for i, ln in enumerate(lines) if "NPLB commands:" in ln or "Leaf1" in ln]
+    assert at, lines
+    assert len(at) <= 2
+    assert EVIDENCE in lines
+
+
+def test_sheet_ar_prints_discovery_not_a_fake_command(site):
+    for args in (["base"], ["ar"], ["nplb+ar"], ["nplb"]):
+        done = run(site, "sheet", *args)
+        lines = stripped(content(done.stdout))
+        assert in_order(lines, AR_DISCOVERY), args
+        assert PLACEHOLDER not in lines, args
+        assert not any("<fill in" in ln for ln in lines), args
+        # only the three discovery commands sit between the intro and the closing line
+        at = lines.index(AR_DISCOVERY[0])
+        end = lines.index(AR_DISCOVERY[-1])
+        assert lines[at + 1 : end] == AR_DISCOVERY[1:-1], args
 
 
 # ---- record ---------------------------------------------------------------------------------
