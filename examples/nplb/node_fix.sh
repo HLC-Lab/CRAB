@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 # Sourced by node_tools.sh, never run on its own: the code of `node_tools.sh fix [--sr 0|1] [--ar 0|1]
-# [HOST...]` (cmd_fix and the steps it runs). It defines functions only; nothing runs when it is
-# sourced and it sets no shell options.
+# [--rescan] [--links] [--peermem] [--nfs-head] [HOST...]` (cmd_fix and the steps it runs; the four
+# repairs are in node_repair.sh). It defines functions only; nothing runs when it is sourced and it
+# sets no shell options.
 # Expects from node_tools.sh: the helpers usage die note join_by first_line quote run_tool tool_missing
 # item nfs_state, REPORT and FIX_FAILS, HEAD, NFS_PATH, PARTITION, SR_SET, AR_SET, RUN_OUT, RUN_RC,
 # and nplb_paged (lib/pages.sh).
@@ -43,6 +44,7 @@ print_plan() {
     local step=1
     {
         echo "planned actions:"
+        plan_repairs # node_repair.sh: prints its lines and counts up the caller's `step`
         echo "  $step. $HEAD (head): check that $NFS_PATH is exported (exportfs -v, read only; /etc/exports is never edited)"
         step=$((step + 1))
         if ((${#FIX_WORKERS[@]} == 0)); then
@@ -171,6 +173,7 @@ fix_hosts_default() {
 cmd_fix() {
     local h rc=0 verdict
     FIX_SR="" FIX_AR="" FIX_HOSTS=() FIX_WORKERS=()
+    FIX_RESCAN=0 FIX_LINKS=0 FIX_PEERMEM=0 FIX_NFS_HEAD=0
     while (($# > 0)); do
         case $1 in
             --sr | --ar)
@@ -180,6 +183,19 @@ cmd_fix() {
                 fi
                 if [[ $1 == --sr ]]; then FIX_SR=$2; else FIX_AR=$2; fi
                 shift 2
+                ;;
+            --rescan | --links | --peermem | --nfs-head)
+                case $1 in
+                    --rescan) FIX_RESCAN=1 ;;
+                    --links) FIX_LINKS=1 ;;
+                    --peermem) FIX_PEERMEM=1 ;;
+                    --nfs-head) FIX_NFS_HEAD=1 ;;
+                esac
+                shift
+                ;;
+            -h | --help)
+                usage
+                exit 0
                 ;;
             -*)
                 usage
@@ -202,6 +218,10 @@ cmd_fix() {
         echo "declined: nothing changed" >&2
         exit 1
     fi
+    ((FIX_RESCAN)) && repair_rescan
+    ((FIX_LINKS)) && repair_links
+    ((FIX_PEERMEM)) && repair_peermem
+    ((FIX_NFS_HEAD)) && repair_nfs_head
     fix_export
     fix_mounts
     [[ -n $FIX_SR ]] && fix_bit sr "$FIX_SR" "$SR_SET"

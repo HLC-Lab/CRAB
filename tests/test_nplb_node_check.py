@@ -230,6 +230,38 @@ def test_warn_only_is_ok_with_a_note(site):
     assert "node114 sr WARN SR=1 AR=0 but SR mixed" in lines
 
 
+def test_a_missing_peermem_names_the_repair(site):
+    detail = "nvidia_peermem is not in /proc/modules (GPUDirect RDMA needs it)"
+    site["out"].write_text(preflight_text(overrides={("node114", "peermem"): ("FAIL", detail)}))
+    result = check_cmd(site)
+    assert result.returncode == 1
+    lines = saved(site)
+    assert f"node114 peermem FAIL {detail}" in lines
+    assert "hint peermem: run: nplb node fix --peermem" in lines
+    assert lines.count("hint peermem: run: nplb node fix --peermem") == 1
+    assert "--peermem" in result.stdout
+    out = result.stdout.splitlines()
+    assert len(out) <= 38 and max(len(ln) for ln in out) <= 100
+
+
+def test_a_failing_nfs_names_the_worker_remount_and_the_head_repair(site):
+    detail = "/root/crab is on ext4, not NFS: the ranks need the head's checkout here"
+    site["out"].write_text(preflight_text(overrides={("node112", "nfs"): ("FAIL", detail)}))
+    result = check_cmd(site)
+    assert result.returncode == 1
+    lines = saved(site)
+    hint = next(ln for ln in lines if ln.startswith("hint nfs:"))
+    assert "run: nplb node fix" in hint
+    assert "--nfs-head" in hint
+    assert len(hint) <= 100
+
+
+def test_healthy_peermem_and_nfs_print_no_hint(site):
+    result = check_cmd(site)
+    assert result.returncode == 0
+    assert not any(ln.startswith("hint ") for ln in saved(site))
+
+
 def test_unreachable_host_is_a_fail_row(site):
     # gpu_preflight.sh prints exactly one "<host> ssh FAIL <detail>" line for a host it cannot reach
     text = (
@@ -402,7 +434,15 @@ def checkout(site) -> Path:
     chk = site["tmp"] / "chk"
     nplb_dir = chk / "examples" / "nplb"
     (nplb_dir / "lib").mkdir(parents=True)
-    for rel in ("nplb", "node_tools.sh", "node_diag.sh", "node_fix.sh", "pages.py", "lib/pages.sh"):
+    for rel in (
+        "nplb",
+        "node_tools.sh",
+        "node_diag.sh",
+        "node_fix.sh",
+        "node_repair.sh",
+        "pages.py",
+        "lib/pages.sh",
+    ):
         shutil.copy(NPLB / rel, nplb_dir / rel)
     return chk
 

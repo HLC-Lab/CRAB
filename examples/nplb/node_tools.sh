@@ -45,8 +45,15 @@
 #      diag and fix), NFS_PATH (the exported and mounted folder, default the parent of CRAB_DIR),
 #      SR_STATE, SR_SET, AR_SET (sr_state.sh, sr_set.sh, ar_set.sh, default next to this script),
 #      NPLB_YES (1 answers yes to the fix question).
-# The code of diag lives in node_diag.sh and the code of fix in node_fix.sh, both sourced below; this file
-# holds the shared setup and helpers, `check`, and the verb switch.
+#   examples/nplb/node_tools.sh fix [--rescan] [--links] [--peermem] [--nfs-head] [HOST...]
+#       four opt-in repairs of a sick node, each shown in the plan, confirmed once, applied over ssh and read
+#       back (the code is in node_repair.sh): --rescan (PCI rescan on a node with fewer CX8 functions than
+#       EXPECT_CX8), --links (ip link set UP on RDMA ports that are not Up), --peermem (modprobe
+#       nvidia_peermem), --nfs-head (restart the NFS server on HEAD and exportfs -ra; /etc/exports is never
+#       edited). They run in that order, before the NFS remount and SR/AR. A thing that is fine is not touched.
+#       Env: FIX_LINK_WAIT (seconds to wait for a link, default 10), FIX_RESCAN_WAIT (default 3).
+# The code of diag lives in node_diag.sh, the code of fix in node_fix.sh and the four repairs in
+# node_repair.sh, all sourced below; this file holds the shared setup and helpers, `check`, and the verb switch.
 set -u
 
 unset PYTHONPATH
@@ -97,6 +104,7 @@ usage() {
         echo "usage: node_tools.sh check [HOST...]"
         echo "       node_tools.sh diag HOST"
         echo "       node_tools.sh fix [--sr 0|1] [--ar 0|1] [HOST...]"
+        echo "                         [--rescan] [--links] [--peermem] [--nfs-head]  (repairs, each opt-in)"
     } >&2
 }
 note() { printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
@@ -334,6 +342,17 @@ verdict_line() {
     fi
 }
 
+# hint_lines: what repairs the WARN and FAIL lines of peermem and nfs, once per check
+hint_lines() {
+    local i peermem=0 nfs=0
+    for i in "${!LINE_HOST[@]}"; do
+        [[ ${LINE_CHECK[i]} == peermem ]] && peermem=1
+        [[ ${LINE_CHECK[i]} == nfs && ${LINE_LEVEL[i]} == FAIL ]] && nfs=1
+    done
+    ((peermem)) && echo "hint peermem: run: nplb node fix --peermem"
+    ((nfs)) && echo "hint nfs: run: nplb node fix; head not exporting: run: nplb node fix --nfs-head"
+}
+
 detail_lines() {
     local host i first=1
     for host in "${HOSTS[@]}"; do
@@ -375,6 +394,7 @@ cmd_check() {
         printf '%s\n' "$VERDICT"
         grid_lines
         detail_lines
+        hint_lines
     } | nplb_paged node-check || RC=1
     exit "$RC"
 }
@@ -470,6 +490,8 @@ nfs_state() {
 . "$HERE/node_diag.sh"
 # shellcheck source=node_fix.sh
 . "$HERE/node_fix.sh"
+# shellcheck source=node_repair.sh
+. "$HERE/node_repair.sh"
 
 verb=${1:-}
 [[ $# -gt 0 ]] && shift

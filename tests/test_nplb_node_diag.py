@@ -399,6 +399,11 @@ def test_diag_missing_card_is_hardware(site):
     assert lines[0] == "VERDICT: HARDWARE (2 of 16 CX8 functions missing from lspci)"
     assert "14/16" in line_with(lines, "FAIL cx8-pci:")
     assert "not listed: mlx5_16 mlx5_17" in line_with(lines, "FAIL ports:")
+    # a rescan may bring the card back: the one hardware case with something to try first
+    assert lines[1] == (
+        "next: try once: nplb node fix --rescan, if the count stays the card is for the lab"
+    )
+    assert len(lines[1]) <= 100
 
 
 def test_diag_pci_present_but_ports_down_without_cable_message_is_software(site):
@@ -406,17 +411,40 @@ def test_diag_pci_present_but_ports_down_without_cable_message_is_software(site)
     result, lines = diag(site)
     assert result.returncode == 1, result.stdout + result.stderr
     assert lines[0] == (
-        "VERDICT: SOFTWARE (mlx5_4, mlx5_5 not Up, cards in lspci, no cable message: driver or link state)"
+        "VERDICT: SOFTWARE (mlx5_4, mlx5_5 not Up, cards in lspci, no cable message: "
+        "driver or link state, run: nplb node fix --links)"
     )
-    assert lines[1] == "next: check the dmesg lines below; reloading mlx5_core is the lab's call"
-    assert "nplb node fix" not in "\n".join(lines[:2])
+    # the verdict is cut at 100 columns on the page: the next line carries the hint too
+    assert lines[1] == (
+        "next: run: nplb node fix --links; check the dmesg lines below; "
+        "reloading mlx5_core is the lab's call"
+    )
+    assert len(lines[1]) <= 100
     # a port the tool does not list at all counts the same
     make_host(site, "node112", listed=[p for p in CX8_PORTS if p != "mlx5_3"])
     _, lines = diag(site)
-    assert (
-        lines[0]
-        == "VERDICT: SOFTWARE (mlx5_3 not Up, cards in lspci, no cable message: driver or link state)"
+    assert lines[0] == (
+        "VERDICT: SOFTWARE (mlx5_3 not Up, cards in lspci, no cable message: "
+        "driver or link state, run: nplb node fix --links)"
     )
+
+
+def test_diag_missing_card_with_a_cable_message_still_names_rescan_and_the_lab(site):
+    make_host(site, "node112", cx8=14, listed=CX8_PORTS[:14], down=[], dmesg=cable_lines(1))
+    _, lines = diag(site)
+    assert lines[0].startswith("VERDICT: HARDWARE (")
+    assert "nplb node fix --rescan" in lines[1]
+    assert "lab staff" in lines[1]
+    assert len(lines[1]) <= 100
+
+
+def test_diag_cable_only_hardware_has_no_rescan_hint(site):
+    make_host(site, "node112", down=CX8_PORTS[:4], dmesg=cable_lines(4))
+    _, lines = diag(site)
+    assert lines[1] == (
+        "next: take this report to the lab staff (cables, card or GPUs); nothing here repairs it"
+    )
+    assert "--rescan" not in "\n".join(lines)
 
 
 def test_diag_rdma_answers_when_ibdev2netdev_is_missing(site):
@@ -718,7 +746,15 @@ def checkout(site) -> Path:
     chk = site["tmp"] / "chk"
     nplb_dir = chk / "examples" / "nplb"
     (nplb_dir / "lib").mkdir(parents=True)
-    for rel in ("nplb", "node_tools.sh", "node_diag.sh", "node_fix.sh", "pages.py", "lib/pages.sh"):
+    for rel in (
+        "nplb",
+        "node_tools.sh",
+        "node_diag.sh",
+        "node_fix.sh",
+        "node_repair.sh",
+        "pages.py",
+        "lib/pages.sh",
+    ):
         shutil.copy(NPLB / rel, nplb_dir / rel)
     return chk
 

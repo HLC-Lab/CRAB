@@ -18,7 +18,7 @@
 #   examples/nplb/net_tools.sh sheet STATE | --restore
 #       the switch commands to paste for STATE (nplb=on ar=off, or base, nplb, ar, nplb+ar), or for the
 #       initial state. Paged, saved as net-sheet. The AR switch command is not known yet: the sheet
-#       carries a marked placeholder. NET_SWITCHES (space separated switch names) heads the sheet.
+#       prints discovery lines (commands to paste on one switch and send back). NET_SWITCHES (space separated switch names) heads the sheet.
 #   examples/nplb/net_tools.sh record DIR [HOST...]
 #       writes DIR/nplb_state.json (declared switch state, live NIC SR and AR per host, git revisions of
 #       CRAB and Blink, time) and prints "recorded: <label> -> <path>". It refuses (exit 1) when no

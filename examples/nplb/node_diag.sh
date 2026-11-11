@@ -162,9 +162,22 @@ collect_dmesg() {
     fi
 }
 
-# collect_pci HOST: the CX8 functions in lspci (a CX5 and virtual functions do not count)
+# count_cx8 TEXT: sets CX8_N to the CX8 functions in `lspci -nn` output (a CX5 and virtual functions do not
+# count). Also used by node_repair.sh.
+count_cx8() {
+    local line low
+    CX8_N=0
+    while IFS= read -r line; do
+        low=${line,,}
+        [[ $low =~ $CX_RE ]] || continue
+        [[ $low =~ $NOT_CX8_RE ]] && continue
+        CX8_N=$((CX8_N + 1))
+    done <<<"$1"
+}
+
+# collect_pci HOST: the CX8 functions in lspci
 collect_pci() {
-    local host=$1 line low n=0
+    local host=$1 n
     run_tool "$host" lspci -nn
     if tool_missing; then
         item WARN cx8-pci "lspci not installed"
@@ -173,12 +186,8 @@ collect_pci() {
         item WARN cx8-pci "lspci failed (exit $RUN_RC): $(first_line "$RUN_OUT")"
         return
     fi
-    while IFS= read -r line; do
-        low=${line,,}
-        [[ $low =~ $CX_RE ]] || continue
-        [[ $low =~ $NOT_CX8_RE ]] && continue
-        n=$((n + 1))
-    done <<<"$RUN_OUT"
+    count_cx8 "$RUN_OUT"
+    n=$CX8_N
     if ((n == 0)); then
         item WARN cx8-pci "lspci shows no Mellanox/ConnectX line (no card, or a device string this script does not know)"
         return
@@ -355,15 +364,22 @@ diag_verdict() {
     if ((${#HW_WHY[@]} == 0 && PORTS_KNOWN && ${#PORTS_NOT_UP[@]} > 0)); then
         down_text=$(short_join ", " 3 "${PORTS_NOT_UP[@]}")
         if ((CX8_COUNT >= 0)); then
-            SW_WHY=("$down_text not Up, cards in lspci, no cable message: driver or link state" "${SW_WHY[@]}")
-            NEXT_PARTS+=("check the dmesg lines below; reloading mlx5_core is the lab's call")
+            SW_WHY=("$down_text not Up, cards in lspci, no cable message: driver or link state, run: nplb node fix --links" "${SW_WHY[@]}")
+            NEXT_PARTS+=("run: nplb node fix --links" "check the dmesg lines below; reloading mlx5_core is the lab's call")
         else
             UNKNOWN_WHY+=("$down_text not Up and lspci gave no CX8 count")
         fi
     fi
     if ((${#HW_WHY[@]} > 0)); then
         VERDICT="VERDICT: HARDWARE ($(join_by "; " "${HW_WHY[@]}"))"
-        NEXT_PARTS=("take this report to the lab staff (cables, card or GPUs); nothing here repairs it")
+        # The verdict is cut at 100 columns on the page, so the rescan hint goes on the next line.
+        if ((CX8_COUNT >= 0 && CX8_COUNT < EXPECT_CX8 && ${#HW_WHY[@]} == 1)); then
+            NEXT_PARTS=("try once: nplb node fix --rescan, if the count stays the card is for the lab")
+        elif ((CX8_COUNT >= 0 && CX8_COUNT < EXPECT_CX8)); then
+            NEXT_PARTS=("take this report to the lab staff (cables, card or GPUs)" "try once: nplb node fix --rescan")
+        else
+            NEXT_PARTS=("take this report to the lab staff (cables, card or GPUs); nothing here repairs it")
+        fi
     elif ((${#SW_WHY[@]} > 0)); then
         VERDICT="VERDICT: SOFTWARE ($(join_by "; " "${SW_WHY[@]}"))"
     elif ((${#UNKNOWN_WHY[@]} > 0)); then
