@@ -5,6 +5,8 @@ Fake transport only — the real install over SSH is user-verified on Leonardo.
 
 from __future__ import annotations
 
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,15 +16,17 @@ pytest.importorskip("fastapi", reason="web extra not installed")
 from conftest import auth_client  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
-from crab.web.errors import InputError  # noqa: E402
+from crab.web.errors import ContractError, InputError, RemoteCommandError  # noqa: E402
 from crab.web.remoteops.bootstrap import (  # noqa: E402
     CRAB_REPO_BRANCH,
     CRAB_REPO_URL,
+    _clone_command,
     build_install_command,
     default_plan,
     detect,
     install,
 )
+from crab.web.remoteops.crab_cli import run_crab_json  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.profiles import Profile  # noqa: E402
@@ -99,6 +103,61 @@ def test_install_command_without_pre():
     assert "&&  &&" not in cmd  # no empty pre segment
 
 
+def test_install_command_clones_only_when_there_is_no_checkout():
+    cmd = build_install_command(_profile(), [])
+    # The clone is guarded by the `.git` folder, and the build still follows it.
+    assert 'test -d "$HOME"/CRAB/.git || git clone' in cmd
+    assert cmd.index("test -d") < cmd.index("git clone") < cmd.index("make venv")
+    assert "unless it is already there" in default_plan(_profile())[0].label
+
+
+def _fake_git(tmp_path: Path) -> tuple[Path, Path]:
+    """A `git` that records its call and fails, so a clone shows up as a marker file."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    marker = tmp_path / "git-called"
+    git = bin_dir / "git"
+    git.write_text(f'#!/bin/sh\necho "$@" > {marker}\nexit 1\n')
+    git.chmod(0o755)
+    return bin_dir, marker
+
+
+def _run_clone_chain(profile: Profile, bin_dir: Path) -> subprocess.CompletedProcess[str]:
+    chain = f"{_clone_command(profile)} && echo BUILD-STEPS-REACHED"
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    return subprocess.run(
+        ["bash", "-c", chain], env=env, capture_output=True, text=True, timeout=30, check=False
+    )
+
+
+def test_clone_step_is_skipped_when_the_folder_is_already_a_clone(tmp_path: Path):
+    base = tmp_path / "base"
+    (base / "CRAB" / ".git").mkdir(parents=True)  # a half-built folder: clone, no .venv
+    bin_dir, marker = _fake_git(tmp_path)
+    profile = _profile()
+    profile.remote_crab = str(base)
+
+    run = _run_clone_chain(profile, bin_dir)
+
+    assert run.returncode == 0, run.stderr
+    assert "BUILD-STEPS-REACHED" in run.stdout  # the chain continues to the build steps
+    assert not marker.exists()  # git was never called
+
+
+def test_clone_step_runs_when_there_is_no_checkout(tmp_path: Path):
+    base = tmp_path / "base"
+    base.mkdir()
+    bin_dir, marker = _fake_git(tmp_path)
+    profile = _profile()
+    profile.remote_crab = str(base)
+
+    run = _run_clone_chain(profile, bin_dir)
+
+    assert run.returncode != 0  # the fake git fails, so the chain stops
+    assert "BUILD-STEPS-REACHED" not in run.stdout
+    assert "clone --branch develop" in marker.read_text()
+
+
 async def test_detect_installed_vs_missing():
     p = _profile()
     ok = await detect(FakeTransport(), p)
@@ -109,6 +168,90 @@ async def test_detect_installed_vs_missing():
 
     unparsable = await detect(FakeTransport(stdout="garbage", rc=0), p)
     assert not unparsable.installed
+
+
+async def test_detect_no_checkout_is_not_installed():
+    p = _profile()
+    cd_failed = await detect(
+        FakeTransport(
+            stdout="",
+            rc=1,
+            stderr="bash: line 1: cd: /home/u/CRAB: No such file or directory\n",
+        ),
+        p,
+    )
+    assert cd_failed.installed is False
+    assert cd_failed.reason and "No such file or directory" in cd_failed.reason
+
+    not_found = await detect(
+        FakeTransport(stdout="", rc=127, stderr="bash: line 1: crab: command not found\n"), p
+    )
+    assert not_found.installed is False
+    assert not_found.reason and "command not found" in not_found.reason
+
+    # Exit 127 alone (the shell could not find the command) is enough.
+    bare_127 = await detect(FakeTransport(stdout="bash: crab: not found", rc=127), p)
+    assert bare_127.installed is False and bare_127.reason
+
+
+async def test_detect_missing_venv_is_not_installed():
+    result = await detect(
+        FakeTransport(
+            stdout="",
+            rc=1,
+            stderr="bash: line 1: /home/u/CRAB/.venv/bin/activate: No such file or directory\n",
+        ),
+        _profile(),
+    )
+    assert result.installed is False
+    assert result.reason and "activate" in result.reason
+
+
+async def test_detect_crab_that_ran_and_failed_raises_with_the_traceback():
+    stderr = (
+        "Traceback (most recent call last):\n"
+        '  File "/home/u/CRAB/.venv/bin/crab", line 5, in <module>\n'
+        "    from crab.cli import main\n"
+        "ImportError: cannot import name 'main' from 'crab.cli'\n"
+    )
+    with pytest.raises(RemoteCommandError) as excinfo:
+        await detect(FakeTransport(stdout="", rc=1, stderr=stderr), _profile())
+    assert "ImportError: cannot import name 'main'" in (excinfo.value.detail or "")
+
+    # A traceback that merely mentions a missing file is still CRAB failing, not CRAB missing.
+    stderr = (
+        "Traceback (most recent call last):\n"
+        "FileNotFoundError: [Errno 2] No such file or directory: 'settings.toml'\n"
+    )
+    with pytest.raises(RemoteCommandError):
+        await detect(FakeTransport(stdout="", rc=1, stderr=stderr), _profile())
+
+
+async def test_detect_survives_login_noise_before_the_json():
+    stdout = f"Welcome to the cluster\nModule loaded\n{_INFO_JSON}\n"
+    result = await detect(FakeTransport(stdout=stdout), _profile())
+    assert result.installed is True
+    assert result.info is not None and result.info["presets"][0]["name"] == "leonardo"
+
+
+async def test_run_crab_json_takes_the_last_json_object_line():
+    p = _profile()
+    args = ["info", "--json"]
+    noisy_after = await run_crab_json(
+        FakeTransport(stdout='{"old": 1}\nnoise\n{"new": 2}\nbye\n'), p, args
+    )
+    assert noisy_after == {"new": 2}
+
+    # A pretty-printed object (several lines) still parses as a whole.
+    pretty = await run_crab_json(FakeTransport(stdout='{\n  "a": 1,\n  "b": {}\n}\n'), p, args)
+    assert pretty == {"a": 1, "b": {}}
+
+    # An indented list of empty objects is a list, not its last `{}` line.
+    as_list = await run_crab_json(FakeTransport(stdout="[\n  {},\n  {}\n]\n"), p, args)
+    assert as_list == [{}, {}]
+
+    with pytest.raises(ContractError):
+        await run_crab_json(FakeTransport(stdout="Welcome\nno json here\n"), p, args)
 
 
 async def test_install_captures_output():

@@ -18,14 +18,20 @@ clone and build. The result is captured and returned in one go, and a final
 
 from __future__ import annotations
 
+import re
 import shlex
 
 from pydantic import BaseModel
 
 from crab.cli.contract import CONTRACT_SCHEMA
-from crab.web.connections.transport import Transport
-from crab.web.errors import ContractError, InputError, RemoteCommandError
-from crab.web.remoteops.crab_cli import crab_dir, remote_path_expr, run_crab_json
+from crab.web.connections.transport import CmdResult, Transport
+from crab.web.errors import ContractError, InputError
+from crab.web.remoteops.crab_cli import (
+    build_crab_command,
+    crab_dir,
+    parse_crab_json,
+    remote_path_expr,
+)
 from crab.web.store.profiles import Profile
 
 CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
@@ -98,10 +104,13 @@ def ensure_installable(profile: Profile) -> None:
 
 
 def _clone_command(profile: Profile) -> str:
-    # Clones into a `CRAB` subfolder of the profile's base dir (see crab_dir).
+    # Clones into a `CRAB` subfolder of the profile's base dir (see crab_dir), unless that
+    # folder is already a clone (a half-built earlier install): then the `&&` chain goes
+    # straight on to the build steps.
+    target = remote_path_expr(crab_dir(profile))
     return (
-        f"git clone --branch {CRAB_REPO_BRANCH} {CRAB_REPO_URL} "
-        f"{remote_path_expr(crab_dir(profile))}"
+        f"{{ test -d {remote_path_expr(crab_dir(profile) + '/.git')} || "
+        f"git clone --branch {CRAB_REPO_BRANCH} {CRAB_REPO_URL} {target}; }}"
     )
 
 
@@ -120,7 +129,11 @@ def default_plan(profile: Profile) -> list[BootstrapStep]:
     run joins them into one shell, see :func:`build_install_command`)."""
     ensure_installable(profile)
     return [
-        BootstrapStep(id="clone", label="Clone the repository", command=_clone_command(profile)),
+        BootstrapStep(
+            id="clone",
+            label="Clone the repository, unless it is already there",
+            command=_clone_command(profile),
+        ),
         BootstrapStep(id="build", label="Build and install", command=_build_command(profile)),
     ]
 
@@ -135,16 +148,52 @@ def build_install_command(profile: Profile, pre_commands: list[str]) -> str:
     return f"bash -lc {shlex.quote(inner)}"
 
 
+# What bash prints when the checkout, the venv's activate file or the `crab` command is
+# missing. Anchored to a shell-prefixed line, so a Python traceback that merely mentions a
+# missing file is not mistaken for "no CRAB here".
+_NO_CRAB_LINE = re.compile(
+    r"^(?:-?bash|sh)(?:: line \d+)?: .*(?:No such file or directory|command not found)",
+    re.MULTILINE,
+)
+_SHELL_COMMAND_NOT_FOUND = 127
+
+
+def _no_crab_reason(result: CmdResult) -> str | None:
+    """A plain sentence when a failed ``crab info`` means "there is no CRAB here", else None."""
+    text = f"{result.stderr}\n{result.stdout}"
+    match = _NO_CRAB_LINE.search(text)
+    if match is not None:
+        return f"CRAB was not found on this cluster: {match.group(0).strip()}"
+    if result.rc == _SHELL_COMMAND_NOT_FOUND:
+        first = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
+        reason = "CRAB was not found on this cluster (the crab command does not exist there)."
+        return f"{reason} {first}" if first else reason
+    return None
+
+
 async def detect(transport: Transport, profile: Profile) -> DetectResult:
     """Is a usable CRAB present? Runs ``crab info --json``.
 
-    A missing or broken CRAB comes back as ``installed=False`` (the expected
-    case that triggers install), not an exception. A dropped or timed-out
-    connection still raises ``RemoteConnectionError`` from the transport.
+    There are three outcomes:
+
+    * CRAB answered: ``installed=True``.
+    * There is no CRAB to run (checkout or venv missing, ``crab`` not found, or output with
+      no JSON at all): ``installed=False`` with a reason, the case that offers Install.
+    * CRAB is there but failed (for example a Python traceback): ``RemoteCommandError``
+      propagates with the cluster's own output as ``detail``, so the user sees why and no
+      install is offered over a working checkout.
+
+    A dropped or timed-out connection raises ``RemoteConnectionError`` from the transport.
     """
+    args = ["info", "--json"]
+    result = await transport.run(build_crab_command(profile, args), timeout=30.0)
+    if not result.ok:
+        reason = _no_crab_reason(result)
+        if reason is not None:
+            return DetectResult(installed=False, reason=reason)
     try:
-        info = await run_crab_json(transport, profile, ["info", "--json"])
-    except (RemoteCommandError, ContractError) as exc:
+        info = parse_crab_json(args, result)
+    except ContractError as exc:
         return DetectResult(installed=False, reason=exc.message)
     return DetectResult(installed=True, info=info, skew=contract_skew(info))
 

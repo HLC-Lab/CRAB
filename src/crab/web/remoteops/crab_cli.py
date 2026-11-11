@@ -92,13 +92,36 @@ def output_tail(result: CmdResult, limit: int = 2000) -> str:
     return (result.stderr or result.stdout or "").strip()[-limit:]
 
 
-async def run_crab_json(
-    transport: Transport, profile: Profile, args: list[str], timeout: float = 30.0
-) -> Any:
-    """Run ``crab <args>`` (which must include ``--json``) and parse the result."""
-    command = build_crab_command(profile, args)
-    result = await transport.run(command, timeout=timeout)
+def _parse_json_output(stdout: str) -> Any:
+    """Parse ``crab --json`` output that a login shell may have wrapped in noise.
 
+    The whole output is tried first (so pretty-printed JSON and lists work). If that
+    fails, the last non-empty line that is a JSON object wins: a greeting or a module
+    message before or after the JSON does not break parsing. Raises ``JSONDecodeError``
+    when no JSON is found.
+    """
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as whole:
+        for line in reversed(stdout.splitlines()):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        raise whole
+
+
+def parse_crab_json(args: list[str], result: CmdResult) -> Any:
+    """The JSON a finished ``crab <args>`` printed, or a typed error.
+
+    A nonzero exit raises ``RemoteCommandError`` (``detail`` is the output tail);
+    output without any JSON raises ``ContractError``.
+    """
     if not result.ok:
         raise RemoteCommandError(
             f"`crab {' '.join(args)}` failed on the cluster (exit {result.rc}).",
@@ -106,7 +129,7 @@ async def run_crab_json(
         )
 
     try:
-        return json.loads(result.stdout)
+        return _parse_json_output(result.stdout)
     except json.JSONDecodeError as exc:
         raise ContractError(
             "Could not parse JSON from the cluster's `crab` output: the remote "
@@ -115,3 +138,12 @@ async def run_crab_json(
             detail=f"{exc}; stdout[:500]={result.stdout[:500]!r}; "
             f"stderr[:500]={result.stderr[:500]!r}",
         ) from exc
+
+
+async def run_crab_json(
+    transport: Transport, profile: Profile, args: list[str], timeout: float = 30.0
+) -> Any:
+    """Run ``crab <args>`` (which must include ``--json``) and parse the result."""
+    command = build_crab_command(profile, args)
+    result = await transport.run(command, timeout=timeout)
+    return parse_crab_json(args, result)
