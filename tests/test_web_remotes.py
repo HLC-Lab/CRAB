@@ -381,3 +381,87 @@ def test_rename_closes_the_stale_connection(tmp_path: Path):
         # The live connection was keyed by the old name; it must not linger.
         assert app.state.manager.get("leonardo") is None
         assert client.get("/api/remotes").json()[0]["name"] == "leo2"
+
+
+# --------------------------------------------------------------------------- #
+# Connect: a failed CRAB check must not leave the cluster shown as connected
+# --------------------------------------------------------------------------- #
+class _CountingTransport(FakeTransport):
+    def __init__(self) -> None:
+        super().__init__()
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
+
+
+def _counting_client(tmp_path: Path, transport: FakeTransport):
+    async def connector(profile, password):
+        return transport
+
+    app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
+    return auth_client(app)
+
+
+def test_connect_disconnects_the_transport_when_detect_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from crab.web.errors import RemoteConnectionError
+
+    async def failing_detect(transport, profile):
+        raise RemoteConnectionError("Timed out waiting for crab info.")
+
+    monkeypatch.setattr("crab.web.api.remotes.detect", failing_detect)
+    transport = _CountingTransport()
+    with _counting_client(tmp_path, transport) as client:
+        assert client.post("/api/remotes", json=_leonardo().model_dump()).status_code == 201
+
+        resp = client.post("/api/remotes/leonardo/connect")
+
+        assert resp.status_code == 502
+        assert resp.json()["code"] == "connection_error"
+        assert "Timed out" in resp.json()["message"]
+        assert client.app.state.manager.get("leonardo") is None
+        assert transport.close_calls == 1
+        assert client.get("/api/remotes").json()[0]["connected"] is False
+
+
+def test_connect_failure_still_reports_the_original_error_when_close_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from crab.web.errors import RemoteConnectionError
+
+    async def failing_detect(transport, profile):
+        raise RemoteConnectionError("Timed out waiting for crab info.")
+
+    class BrokenClose(_CountingTransport):
+        async def close(self) -> None:
+            self.close_calls += 1
+            raise OSError("socket already gone")
+
+    monkeypatch.setattr("crab.web.api.remotes.detect", failing_detect)
+    transport = BrokenClose()
+    with _counting_client(tmp_path, transport) as client:
+        assert client.post("/api/remotes", json=_leonardo().model_dump()).status_code == 201
+
+        resp = client.post("/api/remotes/leonardo/connect")
+
+        assert resp.status_code == 502
+        assert "Timed out" in resp.json()["message"]
+        assert transport.close_calls == 1
+        assert client.app.state.manager.get("leonardo") is None
+
+
+def test_connect_keeps_the_transport_when_detect_succeeds(tmp_path: Path):
+    transport = _CountingTransport()
+    with _counting_client(tmp_path, transport) as client:
+        assert client.post("/api/remotes", json=_leonardo().model_dump()).status_code == 201
+
+        resp = client.post("/api/remotes/leonardo/connect")
+
+        assert resp.status_code == 200
+        assert resp.json()["connected"] is True
+        assert client.app.state.manager.get("leonardo") is transport
+        assert transport.close_calls == 0
+        assert client.get("/api/remotes").json()[0]["connected"] is True

@@ -218,8 +218,8 @@ function confirmRemove(name: string) {
           </div>
         </div>
 
-        <!-- Real connection or auth failures (nothing connected) are shown as-is. -->
-        <p v-if="!r.connected && store.connectError[r.name]" class="banner err small">
+        <!-- Real connection or auth failures are shown as-is, also while a profile is listed as connected. -->
+        <p v-if="store.connectError[r.name]" class="banner err small">
           {{ store.connectError[r.name] }}
         </p>
 

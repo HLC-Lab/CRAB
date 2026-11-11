@@ -15,10 +15,14 @@ vi.mock("@/api/client", () => ({
       bootstrap: { plan: vi.fn(), install: vi.fn(), verify: vi.fn() },
     },
   },
-  ApiError: class ApiError extends Error {},
+  ApiError: class ApiError extends Error {
+    constructor(env: { code: string; message: string }) {
+      super(env.message);
+    }
+  },
 }));
 
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import { useRemotesStore } from "@/stores/remotes";
 
 const INFO = { schema: 1, crab_version: "0.1.0", crab_root: "/h/CRAB", presets: [] };
@@ -82,5 +86,54 @@ describe("remotes store contract skew", () => {
     const store = useRemotesStore();
     await store.install("leo", []);
     expect(store.skew.leo).toBe(OLDER);
+  });
+});
+
+describe("remotes store connect error", () => {
+  const TIMEOUT = "The cluster did not answer in time.";
+
+  function connectFails(message: string) {
+    vi.mocked(api.remotes.connect).mockRejectedValue(
+      new ApiError({ code: "connection_error", message }, 502),
+    );
+  }
+
+  it("sets the error after a failed connect", async () => {
+    connectFails(TIMEOUT);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    expect(store.connectError.leo).toBe(TIMEOUT);
+    expect(store.busy.leo).toBe(false);
+  });
+
+  it("clears the error after a later successful connect", async () => {
+    connectFails(TIMEOUT);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    connectReturns(null);
+    await store.connect("leo");
+    expect(store.connectError.leo).toBeUndefined();
+  });
+
+  it("clears the error when a new connect starts", async () => {
+    connectFails(TIMEOUT);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    let seen: string | undefined = "unset";
+    vi.mocked(api.remotes.connect).mockImplementation(async () => {
+      seen = store.connectError.leo;
+      return { connected: true, info: INFO, crab_installed: true, reason: null, skew: null };
+    });
+    await store.connect("leo");
+    expect(seen).toBeUndefined();
+  });
+
+  it("keeps the error with the profile listed as not connected", async () => {
+    vi.mocked(api.remotes.list).mockResolvedValue([{ name: "leo", connected: false }] as never);
+    connectFails(TIMEOUT);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    expect(store.items.find((r) => r.name === "leo")?.connected).toBe(false);
+    expect(store.connectError.leo).toBe(TIMEOUT);
   });
 });
