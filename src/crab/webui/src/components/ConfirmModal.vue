@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useId } from "vue";
+import ModalDialog from "@/components/ModalDialog.vue";
+
 defineProps<{
   title: string;
   message: string;
@@ -6,19 +9,23 @@ defineProps<{
   cancelLabel?: string;
 }>();
 const emit = defineEmits<{ confirm: []; cancel: [] }>();
+const titleId = useId();
 </script>
 
 <template>
-  <div class="confirm-modal-bg" @click.self="emit('cancel')">
-    <div class="modal">
-      <h2>{{ title }}</h2>
-      <p class="hint">{{ message }}</p>
-      <div class="modal-actions">
-        <button class="btn" @click="emit('cancel')">{{ cancelLabel ?? "Cancel" }}</button>
-        <button class="btn danger" @click="emit('confirm')">{{ confirmLabel ?? "Delete" }}</button>
-      </div>
+  <ModalDialog
+    class="confirm-modal-bg"
+    dialog-class="modal"
+    :labelledby="titleId"
+    @close="emit('cancel')"
+  >
+    <h2 :id="titleId">{{ title }}</h2>
+    <p class="hint">{{ message }}</p>
+    <div class="modal-actions">
+      <button class="btn" autofocus @click="emit('cancel')">{{ cancelLabel ?? "Cancel" }}</button>
+      <button class="btn danger" @click="emit('confirm')">{{ confirmLabel ?? "Delete" }}</button>
     </div>
-  </div>
+  </ModalDialog>
 </template>
 
 <style scoped>
@@ -38,12 +45,14 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>();
   justify-content: center;
   z-index: 60;
 }
-.modal {
+/* The dialog container lives in ModalDialog, not in this component's markup. */
+.confirm-modal-bg :deep(.modal) {
   width: min(28rem, 92vw);
   padding: 1.25rem;
   background: var(--bg1);
   border: 1px solid var(--border);
   border-radius: var(--r2);
+  outline: none;
 }
 .modal h2 {
   font-family: var(--sans);

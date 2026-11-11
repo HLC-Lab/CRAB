@@ -4,6 +4,7 @@
 // app row's "not on this cluster" warning badge), so this component only
 // filters/groups/renders what it's given.
 import { computed, ref } from "vue";
+import ModalDialog from "@/components/ModalDialog.vue";
 import { useCatalogStore } from "@/stores/catalog";
 import type { Wrapper } from "@/api/types";
 
@@ -64,84 +65,87 @@ const canAddFree = computed(
 </script>
 
 <template>
-  <div class="modal-bg" @click.self="emit('close')">
-    <div class="modal card wrapper-modal">
-      <header class="wm-head">
-        <input
-          v-model="wrapperQuery"
-          class="search"
-          placeholder="Search wrappers by name, path, or group…"
-          autofocus
-        />
-        <span class="wm-src">{{ sourceCluster }}</span>
-      </header>
+  <ModalDialog
+    class="modal-bg"
+    dialog-class="modal card wrapper-modal"
+    label="Choose a wrapper"
+    @close="emit('close')"
+  >
+    <header class="wm-head">
+      <input
+        v-model="wrapperQuery"
+        class="search"
+        placeholder="Search wrappers by name, path, or group…"
+        autofocus
+      />
+      <span class="wm-src">{{ sourceCluster }}</span>
+    </header>
 
-      <p v-if="busy" class="wm-state">Loading wrappers…</p>
+    <p v-if="busy" class="wm-state">Loading wrappers…</p>
 
-      <div v-else class="wrapper-list">
-        <p v-if="catalog.localError" class="wm-hint err">Host wrappers: {{ catalog.localError }}</p>
-        <p v-if="sourceCluster && catalog.error[sourceCluster]" class="wm-hint err">
-          {{ sourceCluster }}: {{ catalog.error[sourceCluster] }}
-          <button class="btn" @click="catalog.loadBenchmarks(sourceCluster, true)">Retry</button>
-        </p>
-        <p v-if="!sourceCluster && !catalog.localError" class="wm-hint">
-          No cluster connected, showing wrappers on this host only.
-        </p>
-        <template v-for="[group, items] in wrapperGroups" :key="group">
-          <button type="button" class="wg-head" @click="toggleSuite(group)">
-            <svg
-              class="chev"
-              :class="{ open: isSuiteOpen(group) }"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-            <span class="wg-title">{{ group }}</span>
-          </button>
-          <button
-            v-for="w in items"
-            v-show="isSuiteOpen(group)"
-            :key="w.relpath"
-            class="wrap-row"
-            :class="{ unloadable: !w.loadable }"
-            :title="w.error || w.relpath"
-            @click="emit('choose', w.relpath)"
+    <div v-else class="wrapper-list">
+      <p v-if="catalog.localError" class="wm-hint err">Host wrappers: {{ catalog.localError }}</p>
+      <p v-if="sourceCluster && catalog.error[sourceCluster]" class="wm-hint err">
+        {{ sourceCluster }}: {{ catalog.error[sourceCluster] }}
+        <button class="btn" @click="catalog.loadBenchmarks(sourceCluster, true)">Retry</button>
+      </p>
+      <p v-if="!sourceCluster && !catalog.localError" class="wm-hint">
+        No cluster connected, showing wrappers on this host only.
+      </p>
+      <template v-for="[group, items] in wrapperGroups" :key="group">
+        <button type="button" class="wg-head" @click="toggleSuite(group)">
+          <svg
+            class="chev"
+            :class="{ open: isSuiteOpen(group) }"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
           >
-            <span class="wrap-main">
-              <span class="wrap-name">{{ w.bench_name || w.file }}</span>
-              <span class="wrap-path">{{ subPath(w.relpath, group) }}</span>
-            </span>
-            <span class="wrap-tags">
-              <span class="tag origin" :class="w.origin">{{
-                w.origin === "both" ? "host + remote" : w.origin
-              }}</span>
-              <span v-if="w.metadata.length" class="tag"
-                >{{ w.metadata.length }} metric{{ w.metadata.length === 1 ? "" : "s" }}</span
-              >
-              <span
-                v-if="!w.loadable"
-                class="tag warn"
-                title="Introspection failed. The path still works."
-                >unloadable</span
-              >
-            </span>
-          </button>
-        </template>
-        <p v-if="!wrapperGroups.length && !canAddFree" class="empty">
-          Type a wrapper path to add it.
-        </p>
-      </div>
-
-      <!-- Force a path that isn't in the catalog (e.g. not on the remote yet) -->
-      <button v-if="canAddFree" class="wm-add" @click="emit('choose', trimmedQuery)">
-        + Add "{{ trimmedQuery }}"
-        <span class="wm-add-hint"
-          >use this path even if it's not on {{ sourceCluster || "the cluster" }} yet</span
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+          <span class="wg-title">{{ group }}</span>
+        </button>
+        <button
+          v-for="w in items"
+          v-show="isSuiteOpen(group)"
+          :key="w.relpath"
+          class="wrap-row"
+          :class="{ unloadable: !w.loadable }"
+          :title="w.error || w.relpath"
+          @click="emit('choose', w.relpath)"
         >
-      </button>
+          <span class="wrap-main">
+            <span class="wrap-name">{{ w.bench_name || w.file }}</span>
+            <span class="wrap-path">{{ subPath(w.relpath, group) }}</span>
+          </span>
+          <span class="wrap-tags">
+            <span class="tag origin" :class="w.origin">{{
+              w.origin === "both" ? "host + remote" : w.origin
+            }}</span>
+            <span v-if="w.metadata.length" class="tag"
+              >{{ w.metadata.length }} metric{{ w.metadata.length === 1 ? "" : "s" }}</span
+            >
+            <span
+              v-if="!w.loadable"
+              class="tag warn"
+              title="Introspection failed. The path still works."
+              >unloadable</span
+            >
+          </span>
+        </button>
+      </template>
+      <p v-if="!wrapperGroups.length && !canAddFree" class="empty">
+        Type a wrapper path to add it.
+      </p>
     </div>
-  </div>
+
+    <!-- Force a path that isn't in the catalog (e.g. not on the remote yet) -->
+    <button v-if="canAddFree" class="wm-add" @click="emit('choose', trimmedQuery)">
+      + Add "{{ trimmedQuery }}"
+      <span class="wm-add-hint"
+        >use this path even if it's not on {{ sourceCluster || "the cluster" }} yet</span
+      >
+    </button>
+  </ModalDialog>
 </template>
 
 <style scoped>
@@ -185,11 +189,13 @@ select:focus {
   justify-content: center;
   z-index: 50;
 }
-.modal {
+/* The dialog container (.modal.card.wrapper-modal) lives in ModalDialog, not in
+   this component's markup, so its rules reach it through :deep(). */
+.modal-bg :deep(.modal) {
   width: min(40rem, 92vw);
   padding: 1.25rem;
 }
-.card {
+.modal-bg :deep(.card) {
   background: var(--bg1);
   border: 1px solid var(--border);
   border-radius: var(--r2);
@@ -247,11 +253,12 @@ select:focus {
 }
 
 /* Wrapper picker overlay */
-.wrapper-modal {
+.modal-bg :deep(.wrapper-modal) {
   width: min(44rem, 94vw);
   padding: 0.75rem;
   display: flex;
   flex-direction: column;
+  outline: none;
 }
 .wm-head {
   display: flex;
