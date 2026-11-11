@@ -77,7 +77,8 @@ def test_non_local_host_is_rejected_even_with_token(tmp_path: Path):
     client = TestClient(app, base_url="http://evil.example.com")
     with client:
         resp = client.get("/api/health", headers={"X-Crab-Token": app.state.api_token})
-        assert resp.status_code in (400, 401, 403)
+        assert resp.status_code == 403
+        assert resp.json()["code"] == "forbidden_host"
 
 
 def test_foreign_origin_is_rejected(tmp_path: Path):
@@ -90,7 +91,8 @@ def test_foreign_origin_is_rejected(tmp_path: Path):
                 "Origin": "https://evil.example.com",
             },
         )
-        assert resp.status_code in (400, 401, 403)
+        assert resp.status_code == 403
+        assert resp.json()["code"] == "forbidden_origin"
 
 
 def test_localhost_origin_is_accepted(tmp_path: Path):
@@ -200,7 +202,7 @@ def test_results_get_rejects_encoded_dot_dot(tmp_path: Path):
     _, client = _token_client(tmp_path)
     with client:
         resp = client.get("/api/results/x/%2E%2E/%2E%2E")
-        assert resp.status_code in (400, 404)
+        assert resp.status_code == 404
         assert "experiments" not in resp.json()
 
 
@@ -209,7 +211,7 @@ def test_results_experiments_rejects_encoded_dot_dot(tmp_path: Path):
     with client:
         client.post("/api/remotes", json=_PROFILE)
         resp = client.get("/api/results/leonardo/%2E%2E/%2E%2E/experiments")
-        assert resp.status_code in (400, 404)
+        assert resp.status_code == 404
 
 
 def test_results_fetch_never_writes_outside_the_cache(tmp_path: Path):
@@ -261,7 +263,7 @@ def test_results_fetch_never_writes_outside_the_cache(tmp_path: Path):
         client.post("/api/remotes", json=_PROFILE)
         client.post("/api/remotes/leonardo/connect")
         resp = client.post("/api/results/leonardo/%2E%2E/%2E%2E/fetch")
-        assert resp.status_code in (400, 404)
+        assert resp.status_code == 404
         assert fake.calls == []
 
 
@@ -298,3 +300,276 @@ def test_local_is_reserved_for_this_laptop(tmp_path: Path):
         assert client.post("/api/remotes", json=_PROFILE).status_code == 201
         renamed = client.put("/api/remotes/leonardo", json={**_PROFILE, "name": "local"})
         assert renamed.status_code == 422
+
+
+# --------------------------------------------------------------------------- #
+# Host / Origin / token rules (ADR-013), pinned with exact statuses and codes.
+# The guard checks Host first (403 forbidden_host), then Origin when present
+# (403 forbidden_origin), then the token (401 auth_required), on every method.
+# --------------------------------------------------------------------------- #
+_PORT = 8765
+
+
+def _port_client(tmp_path: Path) -> tuple:
+    app = create_app(_settings(tmp_path))
+    client = TestClient(app, base_url=f"http://127.0.0.1:{_PORT}")
+    return app, client
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "[::1]",
+        f"[::1]:{_PORT}",
+        "localhost",
+        f"localhost:{_PORT}",
+        "127.0.0.1",
+        f"127.0.0.1:{_PORT}",
+    ],
+)
+def test_loopback_host_forms_are_accepted(tmp_path: Path, host: str):
+    app, client = _port_client(tmp_path)
+    with client:
+        resp = client.get(
+            "/api/health", headers={"Host": host, "X-Crab-Token": app.state.api_token}
+        )
+        assert resp.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "localhost.evil.com",
+        f"localhost.evil.com:{_PORT}",
+        "127.0.0.1.evil.com",
+        "evil.com",
+        "",
+        "user@localhost",
+        f"user@localhost:{_PORT}",
+        "user:pass@127.0.0.1",
+    ],
+)
+def test_lookalike_and_malformed_hosts_are_refused_even_with_the_token(tmp_path: Path, host: str):
+    app, client = _port_client(tmp_path)
+    with client:
+        with_token = client.get(
+            "/api/health", headers={"Host": host, "X-Crab-Token": app.state.api_token}
+        )
+        assert with_token.status_code == 403
+        assert with_token.json()["code"] == "forbidden_host"
+        # The host check runs before the token check: a bad host never gets a 401 hint.
+        without_token = client.get("/api/health", headers={"Host": host})
+        assert without_token.status_code == 403
+        assert without_token.json()["code"] == "forbidden_host"
+
+
+@pytest.mark.parametrize("method", ["post", "put", "delete"])
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "null",
+        "http://evil.com",
+        "https://evil.com:8765",
+        "http://localhost.evil.com",
+        "http://127.0.0.1.evil.com",
+        "http://localhost@evil.com",
+        "",
+    ],
+)
+def test_foreign_or_null_origin_is_refused_on_mutating_requests(
+    tmp_path: Path, method: str, origin: str
+):
+    app, client = _port_client(tmp_path)
+    headers = {"X-Crab-Token": app.state.api_token, "Origin": origin}
+    with client:
+        if method == "post":
+            resp = client.post("/api/remotes", headers=headers, json=_PROFILE)
+        elif method == "put":
+            resp = client.put("/api/remotes/leonardo", headers=headers, json=_PROFILE)
+        else:
+            resp = client.delete("/api/remotes/leonardo", headers=headers)
+        assert resp.status_code == 403
+        assert resp.json()["code"] == "forbidden_origin"
+        # The refused POST created nothing.
+        listed = client.get("/api/remotes", headers={"X-Crab-Token": app.state.api_token})
+        assert listed.json() == []
+
+
+@pytest.mark.parametrize(
+    "origin", [f"http://127.0.0.1:{_PORT}", f"http://localhost:{_PORT}", f"http://[::1]:{_PORT}"]
+)
+def test_same_origin_forms_are_accepted_on_mutating_requests(tmp_path: Path, origin: str):
+    app, client = _port_client(tmp_path)
+    headers = {"X-Crab-Token": app.state.api_token, "Origin": origin}
+    with client:
+        assert client.post("/api/remotes", headers=headers, json=_PROFILE).status_code == 201
+        assert (
+            client.put("/api/remotes/leonardo", headers=headers, json=_PROFILE).status_code == 200
+        )
+        assert client.delete("/api/remotes/leonardo", headers=headers).status_code == 204
+
+
+def test_a_request_without_origin_is_judged_on_host_and_token_alone(tmp_path: Path):
+    # Non-browser callers (curl, the TestClient) send no Origin: the guard lets them
+    # through when Host and token are right, and the token still decides.
+    app, client = _port_client(tmp_path)
+    with client:
+        ok = client.post(
+            "/api/remotes", headers={"X-Crab-Token": app.state.api_token}, json=_PROFILE
+        )
+        assert ok.status_code == 201
+        bare = client.post("/api/remotes", json={**_PROFILE, "name": "other"})
+        assert bare.status_code == 401
+        assert bare.json()["code"] == "auth_required"
+
+
+# One request per live router (every router `create_app` includes). The guard runs
+# before routing, so nothing below reaches a handler: the answer is the guard's own.
+_ROUTER_ROUTES = [
+    ("remotes", "GET", "/api/remotes"),
+    ("bootstrap", "POST", "/api/remotes/leonardo/bootstrap/plan"),
+    ("wrappers", "GET", "/api/wrappers/local/list"),
+    ("experiments", "GET", "/api/experiments"),
+    ("local", "GET", "/api/local/benchmarks"),
+    ("jobs_submit", "POST", "/api/jobs/submit"),
+    ("jobs", "GET", "/api/jobs"),
+    ("jobs_report", "GET", "/api/jobs/report/demo"),
+    ("results", "GET", "/api/results"),
+]
+
+
+@pytest.mark.parametrize("token", [None, "", "nope", "x" * 200])
+@pytest.mark.parametrize("router_name,method,path", _ROUTER_ROUTES)
+def test_every_live_router_refuses_a_missing_or_wrong_token(
+    tmp_path: Path, router_name: str, method: str, path: str, token: str | None
+):
+    _, client = _port_client(tmp_path)
+    headers = {} if token is None else {"X-Crab-Token": token}
+    with client:
+        resp = client.request(method, path, headers=headers, json={} if method == "POST" else None)
+        assert resp.status_code == 401, router_name
+        body = resp.json()
+        assert body["code"] == "auth_required"
+        assert body["message"]
+
+
+def test_the_session_token_is_accepted_on_the_same_routes(tmp_path: Path):
+    # Counterpart of the refusals above: same client, right token, no 401 on any route.
+    app, client = _port_client(tmp_path)
+    with client:
+        for router_name, method, path in _ROUTER_ROUTES:
+            resp = client.request(
+                method,
+                path,
+                headers={"X-Crab-Token": app.state.api_token},
+                json={} if method == "POST" else None,
+            )
+            assert resp.status_code != 401, router_name
+            assert resp.status_code != 403, router_name
+
+
+# --------------------------------------------------------------------------- #
+# Traversal per path-taking route family: a refusal AND no file outside the data
+# dir touched.
+# --------------------------------------------------------------------------- #
+def test_wrappers_show_refuses_a_relpath_that_climbs_out(tmp_path: Path, monkeypatch):
+    # The guard (`_check_relpath`) must answer 422 before any `crab wrappers show`
+    # runs: with no guard the relpath would be handed to the engine.
+    from crab.web.api import wrappers
+
+    calls: list[object] = []
+
+    async def _spy(*args, **kwargs):
+        calls.append(args)
+        return {}
+
+    monkeypatch.setattr(wrappers, "run_crab_json", _spy)
+    _, client = _token_client(tmp_path)
+    with client:
+        for bad in ("../x", "a/../../x", "..", "/etc/passwd", "-rf", "a/b/../../../c"):
+            resp = client.get("/api/wrappers/local/show", params={"relpath": bad})
+            assert resp.status_code == 422, bad
+            assert resp.json()["code"] == "input_error"
+        # An encoded `..` reaches the handler decoded, and is refused the same way.
+        resp = client.get("/api/wrappers/local/show?relpath=%2E%2E%2Fx")
+        assert resp.status_code == 422
+    assert calls == []
+
+
+def test_wrappers_show_still_accepts_a_plain_relpath(tmp_path: Path, monkeypatch):
+    from crab.web.api import wrappers
+
+    seen: list[list] = []
+
+    async def _spy(transport, profile, args, timeout):
+        seen.append(list(args))
+        return {"relpath": "hpl/hpl.py"}
+
+    monkeypatch.setattr(wrappers, "run_crab_json", _spy)
+    _, client = _token_client(tmp_path)
+    with client:
+        resp = client.get("/api/wrappers/local/show", params={"relpath": "hpl/hpl.py"})
+        assert resp.status_code == 200
+    assert seen == [["wrappers", "show", "hpl/hpl.py", "--json"]]
+
+
+def test_library_store_refuses_an_id_that_climbs_out_and_leaves_the_file(tmp_path: Path):
+    # `experiments/../secret.json` is a file in the data dir, outside the library.
+    from crab.web.errors import InputError
+    from crab.web.store.library import LibraryStore
+
+    settings = _settings(tmp_path)
+    settings.experiments_dir.mkdir(parents=True)
+    secret = settings.experiments_dir.parent / "secret.json"
+    secret.write_text('{"id": "secret", "name": "n", "updated_at": "t", "config": {}}')
+    store = LibraryStore(settings)
+    for bad in ("../secret", "../data/secret", "..", ".", "a/b", "/etc/passwd", "-x", "A"):
+        with pytest.raises(InputError):
+            store.get(bad)
+        with pytest.raises(InputError):
+            store.delete(bad)
+        with pytest.raises(InputError):
+            store.update(bad, "n", {})
+        with pytest.raises(InputError):
+            store.duplicate(bad)
+    assert secret.read_text().startswith('{"id": "secret"')
+    assert sorted(p.name for p in settings.data_dir.iterdir()) == ["experiments", "secret.json"]
+    assert list(settings.experiments_dir.iterdir()) == []
+
+
+def test_experiments_routes_refuse_a_dot_dot_id_and_leave_the_files(tmp_path: Path):
+    settings = _settings(tmp_path)
+    settings.experiments_dir.mkdir(parents=True)
+    secret = settings.experiments_dir.parent / "secret.json"
+    secret.write_text('{"keep": true}')
+    _, client = _token_client(tmp_path)
+    with client:
+        for method, path in (
+            ("GET", "/api/experiments/%2E%2E"),
+            ("PUT", "/api/experiments/%2E%2E"),
+            ("DELETE", "/api/experiments/%2E%2E"),
+            ("POST", "/api/experiments/%2E%2E/duplicate"),
+        ):
+            resp = client.request(
+                method,
+                path,
+                json={"name": "n", "config": {}} if method == "PUT" else None,
+            )
+            assert resp.status_code == 422, (method, path)
+            assert resp.json()["code"] == "input_error"
+        # A slash in the id never matches the route; the decoded path falls past every
+        # API route, so nothing reaches the store (DELETE has no catch-all: 405).
+        slashed = client.delete("/api/experiments/%2E%2E%2Fsecret")
+        assert slashed.status_code == 405
+    assert secret.read_text() == '{"keep": true}'
+    assert list(settings.experiments_dir.iterdir()) == []
+
+
+def test_remote_profile_routes_refuse_a_dot_dot_name_and_write_nothing(tmp_path: Path):
+    _, client = _token_client(tmp_path)
+    with client:
+        resp = client.post("/api/remotes", json={**_PROFILE, "name": "../../escape"})
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "input_error"
+    # Nothing but the app's own folders under tmp_path.
+    assert {p.name for p in tmp_path.iterdir()} <= {"config", "data"}
