@@ -319,7 +319,7 @@ def cli_router():
     # 3. Web Command
     parser_web = subparsers.add_parser("web", help="Launch the local web dashboard")
     parser_web.add_argument("--host", default=None, help="Bind host (default: 127.0.0.1).")
-    parser_web.add_argument("--port", type=int, default=None, help="Bind port (default: 8765).")
+    parser_web.add_argument("--port", type=int, default=None, help="Bind port (default: 8899).")
     parser_web.add_argument(
         "--no-browser", action="store_true", help="Do not open a browser on start."
     )

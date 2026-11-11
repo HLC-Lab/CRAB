@@ -137,7 +137,7 @@ _LOCAL_HOSTNAMES = {"127.0.0.1", "localhost", "::1"}
 
 
 def _hostname(host_header: str) -> str:
-    """The bare hostname from a Host/Origin-style value ('[::1]:8765' -> '::1')."""
+    """The bare hostname from a Host/Origin-style value ('[::1]:8899' -> '::1')."""
     host = host_header.strip()
     if host.startswith("["):
         return host[1 : host.find("]")]
@@ -170,7 +170,8 @@ def _install_api_guard(app: FastAPI) -> None:
                 return _deny(403, "forbidden_origin", "Cross-site requests are not allowed.")
 
         token = request.headers.get("x-crab-token", "")
-        if not secrets.compare_digest(token, app.state.api_token):
+        # Compare bytes: str inputs raise TypeError on a non-ASCII token.
+        if not secrets.compare_digest(token.encode(), app.state.api_token.encode()):
             return _deny(
                 401,
                 "auth_required",

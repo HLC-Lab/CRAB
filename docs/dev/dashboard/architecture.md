@@ -157,7 +157,7 @@ are normalized on import (split becomes named partitions — semantic, not byte,
 - `crab` is normally installed editable during development: backend (Python) changes need a
   `crab web` restart; frontend rebuilds only need a browser hard-refresh (the SPA shell is
   served `Cache-Control: no-cache`; hashed assets cache forever).
-- Dev loop alternative: `npm run dev` proxies `/api` to a running backend on port 8765.
+- Dev loop alternative: `npm run dev` proxies `/api` to a running backend on port 8899.
 
 ## Related docs
 

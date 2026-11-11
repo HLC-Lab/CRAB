@@ -92,7 +92,7 @@ crab web [--host HOST] [--port PORT] [--no-browser] [-v]
 | Flag | Meaning | Default |
 |------|---------|---------|
 | `--host` | Address to bind. | `127.0.0.1` |
-| `--port` | Port to bind. | `8765`; the `CRAB_WEB_PORT` environment variable sets the default |
+| `--port` | Port to bind. | `8899`; the `CRAB_WEB_PORT` environment variable sets the default |
 | `--no-browser` | Do not open a browser on start. | opens one |
 | `-v`, `--verbose` | Log startup and every request. | warnings and errors only |
 

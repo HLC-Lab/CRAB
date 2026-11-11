@@ -18,6 +18,7 @@ Nothing secret is stored here;
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -31,7 +32,7 @@ APP_AUTHOR = "crab"
 
 # Bound to localhost only: the dashboard is a personal tool, never exposed.
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 8899
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,24 @@ def _resolve_dir(env_var: str, fallback: str) -> Path:
     return override if override is not None else Path(fallback)
 
 
+def _port_from_env() -> int:
+    """``CRAB_WEB_PORT`` if it is a port number, else the default (with a stderr warning)."""
+    raw = os.environ.get("CRAB_WEB_PORT")
+    if not raw:
+        return DEFAULT_PORT
+    try:
+        port = int(raw)
+    except ValueError:
+        port = 0
+    if not 1 <= port <= 65535:
+        print(
+            f"CRAB_WEB_PORT={raw} is not a port number from 1 to 65535; using {DEFAULT_PORT}.",
+            file=sys.stderr,
+        )
+        return DEFAULT_PORT
+    return port
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return the process-wide settings, honouring env overrides. Cached."""
@@ -109,9 +128,5 @@ def get_settings() -> Settings:
     )
     data_dir = _resolve_dir("CRAB_WEB_DATA_DIR", platformdirs.user_data_dir(APP_NAME, APP_AUTHOR))
     library_dir = paths.env_path("CRAB_WEB_LIBRARY_DIR")
-    port_raw = os.environ.get("CRAB_WEB_PORT")
-    try:
-        port = int(port_raw) if port_raw else DEFAULT_PORT
-    except ValueError:
-        port = DEFAULT_PORT
+    port = _port_from_env()
     return Settings(config_dir=config_dir, data_dir=data_dir, port=port, library_dir=library_dir)

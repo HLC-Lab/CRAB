@@ -25,13 +25,13 @@ crab web
 If the extra is missing, `crab web` offers to install it into the active environment and asks for a
 `y` first.
 
-`crab web` starts a server on this laptop and opens `http://127.0.0.1:8765` in your default
+`crab web` starts a server on this laptop and opens `http://127.0.0.1:8899` in your default
 browser. It prints the address and runs until you stop it.
 
 | Flag | Meaning |
 |---|---|
 | `--host HOST` | The address to bind. The default is `127.0.0.1`. |
-| `--port PORT` | The port. The default is `8765`. The environment variable `CRAB_WEB_PORT` sets the default, and the flag wins. |
+| `--port PORT` | The port. The default is `8899`. The environment variable `CRAB_WEB_PORT` sets the default, and the flag wins. |
 | `--no-browser` | Do not open a browser. Open the address yourself. |
 | `-v`, `--verbose` | Log startup and every request. The default prints only warnings and errors. |
 
