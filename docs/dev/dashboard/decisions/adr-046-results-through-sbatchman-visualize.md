@@ -5,9 +5,12 @@
 
 ## Context
 
-On the SbatchMan line, a partner launches jobs with `sbatchman launch` and each job leaves its CRAB CSVs under
-`SbatchMan/experiments/<cluster>/<config>/<tag>/<timestamp>/run/data_app_<i>.csv`. Until now the docs said to read those
-files by hand, and an earlier note said CRAB benchmarks ship no `parser.py` or `plots.json`.
+On the SbatchMan line, a partner launches jobs with `sbatchman launch` and each job leaves its CRAB CSVs in one folder per
+experiment under `SbatchMan/experiments/<cluster>/<config>/<tag>/<timestamp>/`, as `<experiment>/data_app_<i>.csv`. The
+folder is named after the experiment's key in the job's `config.json`. A job with several experiments (`r1_baseline`,
+`r1_noise`, ...) has those folders directly under the job folder; a job with one experiment, such as `smoke.yaml`, names
+it `run`. Until now the docs said to read those files by hand, and an earlier note said CRAB benchmarks ship no
+`parser.py` or `plots.json`.
 
 `sbatchman visualize` (SbatchMan 2.0.4) is a plot builder that loads results only through a `parse(job)` function in a
 `parser.py`. Facts checked against the installed 2.0.4 source and a run on a laptop copy of a fetched project:
@@ -23,15 +26,22 @@ files by hand, and an earlier note said CRAB benchmarks ship no `parser.py` or `
 
 ## Decision
 
-- CRAB's SbatchMan examples ship one generic `parser.py` and one starter `plots.json` per benchmark. The parser returns
-  `None` unless the job is `COMPLETED`; otherwise it reads every `data_app_*.csv` under the job's `run/` folder and adds
-  the app index, tag, config, job id and the job's variables as columns.
+- One generic `parser.py` and one starter `plots.json` per benchmark read the results (see "Where the files live"). The
+  parser returns `None` for jobs that are still running or pending. For every job that finished with data, including
+  failed or timed-out ones, it reads every `data_app_*.csv` in every experiment folder of the job and adds the
+  app index, tag, config, job id and the job's variables as columns.
 - Results are explored on the laptop: fetch the project's `SbatchMan/` folder, then run `sbatchman visualize` in the
   benchmark folder that holds `parser.py` and `plots.json`. Nothing long-running starts on a login node.
 - `crab web` stays the tool for writing and watching experiments; the two dashboards are separate and the docs tell the
   laptop to run `crab web` on another port.
 - CRAB does not patch SbatchMan: the fixed port and the ignored `--presets` are documented, and are questions for its
   developer.
+
+## Where the files live
+
+`parser.py` and the starter `plots.json` files are not in CRAB's `examples/sbatchman`. They live in the umbrella repo,
+which holds the benchmark campaigns: one shared `parser.py` and one `plots.json` per benchmark. `sbatchman visualize` is
+run in the folder that holds the `plots.json` of the benchmark being explored.
 
 ## Alternatives considered
 

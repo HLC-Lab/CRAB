@@ -524,8 +524,13 @@ change with the noise. Running them in turns (baseline, noise, baseline, noise, 
 any slow drift of the network over both sides.
 
 Reading the CSV is up to you: a spreadsheet, a notebook, or `sbatchman visualize`'s own parser
-script (its `--parser` option, `./parser.py` by default). To parse a saved output again with a
-wrapper, use `crab parse <wrapper> <output file>`.
+script (its `--parser` option, `./parser.py` by default). To explore the results of a fetched
+project with `sbatchman visualize`, use the `parser.py` and starter `plots.json` files from the
+umbrella repo, which hold the benchmark campaigns; they do not ship with CRAB. The parser reads
+jobs that finished with data, including failed or timed-out ones, and skips running or pending
+jobs. A job with several experiments has the experiment folders directly under the job folder; a
+job with one experiment writes into `run/`. To parse a saved output again with a wrapper, use
+`crab parse <wrapper> <output file>`.
 
 ## Track 2: author campaigns on your laptop (optional)
 
