@@ -591,7 +591,7 @@ These are errors, reported before anything is submitted:
 form is a list of complete directives:
 
 ```json
-"sbatch_directives": ["--account=IscrC_FOO", "--qos=normal", "--exclusive"]
+"sbatch_directives": ["--account=MY_PROJECT", "--qos=normal", "--exclusive"]
 ```
 
 A legacy dict form is also accepted (`true` → bare flag, `false` → omitted, value → `--key=value`):
