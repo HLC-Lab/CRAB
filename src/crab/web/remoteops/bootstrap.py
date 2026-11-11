@@ -32,7 +32,7 @@ from crab.web.remoteops.crab_cli import (
     parse_crab_json,
     remote_path_expr,
 )
-from crab.web.store.profiles import Profile
+from crab.web.store.profiles import Profile, check_shell_line
 
 CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
 
@@ -140,9 +140,18 @@ def default_plan(profile: Profile) -> list[BootstrapStep]:
 
 def build_install_command(profile: Profile, pre_commands: list[str]) -> str:
     """The single command that installs CRAB: optional pre-commands once, then
-    the clone and build, all in one login shell so module loads carry over."""
+    the clone and build, all in one login shell so module loads carry over.
+
+    Blank pre-commands are dropped (an editor sends one per line); a pre-command with a
+    newline or ``#`` raises InputError, since ``#`` would comment out the rest of the chain.
+    """
     ensure_installable(profile)
-    pre = [c.strip() for c in pre_commands if c and c.strip()]
+    pre: list[str] = []
+    for number, command in enumerate(pre_commands, start=1):
+        if not command or not command.strip():
+            continue
+        check_shell_line(command, "Pre-command", number)
+        pre.append(command.strip())
     parts = [*pre, _clone_command(profile), _build_command(profile)]
     inner = " && ".join(parts)
     return f"bash -lc {shlex.quote(inner)}"

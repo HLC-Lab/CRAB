@@ -97,6 +97,19 @@ def test_install_command_runs_pre_once_in_one_shell():
     assert i_pre < i_clone < i_build
 
 
+def test_install_command_drops_blank_pre_lines_and_strips_the_rest():
+    cmd = build_install_command(_profile(), ["", "  module load python  ", "   "])
+    assert "module load python &&" in cmd
+    assert "&&  &&" not in cmd and "&& &&" not in cmd
+    assert cmd.index("module load python") < cmd.index("git clone")
+
+
+@pytest.mark.parametrize("bad", ["module load a\nmodule load b", "module load x # comment", "#"])
+def test_install_command_refuses_a_pre_command_with_a_newline_or_hash(bad: str):
+    with pytest.raises(InputError, match="Pre-command 2 must be one line without '#'"):
+        build_install_command(_profile(), ["module load python", bad])
+
+
 def test_install_command_without_pre():
     cmd = build_install_command(_profile(), [])
     assert "git clone" in cmd and "make venv" in cmd
