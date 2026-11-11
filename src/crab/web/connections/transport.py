@@ -78,9 +78,10 @@ class SSHTransport(Transport):
 
     @property
     def alive(self) -> bool:
-        # We track liveness ourselves rather than poking asyncssh internals:
-        # close() and detected drops flip this flag.
-        return not self._closed
+        # Our own flag covers close() and errors we saw on a channel; the connection's
+        # public is_closed() covers a drop asyncssh noticed on its own (e.g. a keepalive
+        # that went unanswered while the transport sat idle).
+        return not self._closed and not self._conn.is_closed()
 
     async def run(self, command: str, timeout: float | None = DEFAULT_TIMEOUT) -> CmdResult:
         try:
@@ -183,6 +184,12 @@ class SSHTransport(Transport):
 # behind the connection manager's lock.
 CONNECT_TIMEOUT_S = 30.0
 
+# SSH keepalives: a probe every KEEPALIVE_INTERVAL_S; after KEEPALIVE_COUNT_MAX unanswered
+# probes asyncssh closes the connection, so an idle drop shows up in SSHTransport.alive and
+# the next call reconnects instead of failing on a dead socket.
+KEEPALIVE_INTERVAL_S = 30
+KEEPALIVE_COUNT_MAX = 3
+
 
 async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTransport:
     """Open an asyncssh connection for ``profile``, mapping failures to our errors.
@@ -211,6 +218,8 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
         "host": profile.host,
         "port": profile.port,
         "username": profile.user,
+        "keepalive_interval": KEEPALIVE_INTERVAL_S,
+        "keepalive_count_max": KEEPALIVE_COUNT_MAX,
         # 'insecure' disables host-key checking; otherwise asyncssh loads the
         # user's ~/.ssh/known_hosts by default.
         "known_hosts": None if profile.hostkey_policy == "insecure" else (),
@@ -294,21 +303,50 @@ async def _discard(staging: Path) -> None:
     await asyncio.to_thread(shutil.rmtree, staging, True)
 
 
+class _RestoreFailed(Exception):
+    """The swap failed and moving the previous cache back failed too."""
+
+    def __init__(self, old: Path, swap_error: OSError, restore_error: OSError) -> None:
+        super().__init__(str(restore_error))
+        self.old = old
+        self.swap_error = swap_error
+        self.restore_error = restore_error
+
+
 async def _swap_in(staging: Path, fresh: Path, local_dir: str) -> None:
     """Replace ``local_dir`` with the freshly fetched tree, then drop the staging dir."""
     target = Path(local_dir)
+    keep_staging = False
 
     def _swap() -> None:
-        if target.exists():
-            target.rename(staging / "old")
-        fresh.rename(target)
+        old = staging / "old"
+        moved_aside = target.exists()
+        if moved_aside:
+            target.rename(old)
+        try:
+            fresh.rename(target)
+        except OSError as exc:
+            if moved_aside:  # keep the previous cache rather than losing both trees
+                try:
+                    old.rename(target)
+                except OSError as restore_exc:
+                    raise _RestoreFailed(old, exc, restore_exc) from exc
+            raise
 
     try:
         await asyncio.to_thread(_swap)
+    except _RestoreFailed as failed:
+        keep_staging = True  # staging holds the only copy of the previous cache
+        raise RemoteCommandError(
+            f"Could not update {local_dir} locally, and the previous copy could not be put "
+            f"back. It is kept at {failed.old}.",
+            detail=f"{failed.swap_error}; restoring the previous copy failed: {failed.restore_error}",
+        ) from failed.swap_error
     except OSError as exc:
         raise RemoteCommandError(f"Could not update {local_dir} locally.", detail=str(exc)) from exc
     finally:
-        await _discard(staging)
+        if not keep_staging:
+            await _discard(staging)
 
 
 class LocalTransport(Transport):
@@ -321,15 +359,26 @@ class LocalTransport(Transport):
         return True
 
     async def run(self, command: str, timeout: float | None = DEFAULT_TIMEOUT) -> CmdResult:
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=paths.neutral_dir(),  # a `crab/` in the caller's folder must not shadow ours
+        )
         try:
-            proc = await asyncio.create_subprocess_shell(
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=paths.neutral_dir(),  # a `crab/` in the caller's folder must not shadow ours
-            )
             out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
+            # Only the process object we started: stop it so it does not run on, unwatched.
+            try:
+                proc.kill()
+            except ProcessLookupError:  # it exited on its own just now
+                pass
+            # Bounded: a grandchild of the shell may outlive it and hold the pipes open, and
+            # on Python 3.10/3.11 wait() can then block until it exits.
+            try:
+                await asyncio.wait_for(proc.wait(), 5)
+            except asyncio.TimeoutError:
+                pass
             raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
                 f"Local command timed out after {timeout:g}s."
             )

@@ -112,6 +112,9 @@ class _FakeSFTPConnection:
     def start_sftp_client(self) -> _FakeSFTPClient:
         return self._sftp
 
+    def is_closed(self) -> bool:
+        return False
+
 
 def test_ssh_transport_fetch_tree_calls_recursive_get(tmp_path: Path):
     sftp = _FakeSFTPClient()
@@ -454,3 +457,146 @@ async def test_local_transport_run_ignores_a_crab_package_in_the_current_folder(
 
     assert result.rc == 0, result.stderr
     assert result.stdout.strip() == crab.__file__
+
+
+# --------------------------------------------------------------------------- #
+# Connection hygiene: keepalive, liveness, local timeout kills its child,
+# _swap_in restores the old cache.
+# --------------------------------------------------------------------------- #
+class _FakeLiveConnection:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def is_closed(self) -> bool:
+        return self.closed
+
+    def close(self) -> None:
+        self.closed = True
+
+    async def wait_closed(self) -> None:
+        return None
+
+
+async def test_connect_ssh_sends_keepalives(monkeypatch: pytest.MonkeyPatch):
+    seen: dict[str, object] = {}
+
+    async def fake_connect(**kwargs: object) -> _FakeLiveConnection:
+        seen.update(kwargs)
+        return _FakeLiveConnection()
+
+    monkeypatch.setattr(asyncssh, "connect", fake_connect)
+    profile = Profile(
+        name="test",
+        host="cluster.example.org",
+        user="test",
+        auth="password",
+        hostkey_policy="insecure",
+    )
+
+    transport = await connect_ssh(profile, password="pw")
+
+    interval = seen["keepalive_interval"]
+    count_max = seen["keepalive_count_max"]
+    assert isinstance(interval, (int, float)) and interval > 0
+    assert isinstance(count_max, int) and count_max >= 1
+    assert transport.alive
+
+
+def test_ssh_transport_alive_follows_the_connection_and_close():
+    conn = _FakeLiveConnection()
+    transport = SSHTransport(conn)  # type: ignore[arg-type]
+    assert transport.alive is True
+
+    conn.closed = True  # asyncssh saw the connection drop
+    assert transport.alive is False
+
+    other = SSHTransport(_FakeLiveConnection())  # type: ignore[arg-type]
+    assert other.alive is True
+    asyncio.run(other.close())
+    assert other.alive is False
+
+
+async def test_local_transport_timeout_kills_the_child_it_started(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    started: list[asyncio.subprocess.Process] = []
+    real_create = asyncio.create_subprocess_shell
+
+    async def recording_create(*args: object, **kwargs: object) -> asyncio.subprocess.Process:
+        proc = await real_create(*args, **kwargs)  # type: ignore[arg-type]
+        started.append(proc)
+        return proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", recording_create)
+    try:
+        with pytest.raises(RemoteConnectionError):
+            await LocalTransport().run("sleep 30", timeout=0.2)
+        [proc] = started
+        assert proc.returncode is not None  # the child is dead, not left running
+    finally:
+        for proc in started:  # only the process object this test's call created
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+
+
+async def test_swap_in_restores_the_old_cache_when_the_second_rename_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from crab.web.connections.transport import _swap_in
+
+    target = tmp_path / "cache" / "job1"
+    target.mkdir(parents=True)
+    (target / "marker.txt").write_text("old\n")
+    staging = tmp_path / "cache" / ".job1.fetch-x"
+    fresh = staging / "tree"
+    fresh.mkdir(parents=True)
+    (fresh / "new.txt").write_text("new\n")
+
+    real_rename = Path.rename
+
+    def flaky_rename(self: Path, new: object) -> Path:
+        if self == fresh:
+            raise OSError("simulated rename failure")
+        return real_rename(self, new)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "rename", flaky_rename)
+
+    with pytest.raises(RemoteCommandError):
+        await _swap_in(staging, fresh, str(target))
+
+    assert (target / "marker.txt").read_text() == "old\n"
+    assert not (target / "new.txt").exists()
+
+
+async def test_swap_in_keeps_the_old_cache_on_disk_when_the_restore_fails_too(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from crab.web.connections.transport import _swap_in
+
+    target = tmp_path / "cache" / "job1"
+    target.mkdir(parents=True)
+    (target / "marker.txt").write_text("old\n")
+    staging = tmp_path / "cache" / ".job1.fetch-x"
+    fresh = staging / "tree"
+    fresh.mkdir(parents=True)
+    old = staging / "old"
+
+    real_rename = Path.rename
+
+    def failing_rename(self: Path, new: object) -> Path:
+        if self == fresh:
+            raise OSError("swap failure")
+        if self == old:
+            raise OSError("restore failure")
+        return real_rename(self, new)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "rename", failing_rename)
+
+    with pytest.raises(RemoteCommandError) as excinfo:
+        await _swap_in(staging, fresh, str(target))
+
+    assert (old / "marker.txt").read_text() == "old\n"  # the only copy was not deleted
+    assert str(old) in excinfo.value.message
+    assert "swap failure" in (excinfo.value.detail or "")
+    assert "restore failure" in (excinfo.value.detail or "")
