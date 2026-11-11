@@ -78,6 +78,15 @@ async function submit() {
   if (ok) closeForm();
 }
 
+// The password lives in the form only until the attempt ends, whatever its outcome.
+async function connectRemote(name: string) {
+  try {
+    await store.connect(name, passwords[name]);
+  } finally {
+    delete passwords[name];
+  }
+}
+
 function confirmRemove(name: string) {
   if (window.confirm(`Remove the remote "${name}"? This only deletes the local profile.`)) {
     store.remove(name);
@@ -185,7 +194,7 @@ function confirmRemove(name: string) {
               v-if="!r.connected"
               class="btn"
               :disabled="store.busy[r.name]"
-              @click="store.connect(r.name, passwords[r.name])"
+              @click="connectRemote(r.name)"
             >
               {{ store.busy[r.name] ? "Connecting…" : "Connect" }}
             </button>
@@ -222,6 +231,10 @@ function confirmRemove(name: string) {
         <p v-if="store.connectError[r.name]" class="banner err small">
           {{ store.connectError[r.name] }}
         </p>
+        <details v-if="store.connectError[r.name] && store.connectDetail[r.name]" class="tech">
+          <summary>Technical details</summary>
+          <pre>{{ store.connectDetail[r.name] }}</pre>
+        </details>
 
         <div v-if="store.info[r.name]" class="info">
           CRAB {{ store.info[r.name].crab_version }} · {{ store.info[r.name].crab_root }}
@@ -509,6 +522,27 @@ select {
 .empty {
   color: var(--text3);
   padding: 2rem 0;
+}
+.tech {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text2);
+}
+.tech summary {
+  cursor: pointer;
+}
+.tech pre {
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  max-height: 12rem;
+  overflow: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Guided install */

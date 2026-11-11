@@ -108,12 +108,17 @@ def register_exception_handlers(app: Any) -> None:
 
     @app.exception_handler(Exception)
     async def _handle_unexpected(_request: Request, exc: Exception) -> JSONResponse:
-        # Unexpected: log the full traceback locally, return a safe generic message.
+        # Unexpected: log the full traceback locally, return a safe generic message. Only the
+        # exception type goes to the client: its text could carry paths or other local state.
         logger.exception("Unhandled backend error: %s", exc)
         return JSONResponse(
             status_code=500,
             content={
                 "code": "internal_error",
-                "message": "An unexpected error occurred. See the dashboard logs for details.",
+                "message": (
+                    "Something went wrong inside the dashboard. Try again; if it keeps "
+                    "happening, look at the terminal where crab web is running."
+                ),
+                "detail": type(exc).__name__,
             },
         )

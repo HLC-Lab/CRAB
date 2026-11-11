@@ -88,13 +88,14 @@ class SSHTransport(Transport):
             result = await asyncio.wait_for(self._conn.run(command, check=False), timeout=timeout)
         except asyncio.TimeoutError:
             raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
-                f"Remote command timed out after {timeout:g}s.",
-                detail=command,
+                f"The cluster did not answer within {timeout:g} seconds. Try again.",
+                detail=f"Remote command timed out after {timeout:g}s: {command}",
             )
         except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
             self._closed = True  # treat any channel error as a drop
             raise RemoteConnectionError(
-                "The SSH connection dropped while running a command.",
+                "The connection to the cluster dropped while running a command. "
+                "Reconnect and try again.",
                 detail=f"{type(exc).__name__}: {exc}",
             ) from exc
         out, err = result.stdout or "", result.stderr or ""
@@ -118,17 +119,22 @@ class SSHTransport(Transport):
             await asyncio.wait_for(_write(), timeout=timeout)
         except asyncio.TimeoutError:
             raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
-                f"Writing {path} timed out after {timeout:g}s.",
-                detail=path,
+                f"Writing {path} on the cluster took too long. Try again.",
+                detail=f"Writing {path} timed out after {timeout:g}s.",
             )
         except asyncssh.SFTPError as exc:
             # A file/permission error, not a dropped connection (e.g. the
             # parent directory doesn't exist yet): the connection stays alive.
-            raise RemoteCommandError(f"Could not write {path} over SFTP.", detail=str(exc)) from exc
+            raise RemoteCommandError(
+                f"Could not write {path} on the cluster. Check that the folder exists and "
+                "that you may write there.",
+                detail=f"SFTP error: {exc}",
+            ) from exc
         except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
             self._closed = True  # treat any other SFTP/channel error as a drop
             raise RemoteConnectionError(
-                "The SSH connection dropped while writing a file.",
+                "The connection to the cluster dropped while writing a file. "
+                "Reconnect and try again.",
                 detail=f"{type(exc).__name__}: {exc}",
             ) from exc
 
@@ -151,21 +157,23 @@ class SSHTransport(Transport):
         except asyncio.TimeoutError:
             await _discard(staging)
             raise RemoteConnectionError(  # noqa: B904 -- timeout carries no useful chain
-                f"Fetching {remote_dir} timed out after {timeout:g}s.",
-                detail=remote_dir,
+                f"Fetching {remote_dir} from the cluster took too long. Try again.",
+                detail=f"Fetching {remote_dir} timed out after {timeout:g}s.",
             )
         except asyncssh.SFTPError as exc:
             await _discard(staging)
             # A file/permission error, not a dropped connection (e.g. the
             # remote directory doesn't exist): the connection stays alive.
             raise RemoteCommandError(
-                f"Could not fetch {remote_dir} over SFTP.", detail=str(exc)
+                f"Could not fetch {remote_dir} from the cluster. Check that it still exists.",
+                detail=f"SFTP error: {exc}",
             ) from exc
         except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
             await _discard(staging)
             self._closed = True  # treat any other SFTP/channel error as a drop
             raise RemoteConnectionError(
-                "The SSH connection dropped while fetching results.",
+                "The connection to the cluster dropped while fetching results. "
+                "Reconnect and try again.",
                 detail=f"{type(exc).__name__}: {exc}",
             ) from exc
         await _swap_in(staging, fresh, local_dir)
@@ -195,8 +203,8 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
     """Open an asyncssh connection for ``profile``, mapping failures to our errors.
 
     Auth:
-      * 'agent':    uses the inherited SSH_AUTH_SOCK (Leonardo's step-cli cert,
-                     or ordinary keys-in-agent). No secret needed.
+      * 'agent':    uses the inherited SSH_AUTH_SOCK (a certificate tool such as step-cli
+                     loads its cert there, or ordinary keys-in-agent). No secret needed.
       * 'key':      explicit private key file.
       * 'password': transient password (never persisted).
     Host key:
@@ -207,12 +215,16 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
         import asyncssh
     except ImportError as e:
         raise RemoteConnectionError(
-            "SSH support isn't installed in this environment ('asyncssh' is missing). "
-            'Install it with `pip install -e ".[web]"` from your CRAB checkout and restart `crab web`.'
+            "The SSH part of the dashboard is not installed. "
+            'Install it with `pip install -e ".[web]"` from your CRAB checkout, then restart `crab web`.',
+            detail=f"The asyncssh package could not be imported: {e}",
         ) from e
 
     if not profile.host:
-        raise RemoteConnectionError("Profile has no host to connect to.")
+        raise RemoteConnectionError(
+            "This remote has no host address. Edit the remote, enter its host, and save it.",
+            detail="The profile's host is empty.",
+        )
 
     opts: dict = {
         "host": profile.host,
@@ -229,20 +241,28 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
         sock = os.environ.get("SSH_AUTH_SOCK")
         if not sock:
             raise AuthError(
-                "No SSH agent found (SSH_AUTH_SOCK is unset). Start ssh-agent and "
-                "load your identity (e.g. run `step-cli ssh login …` for Leonardo), "
-                "then launch `crab web` from that same shell."
+                "No SSH key is loaded in your SSH agent. Start your agent and log in to the "
+                "cluster the way you normally do (for example with your certificate tool), "
+                "then start `crab web` again from that same terminal.",
+                detail="SSH_AUTH_SOCK is not set in the environment of crab web.",
             )
         opts["agent_path"] = sock
         opts["client_keys"] = []  # force agent-only, don't probe ~/.ssh keys
     elif profile.auth == "key":
         if not profile.key_path:
-            raise AuthError("Auth method 'key' selected but no key_path is set.")
+            raise AuthError(
+                "This remote uses a key file, but no key file is set. "
+                "Edit the remote and enter the path to your key file.",
+                detail="Auth method 'key' selected but key_path is empty.",
+            )
         opts["client_keys"] = [os.path.expanduser(profile.key_path)]
         opts["agent_path"] = None
     elif profile.auth == "password":
         if not password:
-            raise AuthError("This cluster needs a password; none was provided.")
+            raise AuthError(
+                "This cluster needs a password. Type it next to the Connect button and try again.",
+                detail="Auth method 'password' selected but no password was provided.",
+            )
         opts["password"] = password
         opts["agent_path"] = None
         opts["client_keys"] = []
@@ -251,26 +271,30 @@ async def connect_ssh(profile: Profile, password: str | None = None) -> SSHTrans
         conn = await asyncio.wait_for(asyncssh.connect(**opts), timeout=CONNECT_TIMEOUT_S)
     except asyncio.TimeoutError as exc:  # not the builtin TimeoutError on Python 3.10
         raise RemoteConnectionError(
-            f"Timed out connecting to {profile.host}:{profile.port} after "
-            f"{CONNECT_TIMEOUT_S:.0f}s. The login node may be down or overloaded; try again.",
+            f"The cluster did not answer within {CONNECT_TIMEOUT_S:.0f} seconds. "
+            "The login node may be down or busy, or your network or VPN may be off. "
+            "Check that and try again.",
+            detail=f"Timed out after {CONNECT_TIMEOUT_S:g}s connecting to "
+            f"{profile.host}:{profile.port}.",
         ) from exc
     except asyncssh.PermissionDenied as exc:
         raise AuthError(
-            "Authentication was rejected by the cluster. For Leonardo, your "
-            "certificate may have expired: re-run `step-cli ssh login …` into "
-            "the same ssh-agent, then reconnect.",
-            detail=str(exc),
+            "The cluster rejected your login. Check your user name and credentials. "
+            "If you use a certificate, it may have expired: log in to the cluster again "
+            "the way you normally do, then reconnect.",
+            detail=f"{type(exc).__name__}: {exc}",
         ) from exc
     except (asyncssh.HostKeyNotVerifiable, asyncssh.KeyExchangeFailed) as exc:
         raise RemoteConnectionError(
-            "Host key verification failed. If this cluster rotates login-node "
-            "host keys (e.g. Leonardo), set the profile's host-key policy to "
-            "'insecure'.",
-            detail=str(exc),
+            "Could not verify the cluster's host key (its identity). If you trust this "
+            "cluster, connect to it once with ssh in a terminal to save its key. If its "
+            "login nodes change keys, set this remote's Host key to insecure.",
+            detail=f"{type(exc).__name__}: {exc}",
         ) from exc
     except (OSError, asyncssh.Error) as exc:
         raise RemoteConnectionError(
-            f"Could not connect to {profile.host}:{profile.port}.",
+            f"Could not reach {profile.host}:{profile.port}. Check the host name, "
+            "your network or VPN, and that the cluster is up, then try again.",
             detail=f"{type(exc).__name__}: {exc}",
         ) from exc
 

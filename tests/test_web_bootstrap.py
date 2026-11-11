@@ -342,7 +342,10 @@ def test_bootstrap_plan_and_install_refuse_a_crab_command_profile(tmp_path: Path
             resp = client.post(f"/api/remotes/leo/bootstrap/{route}", json=body)
             assert resp.status_code == 422, route
             assert resp.json()["code"] == "input_error"
-            assert "you manage this install: pipx install crab-hpc" in resp.json()["message"]
+            message = resp.json()["message"]
+            assert "does not install CRAB there" in message
+            assert "pipx install crab-hpc" in message
+            assert "\u2014" not in message and "\u2013" not in message
         assert transport.calls == []  # nothing ran on the cluster
 
         # verify is only a `crab info` re-check, so it stays available.

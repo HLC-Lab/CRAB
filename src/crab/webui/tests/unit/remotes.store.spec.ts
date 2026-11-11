@@ -16,8 +16,10 @@ vi.mock("@/api/client", () => ({
     },
   },
   ApiError: class ApiError extends Error {
-    constructor(env: { code: string; message: string }) {
+    detail?: string;
+    constructor(env: { code: string; message: string; detail?: string }) {
       super(env.message);
+      this.detail = env.detail;
     }
   },
 }));
@@ -135,5 +137,65 @@ describe("remotes store connect error", () => {
     await store.connect("leo");
     expect(store.items.find((r) => r.name === "leo")?.connected).toBe(false);
     expect(store.connectError.leo).toBe(TIMEOUT);
+  });
+});
+
+describe("remotes store connect detail and stale info", () => {
+  const STDERR = "PermissionDenied: Permission denied";
+
+  function failsWithDetail(detail?: string) {
+    vi.mocked(api.remotes.connect).mockRejectedValue(
+      new ApiError(
+        { code: "auth_error", message: "The cluster rejected your login.", detail },
+        401,
+      ),
+    );
+  }
+
+  it("keeps the technical detail of a failed connect for that remote", async () => {
+    failsWithDetail(STDERR);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    expect(store.connectError.leo).toBe("The cluster rejected your login.");
+    expect(store.connectDetail.leo).toBe(STDERR);
+  });
+
+  it("has no detail when the error carries none", async () => {
+    failsWithDetail(undefined);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    expect(store.connectDetail.leo).toBeUndefined();
+  });
+
+  it("clears the detail when the next connect starts and after it succeeds", async () => {
+    failsWithDetail(STDERR);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    let seen: string | undefined = "unset";
+    vi.mocked(api.remotes.connect).mockImplementation(async () => {
+      seen = store.connectDetail.leo;
+      return { connected: true, info: INFO, crab_installed: true, reason: null, skew: null };
+    });
+    await store.connect("leo");
+    expect(seen).toBeUndefined();
+    expect(store.connectDetail.leo).toBeUndefined();
+  });
+
+  it("has no detail for a non-ApiError failure", async () => {
+    vi.mocked(api.remotes.connect).mockRejectedValue(new TypeError("fetch failed"));
+    const store = useRemotesStore();
+    await store.connect("leo");
+    expect(store.connectDetail.leo).toBeUndefined();
+    expect(store.connectError.leo).not.toBe("Unexpected error");
+  });
+
+  it("drops the old CRAB info line when a reconnect fails", async () => {
+    connectReturns(null);
+    const store = useRemotesStore();
+    await store.connect("leo");
+    expect(store.info.leo).toEqual(INFO);
+    failsWithDetail(STDERR);
+    await store.connect("leo");
+    expect(store.info.leo).toBeUndefined();
   });
 });

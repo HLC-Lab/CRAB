@@ -98,8 +98,9 @@ def ensure_installable(profile: Profile) -> None:
     """
     if profile.crab_command is not None:
         raise InputError(
-            f"{profile.name!r} runs {profile.crab_command!r}: you manage this install: "
-            "pipx install crab-hpc"
+            f"{profile.name!r} uses its own crab command ({profile.crab_command!r}), "
+            "so the dashboard does not install CRAB there. Install or update it yourself "
+            "on the cluster, for example with: pipx install crab-hpc"
         )
 
 

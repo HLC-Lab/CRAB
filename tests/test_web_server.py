@@ -231,3 +231,27 @@ def test_registered_handler_returns_envelope():
     resp = client.get("/boom")
     assert resp.status_code == 401
     assert resp.json() == {"code": "auth_error", "message": "nope"}
+
+
+def test_unhandled_exception_gets_a_plain_message_without_a_traceback():
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.get("/boom")
+    async def boom():
+        raise RuntimeError("secret internal state")
+
+    client = TestClient(app, raise_server_exceptions=False)
+    resp = client.get("/boom")
+    body = resp.json()
+    assert resp.status_code == 500
+    assert body["code"] == "internal_error"
+    message = body["message"]
+    assert "unexpected error" not in message.lower()
+    assert "terminal where crab web is running" in message
+    assert "below" not in message.lower()
+    assert "Traceback" not in message
+    assert "secret internal state" not in message
+    assert "\u2014" not in message and "\u2013" not in message
+    # The exception type goes to `detail` for debugging; its text and the traceback stay in the log.
+    assert body["detail"] == "RuntimeError"

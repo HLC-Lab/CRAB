@@ -298,8 +298,9 @@ async def test_connect_ssh_raises_a_clean_error_when_asyncssh_is_missing(monkeyp
         auth="agent",
         hostkey_policy="insecure",
     )
-    with pytest.raises(RemoteConnectionError, match="asyncssh"):
+    with pytest.raises(RemoteConnectionError, match="restart") as exc:
         await connect_ssh(profile)
+    assert "asyncssh" in (exc.value.detail or "")
 
 
 async def test_connect_ssh_times_out_on_a_silent_server(tmp_path: Path, monkeypatch):
@@ -332,7 +333,7 @@ async def test_connect_ssh_times_out_on_a_silent_server(tmp_path: Path, monkeypa
     try:
         loop = asyncio.get_running_loop()
         started = loop.time()
-        with pytest.raises(RemoteConnectionError, match="Timed out"):
+        with pytest.raises(RemoteConnectionError, match="did not answer"):
             await connect_ssh(profile)
         assert loop.time() - started < 5
     finally:
@@ -600,3 +601,114 @@ async def test_swap_in_keeps_the_old_cache_on_disk_when_the_restore_fails_too(
     assert str(old) in excinfo.value.message
     assert "swap failure" in (excinfo.value.detail or "")
     assert "restore failure" in (excinfo.value.detail or "")
+
+
+# --------------------------------------------------------------------------- #
+# Plain-language connect errors: no jargon in `message`, the technical text in `detail`.
+# --------------------------------------------------------------------------- #
+
+_BANNED_IN_MESSAGE = (
+    "SSH_AUTH_SOCK",
+    "asyncssh",
+    "step-cli",
+    "Leonardo",
+    "unexpected error",
+    "\u2026",  # horizontal ellipsis
+    "\u2014",  # em dash
+    "\u2013",  # en dash
+)
+
+
+def _assert_plain(exc: BaseException, keyword: str, detail_has: str) -> None:
+    assert isinstance(exc, (AuthError, RemoteConnectionError))
+    message = exc.message.lower()
+    for banned in _BANNED_IN_MESSAGE:
+        assert banned.lower() not in message, (banned, exc.message)
+    assert keyword.lower() in message, (keyword, exc.message)
+    assert detail_has in (exc.detail or ""), (detail_has, exc.detail)
+
+
+def _ssh_profile(**kw: object) -> Profile:
+    base: dict[str, object] = {
+        "name": "test",
+        "host": "cluster.example.org",
+        "user": "test",
+        "auth": "password",
+        "hostkey_policy": "insecure",
+    }
+    base.update(kw)
+    return Profile(**base)  # type: ignore[arg-type]
+
+
+async def test_connect_ssh_no_agent_message_says_what_to_do(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
+    with pytest.raises(AuthError) as exc:
+        await connect_ssh(_ssh_profile(auth="agent"))
+    _assert_plain(exc.value, "SSH agent", "SSH_AUTH_SOCK")
+
+
+async def test_connect_ssh_key_auth_without_a_key_path():
+    with pytest.raises(AuthError) as exc:
+        await connect_ssh(_ssh_profile(auth="key", key_path=None))
+    _assert_plain(exc.value, "key file", "key_path")
+
+
+async def test_connect_ssh_password_auth_without_a_password():
+    with pytest.raises(AuthError) as exc:
+        await connect_ssh(_ssh_profile(auth="password"))
+    _assert_plain(exc.value, "password", "no password")
+
+
+async def test_connect_ssh_profile_without_a_host():
+    with pytest.raises(RemoteConnectionError) as exc:
+        await connect_ssh(_ssh_profile(host=None))
+    _assert_plain(exc.value, "host", "host")
+
+
+@pytest.mark.parametrize(
+    ("failure", "keyword", "detail_has"),
+    [
+        (asyncssh.PermissionDenied("Permission denied"), "rejected your login", "PermissionDenied"),
+        (
+            asyncssh.HostKeyNotVerifiable("Host key is not trusted"),
+            "host key",
+            "HostKeyNotVerifiable",
+        ),
+        (asyncssh.KeyExchangeFailed("No matching key exchange"), "host key", "KeyExchangeFailed"),
+        (ConnectionRefusedError("Connection refused"), "Could not reach", "ConnectionRefusedError"),
+        (asyncssh.ConnectionLost("Connection lost"), "Could not reach", "ConnectionLost"),
+    ],
+)
+async def test_connect_ssh_failure_messages_are_plain_and_keep_the_technical_text(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception, keyword: str, detail_has: str
+):
+    async def failing_connect(**kwargs: object) -> None:
+        raise failure
+
+    monkeypatch.setattr(asyncssh, "connect", failing_connect)
+    with pytest.raises((AuthError, RemoteConnectionError)) as exc:
+        await connect_ssh(_ssh_profile(), password="pw")
+    _assert_plain(exc.value, keyword, detail_has)
+    assert str(failure) in (exc.value.detail or "")
+
+
+async def test_connect_ssh_timeout_message_is_plain_and_detail_names_the_target(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import crab.web.connections.transport as transport_mod
+
+    async def never_answers(**kwargs: object) -> None:
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(asyncssh, "connect", never_answers)
+    monkeypatch.setattr(transport_mod, "CONNECT_TIMEOUT_S", 0.05)
+    with pytest.raises(RemoteConnectionError) as exc:
+        await connect_ssh(_ssh_profile(), password="pw")
+    _assert_plain(exc.value, "did not answer", "cluster.example.org:22")
+
+
+async def test_connect_ssh_missing_asyncssh_message_is_plain(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setitem(sys.modules, "asyncssh", None)
+    with pytest.raises(RemoteConnectionError) as exc:
+        await connect_ssh(_ssh_profile())
+    _assert_plain(exc.value, "restart", "asyncssh")
