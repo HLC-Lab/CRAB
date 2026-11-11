@@ -869,6 +869,62 @@ def test_target_resolution(lab: Lab, tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert "nothing to follow" in result.stderr
 
 
+def test_target_resolution_ignores_skipped_attempts(
+    lab: Lab, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for key, value in lab.env().items():
+        monkeypatch.setenv(key, value)
+    resolve = follow.resolve_target
+    d1 = lab.data_root / "d1"
+    d1.mkdir()
+    skipped = lab.run_row(2, "-", Path("-"), status="SKIPPED")
+
+    # no argument: a later SKIPPED attempt (job "-") never wins over the real one
+    lab.put_files(runs=[lab.run_row(1, "101", d1, status="OK", elapsed="60"), skipped])
+    target = resolve(None)
+    assert (target.job, target.data_dir, target.run.n) == ("101", d1, 1)
+    lab.put_files(runs=[lab.run_row(1, "101", d1, status="SUBMITTED"), skipped])
+    assert resolve(None).job == "101"
+
+    # only SKIPPED attempts and no data folder: nothing to follow
+    d1.rmdir()
+    lab.put_files(runs=[skipped])
+    with pytest.raises(follow.FollowError, match="nothing to follow"):
+        resolve(None)
+
+    # a row whose only attempt is SKIPPED, and a job lookup never matches it
+    specs = [("a2a", B0, 5.0)] * 7
+    lab.put_files(specs=specs, runs=[lab.run_row(7, "-", Path("-"), status="SKIPPED")])
+    with pytest.raises(follow.FollowError, match="row 7 was skipped"):
+        resolve("7")
+    with pytest.raises(follow.FollowError, match="nothing found"):
+        resolve("-")
+
+
+def test_target_resolution_takes_array_and_het_job_ids(
+    lab: Lab, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for key, value in lab.env().items():
+        monkeypatch.setenv(key, value)
+    resolve = follow.resolve_target
+    d1, d2 = lab.data_root / "d1", lab.data_root / "d2"
+    d1.mkdir()
+    d2.mkdir()
+    lab.put_files(
+        runs=[
+            lab.run_row(1, "1234_5", d1, status="OK", elapsed="60"),
+            lab.run_row(2, "1234+0", d2, status="OK", elapsed="60"),
+        ]
+    )
+    array = resolve("1234_5")
+    assert (array.job, array.data_dir, array.run.n) == ("1234_5", d1, 1)
+    het = resolve("1234+0")
+    assert (het.job, het.data_dir, het.run.n) == ("1234+0", d2, 2)
+    # an array id is never read as a schedule row number: "1_3" is not row 1
+    with pytest.raises(follow.FollowError, match="nothing found"):
+        resolve("1_3")
+
+
 def test_ctrl_c_leaves_the_job_alone(
     lab: Lab, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

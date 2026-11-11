@@ -570,6 +570,9 @@ class Target:
     name: str  # the report name
 
 
+JOB_ID = re.compile(r"[0-9]+([_+][0-9]+)*")  # twin of run_cmd.py's JOB_ID: Slurm job, array, het ids
+
+
 def _safe(text: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]", "_", text)
 
@@ -622,11 +625,12 @@ def resolve_target(arg: str | None, cfg: Config | None = None) -> Target:
     """The run to follow; raises FollowError (exit 2) naming what was tried."""
     cfg = cfg or Config.from_env()
     runs, schedule = _read_runs(), _read_schedule()
-    live = [r for r in runs if r.status != "CANCELLED"]
+    real = [r for r in runs if r.status != "SKIPPED"]  # a skipped attempt has job and data dir "-"
+    live = [r for r in real if r.status != "CANCELLED"]
     if arg is None:
-        submitted = [r for r in runs if r.status == "SUBMITTED"]
-        if submitted or runs:
-            return _from_run((submitted or runs)[-1], schedule)
+        submitted = [r for r in real if r.status == "SUBMITTED"]
+        if submitted or real:
+            return _from_run((submitted or real)[-1], schedule)
         folders = (
             [p for p in cfg.data_root.iterdir() if p.is_dir()] if cfg.data_root.is_dir() else []
         )
@@ -636,19 +640,21 @@ def resolve_target(arg: str | None, cfg: Config | None = None) -> Target:
             )
         return _bare(max(folders, key=lambda p: p.stat().st_mtime), None, runs, schedule)
     tried = ["run log job id", "schedule row number", "scontrol job id", "data dir path"]
-    if arg.isdigit():
-        by_job = [r for r in runs if r.job == arg]
+    if JOB_ID.fullmatch(arg):
+        by_job = [r for r in real if r.job == arg]
         if by_job:
             return _from_run(by_job[-1], schedule)
-        if any(r.n == int(arg) for r in schedule):
+        if arg.isdigit() and any(r.n == int(arg) for r in schedule):
             by_row = [r for r in live if r.n == int(arg)]
             if not by_row:
+                if any(r.n == int(arg) and r.status == "SKIPPED" for r in runs):
+                    raise FollowError(f"row {arg} was skipped: it has no attempt to follow")
                 raise FollowError(f"row {arg} has no attempt yet (run it: nplb run {arg})")
             return _from_run(by_row[-1], schedule)
         found = re.search(r"StdOut=(\S+)", scontrol_text(cfg, arg))
         if found:
             return _bare(Path(found.group(1)).parent, arg, runs, schedule)
-    elif Path(arg).is_dir():
+    if not arg.isdigit() and Path(arg).is_dir():
         return _bare(Path(arg).resolve(), None, runs, schedule)
     if (cfg.data_root / arg).is_dir():
         return _bare(cfg.data_root / arg, None, runs, schedule)
