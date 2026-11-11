@@ -68,7 +68,7 @@ it holds the files that belong to this machine and never conflict with an update
 | `local/wrappers/` | Private or in-progress wrappers, searched before `wrappers/`. | You, if you need it. |
 
 When you launch jobs through SbatchMan, your Slurm account goes in the SbatchMan configs file
-([step 5 of the guide](sbatchman-integration.md#5-get-the-sbatchman-configs-file)), not in
+([the partner umbrella](sbatchman-integration.md#partner-umbrella)), not in
 `local/presets/`: on this line the configs file owns the job environment.
 
 A direct `crab run` on a cluster that needs a Slurm account is different. Before its first run,
@@ -342,7 +342,7 @@ wrappers.
 
 - Set your project account before the first run. If SbatchMan launches your jobs, it goes in the
   SbatchMan configs file
-  ([step 5 of the guide](sbatchman-integration.md#5-get-the-sbatchman-configs-file)). For a direct
+  ([the partner umbrella](sbatchman-integration.md#partner-umbrella)). For a direct
   `crab run` on a cluster CRAB already knows (such as `leonardo`), the shared presets carry the
   mark `--account=<YOUR_ACCOUNT>`: write an override file in `local/presets/` that sets your
   account ([how](presets.md#your-overrides)).
