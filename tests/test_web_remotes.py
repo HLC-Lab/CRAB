@@ -6,6 +6,7 @@ path against Leonardo is user-verified.
 
 from __future__ import annotations
 
+import json
 import shlex
 from pathlib import Path
 
@@ -14,11 +15,13 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
+from crab.cli.contract import CONTRACT_SCHEMA  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, LocalTransport, Transport  # noqa: E402
 from crab.web.errors import (  # noqa: E402
     ConflictError,
     ContractError,
+    CrabOutdatedError,
     InputError,
     NotFoundError,
     RemoteCommandError,
@@ -32,7 +35,7 @@ from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.profiles import PROFILES_VERSION, Profile, ProfileStore  # noqa: E402
 
-_INFO_JSON = '{"schema":1,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"Leonardo @ CINECA"}]}'
+_INFO_JSON = '{"schema":2,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"Leonardo @ CINECA"}]}'
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -271,6 +274,51 @@ async def test_run_crab_json_parses_and_maps_errors():
 
     with pytest.raises(ContractError):
         await run_crab_json(FakeTransport(stdout="not json"), p, ["info", "--json"])
+
+
+def _schema_json(schema: int) -> str:
+    return json.dumps({"schema": schema, "crab_version": "9.9.9", "presets": []})
+
+
+async def test_run_crab_json_returns_a_result_with_the_current_schema():
+    result = await run_crab_json(
+        FakeTransport(_schema_json(CONTRACT_SCHEMA)), _leonardo(), ["info", "--json"]
+    )
+    assert result["schema"] == CONTRACT_SCHEMA
+
+
+async def test_run_crab_json_older_cluster_schema_says_to_update_the_cluster():
+    transport = FakeTransport(_schema_json(CONTRACT_SCHEMA - 1))
+    with pytest.raises(CrabOutdatedError) as exc:
+        await run_crab_json(transport, _leonardo(), ["status", "--json"])
+    assert exc.value.http_status == 409
+    assert exc.value.message == (
+        "This cluster's CRAB is older than the dashboard. "
+        "Run crab update on the cluster, then reconnect."
+    )
+
+
+async def test_run_crab_json_newer_cluster_schema_says_to_update_the_laptop():
+    transport = FakeTransport(_schema_json(99))
+    with pytest.raises(CrabOutdatedError) as exc:
+        await run_crab_json(transport, _leonardo(), ["status", "--json"])
+    assert exc.value.message == (
+        "This cluster's CRAB is newer than the dashboard. "
+        "Run crab update on this laptop, then restart crab web."
+    )
+
+
+@pytest.mark.parametrize("stdout", ['[{"id": "a"}]', "[]"])
+async def test_run_crab_json_passes_a_list_through_unchanged(stdout: str):
+    result = await run_crab_json(FakeTransport(stdout), _leonardo(), ["history", "--json"])
+    assert result == json.loads(stdout)
+
+
+async def test_run_crab_json_passes_a_dict_without_schema_through():
+    # `crab run --json` prints the engine's {job_id, data_dir, system}: it has no schema key.
+    stdout = '{"job_id": "1", "data_dir": "/d", "system": "s"}'
+    result = await run_crab_json(FakeTransport(stdout), _leonardo(), ["run", "x", "--json"])
+    assert result["job_id"] == "1"
 
 
 _ARGPARSE_LINE = "crab wrappers: error: argument wrappers_command: invalid choice: 'show'"

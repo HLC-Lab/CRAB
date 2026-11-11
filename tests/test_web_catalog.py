@@ -11,21 +11,32 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from conftest import auth_client  # noqa: E402
+from crab.cli.contract import CONTRACT_SCHEMA
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import CmdResult, Transport
 from crab.web.server import create_app
 from crab.web.settings import Settings
 from crab.web.store.profiles import Profile
 
-_INFO = '{"schema":1,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"L"}]}'
+_SCHEMA = str(CONTRACT_SCHEMA)
+
+_INFO = (
+    '{"schema":'
+    + _SCHEMA
+    + ',"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"L"}]}'
+)
 _BENCH = (
-    '{"schema":1,"benchmarks":[{"id":"blink"}],"wrappers":['
+    '{"schema":' + _SCHEMA + ',"benchmarks":[{"id":"blink"}],"wrappers":['
     '{"file":"alltoall_comm_only.py","relpath":"blink/alltoall/alltoall_comm_only.py","group":"blink",'
     '"loadable":true,"benchmark_id":"a2a","bench_name":"A2A","metadata":[{"name":"lat","unit":"us","conv":true}]},'
     '{"file":"broken.py","relpath":"x/broken.py","group":"x","loadable":false,'
     '"benchmark_id":null,"bench_name":null,"metadata":[],"error":"ImportError"}]}'
 )
-_NODES = '{"schema":1,"available":true,"partitions":[{"name":"boost_usr_prod","avail":"up","nodes":3456}],"nodes":["node001","node002"]}'
+_NODES = (
+    '{"schema":'
+    + _SCHEMA
+    + ',"available":true,"partitions":[{"name":"boost_usr_prod","avail":"up","nodes":3456}],"nodes":["node001","node002"]}'
+)
 
 
 def _settings(tmp_path: Path) -> Settings:

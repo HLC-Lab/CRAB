@@ -13,8 +13,9 @@ import shlex
 import sys
 from typing import Any
 
+from crab.cli.contract import CONTRACT_SCHEMA
 from crab.web.connections.transport import CmdResult, Transport
-from crab.web.errors import ContractError, RemoteCommandError
+from crab.web.errors import ContractError, CrabOutdatedError, RemoteCommandError
 from crab.web.store.profiles import Profile
 
 
@@ -140,10 +141,37 @@ def parse_crab_json(args: list[str], result: CmdResult) -> Any:
         ) from exc
 
 
+def check_schema(parsed: Any) -> None:
+    """Raise ``CrabOutdatedError`` when a result's contract ``schema`` is not this dashboard's.
+
+    Only a dict that carries a ``schema`` key is checked: lists (``history``) and
+    ``crab run --json`` (the engine's ``{job_id, data_dir, system}``) have none and pass.
+    The sentences match ``bootstrap.contract_skew``.
+    """
+    if not isinstance(parsed, dict) or "schema" not in parsed:
+        return
+    remote = parsed["schema"]
+    if remote == CONTRACT_SCHEMA:
+        return
+    if isinstance(remote, int) and remote > CONTRACT_SCHEMA:
+        raise CrabOutdatedError(
+            "This cluster's CRAB is newer than the dashboard. "
+            "Run crab update on this laptop, then restart crab web.",
+            detail=f"schema {remote}, dashboard {CONTRACT_SCHEMA}",
+        )
+    raise CrabOutdatedError(
+        "This cluster's CRAB is older than the dashboard. "
+        "Run crab update on the cluster, then reconnect.",
+        detail=f"schema {remote!r}, dashboard {CONTRACT_SCHEMA}",
+    )
+
+
 async def run_crab_json(
     transport: Transport, profile: Profile, args: list[str], timeout: float = 30.0
 ) -> Any:
-    """Run ``crab <args>`` (which must include ``--json``) and parse the result."""
+    """Run ``crab <args>`` (which must include ``--json``), parse and schema-check the result."""
     command = build_crab_command(profile, args)
     result = await transport.run(command, timeout=timeout)
-    return parse_crab_json(args, result)
+    parsed = parse_crab_json(args, result)
+    check_schema(parsed)
+    return parsed

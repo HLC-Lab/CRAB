@@ -11,6 +11,7 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
+from crab.cli.contract import CONTRACT_SCHEMA  # noqa: E402
 from crab.web.api.jobs import worst_status  # noqa: E402
 from crab.web.api.jobs_submit import _run_submission  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
@@ -21,10 +22,11 @@ from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.jobs import JobsStore  # noqa: E402
 from crab.web.store.profiles import ProfileStore  # noqa: E402
 
+_SCHEMA = str(CONTRACT_SCHEMA)
 _SNAPSHOT = {"global_options": {"name": "demo"}, "experiments": []}
 _INFO_JSON = json.dumps(
     {
-        "schema": 1,
+        "schema": CONTRACT_SCHEMA,
         "crab_version": "0.1.0",
         "crab_root": "/home/u/CRAB",
         "presets": [{"name": "leonardo", "description": "Leonardo @ CINECA"}],
@@ -177,15 +179,15 @@ class ScriptedTransport(Transport):
 
     def __init__(
         self,
-        status_json: str = '{"schema":1,"jobs":[]}',
-        history_json: str = '{"schema":1,"experiments":[]}',
-        cancel_json: str = '{"schema":1,"job_id":"1","cancelled":true,"detail":null}',
+        status_json: str = '{"schema":' + _SCHEMA + ',"jobs":[]}',
+        history_json: str = '{"schema":' + _SCHEMA + ',"experiments":[]}',
+        cancel_json: str = '{"schema":' + _SCHEMA + ',"job_id":"1","cancelled":true,"detail":null}',
         logs_json: str = (
-            '{"schema":1,"data_dir":"/d","'
+            '{"schema":' + _SCHEMA + ',"data_dir":"/d","'
             'stdout":{"path":"/d/slurm_output.log","exists":true,"content":"out","truncated":false},'
             '"stderr":{"path":"/d/slurm_error.log","exists":false,"content":"","truncated":false}}'
         ),
-        experiment_logs_json: str = '{"schema":1,"data_dir":"/d/e1","files":[]}',
+        experiment_logs_json: str = '{"schema":' + _SCHEMA + ',"data_dir":"/d/e1","files":[]}',
         experiment_logs_rc: int = 0,
     ):
         self._alive = True
@@ -556,7 +558,7 @@ def test_list_jobs_batches_status_per_cluster(tmp_path: Path):
     _seed_job(tmp_path, job_id="2")
     status_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "jobs": [
                 {"job_id": "1", "state": "RUNNING", "source": "squeue"},
                 {"job_id": "2", "state": "COMPLETED", "source": "sacct"},
@@ -586,10 +588,12 @@ def test_list_jobs_batches_status_per_cluster(tmp_path: Path):
 
 def test_list_jobs_sacct_purge_resolves_via_history(tmp_path: Path):
     _seed_job(tmp_path, job_id="99", data_dir="/data/leonardo/demo_2026-01-01")
-    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "99", "state": "UNKNOWN"}]})
+    status_json = json.dumps(
+        {"schema": CONTRACT_SCHEMA, "jobs": [{"job_id": "99", "state": "UNKNOWN"}]}
+    )
     history_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [
                 {"relative_path": "./demo_2026-01-01/exp_a", "status": "COMPLETED"},
                 {"relative_path": "./demo_2026-01-01/exp_b", "status": "FAILED"},
@@ -617,10 +621,12 @@ def test_list_jobs_completed_with_failed_experiment_downgrades_to_failed(tmp_pat
     first time squeue reports COMPLETED, same as it already does for a
     purged/UNKNOWN job."""
     _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026-01-01")
-    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "1", "state": "COMPLETED"}]})
+    status_json = json.dumps(
+        {"schema": CONTRACT_SCHEMA, "jobs": [{"job_id": "1", "state": "COMPLETED"}]}
+    )
     history_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [
                 {"relative_path": "./demo_2026-01-01/exp_a", "status": "COMPLETED"},
                 {"relative_path": "./demo_2026-01-01/exp_b", "status": "FAILED"},
@@ -646,8 +652,10 @@ def test_list_jobs_completed_with_no_history_match_stays_completed(tmp_path: Pat
     """No matching history rows (e.g. metadata not written yet) must not
     downgrade a clean COMPLETED to anything else — never guess."""
     _seed_job(tmp_path, job_id="1", data_dir="/data/leonardo/demo_2026-01-01")
-    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "1", "state": "COMPLETED"}]})
-    history_json = json.dumps({"schema": 1, "experiments": []})
+    status_json = json.dumps(
+        {"schema": CONTRACT_SCHEMA, "jobs": [{"job_id": "1", "state": "COMPLETED"}]}
+    )
+    history_json = json.dumps({"schema": CONTRACT_SCHEMA, "experiments": []})
 
     def factory():
         return ScriptedTransport(status_json=status_json, history_json=history_json)
@@ -687,8 +695,10 @@ def test_list_jobs_already_completed_job_is_never_repolled(tmp_path: Path):
 
 def test_list_jobs_sacct_purge_no_match_stays_unknown(tmp_path: Path):
     _seed_job(tmp_path, job_id="99", data_dir="/data/leonardo/demo_2026-01-01")
-    status_json = json.dumps({"schema": 1, "jobs": [{"job_id": "99", "state": "UNKNOWN"}]})
-    history_json = json.dumps({"schema": 1, "experiments": []})
+    status_json = json.dumps(
+        {"schema": CONTRACT_SCHEMA, "jobs": [{"job_id": "99", "state": "UNKNOWN"}]}
+    )
+    history_json = json.dumps({"schema": CONTRACT_SCHEMA, "experiments": []})
 
     def factory():
         return ScriptedTransport(status_json=status_json, history_json=history_json)
@@ -752,14 +762,18 @@ def test_list_jobs_one_failing_cluster_does_not_break_the_others(
     _seed_job(tmp_path, job_id="1", last_known_state="RUNNING")
     _seed_job(tmp_path, cluster="alps", system="alps", job_id="7", last_known_state="RUNNING")
     healthy = ScriptedTransport(
-        status_json=json.dumps({"schema": 1, "jobs": [{"job_id": "1", "state": "RUNNING"}]})
+        status_json=json.dumps(
+            {"schema": CONTRACT_SCHEMA, "jobs": [{"job_id": "1", "state": "RUNNING"}]}
+        )
     )
     broken = _FailingTransport(
         mode,
         fail_on=fail_on,
         # Reaching `crab history` needs a COMPLETED status first; the history
         # failure must not let that unverified COMPLETED be recorded either.
-        status_json=json.dumps({"schema": 1, "jobs": [{"job_id": "7", "state": "COMPLETED"}]}),
+        status_json=json.dumps(
+            {"schema": CONTRACT_SCHEMA, "jobs": [{"job_id": "7", "state": "COMPLETED"}]}
+        ),
     )
 
     with _two_cluster_client(tmp_path, broken, healthy) as client:
@@ -849,7 +863,7 @@ def test_list_jobs_skips_lost_jobs(tmp_path: Path):
 # --------------------------------------------------------------------------- #
 def test_cancel_job_updates_state(tmp_path: Path):
     _seed_job(tmp_path, job_id="1")
-    cancel_json = '{"schema":1,"job_id":"1","cancelled":true,"detail":null}'
+    cancel_json = '{"schema":' + _SCHEMA + ',"job_id":"1","cancelled":true,"detail":null}'
 
     def factory():
         return ScriptedTransport(cancel_json=cancel_json)
@@ -870,7 +884,9 @@ def test_cancel_job_updates_state(tmp_path: Path):
 
 def test_cancel_already_gone_job_leaves_state_unchanged(tmp_path: Path):
     _seed_job(tmp_path, job_id="1", last_known_state="RUNNING")
-    cancel_json = '{"schema":1,"job_id":"1","cancelled":false,"detail":"already gone"}'
+    cancel_json = (
+        '{"schema":' + _SCHEMA + ',"job_id":"1","cancelled":false,"detail":"already gone"}'
+    )
 
     def factory():
         return ScriptedTransport(cancel_json=cancel_json)
@@ -926,7 +942,7 @@ def test_job_logs_with_experiment_returns_per_app_files(tmp_path: Path):
     def transport_factory():
         return ScriptedTransport(
             experiment_logs_json=(
-                '{"schema":1,"data_dir":"/data/leonardo/demo_2026/01_exp","files":['
+                '{"schema":' + _SCHEMA + ',"data_dir":"/data/leonardo/demo_2026/01_exp","files":['
                 '{"app_id":"0","path":"/x/error_app_0.log","exists":true,'
                 '"content":"boom","truncated":false}]}'
             )
@@ -1028,7 +1044,7 @@ def test_job_experiments_returns_only_rows_for_this_exact_submission(tmp_path: P
     )
     history_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [
                 _history_row(),  # belongs to this job's data_dir
                 _history_row(
@@ -1072,7 +1088,7 @@ def test_job_experiments_reports_run_failure_counts(tmp_path: Path):
     )
     history_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [_history_row(status="FAILED", total_runs="10", failed_runs="3")],
         }
     )
@@ -1101,7 +1117,7 @@ def test_job_experiments_reports_the_allocation_seed(tmp_path: Path):
     )
     history_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [
                 _history_row(seed="123"),
                 _history_row(experiment_name="02_old_registry"),  # no "seed" key at all
@@ -1133,7 +1149,7 @@ def test_job_experiments_reports_rerun_lineage(tmp_path: Path):
         rerun_of="leonardo:1",
         rerun_experiments=["01_baseline"],
     )
-    history_json = json.dumps({"schema": 1, "experiments": []})
+    history_json = json.dumps({"schema": CONTRACT_SCHEMA, "experiments": []})
 
     def factory():
         return ScriptedTransport(history_json=history_json)
@@ -1168,7 +1184,7 @@ def test_job_experiments_disconnected_with_prior_cache_returns_stale_copy(tmp_pa
         data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
         system="leonardo",
     )
-    history_json = json.dumps({"schema": 1, "experiments": [_history_row()]})
+    history_json = json.dumps({"schema": CONTRACT_SCHEMA, "experiments": [_history_row()]})
 
     def factory():
         return ScriptedTransport(history_json=history_json)
@@ -1196,12 +1212,18 @@ def test_job_experiments_same_system_name_on_two_clusters_keeps_both_caches(tmp_
     _seed_job(tmp_path, cluster="alps", job_id="1", data_dir=f"/b/{basename}", system="shared")
     leonardo = ScriptedTransport(
         history_json=json.dumps(
-            {"schema": 1, "experiments": [_history_row(system="shared", status="COMPLETED")]}
+            {
+                "schema": CONTRACT_SCHEMA,
+                "experiments": [_history_row(system="shared", status="COMPLETED")],
+            }
         )
     )
     alps = ScriptedTransport(
         history_json=json.dumps(
-            {"schema": 1, "experiments": [_history_row(system="shared", status="FAILED")]}
+            {
+                "schema": CONTRACT_SCHEMA,
+                "experiments": [_history_row(system="shared", status="FAILED")],
+            }
         )
     )
 
@@ -1251,7 +1273,7 @@ def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Pat
     )
     history_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [
                 _history_row(),  # matches config_name + a known job record
                 _history_row(
@@ -1297,7 +1319,7 @@ def test_use_case_report_filters_by_config_name_and_joins_registry(tmp_path: Pat
 def test_use_case_report_reports_run_failure_counts(tmp_path: Path):
     history_json = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [
                 _history_row(status="FAILED", total_runs="10", failed_runs="3"),
             ],
@@ -1331,7 +1353,7 @@ def test_use_case_report_matches_registry_config_name_over_internal_job_name(tmp
         data_dir="/leonardo/data/msgsize_scaling_study_2026-07-04_20-03-37-168111",
         config_name="Message-size scaling study: 1 KiB to 4 MiB across 16 points",
     )
-    history_json = json.dumps({"schema": 1, "experiments": [_history_row()]})
+    history_json = json.dumps({"schema": CONTRACT_SCHEMA, "experiments": [_history_row()]})
 
     def factory():
         return ScriptedTransport(history_json=history_json)
@@ -1369,7 +1391,7 @@ def test_use_case_report_disconnected_cluster_is_listed_as_skipped(tmp_path: Pat
 def test_use_case_report_disconnected_cluster_with_prior_cache_is_stale_not_skipped(
     tmp_path: Path,
 ):
-    history_json = json.dumps({"schema": 1, "experiments": [_history_row()]})
+    history_json = json.dumps({"schema": CONTRACT_SCHEMA, "experiments": [_history_row()]})
 
     def factory():
         return ScriptedTransport(history_json=history_json)
@@ -1391,10 +1413,12 @@ def test_use_case_report_disconnected_cluster_with_prior_cache_is_stale_not_skip
 
 
 def test_use_case_report_spans_multiple_connected_clusters(tmp_path: Path):
-    leonardo_history = json.dumps({"schema": 1, "experiments": [_history_row(system="leonardo")]})
+    leonardo_history = json.dumps(
+        {"schema": CONTRACT_SCHEMA, "experiments": [_history_row(system="leonardo")]}
+    )
     alps_history = json.dumps(
         {
-            "schema": 1,
+            "schema": CONTRACT_SCHEMA,
             "experiments": [_history_row(system="alps", status="TIMEOUT")],
         }
     )
