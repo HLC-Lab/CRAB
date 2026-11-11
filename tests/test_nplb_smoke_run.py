@@ -510,7 +510,7 @@ def test_help_lists_smoke_and_stays_small(tmp_path: Path) -> None:
     lab = Lab(tmp_path)
     helped = lab.nplb("help")
     lines = helped.stdout.splitlines()
-    assert 0 < len(lines) <= 30 and max(len(line) for line in lines) <= 100
+    assert 0 < len(lines) <= 31 and max(len(line) for line in lines) <= 100
     assert any(line.startswith("  smoke ") for line in lines)
     assert "smoke" in " ".join(lab.dispatcher.read_text(encoding="utf-8").splitlines()[4:6])
 

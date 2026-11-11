@@ -843,7 +843,7 @@ def test_help_is_compact_and_lists_every_verb(tmp_path: Path, checkout: Path) ->
     helped = run_nplb(tmp_path, checkout, "help")
     assert helped.returncode == 0
     lines = helped.stdout.splitlines()
-    assert 0 < len(lines) <= 30
+    assert 0 < len(lines) <= 31
     assert max(len(line) for line in lines) <= 100
     text = helped.stdout
     verbs = (
