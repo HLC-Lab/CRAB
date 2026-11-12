@@ -107,6 +107,7 @@ cmd_node() {
             ;;
         fix) bash "$NPLB_DIR/node_tools.sh" fix "$@" ;;
         procs | stop) bash "$NPLB_DIR/node_procs.sh" "$sub" "$@" ;;
+        scan) bash "$NPLB_DIR/node_scan.sh" "$@" ;;
         *) node_usage ;;
     esac
 }
@@ -371,6 +372,7 @@ cmd_smoke() {
 node_usage() {
     echo "usage: nplb node check [HOST...] | diag HOST | fix [--sr 0|1] [--ar 0|1] [HOST...]" >&2
     echo "       nplb node procs [HOST...] | stop [HOST...]   leftover benchmark processes: list, stop" >&2
+    echo "       nplb node scan [HOST...]   every Slurm node of every partition: ssh, GPUs, RDMA, NFS" >&2
     echo "  repairs for fix (each shows a plan and asks first): --links --peermem --nfs-head --rescan" >&2
     return 2
 }
