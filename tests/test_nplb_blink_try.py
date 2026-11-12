@@ -17,6 +17,10 @@ for arg in "$@"; do
         echo "cuda init failed: libcudart.so.12 not found"
         exit 134
     fi
+    if [[ $arg == UCX_TLS=rc_mlx5,self ]]; then
+        echo "rc fatal error"
+        exit 134
+    fi
     if [[ $arg == UCX_NET_DEVICES=mlx5_2:1 ]]; then
         echo "ud_ep.c:296 Fatal: UD endpoint to <no debug data>: unhandled timeout error"
         echo "unrelated noise line"
@@ -39,6 +43,7 @@ def run_try(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
     binary.chmod(0o755)
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "NPLB_WORK")}
     env["TRY_NICS"] = "mlx5_0 mlx5_2"
+    env["TRY_TLS"] = "tcp,self rc_mlx5,self"
     env.update(
         NPLB_LAB=str(lab), NPLB_REPORT_DIR=str(tmp_path / "reports"), CUDA_ROOT=str(tmp_path)
     )
@@ -54,11 +59,13 @@ def run_try(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
 def test_a_gpu_failure_shows_the_message_and_the_exit_code(tmp_path: Path) -> None:
     result = run_try(tmp_path, "nodeA", "nodeB")
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "VERDICT: FAIL gpu bound16 nic-mlx5_2" in result.stdout
+    assert "VERDICT: FAIL gpu tls-rc_mlx5 bound16 nic-mlx5_2" in result.stdout
     assert "FAIL bound16: exit 134" in result.stdout
     assert "OK cpu: exit 0" in result.stdout
     assert "FAIL gpu: exit 134" in result.stdout
     assert "libcudart.so.12 not found" in result.stdout
+    assert "OK tls-tcp: exit 0" in result.stdout
+    assert "FAIL tls-rc_mlx5: exit 134" in result.stdout
     assert "OK nic-mlx5_0: exit 0" in result.stdout
     assert "FAIL nic-mlx5_2: exit 134" in result.stdout
     assert "unhandled timeout error" in result.stdout
