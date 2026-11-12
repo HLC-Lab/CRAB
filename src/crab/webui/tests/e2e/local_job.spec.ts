@@ -72,8 +72,20 @@ test.beforeAll(() => {
   dataBefore = snapshot(repoData);
 });
 
-test.afterAll(() => {
+test.afterAll(async ({ browser }) => {
   if (work) rmSync(work, { recursive: true, force: true });
+  // One server and profile store serve every spec: drop the "laptop" remote so the
+  // specs that run after this one still see a state with no cluster connected.
+  const baseURL = test.info().project.use.baseURL;
+  const context = await browser.newContext({ baseURL });
+  try {
+    const page = await context.newPage();
+    await page.goto("/");
+    const token = (await page.locator('meta[name="crab-token"]').getAttribute("content")) ?? "";
+    await page.request.delete("/api/remotes/laptop", { headers: { "x-crab-token": token } });
+  } finally {
+    await context.close();
+  }
 });
 
 test("submit a local job and watch it complete", async ({ page }) => {
