@@ -232,23 +232,13 @@ def test_the_noise_aggressor_runs_continuously(path: Path) -> None:
             assert "-bpause" not in args, name
 
 
-def test_guide_has_the_run_again_subsection() -> None:
-    """The guide's one place for rerunning a job: a developer's later answer is a one-section edit."""
-    lines = GUIDE.read_text().splitlines()
-    headings = [
-        i for i, line in enumerate(lines) if re.fullmatch(r"#{3,4} Running a job again", line)
-    ]
+def test_guide_says_once_how_to_run_a_job_again() -> None:
+    """The guide's one place for rerunning a job: a developer's later answer is a one-sentence edit."""
+    lines = [line for line in GUIDE.read_text().splitlines() if "To run it again" in line]
 
-    assert len(headings) == 1
-    section: list[str] = []
-    for line in lines[headings[0] + 1 :]:
-        if re.match(r"#{1,4} ", line):
-            break
-        section.append(line)
-    text = "\n".join(section)
-
-    assert "--force" in text
-    assert "tag" in text
+    assert len(lines) == 1
+    assert "--force" in lines[0]
+    assert "tag" in lines[0]
 
 
 def test_the_smoke_file_stays_one_job_on_two_nodes() -> None:
