@@ -36,19 +36,29 @@ const emit = defineEmits<{
     <div class="zone">
       <div class="zlabel">
         <span>Groups</span>
-        <button class="add" title="Add group" @click="emit('add')">+</button>
+        <button
+          type="button"
+          class="add"
+          title="Add group"
+          aria-label="Add group"
+          @click="emit('add')"
+        >
+          +
+        </button>
       </div>
       <ul>
-        <li
-          v-for="(g, i) in groups"
-          :key="rowKey(g)"
-          :class="{ on: selected === i }"
-          @click="emit('select', i)"
-        >
-          <span class="g-name">{{ g.tag || "untitled group" }}</span>
-          <span class="g-meta"
-            >{{ jobsForGroup(i) }} job{{ jobsForGroup(i) === 1 ? "" : "s" }}</span
+        <li v-for="(g, i) in groups" :key="rowKey(g)" :class="{ on: selected === i }">
+          <button
+            type="button"
+            class="g-select"
+            :aria-current="selected === i ? 'true' : undefined"
+            @click="emit('select', i)"
           >
+            <span class="g-name">{{ g.tag || "untitled group" }}</span>
+            <span class="g-meta"
+              >{{ jobsForGroup(i) }} job{{ jobsForGroup(i) === 1 ? "" : "s" }}</span
+            >
+          </button>
           <span class="g-actions">
             <button
               type="button"
@@ -137,10 +147,11 @@ const emit = defineEmits<{
   border-color: var(--accent);
   color: var(--text);
 }
-.zone li:has(.camp) {
+.zone li:has(.camp, .g-select) {
   padding: 0;
 }
-.camp {
+.camp,
+.g-select {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -153,6 +164,14 @@ const emit = defineEmits<{
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+.g-select {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.4rem 2.4rem 0.4rem 0.55rem;
 }
 .camp small {
   color: var(--text3);
@@ -194,10 +213,12 @@ const emit = defineEmits<{
   gap: 0.15rem;
   opacity: 0;
 }
-.zone li:hover .g-actions {
+.zone li:hover .g-actions,
+.zone li:focus-within .g-actions {
   opacity: 1;
 }
-.zone li:hover .g-meta {
+.zone li:hover .g-meta,
+.zone li:focus-within .g-meta {
   opacity: 0;
 }
 .icon-btn {

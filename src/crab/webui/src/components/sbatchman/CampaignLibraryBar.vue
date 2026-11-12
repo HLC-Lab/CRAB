@@ -8,6 +8,7 @@ import { computed, ref } from "vue";
 import type { CampaignEntry } from "@/api/types";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import ModalDialog from "@/components/ModalDialog.vue";
 
 const emit = defineEmits<{
   // Fired after the campaign actually changed underneath the parent (a fresh
@@ -131,57 +132,63 @@ function confirmDiscard(): void {
   />
 
   <!-- Browse overlay: searchable library picker with hover duplicate/delete -->
-  <div v-if="showOpen" class="modal-bg" @click.self="showOpen = false">
-    <div class="modal card open-modal">
-      <input v-model="openQuery" class="search" placeholder="Search saved campaigns…" autofocus />
-      <ul class="open-list">
-        <li
-          v-for="e in filteredLibrary"
-          :key="e.id"
-          :class="{ current: e.id === store.entryId }"
-          @click="openEntry(e.id)"
-        >
-          <div class="open-main">
-            <span class="open-name">{{ e.name }}</span>
-            <span class="open-actions">
-              <button
-                type="button"
-                class="icon-btn"
-                title="Duplicate campaign"
-                @click.stop="duplicateLibraryEntry(e.id)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                class="icon-btn danger"
-                title="Delete campaign"
-                @click.stop="requestRemoveLibraryEntry(e.id, e.name)"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 7h14" />
-                  <path d="M9 7V5h6v2" />
-                  <path d="M7 7l1 13h8l1-13" />
-                </svg>
-              </button>
-            </span>
-          </div>
-          <div class="open-sub">
-            <span class="open-count"
-              >{{ groupCount(e) }} group{{ groupCount(e) === 1 ? "" : "s" }}</span
+  <ModalDialog
+    v-if="showOpen"
+    class="modal-bg"
+    dialog-class="open-modal"
+    label="Open a saved campaign"
+    @close="showOpen = false"
+  >
+    <input v-model="openQuery" class="search" placeholder="Search saved campaigns…" autofocus />
+    <ul class="open-list">
+      <li v-for="e in filteredLibrary" :key="e.id" :class="{ current: e.id === store.entryId }">
+        <div class="open-main">
+          <button
+            type="button"
+            class="open-name"
+            :aria-current="e.id === store.entryId ? 'true' : undefined"
+            @click="openEntry(e.id)"
+          >
+            {{ e.name }}
+          </button>
+          <span class="open-actions">
+            <button
+              type="button"
+              class="icon-btn"
+              title="Duplicate campaign"
+              @click.stop="duplicateLibraryEntry(e.id)"
             >
-            <span class="open-date">Updated {{ e.updated_at.slice(0, 10) }}</span>
-          </div>
-        </li>
-        <li v-if="!filteredLibrary.length" class="empty">
-          {{ store.library.length ? "No matching campaigns." : "No saved campaigns yet." }}
-        </li>
-      </ul>
-    </div>
-  </div>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon-btn danger"
+              title="Delete campaign"
+              @click.stop="requestRemoveLibraryEntry(e.id, e.name)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7h14" />
+                <path d="M9 7V5h6v2" />
+                <path d="M7 7l1 13h8l1-13" />
+              </svg>
+            </button>
+          </span>
+        </div>
+        <div class="open-sub">
+          <span class="open-count"
+            >{{ groupCount(e) }} group{{ groupCount(e) === 1 ? "" : "s" }}</span
+          >
+          <span class="open-date">Updated {{ e.updated_at.slice(0, 10) }}</span>
+        </div>
+      </li>
+      <li v-if="!filteredLibrary.length" class="empty">
+        {{ store.library.length ? "No matching campaigns." : "No saved campaigns yet." }}
+      </li>
+    </ul>
+  </ModalDialog>
 
   <ConfirmModal
     v-if="removeLibraryTarget"
@@ -286,20 +293,16 @@ select:focus {
   justify-content: center;
   z-index: 50;
 }
-.modal {
-  width: min(40rem, 92vw);
-  padding: 1.25rem;
-}
-.card {
+
+/* Open overlay. The dialog container (.open-modal) lives in ModalDialog, not in
+   this component's markup, so its rules reach it through :deep(). */
+.modal-bg :deep(.open-modal) {
+  width: min(34rem, 92vw);
+  padding: 0.75rem;
   background: var(--bg1);
   border: 1px solid var(--border);
   border-radius: var(--r2);
-}
-
-/* Open overlay */
-.open-modal {
-  width: min(34rem, 92vw);
-  padding: 0.75rem;
+  outline: none;
 }
 .search {
   width: 100%;
@@ -316,27 +319,32 @@ select:focus {
   gap: 0.2rem;
 }
 .open-list li {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.55rem 0.65rem;
   border: 1px solid transparent;
   border-radius: var(--r);
-  cursor: pointer;
 }
-.open-list li:hover {
+.open-list li:hover,
+.open-list li:focus-within {
   background: var(--bg2);
 }
 .open-list li.current {
   border-color: var(--accent);
 }
 .open-main {
-  position: relative;
   display: flex;
   align-items: center;
-  padding-right: 3.6rem;
 }
 .open-name {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
   color: var(--text);
   font-weight: 600;
   flex: 1;
@@ -345,18 +353,25 @@ select:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.open-actions {
+/* The entry's whole row opens it: the button stretches over the row, and the
+   action buttons sit above that layer. */
+.open-name::after {
+  content: "";
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  inset: 0;
+}
+.open-actions {
+  position: relative;
+  z-index: 1;
+  margin-block: -0.3rem;
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
   opacity: 0;
   transition: opacity 0.1s ease;
 }
-.open-list li:hover .open-actions {
+.open-list li:hover .open-actions,
+.open-list li:focus-within .open-actions {
   opacity: 1;
 }
 .open-sub {

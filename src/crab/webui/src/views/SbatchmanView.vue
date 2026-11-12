@@ -109,7 +109,7 @@ function confirmRemoveGroup(): void {
         @request-remove="requestRemoveGroup"
       />
 
-      <main class="pane">
+      <section class="pane">
         <SectionCard
           v-if="view.kind === 'campaign'"
           title="Campaign settings"
@@ -167,7 +167,7 @@ function confirmRemoveGroup(): void {
         <SectionCard v-if="!group" title="Variables" subtitle="Shared by every group you add">
           <VariablesCard :campaign-variables="store.variables" />
         </SectionCard>
-      </main>
+      </section>
 
       <CampaignPreview
         ref="preview"
