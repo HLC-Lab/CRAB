@@ -3,7 +3,7 @@
 #   nplb VERB [ARGS]      (after `. examples/nplb/env.sh`, which defines the nplb function;
 #                          or run examples/nplb/nplb directly)
 # Verbs so far: help, fix-venv, page, reports, build, node, topo, net, campaign, next, queue, follow,
-# run, cancel, skip, smoke, report, compare, diag, pack. Exit 0 on success, 1 when a step failed, 2 on an unknown verb or a usage error.
+# run, cancel, skip, batch, smoke, report, compare, diag, pack. Exit 0 on success, 1 when a step failed, 2 on an unknown verb or a usage error.
 # PYTHONPATH is unset here on purpose: the lab shell exports one that points at an old system
 # argparse, which sbatch copies into every job and the workers then crash.
 # To add a verb: write a cmd_<verb> function and one case arm below.
@@ -35,6 +35,7 @@ nplb VERB [ARGS]   (a verb without its arguments prints its own usage)
   run N|next [--force] [--no-follow]  check every gate, submit the block, follow it
   follow [ROW|JOB|DIR]                follow a job live, say how it ended, page a summary
   cancel                              scancel the newest job of the run log (asks first)
+  batch start ROW..|status|stop       run rows one by one in the background: it survives a logout
   skip N.. [--undo]                   drop rows from the plan so next stops proposing them
   smoke [FEATURE...]                  run the 5 smoke blocks one by one, one verdict page
 
@@ -43,7 +44,6 @@ nplb VERB [ARGS]   (a verb without its arguments prints its own usage)
   diag run [TARGET]                   why a run failed: failed apps, error lines, cause
   diag counters snapshot|diff         did the NICs see ECN/CNP marks (a proxy, not the switch)
   pack [--since T] [--out DIR] [--dry-run]   one tarball of the slot data, with sha256
-
   page N|next|prev [REPORT]           replay a page of a saved report (pages of at most 38 lines)
   reports                             list the saved reports, newest first
   fix-venv                            reinstall CRAB into the venv and run pip check
@@ -413,6 +413,7 @@ case $verb in
     run) cmd_run "$@" ;;
     cancel) cmd_cancel "$@" ;;
     skip) cmd_skip "$@" ;;
+    batch) bash "$NPLB_DIR/batch_run.sh" "$@" ;;
     smoke) cmd_smoke "$@" ;;
     report) cmd_report "$@" ;;
     compare) cmd_compare "$@" ;;
