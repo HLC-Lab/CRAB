@@ -4,6 +4,10 @@
 // passthrough shapes (benchmarks/nodes) are NOT here — the backend forwards
 // them as-is from `crab … --json`, so they stay hand-written in types.ts.
 //
+// The schema comes from an app that also includes the routers this line leaves
+// unmounted (include_unmounted_routers=True), because the dead Jobs/Results/Experiments
+// code still imports their schemas through src/api/types.ts.
+//
 // Run via `npm run gen:api`. verify-full regenerates and fails on any diff.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,7 +23,7 @@ const schema = execFileSync(
   python,
   [
     "-c",
-    "import json; from crab.web.server import create_app; print(json.dumps(create_app().openapi()))",
+    "import json; from crab.web.server import create_app; print(json.dumps(create_app(include_unmounted_routers=True).openapi()))",
   ],
   {
     cwd: repo,

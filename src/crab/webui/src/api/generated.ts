@@ -1388,6 +1388,11 @@ export interface components {
        * @default campaign
        */
       name: string;
+      /**
+       * Overwrite
+       * @default false
+       */
+      overwrite: boolean;
     };
     /** WriteResponse */
     WriteResponse: {

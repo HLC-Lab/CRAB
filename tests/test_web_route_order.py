@@ -68,3 +68,31 @@ def test_dead_routers_are_not_mounted_and_live_ones_are(tmp_path: Path, monkeypa
         assert "application/json" not in listed.headers.get("content-type", "")
         assert client.get("/api/health").status_code == 200
     assert calls == []
+
+
+_DEAD_PREFIXES = ("/api/jobs", "/api/experiments", "/api/results")
+_LIVE_PREFIXES = ("/api/remotes", "/api/wrappers", "/api/sbatchman", "/api/local", "/api/health")
+
+
+def _openapi_paths(tmp_path: Path, **kwargs: bool) -> tuple[str, ...]:
+    settings = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
+    return tuple(create_app(settings, **kwargs).openapi()["paths"])
+
+
+def test_default_app_has_no_unmounted_router_paths(tmp_path: Path):
+    paths = _openapi_paths(tmp_path)
+    for dead in _DEAD_PREFIXES:
+        assert not [p for p in paths if p.startswith(dead)], dead
+
+
+def test_include_unmounted_routers_adds_the_dead_paths_for_type_generation(tmp_path: Path):
+    paths = _openapi_paths(tmp_path, include_unmounted_routers=True)
+    for prefix in _DEAD_PREFIXES + _LIVE_PREFIXES:
+        assert [p for p in paths if p.startswith(prefix)], prefix
+
+
+def test_include_unmounted_routers_only_adds_paths(tmp_path: Path):
+    default = set(_openapi_paths(tmp_path / "a"))
+    switched = set(_openapi_paths(tmp_path / "b", include_unmounted_routers=True))
+    assert default < switched
+    assert all(p.startswith(_DEAD_PREFIXES) for p in switched - default)

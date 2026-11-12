@@ -35,7 +35,10 @@ def _crab_version() -> str:
 
 
 def create_app(
-    settings: Settings | None = None, manager: ConnectionManager | None = None
+    settings: Settings | None = None,
+    manager: ConnectionManager | None = None,
+    *,
+    include_unmounted_routers: bool = False,
 ) -> FastAPI:
     """Build and return the FastAPI app.
 
@@ -44,6 +47,9 @@ def create_app(
             to the process-wide :func:`get_settings`.
         manager: optional pre-built ConnectionManager (tests inject one with a
             fake connector); otherwise one is created at startup.
+        include_unmounted_routers: also include the routers this line leaves out
+            (experiments, jobs, results). Only the API type generator sets it, so
+            the generated schema keeps the shapes the dead code still imports.
     """
     from fastapi import APIRouter, FastAPI
 
@@ -111,7 +117,8 @@ def create_app(
     # This line only authors campaigns (ADR-026, ADR-045), so the Experiments, Jobs and
     # Results routers (experiments, jobs, jobs_submit, jobs_report, results) are not
     # mounted. Their modules, stores and tests stay in the tree so merges from `develop`
-    # stay conflict-free.
+    # stay conflict-free. `include_unmounted_routers` includes them only for type
+    # generation (`npm run gen:api`), never in the running app.
     from crab.web.api.bootstrap import router as bootstrap_router
     from crab.web.api.local import router as local_router
     from crab.web.api.remotes import router as remotes_router
@@ -121,7 +128,21 @@ def create_app(
     app.include_router(remotes_router)
     app.include_router(bootstrap_router)
     app.include_router(wrappers_router)
+    if include_unmounted_routers:
+        from crab.web.api.experiments import router as experiments_router
+
+        app.include_router(experiments_router)
     app.include_router(local_router)
+    if include_unmounted_routers:
+        from crab.web.api.jobs import router as jobs_router
+        from crab.web.api.jobs_report import router as jobs_report_router
+        from crab.web.api.jobs_submit import router as jobs_submit_router
+        from crab.web.api.results import router as results_router
+
+        app.include_router(jobs_submit_router)
+        app.include_router(jobs_router)
+        app.include_router(jobs_report_router)
+        app.include_router(results_router)
     app.include_router(sbatchman_router)
 
     _mount_frontend(app, settings)
