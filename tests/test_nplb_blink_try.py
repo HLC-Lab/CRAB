@@ -44,6 +44,7 @@ def run_try(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "NPLB_WORK")}
     env["TRY_NICS"] = "mlx5_0 mlx5_2"
     env["TRY_TLS"] = "tcp,self rc_mlx5,self"
+    env["TRY_ENVS"] = "UCX_IB_SL=0 A=1,B=2"
     env.update(
         NPLB_LAB=str(lab), NPLB_REPORT_DIR=str(tmp_path / "reports"), CUDA_ROOT=str(tmp_path)
     )
@@ -65,6 +66,8 @@ def test_a_gpu_failure_shows_the_message_and_the_exit_code(tmp_path: Path) -> No
     assert "FAIL gpu: exit 134" in result.stdout
     assert "libcudart.so.12 not found" in result.stdout
     assert "OK tls-tcp: exit 0" in result.stdout
+    assert "OK env-UCX_IB_SL=0: exit 0" in result.stdout
+    assert "OK env-A=1: exit 0" in result.stdout
     assert "FAIL tls-rc_mlx5: exit 134" in result.stdout
     assert "OK nic-mlx5_0: exit 0" in result.stdout
     assert "FAIL nic-mlx5_2: exit 134" in result.stdout

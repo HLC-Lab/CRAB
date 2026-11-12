@@ -9,6 +9,8 @@
 # content line is "VERDICT: OK|FAIL ...". Exit 0 when both runs end with exit 0, 1 otherwise, 2 for bad usage.
 # Env: NPLB_LAB (default $HOME/crab/lab), CUDA_ROOT (as blink_build.sh), PARTITION (h100_4nodes),
 #      TRY_TIMEOUT, TRY_MSG (message bytes, default 65536), NPLB_REPORT_DIR, TRY_NICS (the NICs of the
+#      TRY_ENVS (one run per word, each "VAR=VAL[,VAR=VAL...]" set in every rank: traffic class 0, service
+#      level 0 and IPv4 RoCE v2 addressing by default; empty for none),
 #      TRY_TLS (UCX_TLS lists, one run each: tcp, rc_mlx5, ud_mlx5 and dc_mlx5 by default; empty for none),
 #      per-NIC runs and of the 16-rank run, default the eight the smoke test binds; set it empty for a quick
 #      check with the two first runs only).
@@ -25,6 +27,7 @@ CUDA_ROOT=${CUDA_ROOT:-$(nplb_cuda_root)}
 PARTITION=${PARTITION:-h100_4nodes}
 TRY_TIMEOUT=${TRY_TIMEOUT:-90}
 TRY_MSG=${TRY_MSG:-65536}
+TRY_ENVS=${TRY_ENVS-UCX_IB_TRAFFIC_CLASS=0 UCX_IB_SL=0 UCX_IB_ADDR_TYPE=ipv4,UCX_IB_ROCE_VERSION=v2}
 TRY_TLS=${TRY_TLS-tcp,self,sm rc_mlx5,self,sm ud_mlx5,self,sm dc_mlx5,self,sm}
 TRY_NICS=${TRY_NICS-mlx5_0 mlx5_2 mlx5_4 mlx5_8 mlx5_10 mlx5_12 mlx5_14 mlx5_16}
 BIN=$LAB/blink-gpu/build-cuda/bin
@@ -66,6 +69,14 @@ try_run() {
     [[ -n $dev ]] && devarg=(-x "UCX_NET_DEVICES=$dev:1")
     # "tls:LIST" forces UCX onto those transports instead of picking a NIC
     [[ $dev == tls:* ]] && devarg=(-x "UCX_TLS=${dev#tls:}")
+    # "env:A=B,C=D" sets those variables in every rank
+    if [[ $dev == env:* ]]; then
+        devarg=()
+        local pair
+        for pair in $(tr ',' ' ' <<<"${dev#env:}"); do
+            devarg+=(-x "$pair")
+        done
+    fi
     if [[ $dev == bound ]]; then
         # the smoke layout: 8 ranks per node, local rank i on the i-th NIC of TRY_NICS
         ppn=8
@@ -108,6 +119,9 @@ try_run cpu ""
 try_run gpu "" -gpu
 for tls in $TRY_TLS; do
     try_run "tls-${tls%%,*}" "tls:$tls"
+done
+for envs in $TRY_ENVS; do
+    try_run "env-${envs%%,*}" "env:$envs"
 done
 [[ -n $TRY_NICS ]] && try_run bound16 bound -gpu
 for nic in $TRY_NICS; do
