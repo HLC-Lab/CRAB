@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createMemoryHistory, createRouter, createWebHistory } from "vue-router";
 import { isSbatchmanMode } from "@/lib/mode";
 
 // Lazy-loaded views — one per top-level area of the dashboard.
@@ -6,7 +6,7 @@ import { isSbatchmanMode } from "@/lib/mode";
 // run/monitor/results now, and this branch always runs in SbatchMan mode.
 // Their view/store/component files are left in the tree, unregistered
 // (deferred deletion, see docs/dev/dashboard/deferred.md).
-const routes = [
+export const routes = [
   { path: "/", redirect: "/sbatchman" },
   {
     path: "/sbatchman",
@@ -30,9 +30,23 @@ const routes = [
     component: () => import("@/views/WrappersView.vue"),
     meta: { title: "Wrappers" },
   },
+  // Any other path (/jobs, /author, /results, a typo) lands on the home page.
+  // Keep this the LAST route.
+  { path: "/:pathMatch(.*)*", redirect: "/sbatchman" },
 ];
 
+/** Browser tab title for a route: "<meta.title> - CRAB", or "CRAB" without one. */
+export function titleFor(route: { meta: Record<string, unknown> }): string {
+  const title = route.meta.title;
+  return typeof title === "string" && title !== "" ? `${title} - CRAB` : "CRAB";
+}
+
 export const router = createRouter({
-  history: createWebHistory(),
+  // Unit tests import this module in node, where there is no window.
+  history: typeof window === "undefined" ? createMemoryHistory() : createWebHistory(),
   routes,
+});
+
+router.afterEach((to) => {
+  document.title = titleFor(to);
 });

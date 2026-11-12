@@ -6,6 +6,18 @@
  */
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+/**
+ * The sbatchman line unmounts the Author view, so its nav link is missing; skip there
+ * (the tests still run on develop). Wait for the nav to render before counting.
+ */
+async function skipWithoutAuthor(page: Page): Promise<void> {
+  await page.getByRole("link").first().waitFor();
+  test.skip(
+    (await page.getByRole("link", { name: "Author" }).count()) === 0,
+    "this line has no Author view",
+  );
+}
+
 /** True when the element holding focus is inside `dialog`. */
 async function focusIsInside(dialog: Locator): Promise<boolean> {
   return dialog.evaluate((el) => el.contains(document.activeElement));
@@ -52,6 +64,7 @@ async function expectTabStaysInside(page: Page, dialog: Locator): Promise<void> 
 
 test("wrapper picker: role, focus, Tab trap, Escape, focus return", async ({ page }) => {
   await page.goto("/");
+  await skipWithoutAuthor(page);
   await page.getByRole("link", { name: "Author" }).click();
   await page.locator(".zone .add").click(); // + experiment
   await page.getByRole("button", { name: "+ Add app" }).click();
@@ -90,6 +103,7 @@ test("wrapper picker: role, focus, Tab trap, Escape, focus return", async ({ pag
 
 test("confirm modal: role, focus, Tab trap, Escape cancels, focus return", async ({ page }) => {
   await page.goto("/");
+  await skipWithoutAuthor(page);
   await page.getByRole("link", { name: "Author" }).click();
   // A dirty draft makes "+ New" ask before discarding it.
   await page.locator(".job-grid label.wide input").fill("dialogs_use_case");
