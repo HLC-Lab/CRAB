@@ -1,7 +1,7 @@
 # ADR-026 · SbatchMan work moves to its own dedicated branch
 
 - **Date:** 2026-09-03
-- **Status:** accepted
+- **Status:** accepted; the branch model is superseded by ADR-028
 
 **Amendment (2026-10-20):** the branch-model part (a one-time fork that never merges back) is
 superseded by [ADR-028](adr-028-branch-model.md): generic work merges down into `sbatchman`.

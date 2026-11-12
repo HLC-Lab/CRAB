@@ -33,8 +33,8 @@ deleted.
 | [022](adr-022-results-plotly-and-job-identity.md) | Results redesign: Plotly over Chart.js, absolute paths, job identity off the registry | accepted |
 | [023](adr-023-per-run-failure-counts.md) | Per-run failure counts as additive fields, no `metadata.csv` migration | accepted |
 | [024](adr-024-plotly-webgl-scatter.md) | Switch scatter/line charts to WebGL rendering (scattergl) | accepted |
-| [025](adr-025-sbatchman-worker-seam-and-campaign-generator.md) | SbatchMan integration: file-based worker seam, generator not driver | accepted |
-| [026](adr-026-sbatchman-dedicated-branch.md) | SbatchMan work moves to its own dedicated branch, launch removed | accepted |
+| [025](adr-025-sbatchman-worker-seam-and-campaign-generator.md) | SbatchMan integration: file-based worker seam, generator not driver | accepted; the environment and install details are superseded by 027 and 045 |
+| [026](adr-026-sbatchman-dedicated-branch.md) | SbatchMan work moves to its own dedicated branch, launch removed | accepted; the branch model is superseded by 028 |
 | [027](adr-027-sbatchman-seam-v2.md) | SbatchMan worker seam v2: environment inheritance, GitHub-main install | partly superseded by 045 (install pin and the {token} constraint) |
 | [028](adr-028-branch-model.md) | Keep `sbatchman` as a long-lived project branch fed by merges from the product line | accepted |
 | [029](adr-029-scheduler-and-launcher.md) | Support Slurm and a local backend before v1.0, launcher separate from scheduler | accepted |
