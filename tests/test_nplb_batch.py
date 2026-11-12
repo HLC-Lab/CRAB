@@ -67,7 +67,7 @@ def test_rows_run_in_order_a_failure_does_not_stop_the_batch(tmp_path: Path) -> 
     env = make_env(tmp_path)
     result = batch(env, "start", "1-3", "5")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "started: rows 1 2 3 5 in the background" in result.stdout
+    assert "started: rows 1 2 3 5 x 1 rounds in the background" in result.stdout
     log = current_log(env)
     wait_for(lambda: log.exists() and log.read_text().endswith("batch: end\n"), "the batch end")
     calls = (tmp_path / "calls.log").read_text().splitlines()
@@ -110,3 +110,21 @@ def test_bad_rows_and_no_batch(tmp_path: Path) -> None:
     assert batch(env, "start").returncode == 2
     none = batch(env, "status")
     assert none.returncode == 1 and "no batch yet" in none.stdout
+
+
+def test_repeat_runs_the_rows_again_with_force(tmp_path: Path) -> None:
+    env = make_env(tmp_path)
+    result = batch(env, "start", "--repeat", "2", "1", "3")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "started: rows 1 3 x 2 rounds" in result.stdout
+    log = current_log(env)
+    wait_for(lambda: log.exists() and log.read_text().endswith("batch: end\n"), "the batch end")
+    calls = (tmp_path / "calls.log").read_text().splitlines()
+    assert calls == ["run 1", "run 3", "run 1 --force", "run 3 --force", "report"]
+    assert "4 rows ended" in batch(env, "status").stdout
+
+
+def test_repeat_needs_a_positive_number(tmp_path: Path) -> None:
+    env = make_env(tmp_path)
+    assert batch(env, "start", "--repeat", "0", "1").returncode == 2
+    assert batch(env, "start", "--repeat", "x", "1").returncode == 2

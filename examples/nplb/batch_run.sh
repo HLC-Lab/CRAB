@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Run campaign rows one after the other in the background, so the console can log out.
-#   nplb batch start ROW...    ROW is N or A-B; returns at once, the runner survives the logout
+#   nplb batch start [--repeat K] ROW...   ROW is N or A-B; returns at once, the runner survives the logout;
+#                              --repeat K runs the whole row list K times (rounds 2..K pass --force, so DONE
+#                              rows run again: more samples of the same cells)
 #   nplb batch status          paged report: alive or not, one line per row, the tail of the log
 #   nplb batch stop            asks [y/N], then stops the runner after killing its process group;
 #                              the Slurm job of the current row keeps running (nplb cancel stops it)
@@ -31,7 +33,7 @@ now() { date '+%Y-%m-%d %H:%M:%S'; }
 log() { printf '[%s] batch: %s\n' "$(now)" "$*"; }
 
 usage() {
-    echo "usage: nplb batch start ROW... (N or A-B) | nplb batch status | nplb batch stop" >&2
+    echo "usage: nplb batch start [--repeat K] ROW... (N or A-B) | nplb batch status | nplb batch stop" >&2
     exit 2
 }
 
@@ -65,7 +67,15 @@ expand_rows() {
 }
 
 cmd_start() {
-    local rows pid name
+    local rows pid name repeat=1
+    if [[ ${1:-} == --repeat ]]; then
+        if [[ ! ${2:-} =~ ^[1-9][0-9]*$ ]]; then
+            echo "batch: --repeat needs a whole number of rounds, 1 or more" >&2
+            exit 2
+        fi
+        repeat=$2
+        shift 2
+    fi
     (($# > 0)) || usage
     rows=$(expand_rows "$@") || exit 2
     mkdir -p "$BATCH_DIR" || exit 1
@@ -77,26 +87,31 @@ cmd_start() {
     echo "$name" >"$BATCH_DIR/current"
     : >"$BATCH_DIR/$name.tsv"
     # shellcheck disable=SC2086 # rows is one number per line, split on purpose
-    setsid nohup bash "$HERE/batch_run.sh" _loop "$name" $rows \
+    setsid nohup bash "$HERE/batch_run.sh" _loop "$name" "$repeat" $rows \
         >>"$BATCH_DIR/$name.log" 2>&1 </dev/null &
     echo "$!" >"$PID_FILE"
-    echo "started: rows $(echo $rows) in the background (pid $!), one at a time"
+    # shellcheck disable=SC2086,SC2116 # join the rows on one line
+    echo "started: rows $(echo $rows) x $repeat rounds in the background (pid $!), one at a time"
     echo "log $BATCH_DIR/$name.log"
     echo "you can log out now; later: nplb batch status"
 }
 
-# _loop NAME ROW...: the runner itself, started by cmd_start; stdout and stderr are the log
+# _loop NAME K ROW...: the runner itself, started by cmd_start; stdout and stderr are the log
 cmd_loop() {
-    local name=$1 row start rc
-    shift
-    log "start, rows $*"
-    for row in "$@"; do
-        start=$(now)
-        log "row $row: nplb run $row"
-        "${NPLB_RUN[@]}" run "$row"
-        rc=$?
-        printf '%s\t%s\t%s\t%s\n' "$row" "$start" "$(now)" "$rc" >>"$BATCH_DIR/$name.tsv"
-        log "row $row: ended, exit $rc"
+    local name=$1 repeat=$2 round row start rc
+    local force=()
+    shift 2
+    log "start, rows $* x $repeat rounds"
+    for ((round = 1; round <= repeat; round++)); do
+        ((round > 1)) && force=(--force)
+        for row in "$@"; do
+            start=$(now)
+            log "row $row (round $round of $repeat): nplb run $row ${force[*]}"
+            "${NPLB_RUN[@]}" run "$row" "${force[@]}"
+            rc=$?
+            printf '%s\t%s\t%s\t%s\n' "$row" "$start" "$(now)" "$rc" >>"$BATCH_DIR/$name.tsv"
+            log "row $row (round $round of $repeat): ended, exit $rc"
+        done
     done
     log "all rows done, nplb report follows"
     "${NPLB_RUN[@]}" report
