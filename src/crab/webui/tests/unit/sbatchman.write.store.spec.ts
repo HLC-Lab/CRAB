@@ -18,7 +18,7 @@ vi.mock("@/api/client", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import { emptyApp } from "@/lib/config";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 
@@ -183,5 +183,200 @@ describe("write block", () => {
 
     expect(store.writeBlock).toBeNull();
     expect(store.canWrite).toBe(false);
+  });
+});
+
+describe("write result", () => {
+  const writeMock = vi.mocked(api.sbatchman.write);
+  const result = { local_path: "/data/20260101T000000Z-pilot.yaml", remote_path: "/c/pilot.yaml" };
+
+  function conflict(): Error {
+    return Object.assign(new ApiError("A campaign file named pilot.yaml already exists."), {
+      code: "conflict",
+      status: 409,
+    });
+  }
+
+  function writableStore() {
+    const store = useSbatchmanStore();
+    makeWritable(store);
+    store.destination = "leonardo";
+    return store;
+  }
+
+  beforeEach(() => {
+    writeMock.mockReset();
+    stagingMock.mockResolvedValue({ path: "~/CRAB/.web_staging/campaign.yaml" });
+  });
+
+  it("is kept after a successful write", async () => {
+    writeMock.mockResolvedValue(result);
+    const store = writableStore();
+
+    expect(await store.write()).toBe(true);
+    await settle();
+
+    expect(store.lastWrite).toEqual(result);
+    expect(store.needsOverwrite).toBe(false);
+  });
+
+  it("is cleared when the campaign YAML changes afterwards", async () => {
+    writeMock.mockResolvedValue(result);
+    const store = writableStore();
+    await store.write();
+    await settle();
+
+    store.groups[0].draft.numnodes = "4";
+    await settle();
+
+    expect(store.lastWrite).toBeNull();
+  });
+
+  it("is cleared when the campaign is renamed", async () => {
+    writeMock.mockResolvedValue(result);
+    const store = writableStore();
+    await store.write();
+    await settle();
+
+    store.name = "another name";
+    await settle();
+
+    expect(store.lastWrite).toBeNull();
+  });
+
+  it("is sent with the overwrite flag off by default", async () => {
+    writeMock.mockResolvedValue(result);
+    const store = writableStore();
+    await store.write();
+
+    expect(writeMock).toHaveBeenCalledWith("leonardo", store.yaml, store.name, false);
+  });
+
+  it("turns a 409 into a replace question instead of an error", async () => {
+    writeMock.mockRejectedValueOnce(conflict());
+    const store = writableStore();
+
+    expect(await store.write()).toBe(false);
+
+    expect(store.needsOverwrite).toBe(true);
+    expect(store.error).toBeNull();
+    expect(store.lastWrite).toBeNull();
+  });
+
+  it("re-sends the same write with overwrite on when the user agrees", async () => {
+    writeMock.mockRejectedValueOnce(conflict());
+    writeMock.mockResolvedValueOnce(result);
+    const store = writableStore();
+    await store.write();
+
+    expect(await store.write({ overwrite: true })).toBe(true);
+
+    expect(writeMock).toHaveBeenLastCalledWith("leonardo", store.yaml, store.name, true);
+    expect(store.needsOverwrite).toBe(false);
+    expect(store.lastWrite).toEqual(result);
+  });
+
+  it("drops the replace question when the YAML changes", async () => {
+    writeMock.mockRejectedValueOnce(conflict());
+    const store = writableStore();
+    await store.write();
+
+    store.groups[0].draft.numnodes = "4";
+    await settle();
+
+    expect(store.needsOverwrite).toBe(false);
+  });
+
+  /** A write that stays in flight until the returned function settles it. */
+  type Outcome = { ok: true } | { ok: false; err: Error };
+  function pendingWrite(): (o: Outcome) => void {
+    let finish: (o: Outcome) => void = () => {};
+    writeMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve, reject) => {
+          finish = (o) => (o.ok ? resolve(result) : reject(o.err));
+        }),
+    );
+    return (o) => finish(o);
+  }
+
+  it("discards a success that arrives after the campaign was edited", async () => {
+    const store = writableStore();
+    const finish = pendingWrite();
+    const done = store.write();
+    store.groups[0].draft.numnodes = "4";
+    await settle();
+    finish({ ok: true });
+
+    expect(await done).toBe(false);
+
+    expect(store.lastWrite).toBeNull();
+    expect(store.busy).toBe(false);
+  });
+
+  it("discards a 409 that arrives after the campaign was renamed", async () => {
+    const store = writableStore();
+    const finish = pendingWrite();
+    const done = store.write();
+    store.name = "another name";
+    await settle();
+    finish({ ok: false, err: conflict() });
+    await done;
+
+    expect(store.needsOverwrite).toBe(false);
+    expect(store.error).toBeNull();
+  });
+
+  it("discards an error that arrives after the cluster was switched", async () => {
+    const store = writableStore();
+    const finish = pendingWrite();
+    const done = store.write();
+    store.destination = "lumi";
+    await settle();
+    finish({ ok: false, err: new Error("boom") });
+    await done;
+
+    expect(store.error).toBeNull();
+    expect(store.lastWrite).toBeNull();
+  });
+
+  it("drops the replace question when the cluster is switched", async () => {
+    writeMock.mockRejectedValueOnce(conflict());
+    const store = writableStore();
+    await store.write();
+    expect(store.needsOverwrite).toBe(true);
+
+    store.destination = "lumi";
+    await settle();
+
+    expect(store.needsOverwrite).toBe(false);
+  });
+
+  it("does not replace for a campaign other than the one the 409 belonged to", async () => {
+    writeMock.mockRejectedValueOnce(conflict());
+    writeMock.mockResolvedValueOnce(result);
+    const store = writableStore();
+    await store.write();
+
+    // Edited, and Replace pressed before the watcher in the store has run.
+    store.groups[0].draft.numnodes = "4";
+    await store.write({ overwrite: true });
+
+    expect(writeMock).toHaveBeenLastCalledWith("leonardo", store.yaml, store.name, false);
+  });
+
+  it("still shows any other error as before", async () => {
+    writeMock.mockRejectedValueOnce(
+      Object.assign(new ApiError("The campaign file has no `jobs` section."), {
+        code: "input_error",
+        status: 422,
+      }),
+    );
+    const store = writableStore();
+
+    expect(await store.write()).toBe(false);
+
+    expect(store.error).toBe("The campaign file has no `jobs` section.");
+    expect(store.needsOverwrite).toBe(false);
   });
 });

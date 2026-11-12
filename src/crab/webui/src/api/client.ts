@@ -240,10 +240,11 @@ export const api = {
   },
 
   sbatchman: {
-    write: (profileName: string, yaml: string, name: string) =>
+    // `overwrite` is not in the generated request type yet (generated.ts is regenerated separately).
+    write: (profileName: string, yaml: string, name: string, overwrite = false) =>
       request<SbatchmanWriteResult>("/api/sbatchman/write", {
         method: "POST",
-        body: JSON.stringify({ profile_name: profileName, yaml, name }),
+        body: JSON.stringify({ profile_name: profileName, yaml, name, overwrite }),
       }),
 
     stagingPath: (profileName: string, name: string) =>

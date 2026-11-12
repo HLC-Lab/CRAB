@@ -111,6 +111,13 @@ function normalizeSpec(raw: unknown): CampaignSpec {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/** What one write sent: the cluster, the campaign name and the composed YAML. */
+interface WriteSnapshot {
+  destination: string;
+  name: string;
+  yaml: string;
+}
+
 export const useSbatchmanStore = defineStore("sbatchman", () => {
   const name = ref("campaign");
   const variables = reactive<SbatchmanVar[]>([]);
@@ -124,6 +131,10 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const busy = ref(false);
   const error = ref<string | null>(null);
   const lastWrite = ref<SbatchmanWriteResult | null>(null);
+  // The write a 409 answered ("the cluster already has this file"). The view asks whether
+  // to replace it; write({ overwrite: true }) re-sends only while the cluster, name and
+  // YAML are still the ones that write had.
+  const overwriteFor = ref<WriteSnapshot | null>(null);
   // Where Write files will put the YAML on `destination`, computed by the
   // backend (it owns the slug and staging-dir rules). Empty until known.
   const stagingPath = ref("");
@@ -200,6 +211,17 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   );
 
   const yaml = computed(() => composeCampaignYaml(campaign.value));
+  const currentWrite = (): WriteSnapshot => ({
+    destination: destination.value,
+    name: name.value,
+    yaml: yaml.value,
+  });
+  const isCurrentWrite = (w: WriteSnapshot | null): boolean =>
+    w !== null &&
+    w.destination === destination.value &&
+    w.name === name.value &&
+    w.yaml === yaml.value;
+  const needsOverwrite = computed(() => isCurrentWrite(overwriteFor.value));
   const totalJobs = computed(() => campaignJobCount(campaign.value));
   // Problems that would break `sbatchman launch` or the CRAB worker; write() refuses
   // while any exist.
@@ -236,6 +258,13 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
       // files reports its own errors.
       if (mine === stagingRequest) stagingPath.value = "";
     }
+  });
+
+  // "Written to ..." and the replace question describe the YAML as it was when written:
+  // once the campaign or its name changes they would be stale.
+  watch([yaml, name, destination], () => {
+    lastWrite.value = null;
+    overwriteFor.value = null;
   });
 
   function jobsForGroup(i: number): number {
@@ -359,8 +388,11 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     }
   }
 
-  async function write(): Promise<boolean> {
+  async function write(options: { overwrite?: boolean } = {}): Promise<boolean> {
     error.value = null;
+    // Replace only what the 409 was about; anything else is a plain write again.
+    const overwrite = options.overwrite === true && needsOverwrite.value;
+    overwriteFor.value = null;
     if (!destination.value) {
       error.value = "Choose a connected cluster to write to first.";
       return false;
@@ -371,11 +403,21 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
       return false;
     }
     busy.value = true;
+    // The campaign can change while the request is in flight: an answer for a different
+    // cluster, name or YAML is dropped, not shown as if it described the current one.
+    const sent = currentWrite();
     try {
-      lastWrite.value = await api.sbatchman.write(destination.value, yaml.value, name.value);
+      const written = await api.sbatchman.write(sent.destination, sent.yaml, sent.name, overwrite);
+      if (!isCurrentWrite(sent)) return false;
+      lastWrite.value = written;
       return true;
     } catch (e) {
-      error.value = msg(e);
+      if (!isCurrentWrite(sent)) return false;
+      if (e instanceof ApiError && e.code === "conflict") {
+        overwriteFor.value = sent;
+      } else {
+        error.value = msg(e);
+      }
       return false;
     } finally {
       busy.value = false;
@@ -391,6 +433,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     busy,
     error,
     lastWrite,
+    needsOverwrite,
     stagingPath,
     writeBlock,
     canWrite,

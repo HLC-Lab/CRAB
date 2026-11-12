@@ -3,7 +3,8 @@
 // cluster choice of the page (it also feeds the wrapper picker), the path the
 // file will land at, and Write files. When writing is not possible the reason
 // sits next to the button: a problem count that opens the problem list, or a
-// pointer to Remotes when no cluster is connected. Presentational only: the
+// pointer to Remotes when no cluster is connected. When the cluster already has a
+// file with this name it asks whether to replace it. Presentational only: the
 // store owns the state and does the API call.
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
@@ -19,10 +20,13 @@ const props = defineProps<{
   problemCount: number;
   canWrite: boolean;
   lastWrite: SbatchmanWriteResult | null;
+  /** The cluster already has a file with this name: ask before replacing it. */
+  needsOverwrite: boolean;
 }>();
 const emit = defineEmits<{
   "update:destination": [string];
   write: [];
+  replace: [];
   "show-problems": [];
 }>();
 
@@ -73,6 +77,13 @@ const stagingFile = computed(() => props.stagingPath.slice(props.stagingPath.las
           {{ busy ? "Writing…" : "Write files" }}
         </button>
       </div>
+    </div>
+
+    <div v-if="needsOverwrite" class="out replace" role="alert">
+      <span>A file with this name already exists on the cluster. Replace it?</span>
+      <button type="button" class="btn" :disabled="busy" @click="emit('replace')">
+        Replace file
+      </button>
     </div>
 
     <p v-if="lastWrite" class="out" role="status">
@@ -210,6 +221,16 @@ select:focus {
   font-size: var(--t-sm);
   color: var(--text2);
   overflow-wrap: anywhere;
+}
+.replace {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--warn);
+}
+.replace .btn {
+  padding: 0.3rem 0.8rem;
+  font-size: var(--t-sm);
 }
 .out b {
   color: var(--text);

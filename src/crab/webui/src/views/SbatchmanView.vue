@@ -84,8 +84,10 @@ function confirmRemoveGroup(): void {
         :problem-count="store.issues.length"
         :can-write="store.canWrite"
         :last-write="store.lastWrite"
+        :needs-overwrite="store.needsOverwrite"
         @update:destination="store.destination = $event"
         @write="store.write"
+        @replace="store.write({ overwrite: true })"
         @show-problems="showProblems"
       />
     </div>

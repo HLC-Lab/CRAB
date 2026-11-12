@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
+import shlex
 
 from crab.web.connections.transport import Transport
-from crab.web.errors import RemoteCommandError
+from crab.web.errors import ConflictError, CrabWebError, RemoteCommandError
 from crab.web.remoteops.crab_cli import crab_dir, output_tail, remote_path_expr
 from crab.web.settings import Settings, get_settings
 from crab.web.store.profiles import Profile
@@ -64,9 +66,15 @@ async def _resolve_staging_dir(
             f"Could not create the staging directory {remote_dir}.",
             detail=output_tail(result),
         )
-    absolute_dir = result.stdout.strip()
-    if not absolute_dir:
-        raise RemoteCommandError(f"Could not resolve the staging directory {remote_dir}.")
+    # A login shell can print a banner or module messages before `pwd` runs: the
+    # directory is the last non-empty line.
+    lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    absolute_dir = lines[-1] if lines else ""
+    if not absolute_dir.startswith("/"):
+        raise RemoteCommandError(
+            f"Could not resolve the staging directory {remote_dir}.",
+            detail=output_tail(result),
+        )
     return absolute_dir
 
 
@@ -92,14 +100,55 @@ async def stage_text(
     text: str,
     filename: str,
     *,
+    overwrite: bool = True,
     settings: Settings | None = None,
     timeout: float = 30.0,
 ) -> str:
     """Write raw ``text`` to ``filename`` in the staging dir; return its absolute
     path. Same directory/resolution as ``stage_config``, for content that isn't
     a CRAB config JSON blob (e.g. a composed SbatchMan campaign YAML).
+
+    With ``overwrite=False`` an existing file of that name raises ``ConflictError``
+    and nothing is written. The text goes to a unique temporary name first, gets
+    mode 600 whatever the umask, and is then moved onto the final name, so a failed
+    write never leaves a half file under the real name.
     """
     absolute_dir = await _resolve_staging_dir(transport, profile, settings, timeout)
     remote_path = f"{absolute_dir}/{filename}"
-    await transport.write_file(remote_path, text, timeout=timeout)
+    if not overwrite:
+        exists = await transport.run(f"test -e {shlex.quote(remote_path)}", timeout=timeout)
+        # `test` answers 0 (exists) or 1 (absent). Any other code (ssh itself failing, say)
+        # says nothing about the file, so nothing is written on the strength of it.
+        if exists.rc == 0:
+            raise ConflictError(
+                f"A campaign file named {filename} already exists on the cluster. "
+                "Write again to replace it."
+            )
+        if exists.rc != 1:
+            raise RemoteCommandError(
+                f"Could not check whether {filename} already exists on the cluster.",
+                detail=output_tail(exists),
+            )
+    temp_path = f"{remote_path}.tmp-{secrets.token_hex(4)}"
+    try:
+        # The SFTP create uses the server's umask, so the content is readable by whoever that
+        # allows until the chmod below runs.
+        await transport.write_file(temp_path, text, timeout=timeout)
+        for command, what in (
+            (f"chmod 600 {shlex.quote(temp_path)}", "set the permissions of"),
+            (f"mv -f {shlex.quote(temp_path)} {shlex.quote(remote_path)}", "move"),
+        ):
+            result = await transport.run(command, timeout=timeout)
+            if not result.ok:
+                raise RemoteCommandError(
+                    f"Could not {what} the staged file {filename}.", detail=output_tail(result)
+                )
+    except BaseException:
+        # Best effort, and also when cancelled: the connection may be the very thing that
+        # failed. The original error (or the cancellation) keeps propagating.
+        try:
+            await transport.run(f"rm -f {shlex.quote(temp_path)}", timeout=timeout)
+        except CrabWebError:
+            pass
+        raise
     return remote_path

@@ -17,9 +17,13 @@ from crab.web.settings import Settings, get_settings
 
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
 
+# A longer name would make a file name the filesystem refuses (255 bytes on most).
+MAX_SLUG_LENGTH = 60
 
-def _slug(name: str) -> str:
-    s = _NON_SLUG.sub("-", name.strip().lower()).strip("-")
+
+def campaign_slug(name: str) -> str:
+    """The file-name form of a campaign name, shared by the local copy and the staged file."""
+    s = _NON_SLUG.sub("-", name.strip().lower()).strip("-")[:MAX_SLUG_LENGTH].rstrip("-")
     return s or "campaign"
 
 
@@ -28,6 +32,6 @@ def save_campaign_yaml(yaml_text: str, name: str, settings: Settings | None = No
     s = settings or get_settings()
     s.sbatchman_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    path = s.sbatchman_dir / f"{stamp}-{_slug(name)}.yaml"
+    path = s.sbatchman_dir / f"{stamp}-{campaign_slug(name)}.yaml"
     path.write_text(yaml_text)
     return path

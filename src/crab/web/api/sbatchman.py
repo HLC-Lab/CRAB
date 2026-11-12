@@ -7,27 +7,23 @@ runs `sbatchman launch` (ADR-026).
 
 from __future__ import annotations
 
-import re
+import asyncio
+from typing import Any
 
+# PyYAML arrives through uvicorn[standard]; declaring it in the web extra is an owner decision.
+import yaml  # type: ignore[import-untyped]
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
-from crab.web.errors import RemoteConnectionError
+from crab.web.errors import InputError, RemoteCommandError, RemoteConnectionError
 from crab.web.remoteops.transfer import stage_text, staging_dir
 from crab.web.store.campaign_library import CampaignEntry, CampaignLibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
-from crab.web.store.sbatchman import save_campaign_yaml
+from crab.web.store.sbatchman import campaign_slug, save_campaign_yaml
 
 router = APIRouter(prefix="/api/sbatchman", tags=["sbatchman"])
-
-_NON_SLUG = re.compile(r"[^a-z0-9]+")
-
-
-def _slug(name: str) -> str:
-    s = _NON_SLUG.sub("-", name.strip().lower()).strip("-")
-    return s or "campaign"
 
 
 def _manager(request: Request) -> ConnectionManager:
@@ -57,7 +53,27 @@ def _profile(profile_name: str, request: Request) -> Profile:
 def _campaign_filename(name: str) -> str:
     """The staged file's name for a campaign: the single source of truth for the
     write route and the staging-path preview."""
-    return f"{_slug(name)}.yaml"
+    return f"{campaign_slug(name)}.yaml"
+
+
+def _check_campaign_yaml(text: str) -> None:
+    """Refuse text that is not a SbatchMan campaign file before anything is written.
+    Only the shape is checked (a mapping with a `jobs` key); SbatchMan validates the rest."""
+    try:
+        doc: Any = yaml.safe_load(text)
+    except RecursionError as e:
+        raise InputError("The campaign file is not valid YAML: it is nested too deeply.") from e
+    except (yaml.YAMLError, ValueError) as e:
+        # YAMLError is the parser's own; ValueError comes from a value the loader cannot
+        # build, such as the date 2001-13-45.
+        text_lines = str(e).strip().splitlines()
+        problem = getattr(e, "problem", None) or (text_lines[0] if text_lines else "")
+        mark = getattr(e, "problem_mark", None)
+        where = f" (line {mark.line + 1})" if mark is not None else ""
+        reason = f": {problem}{where}" if problem else ""
+        raise InputError(f"The campaign file is not valid YAML{reason}.") from e
+    if not isinstance(doc, dict) or "jobs" not in doc:
+        raise InputError("The campaign file has no `jobs` section.")
 
 
 class StagingPathResponse(BaseModel):
@@ -76,6 +92,8 @@ class WriteRequest(BaseModel):
     profile_name: str
     yaml: str
     name: str = "campaign"
+    # Replace a file of the same name that is already on the cluster.
+    overwrite: bool = False
 
 
 class WriteResponse(BaseModel):
@@ -85,14 +103,28 @@ class WriteResponse(BaseModel):
 
 @router.post("/write", response_model=WriteResponse)
 async def write_campaign(body: WriteRequest, request: Request) -> WriteResponse:
+    _check_campaign_yaml(body.yaml)
     transport = _live_transport(body.profile_name, request)
     profile = _profile(body.profile_name, request)
     settings = request.app.state.settings
 
-    local_path = save_campaign_yaml(body.yaml, body.name, settings)
+    # The cluster first: an existing file (409) or a failed write leaves no local copy.
     remote_path = await stage_text(
-        transport, profile, body.yaml, _campaign_filename(body.name), settings=settings
+        transport,
+        profile,
+        body.yaml,
+        _campaign_filename(body.name),
+        overwrite=body.overwrite,
+        settings=settings,
     )
+    try:
+        local_path = await asyncio.to_thread(save_campaign_yaml, body.yaml, body.name, settings)
+    except OSError as e:
+        raise RemoteCommandError(
+            f"The campaign file was written to the cluster ({remote_path}), "
+            "but saving the local copy failed.",
+            detail=str(e),
+        ) from e
     return WriteResponse(local_path=str(local_path), remote_path=remote_path)
 
 
