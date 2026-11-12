@@ -390,4 +390,4 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
  * comes from (docs/using/sbatchman-integration.md). */
 export const PRESET_PLACEHOLDER = "crab_run";
 export const PRESET_HINT =
-  "The SbatchMan config this group runs with: its name in your SbatchMan configs file, for example crab_run_{nodes}. See the integration guide.";
+  "The SbatchMan config this group runs with: its name in your SbatchMan configs file, for example crab_run_{nodes}. See docs/using/sbatchman-integration.md.";

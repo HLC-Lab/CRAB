@@ -18,9 +18,9 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
   await expect(write).toBeDisabled();
   await expect(writeBar.getByRole("button", { name: /\d+ problems?/ })).toBeVisible();
 
-  // Fill the group: tag, SbatchMan preset, nodes, one app with a wrapper path.
+  // Fill the group: tag, SbatchMan config, nodes, one app with a wrapper path.
   await page.getByPlaceholder("e.g. g500_baseline_{scale}_{nodes}").fill("e2e_{nodes}");
-  await page.getByLabel("SbatchMan preset").fill("cpu");
+  await page.getByLabel("SbatchMan config").fill("cpu");
   await page.getByPlaceholder("e.g. {nodes}", { exact: true }).fill("{nodes}");
   await page.getByRole("button", { name: "+ Add variable" }).first().click();
   const varRow = page.locator(".var-row").last();
@@ -51,7 +51,7 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
 
   // Edit, then delete the open campaign from Browse: the confirmation names the
   // unsaved loss, and confirming resets the editor.
-  await page.getByLabel("SbatchMan preset").fill("gpu");
+  await page.getByLabel("SbatchMan config").fill("gpu");
   await page.getByRole("button", { name: "Browse…" }).click();
   await page.getByRole("button", { name: "Discard" }).click(); // opens the overlay only
   await page.getByTitle("Delete campaign").click();
@@ -106,7 +106,7 @@ test("variables card edits both scopes, and Campaign settings lives in the rail"
   await expect(campaignEntry).toHaveClass(/on/);
   await expect(groupEntry).not.toHaveClass(/on/);
   await expect(
-    page.getByText(/Jobs take their environment from the SbatchMan preset/),
+    page.getByText(/Jobs take their environment from the SbatchMan config/),
   ).toBeVisible();
   await expect(page.getByPlaceholder("e.g. /home/user/CRAB")).toHaveCount(0);
   await expect(page.getByRole("group", { name: "Campaign-wide variables" })).toHaveCount(0);

@@ -38,7 +38,7 @@ const d = computed(() => props.draft);
       <small>Identifies this group's jobs to SbatchMan. Can use {var} placeholders.</small>
     </label>
     <label
-      >SbatchMan preset <input v-model="presetModel" :placeholder="PRESET_PLACEHOLDER" />
+      >SbatchMan config <input v-model="presetModel" :placeholder="PRESET_PLACEHOLDER" />
       <small>{{ PRESET_HINT }}</small>
     </label>
     <label

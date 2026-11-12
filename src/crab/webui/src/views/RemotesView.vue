@@ -3,9 +3,12 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useRemotesStore } from "@/stores/remotes";
 import { crabCommandNote, crabCommandView, crabDir } from "@/lib/remoteCrab";
 import { needsLabel, presetsHint } from "@/lib/presetSetup";
+import { isSbatchmanMode } from "@/lib/mode";
 import type { Profile, StepResult } from "@/api/types";
 
 const store = useRemotesStore();
+// CRAB presets do not exist on the SbatchMan line (ADR-045): hide their field, list and hint.
+const sbatchmanMode = isSbatchmanMode();
 const showForm = ref(false);
 // null = adding a new remote; a name = editing that existing remote.
 const editingName = ref<string | null>(null);
@@ -161,7 +164,9 @@ function confirmRemove(name: string) {
             <small v-else class="field-hint">{{ crabView.hint }}</small>
           </label>
         </template>
-        <label>Preset <input v-model="form.preset" placeholder="cluster preset" /></label>
+        <label v-if="!sbatchmanMode"
+          >Preset <input v-model="form.preset" placeholder="cluster preset"
+        /></label>
       </div>
       <button class="btn primary" type="submit" :disabled="!!crabView.error">
         {{ editingName ? "Save changes" : "Save" }}
@@ -248,7 +253,7 @@ function confirmRemove(name: string) {
 
         <div v-if="store.info[r.name]" class="info">
           CRAB {{ store.info[r.name].crab_version }} · {{ store.info[r.name].crab_root }}
-          <span class="presets">
+          <span v-if="!sbatchmanMode" class="presets">
             presets:
             <template v-for="(p, i) in store.info[r.name].presets" :key="p.name"
               >{{ p.name
@@ -263,7 +268,7 @@ function confirmRemove(name: string) {
           </span>
         </div>
         <p
-          v-if="store.info[r.name] && presetsHint(store.info[r.name])"
+          v-if="!sbatchmanMode && store.info[r.name] && presetsHint(store.info[r.name])"
           class="banner small"
           :class="presetsHint(store.info[r.name])?.kind"
         >

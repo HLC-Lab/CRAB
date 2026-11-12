@@ -56,7 +56,7 @@ defineExpose({ revealProblems });
     <template v-if="open">
       <div v-if="issues.length" ref="problemList" class="issues" tabindex="-1">
         <p class="issues-title">
-          {{ issues.length }} thing{{ issues.length === 1 ? "" : "s" }} to fix before writing
+          {{ issues.length }} problem{{ issues.length === 1 ? "" : "s" }} to fix before writing
         </p>
         <ul>
           <li v-for="msg in issues" :key="msg">{{ msg }}</li>

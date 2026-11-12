@@ -6,7 +6,7 @@
 
 <template>
   <small class="note">
-    Jobs take their environment from the SbatchMan preset. Define it in your SbatchMan configs file
+    Jobs take their environment from the SbatchMan config. Define it in your SbatchMan configs file
     (see the integration guide).
   </small>
 </template>

@@ -4,6 +4,7 @@
 // experiment's local_options overrides. Blank/("default") fields are not emitted.
 import { computed } from "vue";
 import { LAUNCHER_KINDS, type OptionsDraft, type TriBool } from "@/lib/config";
+import { isSbatchmanMode } from "@/lib/mode";
 
 type Group = "convergence" | "output" | "advanced";
 const props = defineProps<{
@@ -18,6 +19,10 @@ const props = defineProps<{
 const o = computed(() => props.options);
 const unset = computed(() => props.unsetLabel ?? "default");
 const show = (g: Group) => !props.groups || props.groups.includes(g);
+// The SbatchMan line has no CRAB presets (ADR-045): the launcher texts name the engine default.
+const noPreset = isSbatchmanMode();
+const defaultLabel = noPreset ? "(default)" : "(preset default)";
+const flagsOwner = noPreset ? "default" : "preset's";
 // On the global pane, "unset" and "the engine's real default" are the same
 // runtime outcome, so the blank option's label states the default directly
 // (no separate value would ever need to distinguish itself from it, so the
@@ -136,7 +141,7 @@ const flagsText = computed({
         <label
           >Launcher
           <select v-model="o.launcher">
-            <option value="">{{ isGlobal ? "(preset default)" : "(inherit)" }}</option>
+            <option value="">{{ isGlobal ? defaultLabel : "(inherit)" }}</option>
             <option v-for="k in LAUNCHER_KINDS" :key="k" :value="k">{{ k }}</option>
             <option v-if="launcherIsOther" :value="o.launcher">{{ o.launcher }}</option>
           </select>
@@ -144,7 +149,7 @@ const flagsText = computed({
         <div class="wide flags">
           <label class="check">
             <input v-model="replaceFlags" type="checkbox" />
-            Replace the preset's flags
+            Replace the {{ flagsOwner }} flags
           </label>
           <input
             v-model="flagsText"
@@ -152,7 +157,9 @@ const flagsText = computed({
             :placeholder="flagsKept ? '(kept as loaded)' : 'none'"
             aria-label="Launcher flags"
           />
-          <small>Replaces the preset's flags for this launcher; leave empty for none.</small>
+          <small
+            >Replaces the {{ flagsOwner }} flags for this launcher; leave empty for none.</small
+          >
         </div>
       </div>
     </section>
