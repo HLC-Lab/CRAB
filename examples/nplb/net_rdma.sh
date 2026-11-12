@@ -3,7 +3,8 @@
 #   nplb net rdma HOST_A HOST_B
 # For every NIC of RDMA_NICS (default: the eight the smoke test binds) runs two perftest measurements
 # from HOST_A to HOST_B on that NIC of both nodes, 2 seconds each: RC (ib_write_bw) and UD (ib_send_bw
-# -c UD, 2048 byte messages). A result counts when the client prints a "BW average" line.
+# -c UD, 2048 byte messages). An RC result counts when the client prints a "BW average" line; a UD result
+# only when the server on HOST_B reports a received rate above 0 (a UD sender reports a rate anyway).
 # Stdout is the report, paged and saved as net-rdma; first content line "VERDICT: OK|FAIL ...", then one
 # "OK|FAIL <rc|ud> <nic>" line per measurement. Exit 0 when all pass, 1 otherwise, 2 for bad usage.
 # Env: SSH (default ssh), RDMA_NICS, RDMA_TIMEOUT (seconds per client, default 15), NPLB_REPORT_DIR.
@@ -29,18 +30,28 @@ TESTED=0
 
 # measure NAME NIC SERVER_CMD CLIENT_CMD: server on B (in the background), client on A
 measure() {
-    local name=$1 nic=$2 server=$3 client=$4 out
+    local name=$1 nic=$2 server=$3 client=$4 out sfile received=1
+    sfile=$(mktemp)
     TESTED=$((TESTED + 1))
     printf '[%s] %s %s %s -> %s\n' "$(date +%H:%M:%S)" "$name" "$nic" "$A" "$B" >&2
-    "${SSH_CMD[@]}" "$B" "timeout $((RDMA_TIMEOUT + 5)) $server" >/dev/null 2>&1 </dev/null &
+    "${SSH_CMD[@]}" "$B" "timeout $((RDMA_TIMEOUT + 5)) $server" >"$sfile" 2>&1 </dev/null &
     sleep 2
     out=$("${SSH_CMD[@]}" "$A" "timeout $RDMA_TIMEOUT $client" 2>&1 </dev/null)
     wait
-    if grep -q 'BW average' <<<"$out"; then
+    # a UD sender reports its rate even when nothing arrives: only the receiver's rate proves delivery
+    if [[ $name == ud ]]; then
+        received=0
+        awk '/^ *[0-9]+ +[0-9]+ +[0-9.]+ +[0-9.]+ +[0-9.]+ *$/ && $4 + 0 > 0 {f = 1} END {exit !f}' "$sfile" && received=1
+    fi
+    rm -f "$sfile"
+    if grep -q 'BW average' <<<"$out" && ((received)); then
         LINES+=("OK $name $nic")
-    else
+    elif ((received)); then
         FAILS=$((FAILS + 1))
         LINES+=("FAIL $name $nic: $(grep -i -m 1 'error\|fail\|unable\|couldn' <<<"$out" | cut -c1-70)")
+    else
+        FAILS=$((FAILS + 1))
+        LINES+=("FAIL $name $nic: sent, but $B received nothing")
     fi
 }
 

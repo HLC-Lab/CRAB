@@ -10,16 +10,18 @@ from pathlib import Path
 NPLB = Path(__file__).resolve().parents[1] / "examples" / "nplb"
 BASH = shutil.which("bash") or "/bin/bash"
 
-# fake ssh: HOST COMMAND. The server commands (run on nodeB) print nothing; a client (run on nodeA)
-# prints a "BW average" line, except the UD measurement on mlx5_2, which prints an error.
+# fake ssh: HOST COMMAND. Every client (run on nodeA) prints a "BW average" line; the UD server on
+# nodeB reports a received rate except on mlx5_2.
 FAKE_SSH = r"""#!/bin/bash
 host=$1
 shift
 cmd="$*"
-[[ $host == nodeB ]] && exit 0
-if [[ $cmd == *"-c UD"* && $cmd == *"-d mlx5_2"* ]]; then
-    echo "Couldn't post send: no completion"
-    exit 1
+if [[ $host == nodeB ]]; then
+    # the receiver of the UD run on mlx5_2 gets nothing; the other UD receivers report a rate
+    if [[ $cmd == *"-c UD"* && $cmd != *"-d mlx5_2"* ]]; then
+        echo " 2048   1000   12.00   11.50   0.70"
+    fi
+    exit 0
 fi
 echo " 65536 BW average[Gb/sec] 390.1"
 """
@@ -50,7 +52,8 @@ def test_a_failing_ud_run_is_named_with_its_message(tmp_path: Path) -> None:
     assert "VERDICT: FAIL 1 of 4 RDMA runs from nodeA to nodeB failed" in result.stdout
     assert "OK rc mlx5_0" in result.stdout
     assert "OK rc mlx5_2" in result.stdout
-    assert "FAIL ud mlx5_2: Couldn't post send" in result.stdout
+    assert "FAIL ud mlx5_2: sent, but nodeB received nothing" in result.stdout
+    assert "OK ud mlx5_0" in result.stdout
 
 
 def test_one_host_is_a_usage_error(tmp_path: Path) -> None:
