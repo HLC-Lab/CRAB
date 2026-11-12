@@ -8,7 +8,8 @@
 # of its output go into the report. Stdout is the report, paged and saved as build-try; the first
 # content line is "VERDICT: OK|FAIL ...". Exit 0 when both runs end with exit 0, 1 otherwise, 2 for bad usage.
 # Env: NPLB_LAB (default $HOME/crab/lab), CUDA_ROOT (as blink_build.sh), PARTITION (h100_4nodes),
-#      TRY_TIMEOUT, TRY_MSG (message bytes, default 65536), NPLB_REPORT_DIR.
+#      TRY_TIMEOUT, TRY_MSG (message bytes, default 65536), NPLB_REPORT_DIR, TRY_NICS (the NICs of the
+#      per-NIC runs, default the eight the smoke test binds: both ranks use that NIC, port 1).
 set -u
 
 unset PYTHONPATH
@@ -22,6 +23,7 @@ CUDA_ROOT=${CUDA_ROOT:-$(nplb_cuda_root)}
 PARTITION=${PARTITION:-h100_4nodes}
 TRY_TIMEOUT=${TRY_TIMEOUT:-90}
 TRY_MSG=${TRY_MSG:-65536}
+TRY_NICS=${TRY_NICS:-mlx5_0 mlx5_2 mlx5_4 mlx5_8 mlx5_10 mlx5_12 mlx5_14 mlx5_16}
 BIN=$LAB/blink-gpu/build-cuda/bin
 MPIRUN=$LAB/ompi-cuda/bin/mpirun
 LD=$LAB/ucx-cuda/lib:$CUDA_ROOT/targets/x86_64-linux/lib:$LAB/ompi-cuda/lib
@@ -52,17 +54,20 @@ fi
 REPORT=()
 FAILS=()
 
-# try_run NAME [EXTRA_BLINK_ARG]: one mpirun on the two nodes, exit code and output lines into REPORT
+# try_run NAME DEVICE [EXTRA_BLINK_ARG]: one mpirun on the two nodes, exit code and output lines into
+# REPORT. DEVICE ("" for the default) is the UCX NIC both ranks use, as UCX_NET_DEVICES=DEVICE:1; a run
+# with a DEVICE shows only its Fatal or error lines, the others the head and tail of the output.
 try_run() {
-    local name=$1 extra=${2:-} out rc count line
-    local -a shown=()
+    local name=$1 dev=$2 extra=${3:-} out rc count line
+    local -a shown=() devarg=()
+    [[ -n $dev ]] && devarg=(-x "UCX_NET_DEVICES=$dev:1")
     out=$(mktemp)
     note "run $name on $NODE_A $NODE_B (limit ${TRY_TIMEOUT}s)"
     LD_LIBRARY_PATH=$LD:${LD_LIBRARY_PATH:-} PATH=$LAB/ompi-cuda/bin:$PATH timeout -k 5 "$TRY_TIMEOUT" \
         "$MPIRUN" -n 2 -H "$NODE_A:1,$NODE_B:1" --allow-run-as-root --mca pml ucx --mca btl '^openib' \
         -x UCX_MAX_RNDV_RAILS=1 -x UCX_IB_ROCE_REACHABILITY_MODE=all -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
-        -x LD_LIBRARY_PATH "$BIN/alltoall_comm_only" -msgsize "$TRY_MSG" -iter 5 -warmup 1 -grty 1 \
-        ${extra:+"$extra"} >"$out" 2>&1 </dev/null
+        "${devarg[@]}" -x LD_LIBRARY_PATH "$BIN/alltoall_comm_only" -msgsize "$TRY_MSG" -iter 5 \
+        -warmup 1 -grty 1 ${extra:+"$extra"} >"$out" 2>&1 </dev/null
     rc=$?
     if ((rc == 0)); then
         REPORT+=("OK $name: exit 0")
@@ -70,12 +75,16 @@ try_run() {
         REPORT+=("FAIL $name: exit $rc")
         FAILS+=("$name")
     fi
-    grep . "$out" >"$out.lines"
-    count=$(wc -l <"$out.lines")
-    if ((count > 16)); then
-        mapfile -t shown < <(head -n 9 "$out.lines"; echo "..."; tail -n 6 "$out.lines")
+    if [[ -n $dev ]]; then
+        ((rc == 0)) || mapfile -t shown < <(grep -i -m 2 'fatal\|error' "$out")
     else
-        mapfile -t shown <"$out.lines"
+        grep . "$out" >"$out.lines"
+        count=$(wc -l <"$out.lines")
+        if ((count > 16)); then
+            mapfile -t shown < <(head -n 9 "$out.lines"; echo "..."; tail -n 6 "$out.lines")
+        else
+            mapfile -t shown <"$out.lines"
+        fi
     fi
     for line in "${shown[@]}"; do
         REPORT+=("  ${line:0:96}")
@@ -83,11 +92,14 @@ try_run() {
     rm -f "$out" "$out.lines"
 }
 
-try_run cpu
-try_run gpu -gpu
+try_run cpu ""
+try_run gpu "" -gpu
+for nic in $TRY_NICS; do
+    try_run "nic-$nic" "$nic"
+done
 {
     if ((${#FAILS[@]} == 0)); then
-        echo "VERDICT: OK Blink alltoall_comm_only ran on $NODE_A and $NODE_B, without and with -gpu"
+        echo "VERDICT: OK Blink alltoall_comm_only ran on $NODE_A and $NODE_B: default, -gpu, each NIC"
     else
         echo "VERDICT: FAIL ${FAILS[*]} (alltoall_comm_only on $NODE_A and $NODE_B)"
     fi

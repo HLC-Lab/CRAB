@@ -17,6 +17,11 @@ for arg in "$@"; do
         echo "cuda init failed: libcudart.so.12 not found"
         exit 134
     fi
+    if [[ $arg == UCX_NET_DEVICES=mlx5_2:1 ]]; then
+        echo "ud_ep.c:296 Fatal: UD endpoint to <no debug data>: unhandled timeout error"
+        echo "unrelated noise line"
+        exit 134
+    fi
 done
 echo "alltoall ok"
 """
@@ -33,6 +38,7 @@ def run_try(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
     binary.write_text("#!/bin/bash\n", encoding="utf-8")
     binary.chmod(0o755)
     env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "NPLB_WORK")}
+    env["TRY_NICS"] = "mlx5_0 mlx5_2"
     env.update(
         NPLB_LAB=str(lab), NPLB_REPORT_DIR=str(tmp_path / "reports"), CUDA_ROOT=str(tmp_path)
     )
@@ -48,10 +54,14 @@ def run_try(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
 def test_a_gpu_failure_shows_the_message_and_the_exit_code(tmp_path: Path) -> None:
     result = run_try(tmp_path, "nodeA", "nodeB")
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "VERDICT: FAIL gpu" in result.stdout
+    assert "VERDICT: FAIL gpu nic-mlx5_2" in result.stdout
     assert "OK cpu: exit 0" in result.stdout
     assert "FAIL gpu: exit 134" in result.stdout
     assert "libcudart.so.12 not found" in result.stdout
+    assert "OK nic-mlx5_0: exit 0" in result.stdout
+    assert "FAIL nic-mlx5_2: exit 134" in result.stdout
+    assert "unhandled timeout error" in result.stdout
+    assert "unrelated noise line" not in result.stdout
 
 
 def test_one_host_is_a_usage_error(tmp_path: Path) -> None:
