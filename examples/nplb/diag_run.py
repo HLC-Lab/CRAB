@@ -71,6 +71,7 @@ MAX_APP_LOGS = 50
 MAX_DISTINCT = 500
 MAX_ROWS = 10
 TAIL_LINES = 8
+APP_HEAD_LINES = 14
 ERROR_LINES_PER_ROW = 2
 GUESS_NOTE = "note: the log shapes of this case are guesses until a real log is seen (only ibv_reg_mr is real)"
 
@@ -215,6 +216,18 @@ def tail_lines(ev: Evidence) -> list[str]:
     return lines[-TAIL_LINES:]
 
 
+def app_head(ev: Evidence) -> list[str]:
+    """The first lines of the error_app_N.log of the first failed app that has one, for a cause no
+    pattern knows: the first error line alone can be mpirun's cleanup message that hides the abort."""
+    for item in ev.failed:
+        text = ev.app_texts.get((item.exp, item.app), "")
+        lines = [" ".join(x.split()) for x in text.splitlines() if x.strip()]
+        if lines:
+            title = f"error_app_{item.app}.log of {item.exp}, first {APP_HEAD_LINES} lines:"
+            return [title, *lines[:APP_HEAD_LINES]]
+    return []
+
+
 def config_sizes(ev: Evidence) -> list[str]:
     """The distinct message sizes of the failed apps: from config.json, else the `msg-size:` line of
     their error log; ascending."""
@@ -332,6 +345,11 @@ def build_report(ev: Evidence, width: int) -> tuple[str, list[str]]:
     lines += wrapped(next_step(ev, cause, hosts), width, rest="      ")
     if ev.failed:
         lines += ["", *failed_table(ev, width)]
+    head = app_head(ev) if cause == UNCLASSIFIED else []
+    if head:
+        lines += ["", head[0]]
+        for text in head[1:]:
+            lines += wrapped(text, width, "  ", "  ", ERROR_LINES_PER_ROW)
     lines += [
         "",
         f"UCX / MPI / CUDA lines ({len(distinct)} distinct):"

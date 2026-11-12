@@ -231,6 +231,25 @@ def test_unclassified_crash_is_never_given_a_cause(tmp_path: Path) -> None:
     assert any("ValueError: boom" in x for x in lines)
 
 
+def test_unclassified_failed_app_shows_the_head_of_its_error_log(tmp_path: Path) -> None:
+    folder = data_root(tmp_path) / "gpu_abort_2026-11-12_00-00-00-000000"
+    (folder / "alone").mkdir(parents=True)
+    (folder / "slurm_output.log").write_text(
+        "[12:00:01] INFO CRAB  Starting experiment [1/1]: alone\n"
+        + engine_failed("alone", 0, 2)
+        + "\n",
+        encoding="utf-8",
+    )
+    body = "App 0 exit=134\n\n--- STDERR ---\nterminate called after throwing an instance of 'std::bad_alloc'\n"
+    body += "2 total processes killed (some possibly by mpirun during cleanup)\n"
+    (folder / "alone" / "error_app_0.log").write_text(body, encoding="utf-8")
+    result = run_diag(tmp_path, folder.name)
+    assert result.returncode == 1, result.stdout + result.stderr
+    lines = report_of(result)
+    assert any(x.startswith("error_app_0.log of alone, first 14 lines:") for x in lines)
+    assert any("std::bad_alloc" in x for x in lines)
+
+
 def test_empty_folder_is_unknown(tmp_path: Path) -> None:
     folder = data_root(tmp_path) / "gpu_empty_2026-10-30_00-00-00-000000"
     folder.mkdir()
