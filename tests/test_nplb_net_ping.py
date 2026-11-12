@@ -28,6 +28,7 @@ case $cmd in
         ;;
     ping*)
         [[ $cmd == *"-I rail1"* ]] && exit 1
+        [[ $cmd == *"-s 4096"* && $cmd == *"-I rail0"* ]] && exit 1
         exit 0
         ;;
 esac
@@ -52,8 +53,8 @@ def run_ping(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
 def test_a_failing_rail_is_named_and_the_management_netdev_is_skipped(tmp_path: Path) -> None:
     result = run_ping(tmp_path, "node1", "node2")
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "VERDICT: FAIL 1 of 2 NICs of node1 cannot reach node2" in result.stdout
-    assert "OK rail0 10.1.0.1 -> 10.1.0.2" in result.stdout
+    assert "VERDICT: FAIL 2 of 2 NICs of node1 cannot reach node2" in result.stdout
+    assert "FAIL-BIG rail0 10.1.0.1 -> 10.1.0.2" in result.stdout
     assert "FAIL rail1 10.2.0.1 -> 10.2.0.2" in result.stdout
     assert "eth0" not in result.stdout
 
