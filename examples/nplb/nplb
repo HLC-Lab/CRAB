@@ -22,6 +22,7 @@ nplb VERB [ARGS]   (a verb without its arguments prints its own usage)
 
   build blink [HOST...]               rebuild the GPU Blink and show the proof
   build check [HOST...]               read-only check: MPI, UCX, the Blink source and binaries
+  build try [HOST HOST]               run Blink by hand on two nodes, show its output
   node check [HOST...]                node health page, the verdict first
   node diag HOST                      one node in depth: hardware or software
   node fix [--sr V] [--ar V] [HOST...]   remount NFS on the workers, set SR/AR (asks first)
@@ -84,8 +85,9 @@ cmd_build() {
     case $sub in
         blink) bash "$NPLB_DIR/blink_build.sh" build "$@" ;;
         check) bash "$NPLB_DIR/blink_build.sh" check "$@" ;;
+        try) bash "$NPLB_DIR/blink_try.sh" "$@" ;;
         *)
-            echo "usage: nplb build blink|check [HOST...]" >&2
+            echo "usage: nplb build blink|check [HOST...] | nplb build try [HOST HOST]" >&2
             return 2
             ;;
     esac
