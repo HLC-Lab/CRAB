@@ -124,7 +124,7 @@ def head(repo: Path) -> str:
     return git(repo, "rev-parse", "HEAD")
 
 
-def test_behind_origin_pulls_and_runs_the_three_verbs(world: World) -> None:
+def test_behind_origin_pulls_and_runs_the_two_verbs(world: World) -> None:
     world.push_commits(2)
     before = head(world.lab)
     result = world.run()
@@ -132,7 +132,7 @@ def test_behind_origin_pulls_and_runs_the_three_verbs(world: World) -> None:
     assert head(world.lab) == git(world.origin, "rev-parse", "nplb")
     assert head(world.lab) != before
     assert re.search(r"\b2 commits\b", result.stdout), result.stdout
-    assert world.calls() == ["update", "build check", "node check"]
+    assert world.calls() == ["build check", "node check"]
     page = summary_page(result.stdout)
     assert page[0].startswith("VERDICT: OK lab_start: branch nplb at ")
     assert git(world.lab, "rev-parse", "--short", "HEAD") in page[0]
@@ -145,7 +145,7 @@ def test_level_with_origin_does_not_pull(world: World) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert head(world.lab) == before
     assert not re.search(r"brought \d+ commit", result.stdout), result.stdout
-    assert world.calls() == ["update", "build check", "node check"]
+    assert world.calls() == ["build check", "node check"]
     assert summary_page(result.stdout)[0].startswith("VERDICT: OK lab_start")
     assert_page_fits(result.stdout)
 
@@ -157,7 +157,7 @@ def test_ahead_of_origin_is_said_and_not_fatal(world: World) -> None:
     result = world.run()
     assert result.returncode == 0, result.stdout + result.stderr
     assert re.search(r"ahead of origin/nplb by 1", result.stdout), result.stdout
-    assert world.calls() == ["update", "build check", "node check"]
+    assert world.calls() == ["build check", "node check"]
     assert_page_fits(result.stdout)
 
 
@@ -208,20 +208,20 @@ def test_unreachable_origin_fails_at_fetch(world: World) -> None:
 def test_a_failing_verb_does_not_stop_the_later_ones(world: World) -> None:
     result = world.run(STUB_FAIL="node check")
     assert result.returncode == 1, result.stdout + result.stderr
-    assert world.calls() == ["update", "build check", "node check"]
+    assert world.calls() == ["build check", "node check"]
     page = summary_page(result.stdout)
     assert page[0].startswith("VERDICT: FAIL lab_start: node check")
-    assert any(line.startswith("OK") and "update" in line for line in page)
+    assert any(line.startswith("OK") and "build check" in line for line in page)
     assert any(line.startswith("FAIL") and "node check" in line for line in page)
     assert "next:" not in result.stdout
     assert_page_fits(result.stdout)
 
 
 def test_first_failing_step_is_named_when_two_fail(world: World) -> None:
-    result = world.run(STUB_FAIL="update")
+    result = world.run(STUB_FAIL="build check")
     assert result.returncode == 1
-    assert world.calls() == ["update", "build check", "node check"]
-    assert summary_page(result.stdout)[0].startswith("VERDICT: FAIL lab_start: update")
+    assert world.calls() == ["build check", "node check"]
+    assert summary_page(result.stdout)[0].startswith("VERDICT: FAIL lab_start: build check")
 
 
 def test_streams_and_site_file(world: World) -> None:
@@ -230,7 +230,7 @@ def test_streams_and_site_file(world: World) -> None:
     world.push_commits(1)
     result = world.run(PYTHONPATH="/nonexistent/old/argparse")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "stub ran: update marker=proxy-set" in result.stdout
+    assert "stub ran: build check marker=proxy-set" in result.stdout
     assert re.search(r"^\[\d\d:\d\d:\d\d\] step 1/6: ", result.stderr, re.M), result.stderr
     assert re.search(r"^\[\d\d:\d\d:\d\d\] step 6/6: ", result.stderr, re.M), result.stderr
     assert "step 1/6" not in result.stdout
@@ -253,3 +253,15 @@ def test_works_from_any_directory_and_never_prompts_without_a_terminal(world: Wo
     result = world.run()
     assert result.returncode == 0, result.stdout + result.stderr
     assert "Enter for the next page" not in result.stdout + result.stderr
+
+
+def test_every_verb_lab_start_runs_exists_in_the_real_dispatcher() -> None:
+    nplb_dir = Path(__file__).resolve().parent.parent / "examples" / "nplb"
+    script = (nplb_dir / "lab_start.sh").read_text()
+    loop = re.search(r"^\s*for verb in (.+); do$", script, re.M)
+    assert loop, "lab_start.sh has no `for verb in ...; do` line"
+    verbs = re.findall(r'"([^"]+)"', loop.group(1))
+    assert verbs
+    dispatcher = (nplb_dir / "nplb").read_text()
+    for verb in verbs:
+        assert re.search(rf"^    {re.escape(verb.split()[0])}\) ", dispatcher, re.M), verb

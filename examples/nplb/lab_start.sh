@@ -2,7 +2,7 @@
 # The first look at the lab, in one command (type it after `cd <checkout> && git pull`):
 #   bash examples/nplb/lab_start.sh
 # It checks the checkout (branch nplb, no local changes), brings it up to date (git fetch, then
-# git pull --ff-only when behind), and runs the read-only checks `nplb update`, `nplb build check` and
+# git pull --ff-only when behind), and runs the read-only checks `nplb build check` and
 # `nplb node check`, each printing its own page on stdout and pausing for Enter between pages when stdin
 # is a terminal. A failing check is remembered, not fatal. It never switches branches and never fixes
 # anything: a wrong branch or a modified tracked file stops it at the summary.
@@ -86,8 +86,8 @@ if [[ $STOP -eq 0 ]]; then
 fi
 
 if [[ $STOP -eq 0 ]]; then
-    say 5 "nplb update, build check, node check"
-    for verb in "update" "build check" "node check"; do
+    say 5 "nplb build check, node check"
+    for verb in "build check" "node check"; do
         # shellcheck disable=SC2086  # the verb is one or two words on purpose
         "$BIN" $verb
         code=$?
@@ -99,7 +99,7 @@ fi
 say 6 "summary"
 SHORT=$(git rev-parse --short HEAD 2>/dev/null)
 if [[ -z $FIRST_FAIL ]]; then
-    echo "VERDICT: OK lab_start: branch nplb at $SHORT, update/build check/node check all OK"
+    echo "VERDICT: OK lab_start: branch nplb at $SHORT, build check/node check all OK"
 else
     echo "VERDICT: FAIL lab_start: $FIRST_FAIL" | cut -c1-100
 fi
