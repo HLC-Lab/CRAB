@@ -9,7 +9,8 @@
 # content line is "VERDICT: OK|FAIL ...". Exit 0 when both runs end with exit 0, 1 otherwise, 2 for bad usage.
 # Env: NPLB_LAB (default $HOME/crab/lab), CUDA_ROOT (as blink_build.sh), PARTITION (h100_4nodes),
 #      TRY_TIMEOUT, TRY_MSG (message bytes, default 65536), NPLB_REPORT_DIR, TRY_NICS (the NICs of the
-#      per-NIC runs, default the eight the smoke test binds: both ranks use that NIC, port 1).
+#      per-NIC runs and of the 16-rank run, default the eight the smoke test binds; set it empty for a quick
+#      check with the two first runs only).
 set -u
 
 unset PYTHONPATH
@@ -23,7 +24,7 @@ CUDA_ROOT=${CUDA_ROOT:-$(nplb_cuda_root)}
 PARTITION=${PARTITION:-h100_4nodes}
 TRY_TIMEOUT=${TRY_TIMEOUT:-90}
 TRY_MSG=${TRY_MSG:-65536}
-TRY_NICS=${TRY_NICS:-mlx5_0 mlx5_2 mlx5_4 mlx5_8 mlx5_10 mlx5_12 mlx5_14 mlx5_16}
+TRY_NICS=${TRY_NICS-mlx5_0 mlx5_2 mlx5_4 mlx5_8 mlx5_10 mlx5_12 mlx5_14 mlx5_16}
 BIN=$LAB/blink-gpu/build-cuda/bin
 MPIRUN=$LAB/ompi-cuda/bin/mpirun
 LD=$LAB/ucx-cuda/lib:$CUDA_ROOT/targets/x86_64-linux/lib:$LAB/ompi-cuda/lib
@@ -101,7 +102,7 @@ try_run() {
 
 try_run cpu ""
 try_run gpu "" -gpu
-try_run bound16 bound -gpu
+[[ -n $TRY_NICS ]] && try_run bound16 bound -gpu
 for nic in $TRY_NICS; do
     try_run "nic-$nic" "$nic"
 done
