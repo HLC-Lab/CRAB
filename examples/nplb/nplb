@@ -124,6 +124,7 @@ cmd_net() {
         declare | set | show | sheet | record) bash "$NPLB_DIR/net_tools.sh" "$sub" "$@" ;;
         ping) bash "$NPLB_DIR/net_ping.sh" "$@" ;;
         rdma) bash "$NPLB_DIR/net_rdma.sh" "$@" ;;
+        dump | diff) bash "$NPLB_DIR/switch_dump.sh" "$sub" "$@" ;;
         *)
             {
                 echo "usage: nplb net declare nplb=on|off ar=on|off"
@@ -133,6 +134,7 @@ cmd_net() {
                 echo "       nplb net record DIR [HOST...]"
                 echo "       nplb net ping HOST_A HOST_B"
                 echo "       nplb net rdma HOST_A HOST_B"
+                echo "       nplb net dump [SWITCH...] | nplb net diff"
             } >&2
             return 2
             ;;
