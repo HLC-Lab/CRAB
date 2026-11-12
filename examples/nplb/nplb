@@ -122,6 +122,7 @@ cmd_net() {
     [[ $# -gt 0 ]] && shift
     case $sub in
         declare | set | show | sheet | record) bash "$NPLB_DIR/net_tools.sh" "$sub" "$@" ;;
+        ping) bash "$NPLB_DIR/net_ping.sh" "$@" ;;
         *)
             {
                 echo "usage: nplb net declare nplb=on|off ar=on|off"
@@ -129,6 +130,7 @@ cmd_net() {
                 echo "       nplb net show [HOST...]"
                 echo "       nplb net sheet STATE | --restore"
                 echo "       nplb net record DIR [HOST...]"
+                echo "       nplb net ping HOST_A HOST_B"
             } >&2
             return 2
             ;;
