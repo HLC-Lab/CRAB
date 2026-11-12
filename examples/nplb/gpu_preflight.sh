@@ -13,7 +13,7 @@
 # Exit: checks 0, or 1 on a FAIL; counters 0, 1 when a host is unreachable, 2 when FILE is
 # missing or malformed; 2 on bad usage.
 # Env: LAB (lab stack, default /root/crab/lab), CRAB_DIR (default: this checkout), CUDA_LIB
-#      (default /usr/local/cuda-12.3/targets/x86_64-linux/lib), PREFLIGHT_SSH (default ssh), HEAD
+#      (default <cuda-12.3, else the newest cuda-12.*>/targets/x86_64-linux/lib), PREFLIGHT_SSH (default ssh), HEAD
 #      (default uname -n), PARTITION, GPU_PREFLIGHT_SYSFS (default /sys), GPU_PREFLIGHT_PROC
 #      (default /proc; both are read on the node).
 set -uo pipefail
@@ -58,7 +58,9 @@ fi
 
 CRAB_DIR=${CRAB_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}
 LAB=${LAB:-/root/crab/lab}
-CUDA_LIB=${CUDA_LIB:-/usr/local/cuda-12.3/targets/x86_64-linux/lib}
+# shellcheck source=lib/cuda.sh
+. "$(dirname "$0")/lib/cuda.sh"
+CUDA_LIB=${CUDA_LIB:-$(nplb_cuda_root)/targets/x86_64-linux/lib}
 HEAD=${HEAD:-$(uname -n)}
 SYSFS=${GPU_PREFLIGHT_SYSFS:-/sys}
 PROC=${GPU_PREFLIGHT_PROC:-/proc}

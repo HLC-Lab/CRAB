@@ -626,7 +626,7 @@ examples/nplb/gpu_preflight.sh counters diff before.txt <node1> <node2> <node3> 
   is missing or malformed.
 
 `LAB` (default `/root/crab/lab`), `CRAB_DIR`, `CUDA_LIB` (default
-`/usr/local/cuda-12.3/targets/x86_64-linux/lib`) and `PREFLIGHT_SSH` change where it looks and how
+`/usr/local/cuda-12.3/targets/x86_64-linux/lib`, or the newest `cuda-12.*` when 12.3 is gone) and `PREFLIGHT_SSH` change where it looks and how
 it reaches the nodes; `examples/nplb/gpu_preflight.sh -h` lists them all.
 
 ### One-screen lab session

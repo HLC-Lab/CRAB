@@ -13,7 +13,7 @@
 # with, so a rebuild in place would silently keep the old one.
 # Exit: 0 on OK or WARN only, 1 on a FAIL, 2 on bad usage or a missing prerequisite (nothing changed).
 # Env: NPLB_LAB (lab stack, default $HOME/crab/lab: ompi-cuda, ucx-cuda, blink-gpu, out, archive),
-#      CUDA_ROOT (default /usr/local/cuda-12.3), JOBS (16), BLINK_REPO (default
+#      CUDA_ROOT (default /usr/local/cuda-12.3, else the newest cuda-12.*), JOBS (16), BLINK_REPO (default
 #      https://github.com/HLC-Lab/blink), SSH (default ssh), PARTITION (default h100_4nodes),
 #      NPLB_REPORT_DIR (the pager's folder).
 set -u
@@ -23,7 +23,9 @@ export GIT_TERMINAL_PROMPT=0
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 LAB=${NPLB_LAB:-${HOME:-}/crab/lab}
-CUDA_ROOT=${CUDA_ROOT:-/usr/local/cuda-12.3}
+# shellcheck source=lib/cuda.sh
+. "$HERE/lib/cuda.sh"
+CUDA_ROOT=${CUDA_ROOT:-$(nplb_cuda_root)}
 JOBS=${JOBS:-16}
 BLINK_REPO=${BLINK_REPO:-https://github.com/HLC-Lab/blink}
 PARTITION=${PARTITION:-h100_4nodes}

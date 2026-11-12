@@ -124,7 +124,9 @@ dual_settings() {
     local name
     LAB=${LAB:-/root/crab/lab}
     BLINK=${BLINK:-$LAB/blink-gpu/build-cuda/bin}
-    CUDA_LIB=${CUDA_LIB:-/usr/local/cuda-12.3/targets/x86_64-linux/lib}
+    # shellcheck source=lib/cuda.sh
+    . "$(dirname "${BASH_SOURCE[0]}")/lib/cuda.sh"
+    CUDA_LIB=${CUDA_LIB:-$(nplb_cuda_root)/targets/x86_64-linux/lib}
     SIZE=${SIZE:-134217728}
     DUR=${DUR:-10}
     DUAL_ITER=${DUAL_ITER:-50}
