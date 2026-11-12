@@ -63,7 +63,7 @@ def test_the_preset_builds_its_launch_line(monkeypatch: pytest.MonkeyPatch) -> N
 GPU_PRESET_FILE = PRESET_FILE.with_name("nplb_h100_gpu.json")
 GPU_MPIRUN = "/root/crab/lab/ompi-cuda/bin/mpirun"
 GPU_LD_LIBRARY_PATH = (
-    "/root/crab/lab/ucx-cuda/lib:/usr/local/cuda-12.3/targets/x86_64-linux/lib"
+    "/root/crab/lab/ucx-cuda/lib:/usr/local/cuda-12.3/targets/x86_64-linux/lib:/usr/local/cuda-12.8/targets/x86_64-linux/lib"
     ":/root/crab/lab/ompi-cuda/lib:$LD_LIBRARY_PATH"
 )
 
