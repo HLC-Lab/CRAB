@@ -1,5 +1,10 @@
 # The web dashboard
 
+!!! note "This guide covers the full dashboard"
+    The `sbatchman` branch of CRAB only authors SbatchMan campaigns. Its top bar has **Remotes**,
+    **Wrappers** and **SbatchMan**: the Author, Jobs and Results sections described below are not
+    shown there. For that branch, read [Using CRAB with SbatchMan](sbatchman-integration.md).
+
 The web dashboard (`crab web`) is a page in your browser for running CRAB on your clusters. It runs
 on your laptop and connects to each cluster over SSH. On the cluster it runs that cluster's own
 `crab` command and reads the answer, so the cluster's CRAB decides what is valid and what happens.
