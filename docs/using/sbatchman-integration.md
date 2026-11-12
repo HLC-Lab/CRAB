@@ -31,8 +31,6 @@ SbatchMan replaces `{var}` in `tag`, `preprocess` and `command`. It does not rep
 
 Write the heredoc marker quoted (`<<'JSON'`) so the shell leaves the JSON as it is. The QE examples leave it unquoted, so the shell expands `$CRAB_ROOT` inside the JSON.
 
-### Running a job again
-
 SbatchMan skips a job whose cluster, config and tag match an earlier job, archived and failed ones included. To run it again, change the `tag` and the `"name"` in the JSON together, or pass `--force`.
 
 ## The `crab worker` launcher
