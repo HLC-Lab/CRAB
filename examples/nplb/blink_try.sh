@@ -58,16 +58,23 @@ FAILS=()
 # REPORT. DEVICE ("" for the default) is the UCX NIC both ranks use, as UCX_NET_DEVICES=DEVICE:1; a run
 # with a DEVICE shows only its Fatal or error lines, the others the head and tail of the output.
 try_run() {
-    local name=$1 dev=$2 extra=${3:-} out rc count line
-    local -a shown=() devarg=()
+    local name=$1 dev=$2 extra=${3:-} out rc count line ppn=1
+    local -a shown=() devarg=() wrap=()
     [[ -n $dev ]] && devarg=(-x "UCX_NET_DEVICES=$dev:1")
+    if [[ $dev == bound ]]; then
+        # the smoke layout: 8 ranks per node, local rank i on the i-th NIC of TRY_NICS
+        ppn=8
+        devarg=()
+        wrap=(bash -c 'IFS=, read -ra n <<<"$0"; export UCX_NET_DEVICES=${n[$OMPI_COMM_WORLD_LOCAL_RANK]}:1; exec "$@"' "${TRY_NICS// /,}")
+    fi
     out=$(mktemp)
     note "run $name on $NODE_A $NODE_B (limit ${TRY_TIMEOUT}s)"
     LD_LIBRARY_PATH=$LD:${LD_LIBRARY_PATH:-} PATH=$LAB/ompi-cuda/bin:$PATH timeout -k 5 "$TRY_TIMEOUT" \
-        "$MPIRUN" -n 2 -H "$NODE_A:1,$NODE_B:1" --allow-run-as-root --mca pml ucx --mca btl '^openib' \
-        -x UCX_MAX_RNDV_RAILS=1 -x UCX_IB_ROCE_REACHABILITY_MODE=all -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
-        "${devarg[@]}" -x LD_LIBRARY_PATH "$BIN/alltoall_comm_only" -msgsize "$TRY_MSG" -iter 5 \
-        -warmup 1 -grty 1 ${extra:+"$extra"} >"$out" 2>&1 </dev/null
+        "$MPIRUN" -n $((2 * ppn)) -H "$NODE_A:$ppn,$NODE_B:$ppn" --allow-run-as-root --mca pml ucx \
+        --mca btl '^openib' -x UCX_MAX_RNDV_RAILS=1 -x UCX_IB_ROCE_REACHABILITY_MODE=all \
+        -x CUDA_DEVICE_ORDER=PCI_BUS_ID "${devarg[@]}" -x LD_LIBRARY_PATH "${wrap[@]}" \
+        "$BIN/alltoall_comm_only" -msgsize "$TRY_MSG" -iter 5 -warmup 1 -grty 1 \
+        ${extra:+"$extra"} >"$out" 2>&1 </dev/null
     rc=$?
     if ((rc == 0)); then
         REPORT+=("OK $name: exit 0")
@@ -75,7 +82,7 @@ try_run() {
         REPORT+=("FAIL $name: exit $rc")
         FAILS+=("$name")
     fi
-    if [[ -n $dev ]]; then
+    if [[ -n $dev && $dev != bound ]]; then
         ((rc == 0)) || mapfile -t shown < <(grep -i -m 2 'fatal\|error' "$out")
     else
         grep . "$out" >"$out.lines"
@@ -94,6 +101,7 @@ try_run() {
 
 try_run cpu ""
 try_run gpu "" -gpu
+try_run bound16 bound -gpu
 for nic in $TRY_NICS; do
     try_run "nic-$nic" "$nic"
 done

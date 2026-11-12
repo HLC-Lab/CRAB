@@ -54,7 +54,8 @@ def run_try(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
 def test_a_gpu_failure_shows_the_message_and_the_exit_code(tmp_path: Path) -> None:
     result = run_try(tmp_path, "nodeA", "nodeB")
     assert result.returncode == 1, result.stdout + result.stderr
-    assert "VERDICT: FAIL gpu nic-mlx5_2" in result.stdout
+    assert "VERDICT: FAIL gpu bound16 nic-mlx5_2" in result.stdout
+    assert "FAIL bound16: exit 134" in result.stdout
     assert "OK cpu: exit 0" in result.stdout
     assert "FAIL gpu: exit 134" in result.stdout
     assert "libcudart.so.12 not found" in result.stdout
