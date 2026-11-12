@@ -65,6 +65,7 @@ CRAB_DIR=${CRAB_DIR:-$(cd "$HERE/../.." && pwd)}
 HEAD=${HEAD:-$(uname -n)}
 HEAD=${HEAD%%.*}
 PARTITION=${PARTITION:-h100_4nodes}
+export PARTITION # gpu_preflight.sh finds the hosts through it; without it `node check` gets none and prints usage
 NFS_PATH=${NFS_PATH:-$(dirname "$CRAB_DIR")}
 NFS_PATH=${NFS_PATH%/}
 SR_STATE=${SR_STATE:-$HERE/sr_state.sh}

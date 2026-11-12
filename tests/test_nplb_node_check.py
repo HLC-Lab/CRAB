@@ -31,6 +31,7 @@ TOOLS = (
 
 FAKE_PREFLIGHT = r"""#!/usr/bin/env bash
 echo "$*" >>"$FAKE_PREFLIGHT_LOG"
+if [[ -n ${FAKE_PREFLIGHT_PART:-} ]]; then echo "${PARTITION-unset}" >>"$FAKE_PREFLIGHT_PART"; fi
 cat "$FAKE_PREFLIGHT_OUT"
 if [[ -n ${FAKE_PREFLIGHT_STDERR:-} ]]; then
     echo "$FAKE_PREFLIGHT_STDERR" >&2
@@ -363,6 +364,14 @@ def test_hosts_default_and_args(site):
     assert result.returncode == 0, result.stdout + result.stderr
     assert site["pre_log"].read_text().splitlines() == [""]
     assert list(grid(saved(site))) == ["node110", "node112", "node114"]
+
+
+def test_the_partition_default_reaches_gpu_preflight(site):
+    """Without PARTITION in the caller's environment, preflight must still get the default (it finds the hosts by it)."""
+    seen = site["tmp"] / "partition.seen"
+    result = check_cmd(site, FAKE_PREFLIGHT_PART=str(seen))
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert seen.read_text().splitlines() == ["h100_4nodes"]
 
 
 def test_a_requested_host_without_a_line_is_a_fail_row(site):
