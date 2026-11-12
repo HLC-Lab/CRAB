@@ -17,6 +17,7 @@ import {
   PRESET_HINT,
   PRESET_PLACEHOLDER,
   type SbatchmanCampaign,
+  type SbatchmanGroup,
   validateCampaign,
 } from "@/lib/sbatchman";
 
@@ -366,6 +367,213 @@ describe("validateCampaign", () => {
     c.groups[0].tag = "";
     c.groups[0].preset = "";
     expect(validateCampaign(c)).toContain("Group #1: set the SbatchMan config it runs with.");
+  });
+});
+
+describe("validateCampaign: what the worker refuses and what the user must fix before writing", () => {
+  const EXP = "g500_baseline_{scale}_{ef}_{nodes}";
+  const app0 = (c: SbatchmanCampaign) => c.groups[0].config.experiments[EXP].apps["0"];
+  const second = (): SbatchmanGroup => {
+    const g = campaign().groups[0];
+    g.variables = [{ name: "nodes", values: [8, 16, 32] }];
+    return g;
+  };
+
+  describe("cpus and bind", () => {
+    it("flags an app that sets cpus, naming the group and the app", () => {
+      const c = campaign();
+      app0(c).cpus = "0-3";
+      const hits = validateCampaign(c).filter((i) => i.includes("cpus"));
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toContain('Group "g500_baseline_{scale}_{ef}_{nodes}"');
+      expect(hits[0]).toContain("app 0");
+      expect(hits[0]).toContain("remove it");
+    });
+
+    it("flags bind, which only lives in the app's extra options", () => {
+      const c = campaign();
+      app0(c).bind = "numa";
+      const hits = validateCampaign(c).filter((i) => i.includes("bind"));
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toContain("app 0");
+    });
+
+    it("names every offending app and both keys", () => {
+      const c = campaign();
+      app0(c).cpus = "0-3";
+      app0(c).bind = "numa";
+      c.groups[0].config.experiments[EXP].apps["1"] = { path: "a.py", cpus: "4" };
+      const issues = validateCampaign(c);
+      expect(issues.filter((i) => i.includes("cpus"))).toHaveLength(2);
+      expect(issues.filter((i) => i.includes("bind"))).toHaveLength(1);
+    });
+
+    it("ignores empty values, as the worker does", () => {
+      const c = campaign();
+      app0(c).cpus = "";
+      app0(c).bind = [];
+      expect(validateCampaign(c)).toEqual([]);
+    });
+  });
+
+  describe("every variable combination", () => {
+    it("flags a later combination that is invalid, naming the values", () => {
+      const c = campaign();
+      c.groups[0].variables = [{ name: "nodes", values: [4, 0] }];
+      const issues = validateCampaign(c);
+      const hits = issues.filter((i) => i.includes("nodes=0"));
+      expect(hits.length).toBeGreaterThan(0);
+      expect(hits[0].startsWith('Group "g500_baseline_{scale}_{ef}_{nodes}": with ')).toBe(true);
+      // only the FIRST bad combination is reported
+      expect(issues.filter((i) => i.includes("with "))).toHaveLength(hits.length);
+    });
+
+    it("stays clean when every combination is valid", () => {
+      const c = campaign();
+      c.groups[0].variables = [{ name: "nodes", values: [4, 8] }];
+      expect(validateCampaign(c)).toEqual([]);
+    });
+
+    it("keeps the unprefixed message when the first combination is the bad one", () => {
+      const c = campaign();
+      c.groups[0].variables = [{ name: "nodes", values: [0, 4] }];
+      const issues = validateCampaign(c);
+      expect(issues.some((i) => i.includes("Number of nodes must be a positive integer"))).toBe(
+        true,
+      );
+      expect(issues.some((i) => i.includes("with "))).toBe(false);
+    });
+
+    it("validates only the first 200 combinations of a huge product, quickly", () => {
+      const c = campaign();
+      c.variables = [];
+      // 10 variables x 10 values = 10^10 combinations; only the first 200 may be touched.
+      c.groups[0].variables = Array.from({ length: 10 }, (_, i) => ({
+        name: `v${i}`,
+        values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      }));
+      c.groups[0].tag = Array.from({ length: 10 }, (_, i) => `{v${i}}`).join("_");
+      c.groups[0].preset = "p";
+      c.groups[0].config.global_options.numnodes = "{v9}";
+      c.groups[0].config.experiments = { e: { apps: { "0": { path: "g500.py" } } } };
+      const started = Date.now();
+      const issues = validateCampaign(c);
+      expect(Date.now() - started).toBeLessThan(5000);
+      // v9 cycles fastest: combination 0 has numnodes 0, which is bad and reported once.
+      expect(issues.filter((i) => i.includes("Number of nodes"))).toHaveLength(1);
+    });
+
+    it("does not look past the 200th combination", () => {
+      const c = campaign();
+      c.variables = [];
+      c.groups[0].variables = [
+        { name: "a", values: Array.from({ length: 201 }, (_, i) => i + 1) },
+        { name: "nodes", values: [4] },
+      ];
+      c.groups[0].tag = "t_{a}_{nodes}";
+      c.groups[0].config.global_options.numnodes = "{a}";
+      c.groups[0].config.experiments = {
+        e: { apps: { "0": { path: "g500.py", args: "{nodes}" } } },
+      };
+      expect(validateCampaign(c)).toEqual([]);
+      // the 201st value is out of reach: making only it bad changes nothing
+      c.groups[0].variables[0].values[200] = 0;
+      expect(validateCampaign(c)).toEqual([]);
+      c.groups[0].variables[0].values[199] = 0;
+      expect(validateCampaign(c).some((i) => i.includes("a=0"))).toBe(true);
+    });
+  });
+
+  describe("group tags", () => {
+    it("flags an empty tag and a whitespace tag", () => {
+      for (const tag of ["", "   "]) {
+        const c = campaign();
+        c.groups.push({ ...second(), tag });
+        expect(validateCampaign(c)).toContain(
+          "Group #2 has no tag: give it one, for example run_{nodes}.",
+        );
+      }
+    });
+
+    it("flags two groups with the same preset and tag, naming both", () => {
+      const c = campaign();
+      c.groups.push({ ...second(), tag: c.groups[0].tag });
+      const hits = validateCampaign(c).filter((i) => i.includes("#1") && i.includes("#2"));
+      expect(hits).toHaveLength(1);
+      // the message names the first colliding expanded pair, not the templates
+      expect(hits[0]).toContain('"8_nodes"');
+      expect(hits[0]).toContain('"g500_baseline_20_8_8"');
+      expect(hits[0]).toContain("skips");
+    });
+
+    it("accepts the same preset with different tags", () => {
+      const c = campaign();
+      c.groups.push({ ...second(), tag: "other_{scale}_{ef}_{nodes}" });
+      expect(validateCampaign(c)).toEqual([]);
+    });
+
+    it("accepts the same tag with different presets", () => {
+      const c = campaign();
+      c.groups.push({ ...second(), preset: "other_preset" });
+      expect(validateCampaign(c)).toEqual([]);
+    });
+
+    it("flags tags that collide only after variable expansion", () => {
+      const c = campaign();
+      c.groups[0].variables = [{ name: "n", values: [1, 2] }];
+      c.groups[0].tag = "t_{n}";
+      c.groups[0].preset = "p";
+      c.groups[0].config = {
+        global_options: { numnodes: "2" },
+        experiments: { e: { apps: { "0": { path: "g500.py" } } } },
+      };
+      c.groups.push({
+        tag: "t_1",
+        preset: "p",
+        variables: [],
+        config: {
+          global_options: { numnodes: "2" },
+          experiments: { e: { apps: { "0": { path: "g500.py" } } } },
+        },
+      });
+      const hits = validateCampaign(c).filter((i) => i.includes("#1") && i.includes("#2"));
+      expect(hits).toHaveLength(1);
+      expect(hits[0]).toContain('"t_1"');
+    });
+  });
+
+  describe("{word} in text", () => {
+    const withArgs = (args: string): SbatchmanCampaign => {
+      const c = campaign();
+      app0(c).args = args;
+      return c;
+    };
+    const undefinedVar = (c: SbatchmanCampaign) =>
+      validateCampaign(c).filter((i) => i.includes("not a defined variable"));
+
+    it("does not flag a ${HOME} shell expansion in a path field", () => {
+      const c = withArgs("--out ${HOME}/data");
+      app0(c).path = "${HOME}/data/g500.py";
+      expect(undefinedVar(c)).toEqual([]);
+    });
+
+    it("does not flag JSON-looking braces or quantifiers", () => {
+      expect(undefinedVar(withArgs('--cfg {"a": 1} --re x{3} --empty {} --sp { x }'))).toEqual([]);
+    });
+
+    it("accepts a defined {nodes}", () => {
+      expect(validateCampaign(withArgs("-n {nodes}"))).toEqual([]);
+    });
+
+    it("still flags an undefined {nodez}", () => {
+      expect(validateCampaign(withArgs("-n {nodez}"))).toContain(
+        'Group "g500_baseline_{scale}_{ef}_{nodes}": {nodez} is not a defined variable.',
+      );
+    });
+
+    it("flags {nodez} even next to a ${HOME}", () => {
+      expect(undefinedVar(withArgs("${HOME} {nodez}"))).toHaveLength(1);
+    });
   });
 });
 

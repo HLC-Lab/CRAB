@@ -62,14 +62,22 @@ function effectiveVars(campaign: SbatchmanCampaign, group: SbatchmanGroup): Sbat
   return [...byName.values()];
 }
 
+/** `{identifier}` tokens, with the `$` of a `${HOME}` shell expansion captured. Object braces,
+ * `{}`, `{ x }`, `{"a": 1}` and `x{3}` are not identifiers and never match. */
+const TOKEN_RE = /(\$?)\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+/** Names referenced as `{name}` in `texts`; the value is true when at least one reference is
+ * not a `${name}` shell expansion (only those can be "not a defined variable"). */
+function tokenNames(texts: string[]): Map<string, boolean> {
+  const names = new Map<string, boolean>();
+  for (const t of texts)
+    for (const m of t.matchAll(TOKEN_RE)) names.set(m[2], (names.get(m[2]) ?? false) || !m[1]);
+  return names;
+}
+
 /** Names actually referenced (as `{name}`) across a group's templates + JSON. */
 function usedNames(group: SbatchmanGroup): Set<string> {
-  const names = new Set<string>();
-  const texts = [group.tag, group.preset, JSON.stringify(group.config)];
-  for (const t of texts) {
-    for (const m of t.matchAll(/\{(\w+)\}/g)) names.add(m[1]);
-  }
-  return names;
+  return new Set(tokenNames([group.tag, group.preset, JSON.stringify(group.config)]).keys());
 }
 
 /** Only the effective variables a group actually references (what SbatchMan expands). */
@@ -90,12 +98,18 @@ export function campaignJobCount(campaign: SbatchmanCampaign): number {
   return campaign.groups.reduce((n, g) => n + groupJobCount(campaign, g), 0);
 }
 
-function cartesian(vars: SbatchmanVar[]): Array<Record<string, string>> {
+/** The combinations in SbatchMan's order, at most `limit` of them. Each step is cut to `limit`
+ * because the first `limit` finished combinations only come from the first `limit` partial ones. */
+function cartesian(vars: SbatchmanVar[], limit = Infinity): Array<Record<string, string>> {
   let combos: Array<Record<string, string>> = [{}];
   for (const v of vars) {
     const next: Array<Record<string, string>> = [];
     for (const combo of combos) {
-      for (const val of v.values) next.push({ ...combo, [v.name]: String(val) });
+      for (const val of v.values) {
+        if (next.length >= limit) break;
+        next.push({ ...combo, [v.name]: String(val) });
+      }
+      if (next.length >= limit) break;
     }
     combos = next;
   }
@@ -250,37 +264,124 @@ function catalogForGroup(
   return { cluster: catalog.cluster, wrappers };
 }
 
+/** How many variable combinations of one group are checked (and expanded for the tag check). */
+const COMBO_CAP = 200;
+
+/** Keys the CRAB worker refuses in an app when SbatchMan provides the environment
+ * (cli/orchestrator.py `_SBATCHMAN_LIMITS`); the text says what to do instead. */
+const WORKER_REFUSED: Record<string, string> = {
+  cpus: "the worker takes the cores from the SbatchMan allocation",
+  bind: "the worker has no node topology to bind to",
+};
+
+/** The worker's "not set": None, "", [] or {}. */
+function isEmptyValue(v: unknown): boolean {
+  if (v == null || v === "") return true;
+  if (Array.isArray(v)) return v.length === 0;
+  return typeof v === "object" && Object.keys(v).length === 0;
+}
+
+/** One problem per app key the worker would refuse. The worker reads these keys off the app
+ * dict (`bind` only ever lives among the editor's extra options) and ignores empty values. */
+function workerRefusals(group: SbatchmanGroup, where: string): string[] {
+  const out: string[] = [];
+  for (const [expName, exp] of Object.entries(group.config.experiments ?? {}))
+    for (const [appKey, app] of Object.entries(exp.apps ?? {}))
+      for (const [key, reason] of Object.entries(WORKER_REFUSED)) {
+        if (!isEmptyValue(app[key]))
+          out.push(
+            `${where}: experiment "${expName}", app ${appKey} sets ${key}: ${reason}; remove it.`,
+          );
+      }
+  return out;
+}
+
+/** The problems of ONE variable combination: config.json with it substituted, then validateDraft. */
+function comboIssues(
+  group: SbatchmanGroup,
+  template: string,
+  combo: Record<string, string>,
+  catalog: WrapperCatalog | undefined,
+): string[] {
+  let config: unknown;
+  try {
+    config = JSON.parse(substitute(template, combo));
+  } catch {
+    return ["a variable value makes config.json invalid (a text value in a numeric field?)."];
+  }
+  return validateDraft(fromConfig(config as CrabConfig), catalogForGroup(group, combo, catalog));
+}
+
+/** Problems of the first bad combination (up to COMBO_CAP), prefixed by the values that cause
+ * them. Only the variables with several values are named; the first combination keeps its
+ * plain messages. */
+function groupExperimentIssues(
+  campaign: SbatchmanCampaign,
+  group: SbatchmanGroup,
+  where: string,
+  catalog: WrapperCatalog | undefined,
+): string[] {
+  const vars = usedVars(campaign, group);
+  const template = configJson(group);
+  const combos = cartesian(vars, COMBO_CAP);
+  for (const [k, combo] of (combos.length ? combos : [{}]).entries()) {
+    const found = comboIssues(group, template, combo, catalog);
+    if (!found.length) continue;
+    const values = vars.filter((v) => v.values.length > 1).map((v) => `${v.name}=${combo[v.name]}`);
+    const prefix = k === 0 || !values.length ? "" : `with ${values.join(", ")}: `;
+    return found.map((m) => `${where}: ${prefix}${m}`);
+  }
+  return [];
+}
+
 /** Everything that would make the generated YAML fail at `sbatchman launch` or give the
  * CRAB worker a bad config. Each group's experiment is checked the way the engine gets
- * it: config.json with the first variable combination substituted, then validateDraft.
- * With a catalog (the write target's wrappers) a wrapper path the cluster lacks is a problem too. */
+ * it: config.json with each variable combination substituted (the first 200), then
+ * validateDraft; only the first bad combination is reported. Also: keys the worker refuses,
+ * empty tags, and (config, tag) pairs two groups share after expansion, which SbatchMan
+ * skips without a message (ADR-045). With a catalog (the write target's wrappers) a wrapper
+ * path the cluster lacks is a problem too. */
 export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperCatalog): string[] {
   const issues = varIssues(campaign.variables, "Campaign variables");
+  const firstGroupOfPair = new Map<string, number>();
+  const reported = new Set<string>();
   campaign.groups.forEach((group, i) => {
     const where = group.tag.trim() ? `Group "${group.tag.trim()}"` : `Group #${i + 1}`;
     issues.push(...varIssues(group.variables, where));
     if (!group.preset.trim()) issues.push(`${where}: set the SbatchMan config it runs with.`);
+    if (!group.tag.trim())
+      issues.push(`Group #${i + 1} has no tag: give it one, for example run_{nodes}.`);
+    issues.push(...workerRefusals(group, where));
+
+    // Same (config, tag) in two groups after expansion: SbatchMan skips the later jobs.
+    if (group.tag.trim() && group.preset.trim()) {
+      const names = tokenNames([group.tag, group.preset]);
+      const tagVars = effectiveVars(campaign, group).filter((v) => names.has(v.name));
+      const pairs = new Set(
+        cartesian(tagVars, COMBO_CAP).map((combo) =>
+          JSON.stringify([substitute(group.preset, combo), substitute(group.tag, combo)]),
+        ),
+      );
+      for (const pair of pairs) {
+        const first = firstGroupOfPair.get(pair);
+        if (first === undefined) firstGroupOfPair.set(pair, i);
+        else if (!reported.has(`${first}:${i}`)) {
+          reported.add(`${first}:${i}`);
+          const [config, tag] = JSON.parse(pair) as [string, string];
+          issues.push(
+            `Groups #${first + 1} and #${i + 1} both run config "${config}" with tag "${tag}": SbatchMan skips the second one without a message. Give each group its own tag.`,
+          );
+        }
+      }
+    }
 
     const defined = new Set(effectiveVars(campaign, group).map((v) => v.name.trim()));
-    const unknown = [...usedNames(group)].filter((n) => !defined.has(n));
-    for (const n of unknown) issues.push(`${where}: {${n}} is not a defined variable.`);
+    const referenced = tokenNames([group.tag, group.preset, JSON.stringify(group.config)]);
+    const unknown = [...referenced].filter(([n, plain]) => plain && !defined.has(n));
+    for (const [n] of unknown) issues.push(`${where}: {${n}} is not a defined variable.`);
     if (unknown.length) return; // the experiment can't be checked with unresolved tokens
 
-    const combo = cartesian(usedVars(campaign, group))[0] ?? {};
-    let config: unknown;
-    try {
-      config = JSON.parse(substitute(configJson(group), combo));
-    } catch {
-      issues.push(
-        `${where}: a variable value makes config.json invalid (a text value in a numeric field?).`,
-      );
-      return;
-    }
-    for (const issue of validateDraft(
-      fromConfig(config as CrabConfig),
-      catalogForGroup(group, combo, catalog),
-    ))
-      issues.push(`${where}: ${issue}`);
+    issues.push(...groupExperimentIssues(campaign, group, where, catalog));
   });
   return issues;
 }
