@@ -108,26 +108,20 @@ def create_app(
 
     app.include_router(api)
 
+    # This line only authors campaigns (ADR-026, ADR-045), so the Experiments, Jobs and
+    # Results routers (experiments, jobs, jobs_submit, jobs_report, results) are not
+    # mounted. Their modules, stores and tests stay in the tree so merges from `develop`
+    # stay conflict-free.
     from crab.web.api.bootstrap import router as bootstrap_router
-    from crab.web.api.experiments import router as experiments_router
-    from crab.web.api.jobs import router as jobs_router
-    from crab.web.api.jobs_report import router as jobs_report_router
-    from crab.web.api.jobs_submit import router as jobs_submit_router
     from crab.web.api.local import router as local_router
     from crab.web.api.remotes import router as remotes_router
-    from crab.web.api.results import router as results_router
     from crab.web.api.sbatchman import router as sbatchman_router
     from crab.web.api.wrappers import router as wrappers_router
 
     app.include_router(remotes_router)
     app.include_router(bootstrap_router)
     app.include_router(wrappers_router)
-    app.include_router(experiments_router)
     app.include_router(local_router)
-    app.include_router(jobs_submit_router)
-    app.include_router(jobs_router)
-    app.include_router(jobs_report_router)
-    app.include_router(results_router)
     app.include_router(sbatchman_router)
 
     _mount_frontend(app, settings)

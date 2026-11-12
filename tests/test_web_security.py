@@ -18,6 +18,7 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 from fastapi.testclient import TestClient  # noqa: E402
 
+from conftest import requires_route, route_is_mounted  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 
@@ -40,7 +41,7 @@ def _app_and_client(tmp_path: Path, static: Path | None = None):
 def test_api_rejects_missing_token(tmp_path: Path):
     _, client = _app_and_client(tmp_path)
     with client:
-        resp = client.get("/api/experiments")
+        resp = client.get("/api/remotes")
         assert resp.status_code == 401
         body = resp.json()
         assert body["code"] and body["message"]  # stable envelope
@@ -49,7 +50,7 @@ def test_api_rejects_missing_token(tmp_path: Path):
 def test_api_rejects_wrong_token(tmp_path: Path):
     _, client = _app_and_client(tmp_path)
     with client:
-        resp = client.get("/api/experiments", headers={"X-Crab-Token": "nope"})
+        resp = client.get("/api/remotes", headers={"X-Crab-Token": "nope"})
         assert resp.status_code == 401
 
 
@@ -57,7 +58,7 @@ def test_api_accepts_the_session_token(tmp_path: Path):
     app, client = _app_and_client(tmp_path)
     with client:
         token = app.state.api_token
-        resp = client.get("/api/experiments", headers={"X-Crab-Token": token})
+        resp = client.get("/api/remotes", headers={"X-Crab-Token": token})
         assert resp.status_code == 200
 
 
@@ -197,6 +198,7 @@ def _outside_tree(tmp_path: Path) -> None:
     (exp / "data_app_0.csv").write_text("x\n1\n", encoding="utf-8")
 
 
+@requires_route("/api/results")
 def test_results_get_rejects_encoded_dot_dot(tmp_path: Path):
     _outside_tree(tmp_path)
     _, client = _token_client(tmp_path)
@@ -206,6 +208,7 @@ def test_results_get_rejects_encoded_dot_dot(tmp_path: Path):
         assert "experiments" not in resp.json()
 
 
+@requires_route("/api/results")
 def test_results_experiments_rejects_encoded_dot_dot(tmp_path: Path):
     _, client = _token_client(tmp_path)
     with client:
@@ -214,6 +217,7 @@ def test_results_experiments_rejects_encoded_dot_dot(tmp_path: Path):
         assert resp.status_code == 404
 
 
+@requires_route("/api/results")
 def test_results_fetch_never_writes_outside_the_cache(tmp_path: Path):
     from crab.web.connections.manager import ConnectionManager
     from crab.web.connections.transport import CmdResult, Transport
@@ -423,9 +427,11 @@ def test_a_request_without_origin_is_judged_on_host_and_token_alone(tmp_path: Pa
         assert bare.json()["code"] == "auth_required"
 
 
-# One request per live router (every router `create_app` includes). The guard runs
-# before routing, so nothing below reaches a handler: the answer is the guard's own.
-_ROUTER_ROUTES = [
+# One request per router `create_app` can include. The guard runs before routing, so
+# nothing below reaches a handler: the answer is the guard's own. A router this line does
+# not mount (experiments, jobs, jobs_submit, jobs_report, results on the sbatchman line)
+# is left out, so the table holds on `develop` too.
+_ALL_ROUTER_ROUTES = [
     ("remotes", "GET", "/api/remotes"),
     ("bootstrap", "POST", "/api/remotes/leonardo/bootstrap/plan"),
     ("wrappers", "GET", "/api/wrappers/local/list"),
@@ -435,6 +441,11 @@ _ROUTER_ROUTES = [
     ("jobs", "GET", "/api/jobs"),
     ("jobs_report", "GET", "/api/jobs/report/demo"),
     ("results", "GET", "/api/results"),
+    ("sbatchman", "GET", "/api/sbatchman/campaigns"),
+    ("sbatchman_write", "POST", "/api/sbatchman/write"),
+]
+_ROUTER_ROUTES = [
+    route for route in _ALL_ROUTER_ROUTES if route_is_mounted("/".join(route[2].split("/")[:3]))
 ]
 
 
@@ -451,6 +462,30 @@ def test_every_live_router_refuses_a_missing_or_wrong_token(
         body = resp.json()
         assert body["code"] == "auth_required"
         assert body["message"]
+
+
+@pytest.mark.parametrize("token", [None, "", "nope"])
+def test_sbatchman_routes_refuse_a_missing_or_wrong_token(tmp_path: Path, token: str | None):
+    _, client = _port_client(tmp_path)
+    headers = {} if token is None else {"X-Crab-Token": token}
+    with client:
+        listed = client.get("/api/sbatchman/campaigns", headers=headers)
+        written = client.post("/api/sbatchman/write", headers=headers, json={})
+        for resp in (listed, written):
+            assert resp.status_code == 401
+            assert resp.json()["code"] == "auth_required"
+
+
+def test_sbatchman_routes_accept_the_session_token(tmp_path: Path):
+    app, client = _port_client(tmp_path)
+    headers = {"X-Crab-Token": app.state.api_token}
+    with client:
+        listed = client.get("/api/sbatchman/campaigns", headers=headers)
+        assert listed.status_code == 200
+        assert listed.json() == []
+        # The guard let it through: the body `{}` is judged by the route (422), not by the guard.
+        written = client.post("/api/sbatchman/write", headers=headers, json={})
+        assert written.status_code == 422
 
 
 def test_the_session_token_is_accepted_on_the_same_routes(tmp_path: Path):
@@ -537,6 +572,7 @@ def test_library_store_refuses_an_id_that_climbs_out_and_leaves_the_file(tmp_pat
     assert list(settings.experiments_dir.iterdir()) == []
 
 
+@requires_route("/api/experiments")
 def test_experiments_routes_refuse_a_dot_dot_id_and_leave_the_files(tmp_path: Path):
     settings = _settings(tmp_path)
     settings.experiments_dir.mkdir(parents=True)

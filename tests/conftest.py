@@ -31,12 +31,20 @@ the mpirun launcher exports every ``CRAB_*`` variable of the environment with ``
 change the launch lines the launcher tests expect. The ``real_preset_dirs`` fixture puts the two
 real folder functions back for the tests that exercise them; such a test then writes its folders and
 sets the variables itself.
+
+This line only authors campaigns (ADR-026, ADR-045): ``create_app`` does not mount the Experiments,
+Jobs and Results routers (their modules stay for merges from ``develop``). ``collect_ignore`` lists
+the test files whose subject is only those routers; ``requires_route(prefix)`` skips a single test in a
+mixed file when no ``/api`` path starts with ``prefix`` (read from the OpenAPI paths), so the same
+files keep working after a merge from ``develop``, where the routers are mounted.
 """
 
 from __future__ import annotations
 
+import functools
 import json
 import os
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -51,6 +59,14 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
 
+# Test files whose subject is only routers `create_app` no longer mounts on this line
+# (experiments, jobs, jobs_submit, jobs_report, results). Kept in the tree, not collected.
+collect_ignore = [
+    "test_web_experiments_warnings.py",
+    "test_web_jobs.py",
+    "test_web_results.py",
+]
+
 REAL_SHARED_PRESET_FOLDERS = presets.shared_preset_folders
 REAL_USER_PRESETS_DIR = paths.user_presets_dir
 REPO = Path(__file__).resolve().parent.parent
@@ -62,6 +78,30 @@ requires_wrappers_checkout = pytest.mark.skipif(
     not (REPO / "wrappers").is_dir(),
     reason="needs the crab-wrappers checkout in wrappers/ (crab update clones it)",
 )
+
+
+@functools.cache
+def mounted_api_paths() -> tuple[str, ...]:
+    """The OpenAPI paths of an app built by ``create_app``, in registration order."""
+    from crab.web.server import create_app
+    from crab.web.settings import Settings
+
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        app = create_app(Settings(config_dir=base / "cfg", data_dir=base / "data"))
+        return tuple(app.openapi()["paths"])
+
+
+def route_is_mounted(prefix: str) -> bool:
+    return any(path.startswith(prefix) for path in mounted_api_paths())
+
+
+def requires_route(prefix: str) -> pytest.MarkDecorator:
+    """Skip a test when this line does not mount the routes under ``prefix``."""
+    return pytest.mark.skipif(
+        not route_is_mounted(prefix), reason=f"{prefix} is not mounted on this line"
+    )
+
 
 _PRESET_FOLDER_CANDIDATES = (
     REPO / "wrappers" / "presets",

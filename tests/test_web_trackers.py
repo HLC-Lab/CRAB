@@ -16,7 +16,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason="web extra not installed")
 
-from conftest import auth_client  # noqa: E402
+from conftest import auth_client, requires_route  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.results_cache import ResultsCache  # noqa: E402
@@ -80,6 +80,8 @@ def _settings(tmp_path: Path) -> Settings:
     return Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
 
 
+@requires_route("/api/jobs")
+@requires_route("/api/results")
 def test_the_app_trackers_expire_unpolled_entries(tmp_path: Path):
     clock = FakeClock()
     app = create_app(_settings(tmp_path))
@@ -111,12 +113,14 @@ def to_thread_calls(monkeypatch: pytest.MonkeyPatch) -> list:
     return calls
 
 
+@requires_route("/api/results")
 def test_results_index_walks_the_cache_off_the_event_loop(tmp_path: Path, to_thread_calls):
     with auth_client(create_app(_settings(tmp_path))) as client:
         assert client.get("/api/results").status_code == 200
     assert ResultsCache.list_cached in to_thread_calls
 
 
+@requires_route("/api/results")
 def test_clearing_the_cache_runs_off_the_event_loop(tmp_path: Path, to_thread_calls):
     with auth_client(create_app(_settings(tmp_path))) as client:
         assert client.delete("/api/results/cache").status_code == 204

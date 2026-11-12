@@ -9,7 +9,7 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from conftest import auth_client  # noqa: E402
+from conftest import auth_client, requires_route  # noqa: E402
 from crab.web.errors import InputError, NotFoundError  # noqa: E402
 from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
@@ -65,6 +65,7 @@ def _client(tmp_path: Path) -> TestClient:
     return auth_client(create_app(_settings(tmp_path)))
 
 
+@requires_route("/api/experiments")
 def test_experiments_api_flow(tmp_path: Path):
     with _client(tmp_path) as client:
         assert client.get("/api/experiments").json() == []
@@ -101,6 +102,7 @@ def test_custom_library_dir_is_used(tmp_path: Path):
     assert not (tmp_path / "data" / "experiments" / f"{entry.id}.json").exists()
 
 
+@requires_route("/api/experiments")
 def test_default_library_migrates_into_a_fresh_custom_dir(tmp_path: Path):
     # Entries saved before library_dir was configured...
     plain = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
@@ -191,6 +193,7 @@ def test_unset_web_dir_variables_fall_back_to_the_platform_dirs(web_env) -> None
 # --------------------------------------------------------------------------- #
 # Save warnings (ADR-015)
 # --------------------------------------------------------------------------- #
+@requires_route("/api/experiments")
 def test_save_reports_shape_warnings_but_still_saves(tmp_path: Path):
     app = create_app(_settings(tmp_path))
     with auth_client(app) as client:
@@ -204,6 +207,7 @@ def test_save_reports_shape_warnings_but_still_saves(tmp_path: Path):
         assert stored["config"]["global_options"]["numnodes"] == ["not", "a", "number"]
 
 
+@requires_route("/api/experiments")
 def test_save_of_a_clean_config_has_no_warnings(tmp_path: Path):
     app = create_app(_settings(tmp_path))
     with auth_client(app) as client:
