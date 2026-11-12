@@ -30,6 +30,9 @@ SKIP = re.compile(
 )
 
 
+SECRET = re.compile(r"cipher|password", re.IGNORECASE)
+
+
 def normalise(line: str) -> str:
     return re.sub(r"\d+", "N", " ".join(line.split()))
 
@@ -37,7 +40,7 @@ def normalise(line: str) -> str:
 def read_config(path: Path) -> set[str]:
     lines: set[str] = set()
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        if not raw.strip() or SKIP.match(raw):
+        if not raw.strip() or SKIP.match(raw) or SECRET.search(raw):
             continue
         lines.add(normalise(raw))
     return lines
@@ -56,6 +59,24 @@ def compare(configs: dict[str, set[str]], odd: list[str]) -> tuple[list[str], li
     return found_odd, sorted(other_all - odd_any), sorted(odd_all - other_any)
 
 
+def context(path: Path, word: str, before: int = 3, after: int = 4, limit: int = 22) -> list[str]:
+    """The lines of PATH around each line that contains WORD, as written (secrets left out)."""
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    shown: list[str] = []
+    last = -1
+    for i, line in enumerate(lines):
+        if word not in line:
+            continue
+        start = max(i - before, last + 1)
+        for j in range(start, min(i + after + 1, len(lines))):
+            if not SECRET.search(lines[j]):
+                shown.append(lines[j].rstrip())
+        last = i + after
+        if len(shown) >= limit:
+            break
+    return shown[:limit] or [f"(no line contains {word})"]
+
+
 def cut(line: str) -> str:
     return line if len(line) <= WIDTH else line[: WIDTH - 1] + "~"
 
@@ -64,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="switch_diff.py")
     parser.add_argument("dir")
     parser.add_argument("--odd", default="Leaf3,Leaf4")
+    parser.add_argument(
+        "--show", default="", help="also print the lines around WORD in a reference leaf"
+    )
     args = parser.parse_args(argv)
     folder = Path(args.dir)
     if not folder.is_dir():
@@ -100,6 +124,11 @@ def main(argv: list[str] | None = None) -> int:
             print("  " + cut(line))
         if len(lines) > MAX_SHOWN:
             print(f"  ... {len(lines) - MAX_SHOWN} more in {folder / 'diff.txt'}")
+    if args.show:
+        reference = folder / f"{others[0]}.cfg"
+        print(f"\n'{args.show}' in {others[0]} (3 lines before, 4 after, as written):")
+        for line in context(reference, args.show):
+            print("  " + cut(line))
     return 0
 
 

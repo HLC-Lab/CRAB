@@ -134,7 +134,7 @@ cmd_net() {
                 echo "       nplb net record DIR [HOST...]"
                 echo "       nplb net ping HOST_A HOST_B"
                 echo "       nplb net rdma HOST_A HOST_B"
-                echo "       nplb net dump [SWITCH...] | nplb net diff"
+                echo "       nplb net dump [SWITCH...] | nplb net diff [WORD]"
             } >&2
             return 2
             ;;

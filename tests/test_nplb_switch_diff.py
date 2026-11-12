@@ -50,3 +50,20 @@ def test_equal_configs_say_same_and_a_missing_group_is_an_error(tmp_path: Path) 
     broken = run_diff(tmp_path)
     assert broken.returncode == 2
     assert "need configs" in broken.stderr
+
+
+def test_show_prints_the_lines_around_a_word_and_never_a_secret(tmp_path: Path) -> None:
+    write(
+        tmp_path, "Leaf1", "acl name fi-acl-1\n rule 5 permit udp\n peer x password cipher SECRET\n"
+    )
+    write(tmp_path, "Leaf3")
+    result = subprocess.run(
+        [sys.executable, str(NPLB / "switch_diff.py"), str(tmp_path), "--show", "fi-acl"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "acl name fi-acl-1" in result.stdout
+    assert "rule 5 permit udp" in result.stdout
+    assert "SECRET" not in result.stdout
