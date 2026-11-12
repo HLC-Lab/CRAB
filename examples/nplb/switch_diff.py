@@ -25,7 +25,8 @@ from pathlib import Path
 MAX_SHOWN = 12
 WIDTH = 96
 SKIP = re.compile(
-    r"^\s*(#|return|description|sysname|ssh|local-user|snmp|ntp|clock|!)", re.IGNORECASE
+    r"^\s*(#|<|return|screen-length|info:|description|sysname|ssh|local-user|snmp|ntp|clock|!)",
+    re.IGNORECASE,
 )
 
 

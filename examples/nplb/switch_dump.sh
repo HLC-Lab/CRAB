@@ -31,16 +31,21 @@ cmd_dump() {
         fi
         note "$name ($addr): type the switch password"
         tmp=$(mktemp)
-        if "${SSH_CMD[@]}" "$USER_NAME@$addr" "display current-configuration" >"$tmp"; then
-            lines=$(wc -l <"$tmp")
-            if ((lines > 20)); then
-                mv "$tmp" "$DIR/$name.cfg"
-                note "$name: saved $lines lines"
-                continue
-            fi
+        # an interactive session fed with the commands, as typed by hand; the password is read from the terminal
+        printf 'screen-length 0 temporary\ndisplay current-configuration\nquit\n' |
+            "${SSH_CMD[@]}" -tt "$USER_NAME@$addr" 2>"$tmp.err" | tr -d '\r' >"$tmp.raw"
+        # the configuration: from the line after the echoed command to the closing `return`
+        awk '/display current-configuration/ {on = 1; next} on {print} /^return/ {exit}' "$tmp.raw" >"$tmp"
+        lines=$(wc -l <"$tmp")
+        if ((lines > 20)); then
+            mv "$tmp" "$DIR/$name.cfg"
+            rm -f "$tmp.raw" "$tmp.err"
+            note "$name: saved $lines lines"
+            continue
         fi
-        rm -f "$tmp"
-        note "$name: FAILED (wrong password, or no config came back)"
+        note "$name: FAILED, $lines config lines came back; ssh said: $(tail -n 1 "$tmp.err")"
+        note "$name: the first lines of the session: $(head -c 200 "$tmp.raw" | tr '\n' ' ')"
+        rm -f "$tmp" "$tmp.raw" "$tmp.err"
         bad=$((bad + 1))
     done
     echo "dumped: $((${#names[@]} - bad)) of ${#names[@]} switches into $DIR"
