@@ -59,13 +59,15 @@ ON_SEQUENCE = [
 ]
 ON_NOTE = "if the id line says already configured, ignore it (it was never removed)"
 EVIDENCE = "NPLB commands: from the Leaf1 session screenshots; check one other switch with display this first"
-AR_DISCOVERY = [
-    "AR syntax unknown, find it on one switch:",
-    "display current-configuration | include load-balance|dlb|adaptive",
-    "load-balance ?",
-    "display load-balance ?",
-    "paste what it shows (screenshot), then we write the on/off lines",
+AR_EVIDENCE = "AR commands: found on Leaf1 with `load-balance ?`, not yet seen to change routing"
+AR_ON = [
+    "sys",
+    "load-balance adaptive-orchestrator enable",
+    "commit",
+    "q",
+    "display current-configuration | include adaptive",
 ]
+AR_OFF = ["sys", "undo load-balance adaptive-orchestrator enable", *AR_ON[2:]]
 USAGE_VERBS = ("declare", "set", "show", "sheet", "record")
 
 FAKE_SR_STATE = r"""#!/usr/bin/env bash
@@ -521,7 +523,7 @@ def test_sheet_for_each_state(site):
         assert lines[0] == f"VERDICT: sheet for {state}", args
         assert "switches: swA swB" in lines
         assert PLACEHOLDER not in stripped(lines)
-        assert in_order(lines, AR_DISCOVERY), args
+        assert in_order(lines, AR_ON if "ar=on" in state else AR_OFF), args
         assert EVIDENCE in stripped(lines), args
         assert lines[-1] == f"then run: nplb net declare {state}"
         if "nplb=on" in state:
@@ -597,17 +599,19 @@ def test_sheet_evidence_is_at_most_two_lines(site):
     assert EVIDENCE in lines
 
 
-def test_sheet_ar_prints_discovery_not_a_fake_command(site):
-    for args in (["base"], ["ar"], ["nplb+ar"], ["nplb"]):
+def test_sheet_ar_prints_the_on_and_off_lines_with_their_evidence(site):
+    for args, expected in (
+        (["base"], AR_OFF),
+        (["ar"], AR_ON),
+        (["nplb+ar"], AR_ON),
+        (["nplb"], AR_OFF),
+    ):
         done = run(site, "sheet", *args)
         lines = stripped(content(done.stdout))
-        assert in_order(lines, AR_DISCOVERY), args
+        assert AR_EVIDENCE in lines, args
+        at = lines.index(AR_EVIDENCE)
+        assert lines[at + 1 : at + 1 + len(expected)] == expected, args
         assert PLACEHOLDER not in lines, args
-        assert not any("<fill in" in ln for ln in lines), args
-        # only the three discovery commands sit between the intro and the closing line
-        at = lines.index(AR_DISCOVERY[0])
-        end = lines.index(AR_DISCOVERY[-1])
-        assert lines[at + 1 : end] == AR_DISCOVERY[1:-1], args
 
 
 # ---- record ---------------------------------------------------------------------------------

@@ -16,7 +16,7 @@ so net_state.json is a human claim and every report says so. The first `declare`
 net_state_initial.json, never overwritten, so `sheet --restore` can print the way back to the state at
 slot start. STATE of `sheet` is `nplb=on ar=off` (also comma separated) or an alias: base (both off),
 nplb, ar, nplb+ar. NET_SWITCHES (space separated names) is printed in the sheet header. The AR switch
-command is not known yet: the sheet carries a marked placeholder instead of a guessed command.
+command is `load-balance adaptive-orchestrator enable`, found on Leaf1 and not yet seen to change routing.
 
 nplb_state.json: switch {nplb, ar, declared_at, together}, nic {sr, ar, hosts {host: {sr, ar}}}, label,
 crab_rev and blink_rev ({hash, dirty}: dirty means tracked files are modified; blink_rev is null when the
@@ -83,14 +83,23 @@ NPLB_OFF_COMMANDS = (
 )
 NPLB_ON_NOTE = "note: if the id line says already configured, ignore it (it was never removed)"
 NPLB_EVIDENCE = "NPLB commands: from the Leaf1 session screenshots; check one other switch with display this first"
-# The AR switch syntax is not known: the sheet prints discovery commands, never a guessed AR command.
-AR_DISCOVERY = (
-    "AR syntax unknown, find it on one switch:",
-    "  display current-configuration | include load-balance|dlb|adaptive",
-    "  load-balance ?",
-    "  display load-balance ?",
-    "paste what it shows (screenshot), then we write the on/off lines",
+# From the Leaf1 session (2026-11-12): `load-balance ?` in system view lists adaptive-orchestrator, whose
+# only option is `enable`; `assign forward adaptive-routing-tuning enable` was already in the config.
+AR_ON_COMMANDS = (
+    "sys",
+    "load-balance adaptive-orchestrator enable",
+    "commit",
+    "q",
+    "display current-configuration | include adaptive",
 )
+AR_OFF_COMMANDS = (
+    "sys",
+    "undo load-balance adaptive-orchestrator enable",
+    "commit",
+    "q",
+    "display current-configuration | include adaptive",
+)
+AR_EVIDENCE = "AR commands: found on Leaf1 with `load-balance ?`, not yet seen to change routing"
 NO_SWITCHES = "set NET_SWITCHES in local/nplb_env.sh"
 STANDING_NOTE = "switch state is as declared by you, it cannot be read from the nodes"
 DECLARE_USAGE = "usage: nplb net declare nplb=on|off ar=on|off"
@@ -188,7 +197,8 @@ def sheet_lines(nplb: str, ar: str, switches: str, restore_of: str = "") -> list
     if nplb == "on":
         lines.append(NPLB_ON_NOTE)
     lines.append(f"AR {ar}:")
-    lines.extend(AR_DISCOVERY)
+    lines.append(AR_EVIDENCE)
+    lines.extend(f"  {c}" for c in (AR_ON_COMMANDS if ar == "on" else AR_OFF_COMMANDS))
     if nplb == "on" and ar == "on":
         lines.append("note: nplb+ar is the last state to try; if the switch refuses it, drop it")
     lines.append(f"then run: nplb net declare {state}")
