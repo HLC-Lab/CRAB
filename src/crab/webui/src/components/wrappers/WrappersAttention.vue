@@ -64,7 +64,7 @@ function firstLine(text: string | null): string {
 
 <template>
   <section class="attn">
-    <p v-if="error && !wrappers" class="error">{{ errorText(error) }}</p>
+    <p v-if="error && !wrappers" class="error" role="alert">{{ errorText(error) }}</p>
     <p v-else-if="loading && !wrappers" class="quiet">Loading wrappers from {{ target.label }}…</p>
 
     <template v-else-if="wrappers">

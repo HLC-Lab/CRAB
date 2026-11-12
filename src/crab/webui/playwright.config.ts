@@ -15,6 +15,9 @@ export default defineConfig({
   testDir: "tests/e2e",
   timeout: 30_000,
   retries: 0,
+  // One server and one profile store serve every spec, and some specs add remotes: run
+  // the specs one after another so they cannot see each other's state.
+  workers: 1,
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     viewport: { width: 1440, height: 900 },

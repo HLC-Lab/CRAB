@@ -14,6 +14,7 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
+from crab.cli.contract import CONTRACT_SCHEMA  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import InputError  # noqa: E402
@@ -22,7 +23,7 @@ from crab.web.settings import Settings  # noqa: E402
 from test_web_catalog import _INFO, _leonardo  # noqa: E402
 
 _LIST = {
-    "schema": 1,
+    "schema": CONTRACT_SCHEMA,
     "search_path": ["/h/CRAB/local/wrappers", "/h/CRAB/wrappers"],
     "wrappers": [
         {
@@ -33,10 +34,27 @@ _LIST = {
         },
     ],
 }
-_RECEIPT = {"schema": 1, "receipt": {"id": "hpl", "binary_path": "/opt/hpl/xhpl"}}
-_SHOW = {"schema": 1, "relpath": "blink/alltoall/a2a.py", "source": "x = 1\n", "loadable": True}
-_STATUS = {"schema": 1, "state": "clean", "clone": True, "modified": [], "upstream": "up to date"}
-_PULL = {"schema": 1, "dir": "/h/CRAB/wrappers", "action": "up to date", "old": "abc", "new": "abc"}
+_RECEIPT = {"schema": CONTRACT_SCHEMA, "receipt": {"id": "hpl", "binary_path": "/opt/hpl/xhpl"}}
+_SHOW = {
+    "schema": CONTRACT_SCHEMA,
+    "relpath": "blink/alltoall/a2a.py",
+    "source": "x = 1\n",
+    "loadable": True,
+}
+_STATUS = {
+    "schema": CONTRACT_SCHEMA,
+    "state": "clean",
+    "clone": True,
+    "modified": [],
+    "upstream": "up to date",
+}
+_PULL = {
+    "schema": CONTRACT_SCHEMA,
+    "dir": "/h/CRAB/wrappers",
+    "action": "up to date",
+    "old": "abc",
+    "new": "abc",
+}
 
 
 class Fake(Transport):
@@ -267,6 +285,71 @@ def test_outdated_laptop_crab_says_this_laptop(laptop: Fake, tmp_path: Path) -> 
     assert resp.status_code == 409
     assert resp.json()["code"] == "crab_outdated"
     assert resp.json()["message"].startswith("This laptop's crab has no 'crab wrappers status'.")
+
+
+def test_list_on_a_crab_without_that_subcommand_is_outdated(client_and_fake) -> None:
+    client, fake = client_and_fake
+    fake.failures["wrappers list"] = CmdResult(
+        2, "", "crab: error: argument wrappers_cmd: invalid choice: 'list'\n"
+    )
+    resp = client.get("/api/wrappers/leonardo/list")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "crab_outdated"
+
+
+def test_receipts_on_a_crab_with_an_unknown_argument_is_outdated(client_and_fake) -> None:
+    client, fake = client_and_fake
+    fake.failures["receipts set"] = CmdResult(
+        2, "", "crab: error: unrecognized arguments: --launcher srun\n"
+    )
+    resp = client.post("/api/wrappers/leonardo/receipts", json={**_BODY, "launcher": "srun"})
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "crab_outdated"
+    assert "crab receipts set" in resp.json()["message"]
+
+
+def test_receipts_on_a_crab_without_the_command_is_outdated(client_and_fake) -> None:
+    client, fake = client_and_fake
+    fake.failures["receipts set"] = CmdResult(
+        2, "", "crab: error: argument command: invalid choice: 'receipts' (choose from 'run')\n"
+    )
+    resp = client.post("/api/wrappers/leonardo/receipts", json=_BODY)
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "crab_outdated"
+
+
+def test_receipts_on_a_crab_without_receipts_set_is_outdated(client_and_fake) -> None:
+    client, fake = client_and_fake
+    fake.failures["receipts set"] = CmdResult(
+        2, "", "crab receipts: error: argument receipts_command: invalid choice: 'set'\n"
+    )
+    resp = client.post("/api/wrappers/leonardo/receipts", json=_BODY)
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "crab_outdated"
+    assert "crab receipts set" in resp.json()["message"]
+
+
+@pytest.mark.parametrize("route", ["list", "receipts"])
+def test_other_failures_of_list_and_receipts_stay_remote_command_errors(
+    client_and_fake, route
+) -> None:
+    client, fake = client_and_fake
+    needle = "wrappers list" if route == "list" else "receipts set"
+    fake.failures[needle] = CmdResult(1, "", "crab: error: disk full\n")
+    resp = _send(client, "leonardo", route)
+    assert resp.status_code == 502
+    assert resp.json()["code"] == "remote_command_error"
+
+
+def test_a_result_with_another_schema_is_crab_outdated(client_and_fake) -> None:
+    client, fake = client_and_fake
+    fake.failures["wrappers status"] = CmdResult(
+        0, json.dumps({**_STATUS, "schema": CONTRACT_SCHEMA - 1}), ""
+    )
+    resp = client.get("/api/wrappers/leonardo/status")
+    assert resp.status_code == 409
+    assert resp.json()["code"] == "crab_outdated"
+    assert "older than the dashboard" in resp.json()["message"]
 
 
 def test_pull_refused_for_local_edits_is_a_conflict(client_and_fake) -> None:

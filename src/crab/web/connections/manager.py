@@ -8,6 +8,7 @@ channels, so one auth covers everything). A dropped connection is detected via
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 
 from crab.web.connections.transport import (
@@ -17,6 +18,8 @@ from crab.web.connections.transport import (
 )
 from crab.web.store.profiles import Profile
 
+logger = logging.getLogger("crab.web")
+
 # A connector opens a transport for an SSH profile. Injectable for tests.
 Connector = Callable[[Profile, "str | None"], Awaitable[Transport]]
 
@@ -25,16 +28,26 @@ class ConnectionManager:
     def __init__(self, connector: Connector | None = None) -> None:
         self._connector: Connector = connector or connect_ssh
         self._conns: dict[str, Transport] = {}
-        self._lock = asyncio.Lock()
+        # One lock per profile name: a slow connect to one cluster must not delay another's.
+        self._locks: dict[str, asyncio.Lock] = {}
 
     async def connect(self, profile: Profile, password: str | None = None) -> Transport:
         """Return a live transport for ``profile``, opening one if needed."""
-        async with self._lock:
+        lock = self._locks.setdefault(profile.name, asyncio.Lock())
+        async with lock:
             existing = self._conns.get(profile.name)
             if existing is not None and existing.alive:
                 return existing
             if existing is not None:  # stale → drop before reconnecting
                 self._conns.pop(profile.name, None)
+                # Close it so the old asyncssh connection is not left running (and pinged by
+                # keepalives) beside the replacement. Never let this mask the new connect.
+                try:
+                    await existing.close()
+                except Exception:
+                    logger.warning(
+                        "Closing the stale connection to %s failed", profile.name, exc_info=True
+                    )
 
             transport = (
                 LocalTransport() if profile.is_local() else await self._connector(profile, password)

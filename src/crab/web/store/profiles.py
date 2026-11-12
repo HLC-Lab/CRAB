@@ -11,7 +11,10 @@ Stored as ``{"version": 1, "clusters": [ <Profile>, ... ]}`` in
 
 from __future__ import annotations
 
+import os
 import re
+import tempfile
+import threading
 from pathlib import Path
 from typing import Literal
 
@@ -27,6 +30,13 @@ PROFILES_VERSION = 1
 _VALID_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 # `/api/wrappers/local/...` is the laptop, so no cluster profile may take the name.
 _LAPTOP_NAME = "local"
+# Serialises read-modify-write of clusters.json: the dashboard is one process, so one lock
+# is enough to keep two concurrent requests from overwriting each other's change.
+_WRITE_LOCK = threading.Lock()
+# Whitespace or control characters (a space, a newline, a NUL) in a host or user name.
+_BAD_NAME_CHARS = re.compile(r"[\s\x00-\x1f\x7f]")
+# A newline or carriage return, or NUL, inside one command line.
+_LINE_BREAK = re.compile(r"[\r\n\x00]")
 
 
 def check_profile_name(name: str) -> None:
@@ -59,6 +69,37 @@ def check_crab_command(crab_command: str | None) -> None:
             "Crab command must be one executable path or name with no spaces "
             "(for example ~/.local/bin/crab); leave it unset to use the CRAB checkout."
         )
+
+
+def check_shell_line(text: str, label: str, number: int) -> None:
+    """Raise InputError unless ``text`` is one non-empty line without ``#``.
+
+    Setup and pre-commands are joined with `` && `` and run in ``bash -lc``, so a newline
+    would start a second command and a ``#`` would comment out the rest of the chain.
+    ``label`` and ``number`` say which entry is wrong ("Setup command 2").
+    """
+    if not text.strip() or _LINE_BREAK.search(text) or "#" in text:
+        raise InputError(f"{label} {number} must be one line without '#' (and not empty).")
+
+
+def _check_ssh_word(value: str | None, label: str) -> None:
+    if value is None:
+        return
+    if _BAD_NAME_CHARS.search(value) or value.startswith("-"):
+        raise InputError(f"{label} must not contain spaces or start with '-'.")
+
+
+def check_profile(profile: Profile) -> None:
+    """Raise InputError for a port, host, user or setup line that would break the connection.
+
+    Only enforced on add and update: profiles saved before these rules keep loading.
+    """
+    if not 1 <= profile.port <= 65535:
+        raise InputError("Port must be a number from 1 to 65535.")
+    _check_ssh_word(profile.host, "Host")
+    _check_ssh_word(profile.user, "User")
+    for number, line in enumerate(profile.remote_setup, start=1):
+        check_shell_line(line, "Setup command", number)
 
 
 class Profile(BaseModel):
@@ -140,9 +181,16 @@ class ProfileStore:
 
     def _save(self, store: _Store) -> None:
         self._settings.ensure_dirs()
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(store.model_dump_json(indent=2))
-        tmp.replace(self.path)  # atomic
+        # A unique temp file in the same directory (mkstemp creates it 0600, so the file
+        # never exists with wider permissions), then an atomic replace.
+        fd, tmp_name = tempfile.mkstemp(dir=self.path.parent, prefix=".clusters-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as fh:
+                fh.write(store.model_dump_json(indent=2))
+            os.replace(tmp_name, self.path)
+        except BaseException:
+            Path(tmp_name).unlink(missing_ok=True)
+            raise
 
     # -- public API ----------------------------------------------------------
     def list(self) -> list[Profile]:
@@ -157,29 +205,34 @@ class ProfileStore:
     def add(self, profile: Profile) -> Profile:
         check_profile_name(profile.name)
         check_crab_command(profile.crab_command)
-        store = self._load()
-        if any(p.name == profile.name for p in store.clusters):
-            raise ConflictError(f"A profile named {profile.name!r} already exists.")
-        store.clusters.append(profile)
-        self._save(store)
+        check_profile(profile)
+        with _WRITE_LOCK:
+            store = self._load()
+            if any(p.name == profile.name for p in store.clusters):
+                raise ConflictError(f"A profile named {profile.name!r} already exists.")
+            store.clusters.append(profile)
+            self._save(store)
         return profile
 
     def update(self, name: str, profile: Profile) -> Profile:
         if profile.name != name:
             check_profile_name(profile.name)
         check_crab_command(profile.crab_command)
-        store = self._load()
-        for i, p in enumerate(store.clusters):
-            if p.name == name:
-                store.clusters[i] = profile
-                self._save(store)
-                return profile
+        check_profile(profile)
+        with _WRITE_LOCK:
+            store = self._load()
+            for i, p in enumerate(store.clusters):
+                if p.name == name:
+                    store.clusters[i] = profile
+                    self._save(store)
+                    return profile
         raise NotFoundError(f"No cluster profile named {name!r}.")
 
     def remove(self, name: str) -> None:
-        store = self._load()
-        kept = [p for p in store.clusters if p.name != name]
-        if len(kept) == len(store.clusters):
-            raise NotFoundError(f"No cluster profile named {name!r}.")
-        store.clusters = kept
-        self._save(store)
+        with _WRITE_LOCK:
+            store = self._load()
+            kept = [p for p in store.clusters if p.name != name]
+            if len(kept) == len(store.clusters):
+                raise NotFoundError(f"No cluster profile named {name!r}.")
+            store.clusters = kept
+            self._save(store)

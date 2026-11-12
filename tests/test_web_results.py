@@ -19,6 +19,7 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
+from crab.cli.contract import CONTRACT_SCHEMA  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
 from crab.web.errors import RemoteCommandError, RemoteConnectionError  # noqa: E402
@@ -35,7 +36,7 @@ JOB_BASENAME = "demo_job"
 
 _INFO_JSON = json.dumps(
     {
-        "schema": 1,
+        "schema": CONTRACT_SCHEMA,
         "crab_version": "0.1.0",
         "crab_root": "/home/u/CRAB",
         "presets": [{"name": "leonardo", "description": "Leonardo @ CINECA"}],
@@ -44,7 +45,7 @@ _INFO_JSON = json.dumps(
 
 
 def _history_json(experiments: list[dict] | None = None) -> str:
-    return json.dumps({"schema": 1, "experiments": experiments or []})
+    return json.dumps({"schema": CONTRACT_SCHEMA, "experiments": experiments or []})
 
 
 def _settings(tmp_path: Path) -> Settings:

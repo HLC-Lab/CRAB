@@ -78,6 +78,15 @@ async function submit() {
   if (ok) closeForm();
 }
 
+// The password lives in the form only until the attempt ends, whatever its outcome.
+async function connectRemote(name: string) {
+  try {
+    await store.connect(name, passwords[name]);
+  } finally {
+    delete passwords[name];
+  }
+}
+
 function confirmRemove(name: string) {
   if (window.confirm(`Remove the remote "${name}"? This only deletes the local profile.`)) {
     store.remove(name);
@@ -97,13 +106,15 @@ function confirmRemove(name: string) {
       </div>
     </header>
 
-    <p v-if="store.error" class="banner err">{{ store.error }}</p>
+    <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
 
     <!-- Add / edit form -->
     <form v-if="showForm" class="card form" @submit.prevent="submit">
       <div class="form-head">
         <strong>{{ editingName ? `Edit ${editingName}` : "Add cluster" }}</strong>
-        <button type="button" class="icon-btn" title="Close" @click="closeForm">✕</button>
+        <button type="button" class="icon-btn" title="Close" aria-label="Close" @click="closeForm">
+          ✕
+        </button>
       </div>
       <div class="grid">
         <label>Name <input v-model="form.name" required placeholder="my-cluster" /></label>
@@ -166,7 +177,8 @@ function confirmRemove(name: string) {
       <li v-for="r in store.items" :key="r.name" class="card">
         <div class="row">
           <div class="ident">
-            <span class="dot" :class="r.connected ? 'on' : 'off'" />
+            <span class="dot" :class="r.connected ? 'on' : 'off'" aria-hidden="true" />
+            <span class="sr-only">{{ r.connected ? "Connected" : "Not connected" }}</span>
             <strong>{{ r.name }}</strong>
             <span class="sub">
               {{ r.transport === "local" ? "local" : `${r.user}@${r.host}` }}
@@ -179,13 +191,14 @@ function confirmRemove(name: string) {
               v-model="passwords[r.name]"
               type="password"
               placeholder="password"
+              :aria-label="`Password for ${r.name}`"
               class="pw"
             />
             <button
               v-if="!r.connected"
               class="btn"
               :disabled="store.busy[r.name]"
-              @click="store.connect(r.name, passwords[r.name])"
+              @click="connectRemote(r.name)"
             >
               {{ store.busy[r.name] ? "Connecting…" : "Connect" }}
             </button>
@@ -200,6 +213,7 @@ function confirmRemove(name: string) {
             <button
               class="icon-btn"
               title="Edit"
+              :aria-label="`Edit ${r.name}`"
               :disabled="r.connected || store.busy[r.name]"
               @click="startEdit(r)"
             >
@@ -208,7 +222,12 @@ function confirmRemove(name: string) {
                 <path d="M14 6l4 4" />
               </svg>
             </button>
-            <button class="icon-btn danger" title="Remove" @click="confirmRemove(r.name)">
+            <button
+              class="icon-btn danger"
+              title="Remove"
+              :aria-label="`Remove ${r.name}`"
+              @click="confirmRemove(r.name)"
+            >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M5 7h14" />
                 <path d="M9 7V5h6v2" />
@@ -218,10 +237,14 @@ function confirmRemove(name: string) {
           </div>
         </div>
 
-        <!-- Real connection or auth failures (nothing connected) are shown as-is. -->
-        <p v-if="!r.connected && store.connectError[r.name]" class="banner err small">
+        <!-- Real connection or auth failures are shown as-is, also while a profile is listed as connected. -->
+        <p v-if="store.connectError[r.name]" class="banner err small" role="alert">
           {{ store.connectError[r.name] }}
         </p>
+        <details v-if="store.connectError[r.name] && store.connectDetail[r.name]" class="tech">
+          <summary>Technical details</summary>
+          <pre>{{ store.connectDetail[r.name] }}</pre>
+        </details>
 
         <div v-if="store.info[r.name]" class="info">
           CRAB {{ store.info[r.name].crab_version }} · {{ store.info[r.name].crab_root }}
@@ -301,7 +324,7 @@ function confirmRemove(name: string) {
             class="output"
             :class="{ bad: !store.installResult[r.name].ok }"
             >{{ stepText(store.installResult[r.name]) }}</pre>
-          <p v-if="store.bootstrapError[r.name]" class="banner err small">
+          <p v-if="store.bootstrapError[r.name]" class="banner err small" role="alert">
             {{ store.bootstrapError[r.name] }}
           </p>
         </div>
@@ -469,6 +492,18 @@ select {
 .dot.off {
   background: var(--text3);
 }
+/* Text for assistive tech only: the dot's colour is not the only carrier of the state. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .info {
   margin-top: 0.6rem;
   color: var(--text2);
@@ -509,6 +544,27 @@ select {
 .empty {
   color: var(--text3);
   padding: 2rem 0;
+}
+.tech {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text2);
+}
+.tech summary {
+  cursor: pointer;
+}
+.tech pre {
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.5rem;
+  max-height: 12rem;
+  overflow: auto;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Guided install */

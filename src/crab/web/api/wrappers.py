@@ -115,8 +115,9 @@ async def _run(
 ) -> dict:
     """Run `crab <args>` on the target and map the engine's known refusals.
 
-    `subcommand` is the `crab wrappers <name>` being called: an older crab answers it with
-    argparse's "invalid choice", which becomes `crab_outdated`.
+    `subcommand` is the `crab wrappers <name>` being called (or `receipts` for `crab receipts
+    set`): an older crab answers it with argparse's "invalid choice", and a newer argument with
+    "unrecognized arguments". Both become `crab_outdated`.
     """
     transport, profile = _target(target, request)
     try:
@@ -124,13 +125,18 @@ async def _run(
     except RemoteCommandError as exc:
         detail = exc.detail or ""
         outdated = subcommand and (
-            f"invalid choice: '{subcommand}'" in detail or "invalid choice: 'wrappers'" in detail
+            f"invalid choice: '{subcommand}'" in detail
+            or "invalid choice: 'wrappers'" in detail
+            or "unrecognized arguments" in detail
+            or (subcommand == "receipts" and "invalid choice: 'set'" in detail)
         )
         if outdated:
             where = "This laptop's" if target == _LOCAL_TARGET else "This cluster's"
+            command = (
+                "crab receipts set" if subcommand == "receipts" else f"crab wrappers {subcommand}"
+            )
             raise CrabOutdatedError(
-                f"{where} crab has no 'crab wrappers {subcommand}'. "
-                "Update it there (crab update), then retry.",
+                f"{where} crab has no '{command}'. Update it there (crab update), then retry.",
                 detail=detail,
             ) from exc
         if subcommand == "show":
@@ -163,7 +169,9 @@ async def wrappers_list(target: str, request: Request) -> dict:
 
     Listing loads every wrapper module, so allow a generous timeout.
     """
-    return await _run(target, request, ["wrappers", "list", "--json"], timeout=90.0)
+    return await _run(
+        target, request, ["wrappers", "list", "--json"], timeout=90.0, subcommand="list"
+    )
 
 
 @router.get("/api/wrappers/{target}/show")
@@ -198,4 +206,4 @@ async def wrappers_pull(target: str, request: Request) -> dict:
 @router.post("/api/wrappers/{target}/receipts")
 async def wrappers_import_binary(target: str, body: ReceiptImport, request: Request) -> dict:
     """Record where a benchmark's binary lives on the target (`crab receipts set`)."""
-    return await _run(target, request, _receipt_args(body), timeout=30.0)
+    return await _run(target, request, _receipt_args(body), timeout=30.0, subcommand="receipts")

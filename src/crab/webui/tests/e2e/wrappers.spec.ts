@@ -42,3 +42,22 @@ test("browse This laptop's wrappers offline", async ({ page }) => {
   await expect(metric).toContainText("convergence target");
   await expect(page.getByRole("heading", { name: "How it runs" })).toBeVisible();
 });
+
+test("the Library tab and the tree work from the keyboard", async ({ page }) => {
+  await page.goto("/wrappers");
+  const library = page.getByRole("tab", { name: "Library", exact: true });
+  await library.focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/tab=library/);
+
+  // From the filter box, Tab walks the tree buttons until it reaches the leaf.
+  await page.getByRole("searchbox", { name: "Filter wrappers" }).focus();
+  const leaf = page.getByRole("button", { name: "path_app.py" });
+  for (let i = 0; i < 12 && !(await leaf.evaluate((el) => el === document.activeElement)); i++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(leaf).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(leaf).toHaveAttribute("aria-current", "true");
+  await expect(page.getByRole("heading", { name: "path_app", level: 2 })).toBeVisible();
+});

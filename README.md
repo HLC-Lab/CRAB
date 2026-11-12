@@ -81,7 +81,7 @@ To start the dashboard, install the `web` extra and run:
 
 ```bash
 pip install -e ".[web]"
-crab web                    # serves http://127.0.0.1:8765
+crab web                    # serves http://127.0.0.1:8899
 ```
 
 ## Documentation

@@ -59,7 +59,7 @@ function errorText(e: WrappersError): string {
 
 <template>
   <article class="sum">
-    <p v-if="error" class="error">{{ errorText(error) }}</p>
+    <p v-if="error" class="error" role="alert">{{ errorText(error) }}</p>
     <p v-else-if="!summary && loading" class="quiet">Loading {{ summaryTitle(relpath) }}…</p>
 
     <template v-else-if="summary">

@@ -11,7 +11,7 @@
   --border2: #404870;
   --text: #eceef6;
   --text2: #a0a8c8;
-  --text3: #5c6480;
+  --text3: #8a92b0;
   --accent: #c03050;
   --accent-glow: rgba(192, 48, 80, 0.4);
   --sel-bg: rgba(61, 68, 104, 0.22);
@@ -56,7 +56,7 @@ html.light {
   --border2: #a4aac4;
   --text: #0c0e1a;
   --text2: #3a3f5c;
-  --text3: #686e8c;
+  --text3: #585f7c;
   --accent: #822433;
   --accent-glow: rgba(130, 36, 51, 0.15);
   --sel-bg: rgba(130, 36, 51, 0.1);

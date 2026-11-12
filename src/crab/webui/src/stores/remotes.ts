@@ -4,7 +4,14 @@ import { api, ApiError } from "@/api/client";
 import type { BootstrapPlan, CrabInfo, Profile, RemoteListItem, StepResult } from "@/api/types";
 
 function msg(e: unknown): string {
-  return e instanceof ApiError ? e.message : "Unexpected error";
+  return e instanceof ApiError
+    ? e.message
+    : "Something went wrong in the dashboard. Reload the page and try again.";
+}
+
+// The backend's technical text for a failure (stderr, exception type), when it sent one.
+function detailOf(e: unknown): string | undefined {
+  return e instanceof ApiError && e.detail ? e.detail : undefined;
 }
 
 export const useRemotesStore = defineStore("remotes", () => {
@@ -15,6 +22,8 @@ export const useRemotesStore = defineStore("remotes", () => {
   const busy = ref<Record<string, boolean>>({});
   // Real SSH/auth/connection failures, shown verbatim.
   const connectError = ref<Record<string, string>>({});
+  // The technical text behind connectError (the envelope's `detail`), for a collapsed block.
+  const connectDetail = ref<Record<string, string>>({});
   // Connected, but CRAB isn't installed there → drives the guided install.
   const crabMissing = ref<Record<string, boolean>>({});
   const info = ref<Record<string, CrabInfo>>({});
@@ -75,6 +84,7 @@ export const useRemotesStore = defineStore("remotes", () => {
   async function connect(name: string, password?: string) {
     busy.value[name] = true;
     delete connectError.value[name];
+    delete connectDetail.value[name];
     delete crabMissing.value[name];
     delete skew.value[name];
     try {
@@ -89,8 +99,12 @@ export const useRemotesStore = defineStore("remotes", () => {
       }
       await refresh();
     } catch (e) {
-      // Real SSH/auth/connection failure (nothing connected).
+      // Real SSH/auth/connection failure (nothing connected): an info line from an earlier
+      // connect would still describe a connection that is gone.
       connectError.value[name] = msg(e);
+      const detail = detailOf(e);
+      if (detail) connectDetail.value[name] = detail;
+      delete info.value[name];
       await refresh();
     } finally {
       busy.value[name] = false;
@@ -109,6 +123,9 @@ export const useRemotesStore = defineStore("remotes", () => {
       await refresh();
     } catch (e) {
       connectError.value[name] = msg(e);
+      const detail = detailOf(e);
+      if (detail) connectDetail.value[name] = detail;
+      else delete connectDetail.value[name];
     } finally {
       busy.value[name] = false;
     }
@@ -160,6 +177,7 @@ export const useRemotesStore = defineStore("remotes", () => {
     error,
     busy,
     connectError,
+    connectDetail,
     crabMissing,
     info,
     skew,

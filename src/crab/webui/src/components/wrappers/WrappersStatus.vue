@@ -124,7 +124,10 @@ function select(t: WrapperTarget) {
 
             <template v-else-if="!store.statuses[t.id]">
               <td colspan="3" :class="store.statusError[t.id] ? 'error' : 'muted'">
-                {{ store.statusError[t.id] ? errorText(t, store.statusError[t.id]!) : "Loading…" }}
+                <span v-if="store.statusError[t.id]" role="alert">{{
+                  errorText(t, store.statusError[t.id]!)
+                }}</span>
+                <template v-else>Loading…</template>
               </td>
               <td></td>
             </template>
@@ -152,7 +155,7 @@ function select(t: WrapperTarget) {
                     {{ attention(t) === 1 ? "needs" : "need" }} attention</span
                   >
                 </template>
-                <span v-else-if="store.listError[t.id]" class="error">{{
+                <span v-else-if="store.listError[t.id]" class="error" role="alert">{{
                   errorText(t, store.listError[t.id]!)
                 }}</span>
                 <span v-else class="muted">Loading…</span>
@@ -181,13 +184,13 @@ function select(t: WrapperTarget) {
           <tr v-if="hasNote(t)" class="extra">
             <td colspan="5">
               <span v-if="store.pulling[t.id]" class="muted">Pulling on {{ t.label }}…</span>
-              <span v-else-if="store.pullError[t.id]" class="error">{{
+              <span v-else-if="store.pullError[t.id]" class="error" role="alert">{{
                 pullErrorText(t, store.pullError[t.id]!)
               }}</span>
               <span v-else-if="store.lastPull[t.id]" class="muted">{{
                 pullNote(store.lastPull[t.id])
               }}</span>
-              <span v-else-if="remotes.connectError[t.id]" class="error">{{
+              <span v-else-if="remotes.connectError[t.id]" class="error" role="alert">{{
                 remotes.connectError[t.id]
               }}</span>
             </td>

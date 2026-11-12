@@ -9,6 +9,8 @@ SSH/auth/connection failure surfaces as the error envelope.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
@@ -18,6 +20,8 @@ from crab.web.errors import ConflictError, RemoteConnectionError
 from crab.web.remoteops.bootstrap import detect
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.store.profiles import Profile, ProfileStore
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/remotes", tags=["remotes"])
 
@@ -87,10 +91,19 @@ async def remove_remote(name: str, request: Request) -> None:
 @router.post("/{name}/connect")
 async def connect_remote(name: str, request: Request, body: ConnectRequest | None = None) -> dict:
     profile = _store(request).get(name)
-    transport = await _manager(request).connect(profile, password=(body.password if body else None))
+    manager = _manager(request)
+    transport = await manager.connect(profile, password=(body.password if body else None))
     # `detect` returns gracefully when CRAB is absent (no exception, no warning
-    # log); a real connection drop/timeout still raises.
-    result = await detect(transport, profile)
+    # log); a real connection drop/timeout still raises. Then the transport is
+    # closed, so the cluster is not left listed as connected while nothing works.
+    try:
+        result = await detect(transport, profile)
+    except Exception:
+        try:
+            await manager.disconnect(name)
+        except Exception:
+            logger.warning("Closing the transport of '%s' failed after a failed check.", name)
+        raise
     return {
         "connected": True,
         "info": result.info,

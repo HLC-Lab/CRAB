@@ -17,7 +17,7 @@ export default defineConfig({
   server: {
     // Dev: proxy API calls to the running `crab web` backend.
     proxy: {
-      "/api": "http://127.0.0.1:8765",
+      "/api": "http://127.0.0.1:8899",
     },
   },
 });

@@ -60,7 +60,7 @@ async function submit() {
         <textarea v-model="form.preRun" rows="2" />
       </label>
     </div>
-    <p v-if="store.importError[key]" class="error">{{ store.importError[key] }}</p>
+    <p v-if="store.importError[key]" class="error" role="alert">{{ store.importError[key] }}</p>
     <div class="actions">
       <button type="button" class="link" @click="emit('cancel')">Cancel</button>
       <button

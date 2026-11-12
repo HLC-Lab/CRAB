@@ -332,7 +332,7 @@ the `srun` launcher. See [The mpirun dialects](running-without-slurm.md#the-mpir
         Another instance may be running, or the port is taken. Try: crab web --port <other>
 ```
 
-Another `crab web` (or another program) holds port 8765. Stop the other instance, or start on
+Another `crab web` (or another program) holds port 8899. Stop the other instance, or start on
 another port with `crab web --port 8899`. `CRAB_WEB_PORT` sets the default.
 
 ### Connect fails

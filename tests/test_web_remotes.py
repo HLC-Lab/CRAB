@@ -6,6 +6,7 @@ path against Leonardo is user-verified.
 
 from __future__ import annotations
 
+import json
 import shlex
 from pathlib import Path
 
@@ -14,11 +15,13 @@ import pytest
 pytest.importorskip("fastapi", reason="web extra not installed")
 
 from conftest import auth_client  # noqa: E402
+from crab.cli.contract import CONTRACT_SCHEMA  # noqa: E402
 from crab.web.connections.manager import ConnectionManager  # noqa: E402
 from crab.web.connections.transport import CmdResult, LocalTransport, Transport  # noqa: E402
 from crab.web.errors import (  # noqa: E402
     ConflictError,
     ContractError,
+    CrabOutdatedError,
     InputError,
     NotFoundError,
     RemoteCommandError,
@@ -32,7 +35,7 @@ from crab.web.server import create_app  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.profiles import PROFILES_VERSION, Profile, ProfileStore  # noqa: E402
 
-_INFO_JSON = '{"schema":1,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"Leonardo @ CINECA"}]}'
+_INFO_JSON = '{"schema":2,"crab_version":"0.1.0","crab_root":"/home/u/CRAB","presets":[{"name":"leonardo","description":"Leonardo @ CINECA"}]}'
 
 
 def _settings(tmp_path: Path) -> Settings:
@@ -248,6 +251,148 @@ def test_profiles_file_saved_before_the_field_existed_loads_with_none(tmp_path: 
     assert PROFILES_VERSION == 1
 
 
+def _leftovers(settings: Settings) -> list[str]:
+    """Names in the config dir other than clusters.json (stray temp files)."""
+    return sorted(p.name for p in settings.config_dir.iterdir() if p.name != "clusters.json")
+
+
+def _mode(path: Path) -> int:
+    return path.stat().st_mode & 0o777
+
+
+def test_profiles_file_is_private_after_add_update_and_remove(tmp_path: Path):
+    settings = _settings(tmp_path)
+    store = ProfileStore(settings)
+    store.add(_leonardo())
+    assert _mode(settings.clusters_file) == 0o600
+    assert _leftovers(settings) == []
+
+    changed = _leonardo()
+    changed.user = "other"
+    store.update("leonardo", changed)
+    assert _mode(settings.clusters_file) == 0o600
+
+    store.add(Profile(name="second", host="h.example.org"))
+    store.remove("second")
+    assert _mode(settings.clusters_file) == 0o600
+    assert _leftovers(settings) == []
+
+
+def test_profiles_file_stays_intact_and_leaves_no_temp_when_the_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    settings = _settings(tmp_path)
+    store = ProfileStore(settings)
+    store.add(_leonardo())
+    before = settings.clusters_file.read_text()
+
+    def boom(src: object, dst: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("crab.web.store.profiles.os.replace", boom)
+    with pytest.raises(OSError, match="disk full"):
+        store.add(Profile(name="second", host="h.example.org"))
+    monkeypatch.undo()
+
+    assert settings.clusters_file.read_text() == before
+    assert _leftovers(settings) == []
+
+
+def test_concurrent_adds_do_not_lose_an_update(tmp_path: Path):
+    import threading
+
+    settings = _settings(tmp_path)
+    store = ProfileStore(settings)
+    n = 8
+    barrier = threading.Barrier(n)
+    errors: list[BaseException] = []
+
+    def worker(i: int) -> None:
+        try:
+            barrier.wait()
+            store.add(Profile(name=f"c{i}", host=f"h{i}.example.org"))
+        except BaseException as exc:  # noqa: BLE001 - collected and asserted below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in range(n)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == []
+    assert sorted(p.name for p in store.list()) == sorted(f"c{i}" for i in range(n))
+    assert _leftovers(settings) == []
+
+
+_BAD_PROFILE_FIELDS = [
+    ({"port": 0}, "Port must be a number from 1 to 65535"),
+    ({"port": 70000}, "Port must be a number from 1 to 65535"),
+    ({"host": "a b"}, "Host must not contain spaces"),
+    ({"host": "-oProxyCommand=x"}, "Host must not contain spaces or start with '-'"),
+    ({"host": "a\nb"}, "Host must not contain spaces"),
+    ({"user": "bad user"}, "User must not contain spaces"),
+    ({"user": "-x"}, "User must not contain spaces or start with '-'"),
+    ({"remote_setup": ["module load python", ""]}, "Setup command 2 must be one line"),
+    ({"remote_setup": ["   "]}, "Setup command 1 must be one line"),
+    ({"remote_setup": ["a\nb"]}, "Setup command 1 must be one line without '#'"),
+    ({"remote_setup": ["module load x # comment"]}, "Setup command 1 must be one line"),
+]
+
+
+@pytest.mark.parametrize("fields,message", _BAD_PROFILE_FIELDS)
+def test_profile_store_refuses_bad_connection_and_setup_values(
+    tmp_path: Path, fields: dict, message: str
+):
+    settings = _settings(tmp_path)
+    store = ProfileStore(settings)
+    bad = _leonardo().model_copy(update=fields)
+
+    with pytest.raises(InputError, match=message) as excinfo:
+        store.add(bad)
+    assert "—" not in str(excinfo.value) and "–" not in str(excinfo.value)
+    assert not settings.clusters_file.exists()
+
+    store.add(_leonardo())
+    before = settings.clusters_file.read_text()
+    with pytest.raises(InputError, match=message):
+        store.update("leonardo", bad)
+    assert settings.clusters_file.read_text() == before
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"port": 22},
+        {"port": 65535},
+        {"host": "login01.example.org"},
+        {"user": "alice"},
+        {"remote_setup": ["module load python/3.11"]},
+        {"host": None, "user": None, "remote_setup": []},
+    ],
+)
+def test_profile_store_accepts_normal_connection_and_setup_values(tmp_path: Path, fields: dict):
+    store = ProfileStore(_settings(tmp_path))
+    good = _leonardo().model_copy(update=fields)
+    store.add(good)
+    assert store.get(good.name) == good
+    store.update(good.name, good)
+
+
+def test_profile_already_on_disk_with_bad_values_still_loads_and_lists(tmp_path: Path):
+    settings = _settings(tmp_path)
+    settings.ensure_dirs()
+    settings.clusters_file.write_text(
+        '{"version": 1, "clusters": [{"name": "legacy", "host": "a b", "port": 0, '
+        '"user": "-x", "remote_setup": ["a # b", ""]}]}'
+    )
+    store = ProfileStore(settings)
+    assert [p.name for p in store.list()] == ["legacy"]
+    assert store.get("legacy").port == 0
+    store.remove("legacy")
+    assert store.list() == []
+
+
 def test_remotes_api_rejects_a_blank_crab_command(tmp_path: Path):
     with _client(tmp_path) as client:
         payload = {**_leonardo().model_dump(), "crab_command": "   "}
@@ -271,6 +416,51 @@ async def test_run_crab_json_parses_and_maps_errors():
 
     with pytest.raises(ContractError):
         await run_crab_json(FakeTransport(stdout="not json"), p, ["info", "--json"])
+
+
+def _schema_json(schema: int) -> str:
+    return json.dumps({"schema": schema, "crab_version": "9.9.9", "presets": []})
+
+
+async def test_run_crab_json_returns_a_result_with_the_current_schema():
+    result = await run_crab_json(
+        FakeTransport(_schema_json(CONTRACT_SCHEMA)), _leonardo(), ["info", "--json"]
+    )
+    assert result["schema"] == CONTRACT_SCHEMA
+
+
+async def test_run_crab_json_older_cluster_schema_says_to_update_the_cluster():
+    transport = FakeTransport(_schema_json(CONTRACT_SCHEMA - 1))
+    with pytest.raises(CrabOutdatedError) as exc:
+        await run_crab_json(transport, _leonardo(), ["status", "--json"])
+    assert exc.value.http_status == 409
+    assert exc.value.message == (
+        "This cluster's CRAB is older than the dashboard. "
+        "Run crab update on the cluster, then reconnect."
+    )
+
+
+async def test_run_crab_json_newer_cluster_schema_says_to_update_the_laptop():
+    transport = FakeTransport(_schema_json(99))
+    with pytest.raises(CrabOutdatedError) as exc:
+        await run_crab_json(transport, _leonardo(), ["status", "--json"])
+    assert exc.value.message == (
+        "This cluster's CRAB is newer than the dashboard. "
+        "Run crab update on this laptop, then restart crab web."
+    )
+
+
+@pytest.mark.parametrize("stdout", ['[{"id": "a"}]', "[]"])
+async def test_run_crab_json_passes_a_list_through_unchanged(stdout: str):
+    result = await run_crab_json(FakeTransport(stdout), _leonardo(), ["history", "--json"])
+    assert result == json.loads(stdout)
+
+
+async def test_run_crab_json_passes_a_dict_without_schema_through():
+    # `crab run --json` prints the engine's {job_id, data_dir, system}: it has no schema key.
+    stdout = '{"job_id": "1", "data_dir": "/d", "system": "s"}'
+    result = await run_crab_json(FakeTransport(stdout), _leonardo(), ["run", "x", "--json"])
+    assert result["job_id"] == "1"
 
 
 _ARGPARSE_LINE = "crab wrappers: error: argument wrappers_command: invalid choice: 'show'"
@@ -381,3 +571,87 @@ def test_rename_closes_the_stale_connection(tmp_path: Path):
         # The live connection was keyed by the old name; it must not linger.
         assert app.state.manager.get("leonardo") is None
         assert client.get("/api/remotes").json()[0]["name"] == "leo2"
+
+
+# --------------------------------------------------------------------------- #
+# Connect: a failed CRAB check must not leave the cluster shown as connected
+# --------------------------------------------------------------------------- #
+class _CountingTransport(FakeTransport):
+    def __init__(self) -> None:
+        super().__init__()
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+        await super().close()
+
+
+def _counting_client(tmp_path: Path, transport: FakeTransport):
+    async def connector(profile, password):
+        return transport
+
+    app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
+    return auth_client(app)
+
+
+def test_connect_disconnects_the_transport_when_detect_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from crab.web.errors import RemoteConnectionError
+
+    async def failing_detect(transport, profile):
+        raise RemoteConnectionError("Timed out waiting for crab info.")
+
+    monkeypatch.setattr("crab.web.api.remotes.detect", failing_detect)
+    transport = _CountingTransport()
+    with _counting_client(tmp_path, transport) as client:
+        assert client.post("/api/remotes", json=_leonardo().model_dump()).status_code == 201
+
+        resp = client.post("/api/remotes/leonardo/connect")
+
+        assert resp.status_code == 502
+        assert resp.json()["code"] == "connection_error"
+        assert "Timed out" in resp.json()["message"]
+        assert client.app.state.manager.get("leonardo") is None
+        assert transport.close_calls == 1
+        assert client.get("/api/remotes").json()[0]["connected"] is False
+
+
+def test_connect_failure_still_reports_the_original_error_when_close_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from crab.web.errors import RemoteConnectionError
+
+    async def failing_detect(transport, profile):
+        raise RemoteConnectionError("Timed out waiting for crab info.")
+
+    class BrokenClose(_CountingTransport):
+        async def close(self) -> None:
+            self.close_calls += 1
+            raise OSError("socket already gone")
+
+    monkeypatch.setattr("crab.web.api.remotes.detect", failing_detect)
+    transport = BrokenClose()
+    with _counting_client(tmp_path, transport) as client:
+        assert client.post("/api/remotes", json=_leonardo().model_dump()).status_code == 201
+
+        resp = client.post("/api/remotes/leonardo/connect")
+
+        assert resp.status_code == 502
+        assert "Timed out" in resp.json()["message"]
+        assert transport.close_calls == 1
+        assert client.app.state.manager.get("leonardo") is None
+
+
+def test_connect_keeps_the_transport_when_detect_succeeds(tmp_path: Path):
+    transport = _CountingTransport()
+    with _counting_client(tmp_path, transport) as client:
+        assert client.post("/api/remotes", json=_leonardo().model_dump()).status_code == 201
+
+        resp = client.post("/api/remotes/leonardo/connect")
+
+        assert resp.status_code == 200
+        assert resp.json()["connected"] is True
+        assert client.app.state.manager.get("leonardo") is transport
+        assert transport.close_calls == 0
+        assert client.get("/api/remotes").json()[0]["connected"] is True
