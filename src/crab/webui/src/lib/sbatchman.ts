@@ -8,12 +8,12 @@
 // substitution are done by SbatchMan at launch time (core/launcher.py,
 // core/variables.py); this module only PREVIEWS the product and emits the templates.
 //
-// ADR-027: this module does NOT write environment.json. `crab worker` falls back to
-// the inherited process environment when no environment.json exists in the workdir --
-// CRAB_ROOT/CRAB_SYSTEM/CRAB_PATH_WRAPPERS/SBATCHMAN_JOB_DIR must instead be exported
-// by the partner's own SbatchMan preset (`sbatchman configure --env ...`, documented
-// in docs/using/sbatchman-integration.md), not generated here. config.json still gets
-// heredoc'd -- it is per-job sweep data, not a static preset value.
+// ADR-045: this module does NOT write environment.json. The job environment comes only
+// from the partner's own SbatchMan config (its `env` and `modules`, documented in
+// docs/using/sbatchman-integration.md), and `crab worker` inherits it when no
+// environment.json exists in the workdir -- CRAB_ROOT/CRAB_SYSTEM/CRAB_PATH_WRAPPERS and
+// the PATH to the CRAB environment are set there, not generated here. config.json still
+// gets heredoc'd -- it is per-job sweep data, not a static config value.
 //
 // config.json's `global_options.name` defaults to the group tag (placeholders included),
 // so the run registry names each job instead of recording `unknown`.
@@ -32,11 +32,11 @@ export interface SbatchmanVar {
   values: Array<string | number>;
 }
 
-/** One job group = one CRAB experiment template + its own tag/preset/variables. */
+/** One job group = one CRAB experiment template + its own tag, SbatchMan config and variables. */
 export interface SbatchmanGroup {
-  /** Tag template, e.g. "g500_baseline_{scale}_{ef}_{nodes}". */
+  /** Tag template, e.g. "run_{nodes}". */
   tag: string;
-  /** SbatchMan config (preset) name, may be templated, e.g. "{nodes}_nodes". */
+  /** SbatchMan config name (the field is called `preset`), may be templated, e.g. "{nodes}_nodes". */
   preset: string;
   /** Variables scoped to this group (merged over the campaign-global ones). */
   variables: SbatchmanVar[];
@@ -138,11 +138,14 @@ export function sampleTags(
 // correctly quoted YAML. Hand-built strings produced invalid YAML for e.g. a blank
 // variable name.
 
-/** Numbers, and strings that look like numbers, become YAML numbers (SbatchMan
- * substitutes them into numeric positions); everything else stays a string. */
+/** Numbers, and text in canonical numeric form ("8", "1.5", "-3"), become YAML numbers
+ * (SbatchMan substitutes them into numeric positions). Any other text stays a string:
+ * "08", "1.10", "1e3", "+8" or " 8 " must reach the job exactly as typed. js-yaml quotes a
+ * string that YAML would read as a non-string, so the text round-trips. */
 function listItem(v: string | number): string | number {
   if (typeof v === "number") return v;
-  return /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v;
+  const n = Number(v);
+  return Number.isFinite(n) && String(n) === v ? n : v;
 }
 
 function varsObject(vars: SbatchmanVar[]): Record<string, Array<string | number>> {
@@ -201,9 +204,8 @@ function configJson(group: SbatchmanGroup): string {
 
 /** The bash heredoc lines (at column 0) that write config.json. They become one
  * YAML block scalar, so the heredoc body and its `JSON` terminator reach bash at
- * column 0. ADR-027: environment.json is NOT written
- * here -- `crab worker` falls back to the inherited process environment when no
- * environment.json exists in the workdir. */
+ * column 0. environment.json is NOT written here (ADR-045): the job environment comes
+ * from the SbatchMan config, which `crab worker` inherits. */
 function preprocessLines(_campaign: SbatchmanCampaign, group: SbatchmanGroup): string[] {
   const heredoc = (relPath: string, json: string): string[] => [
     `cat > "${WORKDIR}/${relPath}" <<'JSON'`,
@@ -211,6 +213,20 @@ function preprocessLines(_campaign: SbatchmanCampaign, group: SbatchmanGroup): s
     "JSON",
   ];
   return [`mkdir -p "${WORKDIR}"`, ...heredoc("config.json", configJson(group))];
+}
+
+/** The file name the campaign is written under on the cluster: the backend's
+ * `campaign_slug` (lower-case, runs of non-alphanumerics become `-`, at most 60
+ * characters, `campaign` when nothing is left) plus `.yaml`. */
+export function campaignFileName(name: string): string {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/, "");
+  return `${slug || "campaign"}.yaml`;
 }
 
 /** Compose the full SbatchMan jobs YAML for a campaign. */
@@ -386,7 +402,7 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
   return issues;
 }
 
-/** The "SbatchMan preset" field's placeholder and hint: what name goes there and where it
+/** The "SbatchMan config" field's placeholder and hint: what name goes there and where it
  * comes from (docs/using/sbatchman-integration.md). */
 export const PRESET_PLACEHOLDER = "crab_run";
 export const PRESET_HINT =

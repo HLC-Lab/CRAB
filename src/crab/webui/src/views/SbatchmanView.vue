@@ -6,6 +6,7 @@
 // connected cluster. Launching
 // is SbatchMan's job (ADR-026): this view never triggers `sbatchman launch`.
 import { computed, onMounted, ref, watchEffect } from "vue";
+import { campaignFileName } from "@/lib/sbatchman";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 import { useRemotesStore } from "@/stores/remotes";
 import ConfirmModal from "@/components/ConfirmModal.vue";
@@ -172,6 +173,7 @@ function confirmRemoveGroup(): void {
         ref="preview"
         v-model:open="showPreview"
         :yaml="store.yaml"
+        :file-name="campaignFileName(store.name)"
         :total-jobs="store.totalJobs"
         :issues="store.issues"
       />

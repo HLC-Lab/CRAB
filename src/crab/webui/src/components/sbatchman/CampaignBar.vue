@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Campaign-level settings. The dashboard writes no environment (ADR-027): jobs
-// take theirs from the SbatchMan preset, so this card only says where to find it.
+// Campaign-level settings. The dashboard writes no environment (ADR-045): jobs
+// take theirs from the SbatchMan config, so this card only says where to find it.
 // (Campaign-wide sweep variables live in the Variables card, next to the group's own.)
 </script>
 

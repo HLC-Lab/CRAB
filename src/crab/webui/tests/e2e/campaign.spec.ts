@@ -19,7 +19,7 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
   await expect(writeBar.getByRole("button", { name: /\d+ problems?/ })).toBeVisible();
 
   // Fill the group: tag, SbatchMan config, nodes, one app with a wrapper path.
-  await page.getByPlaceholder("e.g. g500_baseline_{scale}_{nodes}").fill("e2e_{nodes}");
+  await page.getByPlaceholder("e.g. run_{nodes}").fill("e2e_{nodes}");
   await page.getByLabel("SbatchMan config").fill("cpu");
   await page.getByPlaceholder("e.g. {nodes}", { exact: true }).fill("{nodes}");
   await page.getByRole("button", { name: "+ Add variable" }).first().click();
@@ -34,7 +34,15 @@ test("validate, fix, save, and warn before deleting the open campaign", async ({
 
   await expect(preview.getByText(/to fix before writing/)).toHaveCount(0);
   await expect(writeBar.getByRole("button", { name: /problems?/ })).toHaveCount(0);
-  await expect(preview.getByText("jobs.yaml · 2 jobs")).toBeVisible();
+  // The header names the file the campaign gets on the cluster: the backend's slug of the
+  // campaign name (lower-case, runs of non-alphanumerics become "-"), plus ".yaml".
+  const campaignName = await page.getByPlaceholder("Campaign name").inputValue();
+  const slug = campaignName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  await expect(preview.getByText(`${slug || "campaign"}.yaml · 2 jobs`)).toBeVisible();
 
   // A blank variable name is flagged, and the preview is still valid YAML.
   await page.getByRole("button", { name: "+ Add variable" }).first().click();

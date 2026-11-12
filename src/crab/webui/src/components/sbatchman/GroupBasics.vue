@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// A campaign group's SbatchMan-specific fields (tag template, preset
-// reference, node count/ppn) and its sample tags. Deliberately NOT
+// A campaign group's SbatchMan-specific fields (tag template, SbatchMan
+// config name, node count/ppn) and its sample tags. Deliberately NOT
 // BasicsPane: those fields accept a raw `{var}` placeholder (e.g. numnodes
-// "{nodes}"), which BasicsPane's shared draft.numnodes field also holds, but
-// there is no validateDraft-style check run against it here — SbatchMan
-// expands `{var}` at launch time, long after this editor is done with it.
+// "{nodes}"), which BasicsPane's shared draft.numnodes field also holds. This
+// component checks nothing itself: SbatchMan expands `{var}` at launch time, so
+// validateCampaign runs validateDraft on each group's experiment with a
+// variable combination already substituted, and reports the problems in the preview.
 import { computed } from "vue";
 import type { Draft } from "@/lib/config";
 import { PRESET_HINT, PRESET_PLACEHOLDER } from "@/lib/sbatchman";
@@ -34,7 +35,7 @@ const d = computed(() => props.draft);
 <template>
   <div class="grid">
     <label
-      >Tag <input v-model="tagModel" placeholder="e.g. g500_baseline_{scale}_{nodes}" />
+      >Tag <input v-model="tagModel" placeholder="e.g. run_{nodes}" />
       <small>Identifies this group's jobs to SbatchMan. Can use {var} placeholders.</small>
     </label>
     <label

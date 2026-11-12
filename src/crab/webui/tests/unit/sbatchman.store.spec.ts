@@ -121,6 +121,46 @@ describe("sbatchman store: campaign library", () => {
     expect(store.notice).toContain("Saved");
   });
 
+  it("save says so when the library stored the campaign under another name", async () => {
+    createMock.mockResolvedValueOnce(entry({ id: "my-campaign-2", name: "My Campaign-2" }));
+    const store = useSbatchmanStore();
+    store.name = "My Campaign";
+    listMock.mockResolvedValueOnce([entry({ id: "my-campaign-2", name: "My Campaign-2" })]);
+
+    await store.save();
+
+    expect(store.notice).toBe('Saved as "My Campaign-2" because the name "My Campaign" was taken.');
+  });
+
+  it("a renamed save moves the editor to the final name, clean, and a later save sends it", async () => {
+    createMock.mockResolvedValueOnce(entry({ id: "my-campaign-2", name: "My Campaign-2" }));
+    const store = useSbatchmanStore();
+    store.name = "My Campaign";
+    listMock.mockResolvedValueOnce([entry({ id: "my-campaign-2", name: "My Campaign-2" })]);
+
+    await store.save();
+
+    expect(store.name).toBe("My Campaign-2");
+    expect(store.entryId).toBe("my-campaign-2");
+    expect(store.isDirty).toBe(false);
+
+    updateMock.mockResolvedValueOnce(entry({ id: "my-campaign-2", name: "My Campaign-2" }));
+    listMock.mockResolvedValueOnce([]);
+    await store.save();
+    expect(updateMock).toHaveBeenCalledWith("my-campaign-2", "My Campaign-2", expect.any(Object));
+  });
+
+  it("save keeps the plain message when the name is kept", async () => {
+    createMock.mockResolvedValueOnce(entry({ id: "new-id", name: "My Campaign" }));
+    const store = useSbatchmanStore();
+    store.name = "My Campaign";
+    listMock.mockResolvedValueOnce([]);
+
+    await store.save();
+
+    expect(store.notice).toBe('Saved "My Campaign".');
+  });
+
   it("save updates the existing entry once one is open", async () => {
     getMock.mockResolvedValueOnce(entry());
     const store = useSbatchmanStore();

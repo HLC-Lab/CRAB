@@ -355,9 +355,16 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
         ? await api.sbatchman.campaigns.update(entryId.value, n, asDict)
         : await api.sbatchman.campaigns.create(n, asDict);
       entryId.value = entry.id;
+      // The library keeps names unique: a taken name comes back as "<name>-2". The editor
+      // takes the final name so it, the library entry and a later update agree.
+      name.value = entry.name;
       await loadLibrary();
       savedSnapshot.value = savedStateJson.value;
-      flashNotice(`Saved "${n}".`);
+      if (entry.name !== n) {
+        flashNotice(`Saved as "${entry.name}" because the name "${n}" was taken.`, 6000);
+      } else {
+        flashNotice(`Saved "${n}".`);
+      }
       return true;
     } catch (e) {
       error.value = msg(e);

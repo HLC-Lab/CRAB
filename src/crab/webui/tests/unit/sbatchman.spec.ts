@@ -10,6 +10,7 @@
 import yaml from "js-yaml";
 import { describe, expect, it } from "vitest";
 import {
+  campaignFileName,
   campaignJobCount,
   composeCampaignYaml,
   groupJobCount,
@@ -221,7 +222,7 @@ describe("composeCampaignYaml", () => {
     expect(cfg.global_options.numnodes).toBe("8");
   });
 
-  it("never writes environment.json (ADR-027: env comes from the partner's SbatchMan preset)", () => {
+  it("never writes environment.json (ADR-045: env comes from the partner's SbatchMan config)", () => {
     const doc = yaml.load(composeCampaignYaml(campaign())) as any;
     const pre: string = doc.jobs[0].preprocess;
     expect(pre).not.toContain("environment.json");
@@ -245,6 +246,35 @@ describe("composeCampaignYaml", () => {
     c.variables = [{ name: "n", values: ["8", 16, "abc"] }];
     const doc = yaml.load(composeCampaignYaml(c)) as ParsedDoc;
     expect(doc.variables.n).toEqual([8, 16, "abc"]);
+  });
+
+  it("keeps text that is not canonical numeric form as a string, quoted so YAML reads it back", () => {
+    const c = campaign();
+    const texts = [
+      "08",
+      "007",
+      "1.10",
+      "1e3",
+      " 8 ",
+      "+8",
+      "0x10",
+      "-0",
+      "Infinity",
+      "true",
+      "null",
+    ];
+    c.variables = [{ name: "v", values: texts }];
+    c.groups[0].variables = [{ name: "w", values: ["08"] }];
+    const doc = yaml.load(composeCampaignYaml(c)) as any;
+    expect(doc.variables.v).toEqual(texts);
+    expect(doc.jobs[0].variables.w).toEqual(["08"]);
+  });
+
+  it("turns canonical numeric text into numbers, and leaves numbers alone", () => {
+    const c = campaign();
+    c.variables = [{ name: "v", values: ["8", "1.5", "-3", "0", 7, 2.5, 0] }];
+    const doc = yaml.load(composeCampaignYaml(c)) as any;
+    expect(doc.variables.v).toEqual([8, 1.5, -3, 0, 7, 2.5, 0]);
   });
 
   it("numeric allocation placeholders reach the engine as numbers", () => {
@@ -310,6 +340,26 @@ describe("composeCampaignYaml", () => {
     const c = campaign();
     composeCampaignYaml(c);
     expect(c.groups[0].config.global_options).toEqual({ numnodes: "{nodes}" });
+  });
+});
+
+describe("campaignFileName", () => {
+  it("is the backend's slug plus .yaml", () => {
+    expect(campaignFileName("My Campaign")).toBe("my-campaign.yaml");
+    expect(campaignFileName("  A2A / baseline #1!  ")).toBe("a2a-baseline-1.yaml");
+    expect(campaignFileName("already-slugged_ok")).toBe("already-slugged-ok.yaml");
+  });
+
+  it("falls back to campaign.yaml for an empty or symbol-only name", () => {
+    expect(campaignFileName("")).toBe("campaign.yaml");
+    expect(campaignFileName("   ")).toBe("campaign.yaml");
+    expect(campaignFileName("!!!")).toBe("campaign.yaml");
+  });
+
+  it("caps the slug at 60 characters without a trailing dash", () => {
+    expect(campaignFileName("a".repeat(100))).toBe("a".repeat(60) + ".yaml");
+    // The cut falls right after a separator: no trailing dash.
+    expect(campaignFileName("a".repeat(59) + " bbbb")).toBe("a".repeat(59) + ".yaml");
   });
 });
 

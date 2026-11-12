@@ -8,6 +8,8 @@ import { nextTick, ref } from "vue";
 
 const props = defineProps<{
   yaml: string;
+  /** The name the file gets on the cluster (campaignFileName of the campaign name). */
+  fileName: string;
   totalJobs: number;
   /** validateCampaign output; Write files stays disabled while it is non-empty. */
   issues: string[];
@@ -42,7 +44,7 @@ defineExpose({ revealProblems });
 <template>
   <aside class="yamlpane" :class="{ closed: !open }">
     <header>
-      <span>jobs.yaml · {{ totalJobs }} job{{ totalJobs === 1 ? "" : "s" }}</span>
+      <span>{{ props.fileName }} · {{ totalJobs }} job{{ totalJobs === 1 ? "" : "s" }}</span>
       <span class="head-actions">
         <button v-if="open" class="link-btn" @click="copyYaml">
           {{ copied ? "Copied ✓" : "Copy" }}
