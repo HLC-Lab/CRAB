@@ -35,6 +35,16 @@ if [[ $cmd == *gid_attrs* ]]; then
     printf '3\tRoCE v2\t0000:0000:0000:0000:0000:ffff:0a00:000%s\t%s\n' "$n" "$nd"
     exit 0
 fi
+if [[ $cmd == *roce_* ]]; then
+    # ECN bits per priority (np, rp) of the netdev, and mlnx_qos's trust state line on nodeA only
+    [[ ${FAKE_ECN_FAIL:-} == "$host" ]] && exit 1
+    case $host in
+    nodeT) echo "np=0001000- rp=--------  " ;;
+    *) echo "np=00010000 rp=11111111 " ;;
+    esac
+    [[ $host == nodeA ]] && echo "Priority trust state: dscp"
+    exit 0
+fi
 if [[ $cmd == *"command -v"* ]]; then
     if [[ ${FAKE_MISSING:-} == "$host:"* ]]; then
         echo "${FAKE_MISSING#*:} "
@@ -135,6 +145,13 @@ if [[ $cmd == *"python3 -c"* ]]; then
     # plain UDP: the sender always exits 0; the receiver times out (1) on the failing node and
     # cannot bind (2) on FAKE_BIND_FAIL
     if [[ $cmd == *sendto* ]]; then
+        for t in ${FAKE_FAIL_TOS:-}; do
+            # the sender of this TOS value toward nodeT fails (the real one would just see no receiver)
+            if [[ $cmd == *"IP_TOS,$t);"* && $cmd == *'("10.0.0.3",'* ]]; then
+                echo "sendto failed"
+                exit 1
+            fi
+        done
         echo "sent 20 datagrams"
         exit 0
     fi
@@ -788,3 +805,93 @@ def test_pingpong_rules_are_unchanged_and_a_missing_result_line_fails_a_perftest
     missing = bw_run(other, "rbw", FAKE_ZERO_BW="none")
     assert missing.returncode == 1, missing.stdout + missing.stderr
     assert "FAIL nodeA-nodeT mlx5_0 rbw srv=0 cli=0 bw=0" in missing.stdout
+
+
+def test_udptos_runs_one_udp_test_per_tos_value_and_the_value_reaches_the_sender(
+    tmp_path: Path,
+) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="udptos", ISO_TOS="0 2 104")
+    assert result.returncode == 0, result.stdout + result.stderr
+    for tos in ("0", "2", "104"):
+        assert f"OK nodeA-nodeC mlx5_0 udptos tos={tos} srv=0 cli=0" in result.stdout
+        assert f"OK nodeA-nodeT mlx5_0 udptos tos={tos} srv=0 cli=0" in result.stdout
+    py = [line for line in ssh_log(tmp_path) if " timeout 10 python3 -c " in line]
+    senders = [line for line in py if "sendto" in line]
+    assert len(senders) == 6 and all(line.startswith("nodeA ") for line in senders)
+    assert [re.search(r"IP_TOS,(\d+)\)", line).group(1) for line in senders] == [  # type: ignore[union-attr]
+        "0",
+        "2",
+        "104",
+        "0",
+        "2",
+        "104",
+    ]
+    assert all('s.bind(("10.0.0.1",0))' in line for line in senders)
+    receivers = [line for line in py if "recvfrom" in line]
+    assert len(receivers) == 6
+    assert all('s.bind(("10.0.0.' in line and ",5000))" in line for line in receivers)
+    assert all(('("10.0.0.2",5000)' in s) == (i < 3) for i, s in enumerate(senders))
+
+
+def test_the_default_tos_values(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="udptos")
+    assert result.returncode == 0, result.stdout + result.stderr
+    seen = [
+        m.group(1)
+        for line in ssh_log(tmp_path)
+        if line.startswith("nodeA ") and (m := re.search(r"IP_TOS,(\d+)\)", line))
+    ]
+    assert seen[:7] == ["0", "2", "1", "3", "104", "106", "184"]
+
+
+def test_a_tos_value_that_fails_only_towards_the_test_node_is_named_in_the_verdict(
+    tmp_path: Path,
+) -> None:
+    result = run_isolate(
+        tmp_path,
+        "nodeA",
+        "nodeC",
+        "nodeT",
+        ISO_TESTS="udptos",
+        ISO_TOS="0 2 106",
+        FAKE_FAIL_TOS="2",
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "FAIL nodeA-nodeT mlx5_0 udptos tos=2 srv=0 cli=1" in result.stdout
+    assert "OK nodeA-nodeT mlx5_0 udptos tos=0 srv=0 cli=0" in result.stdout
+    assert "OK nodeA-nodeC mlx5_0 udptos tos=2 srv=0 cli=0" in result.stdout
+    assert (
+        "VERDICT: FAIL only on nodeA-nodeT: udptos2 (control nodeA-nodeC passes)" in result.stdout
+    )
+
+
+def test_a_bad_tos_value_is_a_usage_error(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="udptos", ISO_TOS="2 x")
+    assert result.returncode == 2
+    assert "ISO_TOS" in result.stderr
+
+
+def test_ecn_and_qos_lines_per_host_with_unreadable_entries_as_dashes(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc", FAKE_ECN_FAIL="nodeC")
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = result.stdout.splitlines()
+    assert "ECN nodeA ib0 np=00010000 rp=11111111" in lines
+    assert "ECN nodeC ib0 np=-------- rp=--------" in lines  # the ssh call failed
+    assert "ECN nodeT ib0 np=0001000- rp=--------" in lines  # some priorities unreadable
+    assert "QOS nodeA Priority trust state: dscp" in lines
+    assert not [
+        line for line in lines if line.startswith("QOS nodeC") or line.startswith("QOS nodeT")
+    ]
+    # after the TOOLS lines, before ROUTE
+    assert lines.index("TOOLS nodeT: ok") < lines.index("ECN nodeA ib0 np=00010000 rp=11111111")
+    assert result.stdout.index("\nECN nodeT") < result.stdout.index("\nROUTE ")
+    calls = [line for line in ssh_log(tmp_path) if "roce_" in line]
+    assert len(calls) == 3  # one ssh call per host
+    assert all("/sys/class/net/ib0/ecn/roce_$k/enable/$i" in line for line in calls)
+    assert all("mlnx_qos -i ib0" in line for line in calls)
+
+
+def test_without_a_netdev_the_ecn_line_has_no_ssh_call(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc", FAKE_NO_NDEV="1")
+    assert "ECN nodeA - np=-------- rp=--------" in result.stdout
+    assert not [line for line in ssh_log(tmp_path) if "roce_" in line]

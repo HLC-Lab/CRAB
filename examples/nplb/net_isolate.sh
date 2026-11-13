@@ -26,6 +26,10 @@
 #                     TTL that gets a reply is the hop count (informational); DETAIL names the router
 #                     that dropped the TTL 1 ping
 #   ucxcfg            on A only, once: the RoCE-related lines of ucx_info -c (UCX lines in the report)
+#   udptos            udp5000 once per TOS value of ISO_TOS (default 0 2 1 3 104 106 184); each value is its
+#                     own test udptos<v> in the verdict (ECN or DSCP based drops show as one failing value)
+# Level 0 also prints per host "ECN host netdev np=.. rp=.." (roce_np and roce_rp enable flags of priorities
+# 0..7, "-" when unreadable) and, when mlnx_qos exists, "QOS host <trust state line>".
 # ISO_TEST (singular) is read when ISO_TESTS is not set.
 # ISO_COUNTERS=1: around every pair test (not ttl) read the NIC counters of port 1 (hw_counters, counters,
 # and ethtool -S of the GID's netdev) on A and X before and after; DETAIL gets "  CNT host name +delta" lines
@@ -59,7 +63,8 @@ ISO_SPORT_BASE=${ISO_SPORT_BASE:-50000}
 ISO_SPORTS=${ISO_SPORTS:-64}
 ISO_TTL_MAX=${ISO_TTL_MAX:-6}
 ISO_COUNTERS=${ISO_COUNTERS:-0}
-KNOWN_TESTS="rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000 udpsweep udpsweeprev rcrep wbwrep wbw64 ttl sbw rbw sbw64 rcmtu ucxcfg"
+ISO_TOS=${ISO_TOS:-0 2 1 3 104 106 184}
+KNOWN_TESTS="rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000 udpsweep udpsweeprev rcrep wbwrep wbw64 ttl sbw rbw sbw64 rcmtu ucxcfg udptos"
 
 if [[ $# -ne 3 && $# -ne 4 ]]; then
     echo "usage: nplb net isolate A CTRL TEST [NIC]" >&2
@@ -69,6 +74,23 @@ for t in $ISO_TESTS; do
     if [[ " $KNOWN_TESTS " != *" $t "* ]]; then
         echo "unknown test $t in ISO_TESTS (known: $KNOWN_TESTS)" >&2
         exit 2
+    fi
+done
+for v in $ISO_TOS; do
+    if [[ ! $v =~ ^[0-9]+$ ]]; then
+        echo "ISO_TOS value $v is not a number" >&2
+        exit 2
+    fi
+done
+# the tests to run: udptos stands for one test udptos<v> per TOS value of ISO_TOS (own name in the verdict)
+TEST_NAMES=()
+for t in $ISO_TESTS; do
+    if [[ $t == udptos ]]; then
+        for v in $ISO_TOS; do
+            TEST_NAMES+=("udptos$v")
+        done
+    else
+        TEST_NAMES+=("$t")
     fi
 done
 A=$1
@@ -82,6 +104,8 @@ TOOL_LINES=()
 GID_LINES=()
 ROUTE_LINES=()
 UCX_LINES=()
+ECN_LINES=()
+QOS_LINES=()
 TEST_LINES=()
 DETAIL=()
 FAILED_CTRL=()
@@ -145,7 +169,33 @@ level0() {
             SKIPWHY[$host]="no RoCE v2 IPv4 GID"
             GID_LINES+=("GID $host $NIC: no RoCE v2 IPv4-mapped index")
         fi
+        ecn_qos "$host"
     done
+}
+
+# remote command (plain sh) for the netdev $1: "np=<8 digits> rp=<8 digits> " (the roce_np and roce_rp ECN
+# enable flag of priorities 0..7, "-" when unreadable), then mlnx_qos's trust state line when mlnx_qos exists
+ecn_cmd() {
+    local nd=$1
+    printf '%s' "for k in np rp; do printf '%s=' \$k; for i in 0 1 2 3 4 5 6 7; do v=\$(cat /sys/class/net/$nd/ecn/roce_\$k/enable/\$i 2>/dev/null); printf '%.1s' \"\${v:--}\"; done; printf ' '; done; echo; if command -v mlnx_qos >/dev/null 2>&1; then mlnx_qos -i $nd 2>/dev/null | grep -i -m 1 'trust state'; fi; true"
+}
+
+# ecn_qos HOST: the ECN and QOS report lines of HOST (one ssh call; none without a netdev)
+ecn_qos() {
+    local host=$1 nd=${NDEV[$1]:-} out rc np="--------" rp="--------" line qos
+    if [[ -n $nd ]]; then
+        say "ECN flags and trust state on $host ($nd)"
+        out=$(remote "$host" "$(ecn_cmd "$nd")")
+        rc=$?
+        if ((rc == 0)); then
+            line=$(head -n 1 <<<"$out")
+            [[ $line =~ np=([0-9-]{8}) ]] && np=${BASH_REMATCH[1]}
+            [[ $line =~ rp=([0-9-]{8}) ]] && rp=${BASH_REMATCH[1]}
+            qos=$(sed -n '2p' <<<"$out" | sed 's/^ *//' | cut -c1-90)
+            [[ -z $qos ]] || QOS_LINES+=("QOS $host $qos")
+        fi
+    fi
+    ECN_LINES+=("ECN $host ${nd:--} np=$np rp=$rp")
 }
 
 # route_line X: how A reaches X's address, as the kernel sees it
@@ -205,13 +255,14 @@ commands() {
         base_s="ib_write_bw -d $NIC -i 1 ${xs}-D 2 -s 65536 -p $port$tc"
         base_c="ib_write_bw -d $NIC -i 1 ${xc}-D 2 -s 65536 -p $port$tc $addr"
         ;;
-    udp4791 | udp4791tc | udp5000)
+    udp4791 | udp4791tc | udp5000 | udptos[0-9]*)
         # plain UDP, python code without single quotes: the remote login shell reads it inside '...'.
         # The receiver exits 1 on a timeout (its own, before the outer one) and 2 on any other error
         # (a bind failure, say), printing the error; the sender binds the NIC address so the source IP is
         # the NIC's and sends 20 datagrams of 512 bytes, 0.1 s apart.
         rt=$((to > 3 ? to - 2 : 1))
         [[ $name == udp4791tc ]] && tos="s.setsockopt(socket.IPPROTO_IP,socket.IP_TOS,$ISO_TCLASS);"
+        [[ $name == udptos* ]] && tos="s.setsockopt(socket.IPPROTO_IP,socket.IP_TOS,${name#udptos});"
         recv='import os,socket,sys;sys.excepthook=lambda t,v,tb:(print(t.__name__+": "+str(v)),sys.stdout.flush(),os._exit(1 if issubclass(t,socket.timeout) else 2));'
         recv+="s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout($rt);s.bind((\"$addr\",$port));"
         recv+='d,a=s.recvfrom(2048);print("got",len(d),"bytes from",a[0])'
@@ -541,7 +592,8 @@ run_ucxcfg() {
 
 # run_test KEY X NAME: server on X, client on A (udpsweeprev: receiver on A, sender on X); KEY is ctrl or test
 run_test() {
-    local key=$1 x=$2 name=$3 label="$A-$2" why="" tool verdict=OK port sh=$2 ch=$A extra=""
+    local key=$1 x=$2 name=$3 label="$A-$2" why="" tool verdict=OK port sh=$2 ch=$A extra="" shown=$3
+    [[ $name == udptos* ]] && shown="udptos tos=${name#udptos}"
     [[ $name == ucxcfg ]] && return # not a pair test: run_ucxcfg lists it once
     tool=$(needs "$name")
     if [[ -n ${SKIPWHY[$A]:-} ]]; then
@@ -555,7 +607,7 @@ run_test() {
     fi
     if [[ -n $why ]]; then
         SKIPPED=$((SKIPPED + 1))
-        TEST_LINES+=("SKIP $label $NIC $name: $why")
+        TEST_LINES+=("SKIP $label $NIC $shown: $why")
         return
     fi
     if [[ $name == ttl ]]; then
@@ -570,7 +622,7 @@ run_test() {
         sh=$A ch=$x
     fi
     case $name in
-    udpsweep*) port=5000 ;;
+    udpsweep* | udptos*) port=5000 ;;
     udp*) port=${name%tc} port=${port#udp} ;;
     *)
         PORT=$((PORT + 1))
@@ -591,11 +643,11 @@ run_test() {
         ((SWEEP_NLOST == 0)) || verdict=FAIL
     fi
     tally "$key" "$name" "$verdict"
-    TEST_LINES+=("$verdict $label $NIC $name srv=$EX_SRV_RC cli=$EX_CLI_RC$extra${PT_BW:+ bw=$PT_BW}")
+    TEST_LINES+=("$verdict $label $NIC $shown srv=$EX_SRV_RC cli=$EX_CLI_RC$extra${PT_BW:+ bw=$PT_BW}")
     if [[ $verdict == FAIL ]]; then
         if [[ $sh == "$A" ]]; then cnt_summary "$sh" "${CNT_A:-}"; else cnt_summary "$sh" "${CNT_X:-}"; fi
     fi
-    DETAIL+=("== $label $name: $verdict")
+    DETAIL+=("== $label $shown: $verdict")
     DETAIL+=("server on $sh, rc=$EX_SRV_RC$(note "$EX_SRV_RC"):")
     DETAIL+=("$(last2 "$EX_SOUT" | sed 's/^/  /')")
     [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$EX_SOUT")")
@@ -626,10 +678,10 @@ level0
 route_line "$CTRL"
 route_line "$TEST"
 run_ucxcfg
-for name in $ISO_TESTS; do
+for name in "${TEST_NAMES[@]}"; do
     run_test ctrl "$CTRL" "$name"
 done
-for name in $ISO_TESTS; do
+for name in "${TEST_NAMES[@]}"; do
     run_test test "$TEST" "$name"
 done
 
@@ -653,6 +705,8 @@ fi
     printf '%s\n' "${TEST_LINES[@]}"
     echo "(rc 124 = timeout, nothing came back; 255 = ssh failed)"
     printf '%s\n' "${TOOL_LINES[@]}"
+    printf '%s\n' "${ECN_LINES[@]}"
+    ((${#QOS_LINES[@]} == 0)) || printf '%s\n' "${QOS_LINES[@]}"
     printf '%s\n' "${ROUTE_LINES[@]}"
     ((${#UCX_LINES[@]} == 0)) || printf '%s\n' "${UCX_LINES[@]}"
     printf '%s\n' "${GID_LINES[@]}"
