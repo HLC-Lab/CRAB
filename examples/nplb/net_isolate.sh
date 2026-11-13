@@ -3,16 +3,24 @@
 #   nplb net isolate A CTRL TEST [NIC]        e.g. nplb net isolate node110 node114 node116 mlx5_0
 # Level 0: per node, the tools present and the GID table of NIC port 1; the RoCE v2 IPv4-mapped GID
 # index of each node is picked and the IPv4 address decoded from it. Level 1: for the pairs A-CTRL and
-# A-TEST, plain verbs tests (RC and UD pingpong, UD ib_send_bw) with the server on the peer and the client
-# on A, the client connecting to the peer's NIC IPv4 address. A test passes when server and client both
-# exit 0 (throughput is not read). Exit code 124 means "timeout (nothing came back)".
+# A-TEST, tests with the server on the peer and the client on A, the client connecting to the peer's NIC
+# IPv4 address. A test passes when server and client both exit 0 (throughput is not read). Exit code 124
+# means "timeout (nothing came back)". Tests (ISO_TESTS selects, in this order):
+#   rc ud256 ud1024   ibv_rc_pingpong, ibv_ud_pingpong with 256 and 1024 byte messages
+#   udbw              ib_send_bw -c UD
+#   wbw               ib_write_bw with the RoCE v2 IPv4 GID index (-x)
+#   wbw0              ib_write_bw without -x (which GID does perftest pick? DETAIL keeps its GID lines)
+#   wbwtc             wbw with --tclass=ISO_TCLASS
+#   udp4791 udp5000   plain UDP from A's NIC address to the peer's, no RDMA, on that port
+#   udp4791tc         udp4791 with the sender's IP_TOS set to ISO_TCLASS
 # Stdout is the report, paged and saved as net-isolate; first content line "VERDICT: ...", then one
-# "OK|FAIL|SKIP A-X NIC test srv=RC cli=RC" line per test, TOOLS, GID and ROUTE lines, and a DETAIL
+# "OK|FAIL|SKIP A-X NIC test srv=RC cli=RC" line per test, TOOLS, ROUTE and GID lines, and a DETAIL
 # section with the last two output lines of each side. Exit 0 only for the OK verdict, 1 otherwise,
 # 2 for bad usage.
-# Env: SSH (default ssh), ISO_TIMEOUT (seconds per test side, default 10), ISO_UCX (ucx_perftest path on
-# the nodes, default $HOME/crab/lab/ucx-cuda/bin/ucx_perftest), ISO_SETTLE (seconds the server gets to
-# start before the client, default 1), NPLB_REPORT_DIR.
+# Env: SSH (default ssh), ISO_TIMEOUT (seconds per test side, default 10), ISO_TESTS (the tests to run),
+# ISO_TCLASS (traffic class, default 106 = DSCP 26), ISO_UCX (ucx_perftest path on the nodes, default
+# $HOME/crab/lab/ucx-cuda/bin/ucx_perftest), ISO_SETTLE (seconds the server gets to start before the
+# client, default 1), NPLB_REPORT_DIR.
 set -u
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -24,11 +32,22 @@ ISO_TIMEOUT=${ISO_TIMEOUT:-10}
 # shellcheck disable=SC2016
 ISO_UCX=${ISO_UCX:-'$HOME/crab/lab/ucx-cuda/bin/ucx_perftest'}
 ISO_SETTLE=${ISO_SETTLE:-1}
+ISO_TCLASS=${ISO_TCLASS:-106}
+ISO_TESTS=${ISO_TESTS:-rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000}
 
 if [[ $# -ne 3 && $# -ne 4 ]]; then
     echo "usage: nplb net isolate A CTRL TEST [NIC]" >&2
     exit 2
 fi
+for t in $ISO_TESTS; do
+    case $t in
+    rc | ud256 | ud1024 | udbw | wbw | wbw0 | wbwtc | udp4791 | udp4791tc | udp5000) ;;
+    *)
+        echo "unknown test $t in ISO_TESTS (known: rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000)" >&2
+        exit 2
+        ;;
+    esac
+done
 A=$1
 CTRL=$2
 TEST=$3
@@ -66,7 +85,7 @@ ipv4_of() {
 
 # remote command (plain sh): the tools missing on a node, space separated
 tools_cmd() {
-    printf '%s' "for t in ibv_ud_pingpong ibv_rc_pingpong ib_send_bw show_gids; do command -v \$t >/dev/null 2>&1 || printf '%s ' \$t; done; test -x $ISO_UCX || printf 'ucx_perftest '; echo"
+    printf '%s' "for t in ibv_ud_pingpong ibv_rc_pingpong ib_send_bw ib_write_bw show_gids python3; do command -v \$t >/dev/null 2>&1 || printf '%s ' \$t; done; test -x $ISO_UCX || printf 'ucx_perftest '; echo"
 }
 
 # remote command (plain sh): idx TAB type TAB gid TAB ndev for every non-zero GID of port 1
@@ -120,6 +139,11 @@ last2() {
     grep -v '^[[:space:]]*$' <<<"$1" | tail -n 2 | cut -c1-90 | sed 's/^ *//'
 }
 
+# gid_lines TEXT: the lines that name a GID (perftest prints local and remote address), at most four
+gid_lines() {
+    grep GID <<<"$1" | head -n 4 | cut -c1-90 | sed 's/^ */  GID line: /'
+}
+
 # note RC: what an exit code means
 note() {
     case $1 in
@@ -130,7 +154,7 @@ note() {
 
 # commands NAME SRV_HOST CLI_HOST PORT: sets SRV_CMD and CLI_CMD (each side uses its own GID index)
 commands() {
-    local name=$1 srv=$2 cli=$3 port=$4 sg=${IDX[$2]} cg=${IDX[$3]} addr=${IP[$2]} base_s base_c
+    local name=$1 srv=$2 cli=$3 port=$4 sg=${IDX[$2]} cg=${IDX[$3]} addr=${IP[$2]} base_s base_c xs xc tc rt recv send tos=""
     case $name in
     rc)
         base_s="ibv_rc_pingpong -d $NIC -i 1 -g $sg -p $port -n 100"
@@ -148,6 +172,30 @@ commands() {
         base_s="ib_send_bw -c UD -d $NIC -i 1 -x $sg -n 1000 -s 1024 -p $port"
         base_c="ib_send_bw -c UD -d $NIC -i 1 -x $cg -n 1000 -s 1024 -p $port $addr"
         ;;
+    wbw | wbw0 | wbwtc)
+        # wbw0 has no -x: perftest picks the GID itself; wbwtc sets the traffic class on both sides
+        xs="-x $sg " xc="-x $cg " tc=""
+        [[ $name == wbw0 ]] && xs="" xc=""
+        [[ $name == wbwtc ]] && tc=" --tclass=$ISO_TCLASS"
+        base_s="ib_write_bw -d $NIC -i 1 ${xs}-D 2 -s 65536 -p $port$tc"
+        base_c="ib_write_bw -d $NIC -i 1 ${xc}-D 2 -s 65536 -p $port$tc $addr"
+        ;;
+    udp4791 | udp4791tc | udp5000)
+        # plain UDP, python code without single quotes: the remote login shell reads it inside '...'.
+        # The receiver exits 1 on a timeout (its own, before the outer one) and 2 on any other error
+        # (a bind failure, say), printing the error; the sender binds the NIC address so the source IP is
+        # the NIC's and sends 20 datagrams of 512 bytes, 0.1 s apart.
+        rt=$((ISO_TIMEOUT > 3 ? ISO_TIMEOUT - 2 : 1))
+        [[ $name == udp4791tc ]] && tos="s.setsockopt(socket.IPPROTO_IP,socket.IP_TOS,$ISO_TCLASS);"
+        recv='import os,socket,sys;sys.excepthook=lambda t,v,tb:(print(t.__name__+": "+str(v)),sys.stdout.flush(),os._exit(1 if issubclass(t,socket.timeout) else 2));'
+        recv+="s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout($rt);s.bind((\"$addr\",$port));"
+        recv+='d,a=s.recvfrom(2048);print("got",len(d),"bytes from",a[0])'
+        send="import socket,time;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind((\"${IP[$cli]}\",0));$tos"
+        send+="[s.sendto(b\"x\"*512,(\"$addr\",$port)) or time.sleep(0.1) for _ in range(20)];"
+        send+="print(\"sent 20 datagrams from\",s.getsockname()[0],\"to $addr:$port\")"
+        base_s="python3 -c '$recv'"
+        base_c="python3 -c '$send'"
+        ;;
     esac
     SRV_CMD="timeout $ISO_TIMEOUT $base_s"
     CLI_CMD="timeout $ISO_TIMEOUT $base_c"
@@ -159,12 +207,14 @@ needs() {
     rc) echo ibv_rc_pingpong ;;
     ud256 | ud1024) echo ibv_ud_pingpong ;;
     udbw) echo ib_send_bw ;;
+    wbw | wbw0 | wbwtc) echo ib_write_bw ;;
+    udp*) echo python3 ;;
     esac
 }
 
 # run_test KEY X NAME: server on X, client on A; KEY is ctrl or test
 run_test() {
-    local key=$1 x=$2 name=$3 label="$A-$2" why="" tool sfile sout cout srv_rc cli_rc spid verdict=OK
+    local key=$1 x=$2 name=$3 label="$A-$2" why="" tool sfile sout cout srv_rc cli_rc spid verdict=OK port
     tool=$(needs "$name")
     if [[ -n ${SKIPWHY[$A]:-} ]]; then
         why="${SKIPWHY[$A]} on $A"
@@ -180,9 +230,15 @@ run_test() {
         TEST_LINES+=("SKIP $label $NIC $name: $why")
         return
     fi
-    PORT=$((PORT + 1))
-    commands "$name" "$x" "$A" "$PORT"
-    say "$label $name (port $PORT)"
+    case $name in
+    udp*) port=${name%tc} port=${port#udp} ;;
+    *)
+        PORT=$((PORT + 1))
+        port=$PORT
+        ;;
+    esac
+    commands "$name" "$x" "$A" "$port"
+    say "$label $name (port $port)"
     sfile=$(mktemp)
     "${SSH_CMD[@]}" "$x" "$SRV_CMD" >"$sfile" 2>&1 </dev/null &
     spid=$!
@@ -209,8 +265,10 @@ run_test() {
     DETAIL+=("== $label $name: $verdict")
     DETAIL+=("server on $x, rc=$srv_rc$(note "$srv_rc"):")
     DETAIL+=("$(last2 "$sout" | sed 's/^/  /')")
+    [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$sout")")
     DETAIL+=("client on $A, rc=$cli_rc$(note "$cli_rc"):")
     DETAIL+=("$(last2 "$cout" | sed 's/^/  /')")
+    [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$cout")")
 }
 
 # join ARGS...: the arguments separated by spaces
@@ -222,10 +280,10 @@ join() {
 level0
 route_line "$CTRL"
 route_line "$TEST"
-for name in rc ud256 ud1024 udbw; do
+for name in $ISO_TESTS; do
     run_test ctrl "$CTRL" "$name"
 done
-for name in rc ud256 ud1024 udbw; do
+for name in $ISO_TESTS; do
     run_test test "$TEST" "$name"
 done
 
@@ -249,8 +307,8 @@ fi
     printf '%s\n' "${TEST_LINES[@]}"
     echo "(rc 124 = timeout, nothing came back; 255 = ssh failed)"
     printf '%s\n' "${TOOL_LINES[@]}"
-    printf '%s\n' "${GID_LINES[@]}"
     printf '%s\n' "${ROUTE_LINES[@]}"
+    printf '%s\n' "${GID_LINES[@]}"
     echo "DETAIL"
     printf '%s\n' "${DETAIL[@]}"
 } | nplb_paged net-isolate

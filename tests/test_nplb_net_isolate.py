@@ -46,6 +46,29 @@ if [[ $cmd == "ip -o route get"* ]]; then
     echo "    cache"
     exit 0
 fi
+if [[ $cmd == *"python3 -c"* ]]; then
+    # plain UDP: the sender always exits 0; the receiver times out (1) on the failing node and
+    # cannot bind (2) on FAKE_BIND_FAIL
+    if [[ $cmd == *sendto* ]]; then
+        echo "sent 20 datagrams"
+        exit 0
+    fi
+    if [[ ${FAKE_BIND_FAIL:-} == "$host" ]]; then
+        echo "OSError: [Errno 98] Address already in use"
+        exit 2
+    fi
+    if [[ ${FAKE_FAIL_NODE:-} == "$host" ]]; then
+        echo "TimeoutError: timed out"
+        exit 1
+    fi
+    echo "got 512 bytes from 10.0.0.1"
+    exit 0
+fi
+if [[ $cmd == *ib_write_bw* ]]; then
+    # perftest prints both addresses, GID included, before the results
+    echo " local address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
+    echo " remote address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
+fi
 last=${cmd##* }
 if [[ $last =~ ^10\.0\.0\.([0-9])$ ]]; then
     echo "client sees a peer"
@@ -69,6 +92,7 @@ def run_isolate(tmp_path: Path, *args: str, **extra: str) -> subprocess.Complete
         SSH=str(ssh),
         FAKE_LOG=str(tmp_path / "ssh.log"),
         ISO_SETTLE="0",
+        PAGE_LINES="500",
         NPLB_REPORT_DIR=str(tmp_path / "reports"),
     )
     env.update(extra)
@@ -81,12 +105,17 @@ def run_isolate(tmp_path: Path, *args: str, **extra: str) -> subprocess.Complete
     )
 
 
+VERBS = "rc ud256 ud1024 udbw"
+
+
 def ssh_log(tmp_path: Path) -> list[str]:
     return (tmp_path / "ssh.log").read_text(encoding="utf-8").splitlines()
 
 
 def test_control_ok_and_test_failing_is_a_fail_only_verdict(tmp_path: Path) -> None:
-    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", FAKE_FAIL_NODE="nodeT")
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", FAKE_FAIL_NODE="nodeT", ISO_TESTS=VERBS
+    )
     assert result.returncode == 1, result.stdout + result.stderr
     first = result.stdout.splitlines()[1]  # line 0 is the pager header
     assert (
@@ -121,11 +150,14 @@ def test_all_pass_is_an_ok_verdict(tmp_path: Path) -> None:
     result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT")
     assert result.returncode == 0, result.stdout + result.stderr
     assert "VERDICT: OK verbs pass on both pairs: problem is above verbs (UCX)" in result.stdout
-    assert result.stdout.count("\nOK nodeA-") == 8
+    # the default ISO_TESTS list is ten tests per pair
+    assert result.stdout.count("\nOK nodeA-") == 20
 
 
 def test_a_failing_control_pair_invalidates_the_verdict(tmp_path: Path) -> None:
-    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", FAKE_FAIL_NODE="nodeC")
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", FAKE_FAIL_NODE="nodeC", ISO_TESTS=VERBS
+    )
     assert result.returncode == 1, result.stdout + result.stderr
     assert "VERDICT: INVALID control pair nodeA-nodeC failed: rc ud256 ud1024 udbw" in result.stdout
 
@@ -144,3 +176,96 @@ def test_wrong_number_of_hosts_is_a_usage_error(tmp_path: Path) -> None:
     result = run_isolate(tmp_path, "nodeA", "nodeC")
     assert result.returncode == 2
     assert "usage: nplb net isolate" in result.stderr
+
+
+def test_iso_tests_limits_the_run_to_the_listed_tests(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc udp5000")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.count("\nOK nodeA-") == 4
+    assert "OK nodeA-nodeT mlx5_0 udp5000 srv=0 cli=0" in result.stdout
+    assert "ud256" not in result.stdout
+    assert "wbw" not in result.stdout
+
+
+def test_an_unknown_test_name_is_a_usage_error(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc bogus")
+    assert result.returncode == 2
+    assert "unknown test bogus" in result.stderr
+
+
+def test_write_bandwidth_tests_use_the_index_and_the_tclass_only_where_asked(
+    tmp_path: Path,
+) -> None:
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="wbw wbw0 wbwtc", ISO_TCLASS="106"
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = [line for line in ssh_log(tmp_path) if "ib_write_bw" in line and " timeout 10 " in line]
+    assert len(lines) == 12  # three tests, two pairs, two sides
+    no_index = [line for line in lines if " -x " not in line]
+    assert len(no_index) == 4  # wbw0: no -x on either side of either pair
+    assert all("--tclass" not in line for line in no_index)
+    with_tclass = [line for line in lines if "--tclass=106" in line]
+    assert len(with_tclass) == 4
+    assert all("-x 3 -D 2 -s 65536" in line for line in with_tclass)
+    plain = [line for line in lines if " -x " in line and "--tclass" not in line]
+    assert len(plain) == 4
+    assert any(
+        "nodeA timeout 10 ib_write_bw -d mlx5_0 -i 1 -x 3 -D 2 -s 65536 -p 18600 10.0.0.2" in line
+        for line in plain
+    )
+    # wbw0 keeps the GID lines of both sides (two per side) in DETAIL; wbw and wbwtc keep none
+    assert result.stdout.count("local address: LID 0x01 GID:") == 4
+    assert "GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:03" in result.stdout
+
+
+def test_udp_tests_bind_the_nic_address_and_the_sender_sets_the_tos(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path,
+        "nodeA",
+        "nodeC",
+        "nodeT",
+        ISO_TESTS="udp4791 udp4791tc udp5000",
+        ISO_TCLASS="106",
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    py = [line for line in ssh_log(tmp_path) if " timeout 10 python3 -c " in line]
+    assert len(py) == 12
+    senders = [line for line in py if "sendto" in line]
+    receivers = [line for line in py if "recvfrom" in line]
+    assert len(senders) == 6 and len(receivers) == 6
+    assert all(line.startswith("nodeA ") and 'bind(("10.0.0.1",0))' in line for line in senders)
+    tos = [line for line in senders if "IP_TOS,106" in line]
+    assert len(tos) == 2  # udp4791tc, one per pair
+    assert all('("10.0.0.3",4791)' in line or '("10.0.0.2",4791)' in line for line in tos)
+    assert any(
+        line.startswith("nodeT ") and 'bind(("10.0.0.3",5000))' in line for line in receivers
+    )
+    assert any(
+        line.startswith("nodeC ") and 'bind(("10.0.0.2",4791))' in line for line in receivers
+    )
+    # the receiver gives up before the outer timeout so its own message reaches the report
+    assert all("settimeout(8)" in line for line in receivers)
+    assert all("'" not in line.split("python3 -c ", 1)[1][1:-1] for line in py)
+
+
+def test_a_receiver_that_cannot_bind_fails_with_its_reason_in_the_detail(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="udp4791", FAKE_BIND_FAIL="nodeT"
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "FAIL nodeA-nodeT mlx5_0 udp4791 srv=2 cli=0" in result.stdout
+    assert "OSError: [Errno 98] Address already in use" in result.stdout
+    assert (
+        "VERDICT: FAIL only on nodeA-nodeT: udp4791 (control nodeA-nodeC passes)" in result.stdout
+    )
+
+
+def test_a_missing_python3_skips_the_udp_tests(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc udp5000", FAKE_MISSING="nodeT:python3"
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "TOOLS nodeT: missing python3" in result.stdout
+    assert "SKIP nodeA-nodeT mlx5_0 udp5000: python3 missing on nodeT" in result.stdout
+    assert "OK nodeA-nodeC mlx5_0 udp5000 srv=0 cli=0" in result.stdout
