@@ -46,6 +46,36 @@ if [[ $cmd == "ip -o route get"* ]]; then
     echo "    cache"
     exit 0
 fi
+if [[ $cmd == ping* ]]; then
+    # a reply needs a TTL of at least 1 towards nodeC and FAKE_TTL_MIN_T (default 2) towards nodeT; below
+    # that a router (10.0.9.9) answers "Time to live exceeded"
+    re='-t ([0-9]+) '
+    [[ $cmd =~ $re ]]
+    min=1
+    [[ ${cmd##* } == 10.0.0.3 ]] && min=${FAKE_TTL_MIN_T:-2}
+    if ((BASH_REMATCH[1] >= min)); then
+        echo "64 bytes from ${cmd##* }: icmp_seq=1 ttl=63 time=0.1 ms"
+        exit 0
+    fi
+    echo "PING ${cmd##* } 56(84) bytes of data."
+    echo "From 10.0.9.9 icmp_seq=1 Time to live exceeded"
+    echo "2 packets transmitted, 0 received, +2 errors, 100% packet loss"
+    exit 1
+fi
+if [[ $cmd == *ucx_info* ]]; then
+    if [[ -n ${FAKE_NO_UCX_INFO:-} ]]; then
+        echo UCX_INFO_MISSING
+        exit 0
+    fi
+    echo "UCX_LOG_LEVEL=warn"
+    echo "UCX_IB_GID_INDEX=auto"
+    echo "UCX_IB_TRAFFIC_CLASS=auto"
+    echo "UCX_IB_SL=0"
+    echo "UCX_IB_ADDR_TYPE=auto"
+    echo "UCX_RC_MLX5_HOP_LIMIT=255"
+    for i in 1 2 3 4 5 6 7 8 9 10; do echo "UCX_IB_ROCE_OPT$i=y"; done
+    exit 0
+fi
 if [[ $cmd == *"python3 -c"* ]]; then
     # plain UDP: the sender always exits 0; the receiver times out (1) on the failing node and
     # cannot bind (2) on FAKE_BIND_FAIL
@@ -418,3 +448,85 @@ def test_iso_test_singular_is_taken_when_iso_tests_is_not_set(tmp_path: Path) ->
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.count("\nOK nodeA-") == 2
     assert "ud256" not in result.stdout
+
+
+def test_ttl_finds_the_first_ttl_that_gets_a_reply_and_keeps_the_dropping_router(
+    tmp_path: Path,
+) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="ttl")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK nodeA-nodeC mlx5_0 ttl first_reply_ttl=1" in result.stdout
+    assert "OK nodeA-nodeT mlx5_0 ttl first_reply_ttl=2" in result.stdout
+    assert "From 10.0.9.9 icmp_seq=1 Time to live exceeded" in result.stdout
+    pings = [line for line in ssh_log(tmp_path) if line.startswith("nodeA ping ")]
+    assert pings == [
+        "nodeA ping -c 2 -W 1 -t 1 -I 10.0.0.1 10.0.0.2",
+        "nodeA ping -c 2 -W 1 -t 1 -I 10.0.0.1 10.0.0.3",
+        "nodeA ping -c 2 -W 1 -t 2 -I 10.0.0.1 10.0.0.3",
+    ]
+
+
+def test_ttl_without_any_reply_fails_up_to_the_limit(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="ttl", ISO_TTL_MAX="3", FAKE_TTL_MIN_T="9"
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "FAIL nodeA-nodeT mlx5_0 ttl no reply up to ttl 3" in result.stdout
+    assert "VERDICT: FAIL only on nodeA-nodeT: ttl (control nodeA-nodeC passes)" in result.stdout
+    pings = [line for line in ssh_log(tmp_path) if line.endswith(" 10.0.0.3") and " ping " in line]
+    assert len(pings) == 3
+
+
+def test_send_and_read_bandwidth_tests_use_the_index(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="sbw rbw sbw64")
+    assert result.returncode == 0, result.stdout + result.stderr
+    log = [line for line in ssh_log(tmp_path) if " timeout 10 " in line]
+    sbw = [line for line in log if "ib_send_bw -d mlx5_0 -i 1 -x 3 -D 2 -s 65536 -p " in line]
+    rbw = [line for line in log if "ib_read_bw -d mlx5_0 -i 1 -x 3 -D 2 -s 65536 -p " in line]
+    small = [line for line in log if "ib_send_bw -d mlx5_0 -i 1 -x 3 -D 2 -s 64 -p " in line]
+    assert (len(sbw), len(rbw), len(small)) == (4, 4, 4)  # two sides, two pairs
+    assert all("-c UD" not in line for line in sbw + small)
+    assert [line.endswith(" 10.0.0.3") for line in rbw if line.startswith("nodeA ")] == [
+        False,
+        True,
+    ]
+    assert "OK nodeA-nodeT mlx5_0 rbw srv=0 cli=0" in result.stdout
+
+
+def test_rcmtu_is_rc_with_a_4096_mtu(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rcmtu")
+    assert result.returncode == 0, result.stdout + result.stderr
+    log = [line for line in ssh_log(tmp_path) if "ibv_rc_pingpong" in line and " timeout " in line]
+    assert len(log) == 4
+    assert all(" -g 3 " in line and " -n 100 -m 4096" in line for line in log)
+    assert [line for line in log if line.startswith("nodeA ")][1].endswith(" -m 4096 10.0.0.3")
+    assert "OK nodeA-nodeT mlx5_0 rcmtu srv=0 cli=0" in result.stdout
+
+
+def test_ucxcfg_lists_the_matching_ucx_settings_once(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc ucxcfg")
+    assert result.returncode == 0, result.stdout + result.stderr
+    ucx = [line for line in result.stdout.splitlines() if line.startswith("UCX ")]
+    assert ucx[:5] == [
+        "UCX UCX_IB_GID_INDEX=auto",
+        "UCX UCX_IB_TRAFFIC_CLASS=auto",
+        "UCX UCX_IB_SL=0",
+        "UCX UCX_IB_ADDR_TYPE=auto",
+        "UCX UCX_RC_MLX5_HOP_LIMIT=255",
+    ]
+    assert len(ucx) == 12  # cut at twelve
+    assert "UCX_LOG_LEVEL" not in result.stdout
+    calls = [line for line in ssh_log(tmp_path) if "ucx_info" in line]
+    assert len(calls) == 1 and calls[0].startswith("nodeA ")
+    assert "dirname $HOME/crab/lab/ucx-cuda/bin/ucx_perftest" in calls[0]
+    # it is no pair test: only rc shows in the test lines
+    assert result.stdout.count("\nOK nodeA-") == 2
+    assert result.stdout.index("\nROUTE ") < result.stdout.index("\nUCX ")
+
+
+def test_ucxcfg_says_so_when_ucx_info_is_missing(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="ucxcfg", FAKE_NO_UCX_INFO="1"
+    )
+    assert "UCX ucx_info missing" in result.stdout
+    assert "UNKNOWN" in result.stdout  # no pair test ran

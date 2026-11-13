@@ -18,6 +18,12 @@
 #                     to find source ports (ECMP hash inputs) that get lost; udpsweeprev: peer to A
 #   rcrep, wbwrep     rc, wbw ISO_REPS times with fresh ports and ISO_REP_TIMEOUT; pass=k/N
 #   wbw64             ib_write_bw -x idx with 64 byte messages
+#   sbw, sbw64, rbw   ib_send_bw (RC SEND, 65536 and 64 bytes), ib_read_bw (RC READ), like wbw
+#   rcmtu             rc with -m 4096
+#   ttl               plain IP: ping from A's NIC address with TTL 1..ISO_TTL_MAX (default 6); the first
+#                     TTL that gets a reply is the hop count (informational); DETAIL names the router
+#                     that dropped the TTL 1 ping
+#   ucxcfg            on A only, once: the RoCE-related lines of ucx_info -c (UCX lines in the report)
 # ISO_TEST (singular) is read when ISO_TESTS is not set.
 # Stdout is the report, paged and saved as net-isolate; first content line "VERDICT: ...", then one
 # "OK|FAIL|SKIP A-X NIC test srv=RC cli=RC" line per test, TOOLS, ROUTE and GID lines, and a DETAIL
@@ -45,7 +51,8 @@ ISO_REPS=${ISO_REPS:-10}
 ISO_REP_TIMEOUT=${ISO_REP_TIMEOUT:-6}
 ISO_SPORT_BASE=${ISO_SPORT_BASE:-50000}
 ISO_SPORTS=${ISO_SPORTS:-64}
-KNOWN_TESTS="rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000 udpsweep udpsweeprev rcrep wbwrep wbw64"
+ISO_TTL_MAX=${ISO_TTL_MAX:-6}
+KNOWN_TESTS="rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000 udpsweep udpsweeprev rcrep wbwrep wbw64 ttl sbw rbw sbw64 rcmtu ucxcfg"
 
 if [[ $# -ne 3 && $# -ne 4 ]]; then
     echo "usage: nplb net isolate A CTRL TEST [NIC]" >&2
@@ -67,6 +74,7 @@ declare -A IDX IP SKIPWHY MISSING
 TOOL_LINES=()
 GID_LINES=()
 ROUTE_LINES=()
+UCX_LINES=()
 TEST_LINES=()
 DETAIL=()
 FAILED_CTRL=()
@@ -94,7 +102,7 @@ ipv4_of() {
 
 # remote command (plain sh): the tools missing on a node, space separated
 tools_cmd() {
-    printf '%s' "for t in ibv_ud_pingpong ibv_rc_pingpong ib_send_bw ib_write_bw show_gids python3; do command -v \$t >/dev/null 2>&1 || printf '%s ' \$t; done; test -x $ISO_UCX || printf 'ucx_perftest '; echo"
+    printf '%s' "for t in ibv_ud_pingpong ibv_rc_pingpong ib_send_bw ib_write_bw ib_read_bw show_gids python3 ping; do command -v \$t >/dev/null 2>&1 || printf '%s ' \$t; done; test -x $ISO_UCX || printf 'ucx_perftest '; echo"
 }
 
 # remote command (plain sh): idx TAB type TAB gid TAB ndev for every non-zero GID of port 1
@@ -163,7 +171,7 @@ note() {
 
 # commands NAME SRV_HOST CLI_HOST PORT [TIMEOUT]: sets SRV_CMD and CLI_CMD (each side uses its own GID index)
 commands() {
-    local name=$1 srv=$2 cli=$3 port=$4 sg=${IDX[$2]} cg=${IDX[$3]} to=${5:-$ISO_TIMEOUT} addr=${IP[$2]} base_s base_c xs xc tc rt recv send tos=""
+    local name=$1 srv=$2 cli=$3 port=$4 sg=${IDX[$2]} cg=${IDX[$3]} to=${5:-$ISO_TIMEOUT} addr=${IP[$2]} base_s base_c xs xc tc rt recv send tos="" bw sz
     case $name in
     rc)
         base_s="ibv_rc_pingpong -d $NIC -i 1 -g $sg -p $port -n 100"
@@ -209,6 +217,18 @@ commands() {
         base_s="ib_write_bw -d $NIC -i 1 -x $sg -D 2 -s 64 -p $port"
         base_c="ib_write_bw -d $NIC -i 1 -x $cg -D 2 -s 64 -p $port $addr"
         ;;
+    sbw | sbw64 | rbw)
+        # RC SEND (sbw), RC SEND with 64 byte messages (sbw64), RC READ (rbw): like wbw, another opcode
+        bw=ib_send_bw sz=65536
+        [[ $name == rbw ]] && bw=ib_read_bw
+        [[ $name == sbw64 ]] && sz=64
+        base_s="$bw -d $NIC -i 1 -x $sg -D 2 -s $sz -p $port"
+        base_c="$bw -d $NIC -i 1 -x $cg -D 2 -s $sz -p $port $addr"
+        ;;
+    rcmtu)
+        base_s="ibv_rc_pingpong -d $NIC -i 1 -g $sg -p $port -n 100 -m 4096"
+        base_c="ibv_rc_pingpong -d $NIC -i 1 -g $cg -p $port -n 100 -m 4096 $addr"
+        ;;
     udpsweep | udpsweeprev)
         # one datagram source port per socket, to see which source ports (ECMP hash inputs) get through.
         # The sender binds ISO_SPORTS source ports from ISO_SPORT_BASE on, one socket each (SO_REUSEADDR),
@@ -234,10 +254,13 @@ commands() {
 # needs NAME: the tool a test uses
 needs() {
     case $1 in
-    rc | rcrep) echo ibv_rc_pingpong ;;
+    rc | rcrep | rcmtu) echo ibv_rc_pingpong ;;
     ud256 | ud1024) echo ibv_ud_pingpong ;;
     udbw) echo ib_send_bw ;;
     wbw | wbw0 | wbwtc | wbwrep | wbw64) echo ib_write_bw ;;
+    sbw | sbw64) echo ib_send_bw ;;
+    rbw) echo ib_read_bw ;;
+    ttl) echo ping ;;
     udp*) echo python3 ;;
     esac
 }
@@ -317,9 +340,63 @@ run_reps() {
     fi
 }
 
+# run_ttl KEY X LABEL: plain IP, on A only: ping X from A's NIC address with TTL 1, 2, ... up to
+# ISO_TTL_MAX; the first TTL that gets a reply is the hop count. Informational: it passes whenever some TTL
+# replies. DETAIL keeps the "Time to live exceeded"/"From" lines of the TTL 1 ping, which name the router
+# that dropped it.
+run_ttl() {
+    local key=$1 x=$2 label=$3 t out rc first=0 verdict=OK line="" seen=""
+    for ((t = 1; t <= ISO_TTL_MAX; t++)); do
+        say "$label ttl $t"
+        out=$(remote "$A" "ping -c 2 -W 1 -t $t -I ${IP[$A]} ${IP[$x]}")
+        rc=$?
+        if ((t == 1)); then
+            line=$(grep -E 'Time to live exceeded|From' <<<"$out" | head -n 2 | cut -c1-90 | sed 's/^/  /')
+        fi
+        if ((rc == 0)); then
+            first=$t
+            break
+        fi
+        seen+=" $t=no reply"
+    done
+    if ((first > 0)); then
+        TEST_LINES+=("OK $label $NIC ttl first_reply_ttl=$first")
+    else
+        verdict=FAIL
+        TEST_LINES+=("FAIL $label $NIC ttl no reply up to ttl $ISO_TTL_MAX")
+    fi
+    tally "$key" ttl "$verdict"
+    DETAIL+=("== $label ttl: $verdict")
+    DETAIL+=("ping from $A (${IP[$A]}) to $x (${IP[$x]}), TTL 1..$ISO_TTL_MAX:$seen")
+    DETAIL+=("TTL 1 answer:")
+    DETAIL+=("${line:-  (none)}")
+}
+
+# run_ucxcfg: when ISO_TESTS lists ucxcfg, the UCX settings of A that bear on RoCE (hop limit, traffic class,
+# GID index, SL, address type), from ucx_info -c next to ISO_UCX, as UCX lines in the report body
+run_ucxcfg() {
+    local out line
+    [[ " $ISO_TESTS " == *" ucxcfg "* ]] || return 0
+    say "ucx_info -c on $A"
+    out=$(remote "$A" "u=\$(dirname $ISO_UCX)/ucx_info; if [ -x \$u ]; then \$u -c; else echo UCX_INFO_MISSING; fi")
+    if [[ $out == *UCX_INFO_MISSING* ]]; then
+        UCX_LINES+=("UCX ucx_info missing")
+        return 0
+    fi
+    out=$(grep -iE 'HOP_LIMIT|TRAFFIC_CLASS|GID_INDEX|ROCE|_SL=|ADDR_TYPE' <<<"$out" | head -n 12 | cut -c1-90)
+    if [[ -z $out ]]; then
+        UCX_LINES+=("UCX no matching line in ucx_info -c")
+    else
+        while IFS= read -r line; do
+            UCX_LINES+=("UCX $line")
+        done <<<"$out"
+    fi
+}
+
 # run_test KEY X NAME: server on X, client on A (udpsweeprev: receiver on A, sender on X); KEY is ctrl or test
 run_test() {
     local key=$1 x=$2 name=$3 label="$A-$2" why="" tool verdict=OK port sh=$2 ch=$A extra=""
+    [[ $name == ucxcfg ]] && return # not a pair test: run_ucxcfg lists it once
     tool=$(needs "$name")
     if [[ -n ${SKIPWHY[$A]:-} ]]; then
         why="${SKIPWHY[$A]} on $A"
@@ -333,6 +410,10 @@ run_test() {
     if [[ -n $why ]]; then
         SKIPPED=$((SKIPPED + 1))
         TEST_LINES+=("SKIP $label $NIC $name: $why")
+        return
+    fi
+    if [[ $name == ttl ]]; then
+        run_ttl "$key" "$x" "$label"
         return
     fi
     if [[ $name == rcrep || $name == wbwrep ]]; then
@@ -385,6 +466,7 @@ join() {
 level0
 route_line "$CTRL"
 route_line "$TEST"
+run_ucxcfg
 for name in $ISO_TESTS; do
     run_test ctrl "$CTRL" "$name"
 done
@@ -413,6 +495,7 @@ fi
     echo "(rc 124 = timeout, nothing came back; 255 = ssh failed)"
     printf '%s\n' "${TOOL_LINES[@]}"
     printf '%s\n' "${ROUTE_LINES[@]}"
+    ((${#UCX_LINES[@]} == 0)) || printf '%s\n' "${UCX_LINES[@]}"
     printf '%s\n' "${GID_LINES[@]}"
     echo "DETAIL"
     printf '%s\n' "${DETAIL[@]}"
