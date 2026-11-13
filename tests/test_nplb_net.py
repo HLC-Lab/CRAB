@@ -42,10 +42,15 @@ OFF_SEQUENCE = [
     "nplb-er mode mode2",
     "undo mode2 enable",
     "commit",
-    "display this",
+    "q",
+    "undo nplb-er mode mode2",
+    "load-balance ecmp rail-group enable",
+    "commit",
 ]
 ON_SEQUENCE = [
     "sys",
+    "undo load-balance ecmp rail-group enable",
+    "commit",
     "nplb-er mode mode2",
     "mode2 enable",
     "commit",

@@ -55,8 +55,12 @@ ALIASES = {
 }
 # From the Leaf1 session (Huawei CE switch): `undo mode2 enable` is refused while the self-heal id
 # (id 1001 ...) is configured, so NPLB off removes the id first and NPLB on puts it back.
+# From the Leaf1-6 sessions (2026-11-12): the baseline has `load-balance ecmp rail-group enable`, and the switch
+# refuses `nplb-er mode mode2` while it is set, so NPLB on removes it and NPLB off puts it back.
 NPLB_ON_COMMANDS = (
     "sys",
+    "undo load-balance ecmp rail-group enable",
+    "commit",
     "nplb-er mode mode2",
     "mode2 enable",
     "commit",
@@ -79,9 +83,15 @@ NPLB_OFF_COMMANDS = (
     "nplb-er mode mode2",
     "undo mode2 enable",
     "commit",
-    "display this",
+    "q",
+    "undo nplb-er mode mode2",
+    "load-balance ecmp rail-group enable",
+    "commit",
+    "display current-configuration | include nplb",
+    "display current-configuration | include rail",
 )
 NPLB_ON_NOTE = "note: if the id line says already configured, ignore it (it was never removed)"
+NPLB_OFF_NOTE = "note: undo nplb-er mode mode2 is untried; if a line is refused, photograph it and stop"
 NPLB_EVIDENCE = "NPLB commands: from the Leaf1 session screenshots; check one other switch with display this first"
 # From the Leaf1 session (2026-11-12): `load-balance ?` in system view lists adaptive-orchestrator, whose
 # only option is `enable`; `assign forward adaptive-routing-tuning enable` was already in the config.
@@ -194,8 +204,7 @@ def sheet_lines(nplb: str, ar: str, switches: str, restore_of: str = "") -> list
     lines.append(NPLB_EVIDENCE)
     lines.append(f"NPLB {nplb}:")
     lines.extend(f"  {c}" for c in (NPLB_ON_COMMANDS if nplb == "on" else NPLB_OFF_COMMANDS))
-    if nplb == "on":
-        lines.append(NPLB_ON_NOTE)
+    lines.append(NPLB_ON_NOTE if nplb == "on" else NPLB_OFF_NOTE)
     lines.append(f"AR {ar}:")
     lines.append(AR_EVIDENCE)
     lines.extend(f"  {c}" for c in (AR_ON_COMMANDS if ar == "on" else AR_OFF_COMMANDS))
