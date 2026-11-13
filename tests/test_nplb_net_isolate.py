@@ -81,7 +81,21 @@ if [[ $cmd == *hw_counters* ]]; then
             emit @rx_err_bytes 0 7
         fi
         if [[ -n ${FAKE_MANY:-} ]]; then
-            for i in $(seq -w 1 30); do emit "e_err_$i" 0 1; done
+            for i in $(seq -w 1 50); do emit "e_err_$i" 0 1; done
+        fi
+        if [[ -n ${FAKE_NOISE:-} ]]; then
+            # per-channel and other ethtool noise (dropped), and names the keep list rescues
+            emit @rx0_packets 0 9
+            emit @rx12_bytes 0 9
+            emit @tx3_xmit_more 0 2
+            emit @ch1_arm 0 5
+            emit @ch_events 0 6
+            emit @rx_cache_reuse 0 3
+            emit @rx_csum_unnecessary 0 8
+            emit @rx_lro_packets 0 1
+            emit @tx_tso_packets 0 1
+            emit @rx_prio3_pause 0 20
+            emit @rx_xdp_drop 0 4
         fi
         ;;
     esac
@@ -148,10 +162,27 @@ if [[ $cmd == *"python3 -c"* ]]; then
     echo "got 512 bytes from 10.0.0.1"
     exit 0
 fi
-if [[ $cmd == *ib_write_bw* ]]; then
-    # perftest prints both addresses, GID included, before the results
-    echo " local address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
-    echo " remote address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
+if [[ $cmd == *ib_write_bw* || $cmd == *ib_send_bw* || $cmd == *ib_read_bw* ]]; then
+    if [[ $cmd == *ib_write_bw* ]]; then
+        # perftest prints both addresses, GID included, before the results
+        echo " local address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
+        echo " remote address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
+    fi
+    # the result line: bytes, iterations, BW peak, BW average, MsgRate. FAKE_ZERO_BW=cli: the client aimed
+    # at nodeT reports zero iterations; =srv: the server on nodeT does (both exit 0); =none: that client
+    # prints no result line
+    l=${cmd##* }
+    zero=0
+    [[ ${FAKE_ZERO_BW:-} == cli && $l == 10.0.0.3 ]] && zero=1
+    [[ ${FAKE_ZERO_BW:-} == srv && $host == nodeT && ! $l =~ ^10\. ]] && zero=1
+    echo " #bytes     #iterations    BW peak[MB/sec]    BW average[MB/sec]   MsgRate[Mpps]"
+    if [[ ${FAKE_ZERO_BW:-} == none && $l == 10.0.0.3 ]]; then
+        :  # no result line at all
+    elif ((zero)); then
+        echo " 65536      0                0.00               0.00               0.000000"
+    else
+        echo " 65536      1000             11.50              11.40              0.17"
+    fi
 fi
 if [[ $cmd == *ibv_rc_pingpong* ]]; then
     # FAKE_FAIL_PORTS: runs on these -p ports time out on both sides
@@ -650,11 +681,11 @@ def test_the_summary_falls_back_to_the_rdma_unicast_counters(tmp_path: Path) -> 
     assert "  -> nodeT: rx_vport_rdma_unicast_packets+40" in result.stdout
 
 
-def test_at_most_25_counter_lines_per_host_then_a_count(tmp_path: Path) -> None:
+def test_at_most_40_counter_lines_per_host_then_a_count(tmp_path: Path) -> None:
     result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT", FAKE_MANY="1")
     cnt_t = [line for line in result.stdout.splitlines() if line.startswith("  CNT nodeT ")]
-    assert len(cnt_t) == 26  # 25 names and the count of the rest
-    assert cnt_t[-1] == "  CNT nodeT (+11 more)"  # 36 names in all
+    assert len(cnt_t) == 41  # 40 names and the count of the rest
+    assert cnt_t[-1] == "  CNT nodeT (+16 more)"  # 56 names in all
 
 
 def test_an_unreadable_snapshot_is_reported(tmp_path: Path) -> None:
@@ -675,3 +706,85 @@ def test_without_a_netdev_ethtool_is_not_asked_and_counters_are_off_by_default(
     off = run_isolate(other, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc")
     assert off.returncode == 0, off.stdout + off.stderr
     assert snapshot_calls(other) == [] and "CNT" not in off.stdout
+
+
+def test_the_counter_filter_drops_per_channel_noise_and_keeps_pause_prio_and_rdma(
+    tmp_path: Path,
+) -> None:
+    result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT", FAKE_NOISE="1")
+    cnt_t = [line for line in result.stdout.splitlines() if line.startswith("  CNT nodeT ")]
+    names = [line.split()[2] for line in cnt_t]
+    for noise in (
+        "rx0_packets",
+        "rx12_bytes",
+        "tx3_xmit_more",
+        "ch1_arm",
+        "ch_events",
+        "rx_cache_reuse",
+        "rx_csum_unnecessary",
+        "rx_lro_packets",
+        "tx_tso_packets",
+    ):
+        assert noise not in names, noise
+    assert "  CNT nodeT rx_prio3_pause +20" in cnt_t
+    assert "  CNT nodeT rx_vport_rdma_unicast_packets +40" in cnt_t
+    assert "  CNT nodeT rx_xdp_drop +4" in cnt_t  # _xdp is noise, but drop is on the keep list
+
+
+def test_the_summary_adds_pause_prio_and_rdma_names_after_the_error_names(tmp_path: Path) -> None:
+    result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT", FAKE_NO_ERR="1", FAKE_NOISE="1")
+    assert (
+        "  -> nodeT: rx_xdp_drop+4 rx_vport_rdma_unicast_packets+40 rx_prio3_pause+20"
+        in result.stdout
+    )
+
+
+def bw_run(tmp_path: Path, tests: str, **extra: str) -> subprocess.CompletedProcess[str]:
+    return run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS=tests, **extra)
+
+
+def test_a_perftest_with_zero_iterations_fails_even_when_both_sides_exit_0(tmp_path: Path) -> None:
+    result = bw_run(tmp_path, "wbw", FAKE_ZERO_BW="cli")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "FAIL nodeA-nodeT mlx5_0 wbw srv=0 cli=0 bw=0" in result.stdout
+    assert "OK nodeA-nodeC mlx5_0 wbw srv=0 cli=0 bw=11.40" in result.stdout
+    assert "VERDICT: FAIL only on nodeA-nodeT: wbw (control nodeA-nodeC passes)" in result.stdout
+
+
+def test_a_perftest_with_a_rate_passes_and_shows_the_bandwidth(tmp_path: Path) -> None:
+    result = bw_run(tmp_path, "wbw wbw0 wbwtc wbw64 sbw sbw64 rbw udbw")
+    assert result.returncode == 0, result.stdout + result.stderr
+    for name in ("wbw", "wbw0", "wbwtc", "wbw64", "sbw", "sbw64", "rbw", "udbw"):
+        assert f"OK nodeA-nodeT mlx5_0 {name} srv=0 cli=0 bw=11.40" in result.stdout, name
+
+
+def test_a_send_test_needs_a_rate_on_the_server_too(tmp_path: Path) -> None:
+    result = bw_run(tmp_path, "sbw", FAKE_ZERO_BW="srv")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "FAIL nodeA-nodeT mlx5_0 sbw srv=0 cli=0 bw=0" in result.stdout
+    # a write test does not look at the server's line
+    other = tmp_path / "w"
+    other.mkdir()
+    write = bw_run(other, "wbw", FAKE_ZERO_BW="srv")
+    assert write.returncode == 0, write.stdout + write.stderr
+    assert "OK nodeA-nodeT mlx5_0 wbw srv=0 cli=0 bw=11.40" in write.stdout
+
+
+def test_wbwrep_counts_a_zero_iteration_run_as_a_failure(tmp_path: Path) -> None:
+    result = bw_run(tmp_path, "wbwrep", ISO_REPS="3", FAKE_ZERO_BW="cli")
+    assert "OK nodeA-nodeC mlx5_0 wbwrep pass=3/3" in result.stdout
+    assert "FAIL nodeA-nodeT mlx5_0 wbwrep pass=0/3" in result.stdout
+
+
+def test_pingpong_rules_are_unchanged_and_a_missing_result_line_fails_a_perftest(
+    tmp_path: Path,
+) -> None:
+    # pingpong output has no perftest result line, and its rules are unchanged
+    result = bw_run(tmp_path, "rc ud256")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK nodeA-nodeT mlx5_0 rc srv=0 cli=0\n" in result.stdout
+    other = tmp_path / "none"
+    other.mkdir()
+    missing = bw_run(other, "rbw", FAKE_ZERO_BW="none")
+    assert missing.returncode == 1, missing.stdout + missing.stderr
+    assert "FAIL nodeA-nodeT mlx5_0 rbw srv=0 cli=0 bw=0" in missing.stdout

@@ -4,7 +4,9 @@
 # Level 0: per node, the tools present and the GID table of NIC port 1; the RoCE v2 IPv4-mapped GID
 # index of each node is picked and the IPv4 address decoded from it. Level 1: for the pairs A-CTRL and
 # A-TEST, tests with the server on the peer and the client on A, the client connecting to the peer's NIC
-# IPv4 address. A test passes when server and client both exit 0 (throughput is not read). Exit code 124
+# IPv4 address. A test passes when server and client both exit 0; a perftest
+# test also needs a BW average above 0 in the client result line (the server one too for sbw, sbw64, udbw),
+# since a run with zero iterations exits 0. Exit code 124
 # means "timeout (nothing came back)". Tests (ISO_TESTS selects, in this order):
 #   rc ud256 ud1024   ibv_rc_pingpong, ibv_ud_pingpong with 256 and 1024 byte messages
 #   udbw              ib_send_bw -c UD
@@ -27,7 +29,7 @@
 # ISO_TEST (singular) is read when ISO_TESTS is not set.
 # ISO_COUNTERS=1: around every pair test (not ttl) read the NIC counters of port 1 (hw_counters, counters,
 # and ethtool -S of the GID's netdev) on A and X before and after; DETAIL gets "  CNT host name +delta" lines
-# (traffic byte and packet counters left out, error-like names kept, at most 25 per host) and a FAIL test
+# (traffic and per-channel noise left out, error, pause, prio and rdma names kept, at most 40 per host) and a FAIL test
 # gets a "  -> host: ..." line on page 1 with the receiver's most telling deltas.
 # Stdout is the report, paged and saved as net-isolate; first content line "VERDICT: ...", then one
 # "OK|FAIL|SKIP A-X NIC test srv=RC cli=RC" line per test, TOOLS, ROUTE and GID lines, and a DETAIL
@@ -329,8 +331,9 @@ cnt_snap() {
 
 # cnt_deltas BEFORE AFTER: "name delta" lines sorted by name, or UNREADABLE. Only increases are shown. Byte
 # and packet traffic counters are left out (port_xmit_data port_rcv_data port_xmit_packets port_rcv_packets,
-# ethtool names with _bytes), unless the name also says discard drop err seq nak retry timeout rnr
-# duplicate icrc cnp ecn oos out_of; the two vport rdma unicast packet counters stay.
+# ethtool names with _bytes) and per-channel and other ethtool noise (ch*_, rx<N>_, tx<N>_, _cache_, csum,
+# _xdp, _lro, _gro, _tso, _wake, _arm, _poll, _events) are left out, unless the name also says discard drop
+# err seq nak retry timeout rnr duplicate icrc cnp ecn oos out_of pause prio pfc rdma roce buffer storm.
 cnt_deltas() {
     if grep -q UNREADABLE "$1" "$2"; then
         echo UNREADABLE
@@ -345,11 +348,11 @@ cnt_deltas() {
             if (d <= 0) next
             eth = (substr(n, 1, 1) == "@")
             if (eth) n = substr(n, 2)
-            keep = (n ~ /discard|drop|err|seq|nak|retry|timeout|rnr|duplicate|icrc|cnp|ecn|oos|out_of/)
-            vp = (n == "rx_vport_rdma_unicast_packets" || n == "tx_vport_rdma_unicast_packets")
+            keep = (n ~ /discard|drop|err|seq|nak|retry|timeout|rnr|duplicate|icrc|cnp|ecn|oos|out_of|pause|prio|pfc|rdma|roce|buffer|storm/)
             traffic = (n == "port_xmit_data" || n == "port_rcv_data" || n == "port_xmit_packets" || n == "port_rcv_packets")
             bytes = (eth && n ~ /_bytes/)
-            if (keep || vp || !(traffic || bytes)) printf "%s %.0f\n", n, d
+            noise = (n ~ /^ch[0-9]*_|^ch_|^rx[0-9]+_|^tx[0-9]+_|_cache_|csum|_xdp|_lro|_gro|_tso|_wake|_arm|_poll|_events/)
+            if (keep || !(traffic || bytes || noise)) printf "%s %.0f\n", n, d
         }' "$1" "$2" | LC_ALL=C sort
 }
 
@@ -361,7 +364,7 @@ cnt_after() {
     CNT_X=$(cnt_deltas "$CNT_DIR/before.x" "$CNT_DIR/after.x")
 }
 
-# cnt_emit HOST RAW: the DETAIL lines "  CNT host name +delta", at most 25 per host
+# cnt_emit HOST RAW: the DETAIL lines "  CNT host name +delta", at most 40 per host
 cnt_emit() {
     local h=$1 raw=$2 k=0 name delta
     [[ $ISO_COUNTERS == 1 ]] || return 0
@@ -375,12 +378,12 @@ cnt_emit() {
     fi
     while read -r name delta; do
         k=$((k + 1))
-        if ((k <= 25)); then
+        if ((k <= 40)); then
             DETAIL+=("  CNT $h $name +$delta")
         fi
     done <<<"$raw"
-    if ((k > 25)); then
-        DETAIL+=("  CNT $h (+$((k - 25)) more)")
+    if ((k > 40)); then
+        DETAIL+=("  CNT $h (+$((k - 40)) more)")
     fi
 }
 
@@ -393,11 +396,45 @@ cnt_summary() {
         TEST_LINES+=("  -> $h: counters unreadable")
         return 0
     fi
-    top=$(awk '$1 ~ /discard|drop|err|seq|nak|retry|rnr|icrc|oos|out_of/ { print $2, $1 }' <<<"$raw" | sort -k1,1nr -k2,2 | head -n 4 | awk '{ printf "%s%s+%s", (NR > 1 ? " " : ""), $2, $1 }')
-    if [[ -z $top ]]; then
-        top=$(awk '$1 ~ /rdma_unicast/ { print $2, $1 }' <<<"$raw" | sort -k1,1nr -k2,2 | head -n 4 | awk '{ printf "%s%s+%s", (NR > 1 ? " " : ""), $2, $1 }')
-    fi
+    # error-like names first (largest delta first), then pause, prio and rdma names, four in all
+    top=$(awk '
+        $1 ~ /discard|drop|err|seq|nak|retry|rnr|icrc|oos|out_of/ { print 1, $2, $1; next }
+        $1 ~ /pause|prio|rdma/ { print 2, $2, $1 }' <<<"$raw" | sort -k1,1n -k2,2nr -k3,3 | head -n 4 | awk '{ printf "%s%s+%s", (NR > 1 ? " " : ""), $3, $2 }')
     TEST_LINES+=("  -> $h: ${top:-no error counter moved}")
+}
+
+# bw_average TEXT: the BW average (4th field, as printed) of the perftest result line of TEXT: a line of a
+# numeric message size, then iterations, BW peak, BW average and MsgRate; "none" when there is no such line
+bw_average() {
+    awk 'function num(s) { return s ~ /^[0-9]+(\.[0-9]+)?$/ }
+        $1 ~ /^[0-9]+$/ && num($2) && num($3) && num($4) && num($5) { print $4; found = 1; exit }
+        END { if (!found) print "none" }' <<<"$1"
+}
+
+# positive VALUE: true when VALUE is a number above zero
+positive() {
+    awk -v v="$1" 'BEGIN { exit !(v ~ /^[0-9.]+$/ && v + 0 > 0) }'
+}
+
+# perftest_check NAME SERVER_OUTPUT CLIENT_OUTPUT: for the perftest tests, a run that exits 0 still fails
+# when the client has no result line with a BW average above 0 (zero iterations is a false pass), and, for
+# the send tests, when the server has none either. Sets PT_OK (1 or 0) and PT_BW (the client's BW average
+# as printed, 0 when the check failed; empty for a test that is no perftest) and PT_CLI, PT_SRV (the two
+# averages, "none" when missing).
+perftest_check() {
+    PT_OK=1 PT_BW="" PT_CLI="" PT_SRV=""
+    case $1 in
+    wbw | wbw0 | wbwtc | wbw64 | sbw | sbw64 | rbw | udbw) ;;
+    *) return 0 ;;
+    esac
+    PT_CLI=$(bw_average "$3")
+    PT_SRV=$(bw_average "$2")
+    positive "$PT_CLI" || PT_OK=0
+    case $1 in
+    sbw | sbw64 | udbw) positive "$PT_SRV" || PT_OK=0 ;;
+    esac
+    PT_BW=$PT_CLI
+    ((PT_OK)) || PT_BW=0
 }
 
 # sweep_check SERVER_OUTPUT: reads the receiver's "GOT [ports]" line; sets SWEEP_NLOST (source ports
@@ -424,8 +461,9 @@ run_reps() {
         PORT=$((PORT + 1))
         say "$label $name $i/$ISO_REPS (port $PORT)"
         execute "$base" "$x" "$A" "$PORT" "$ISO_REP_TIMEOUT"
-        runs+=" $EX_SRV_RC/$EX_CLI_RC"
-        if ((EX_SRV_RC == 0 && EX_CLI_RC == 0)); then
+        perftest_check "$base" "$EX_SOUT" "$EX_COUT"
+        runs+=" $EX_SRV_RC/$EX_CLI_RC${PT_BW:+/bw=$PT_BW}"
+        if ((EX_SRV_RC == 0 && EX_CLI_RC == 0 && PT_OK == 1)); then
             pass=$((pass + 1))
         elif ((first == 0)); then
             first=$i fs=$EX_SOUT fc=$EX_COUT
@@ -437,7 +475,7 @@ run_reps() {
     TEST_LINES+=("$verdict $label $NIC $name pass=$pass/$ISO_REPS")
     [[ $verdict == FAIL ]] && cnt_summary "$x" "${CNT_X:-}"
     DETAIL+=("== $label $name: $verdict")
-    DETAIL+=("runs (server rc/client rc):$runs")
+    DETAIL+=("runs (server rc/client rc[/bw average]):$runs")
     cnt_emit "$A" "${CNT_A:-}"
     cnt_emit "$x" "${CNT_X:-}"
     if ((first > 0)); then
@@ -543,7 +581,8 @@ run_test() {
     cnt_snap before "$x"
     execute "$name" "$sh" "$ch" "$port" "$ISO_TIMEOUT"
     cnt_after "$x"
-    if ((EX_SRV_RC != 0 || EX_CLI_RC != 0)); then
+    perftest_check "$name" "$EX_SOUT" "$EX_COUT"
+    if ((EX_SRV_RC != 0 || EX_CLI_RC != 0 || PT_OK == 0)); then
         verdict=FAIL
     fi
     if [[ $name == udpsweep || $name == udpsweeprev ]]; then
@@ -552,7 +591,7 @@ run_test() {
         ((SWEEP_NLOST == 0)) || verdict=FAIL
     fi
     tally "$key" "$name" "$verdict"
-    TEST_LINES+=("$verdict $label $NIC $name srv=$EX_SRV_RC cli=$EX_CLI_RC$extra")
+    TEST_LINES+=("$verdict $label $NIC $name srv=$EX_SRV_RC cli=$EX_CLI_RC$extra${PT_BW:+ bw=$PT_BW}")
     if [[ $verdict == FAIL ]]; then
         if [[ $sh == "$A" ]]; then cnt_summary "$sh" "${CNT_A:-}"; else cnt_summary "$sh" "${CNT_X:-}"; fi
     fi
@@ -563,6 +602,7 @@ run_test() {
     DETAIL+=("client on $ch, rc=$EX_CLI_RC$(note "$EX_CLI_RC"):")
     DETAIL+=("$(last2 "$EX_COUT" | sed 's/^/  /')")
     [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$EX_COUT")")
+    [[ -z $PT_CLI ]] || DETAIL+=("BW average: client $PT_CLI, server $PT_SRV (a send test needs both above 0)")
     cnt_emit "$A" "${CNT_A:-}"
     cnt_emit "$x" "${CNT_X:-}"
     if [[ -n $extra ]]; then
