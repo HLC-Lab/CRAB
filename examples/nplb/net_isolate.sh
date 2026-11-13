@@ -25,6 +25,10 @@
 #                     that dropped the TTL 1 ping
 #   ucxcfg            on A only, once: the RoCE-related lines of ucx_info -c (UCX lines in the report)
 # ISO_TEST (singular) is read when ISO_TESTS is not set.
+# ISO_COUNTERS=1: around every pair test (not ttl) read the NIC counters of port 1 (hw_counters, counters,
+# and ethtool -S of the GID's netdev) on A and X before and after; DETAIL gets "  CNT host name +delta" lines
+# (traffic byte and packet counters left out, error-like names kept, at most 25 per host) and a FAIL test
+# gets a "  -> host: ..." line on page 1 with the receiver's most telling deltas.
 # Stdout is the report, paged and saved as net-isolate; first content line "VERDICT: ...", then one
 # "OK|FAIL|SKIP A-X NIC test srv=RC cli=RC" line per test, TOOLS, ROUTE and GID lines, and a DETAIL
 # section with the last two output lines of each side. Exit 0 only for the OK verdict, 1 otherwise,
@@ -52,6 +56,7 @@ ISO_REP_TIMEOUT=${ISO_REP_TIMEOUT:-6}
 ISO_SPORT_BASE=${ISO_SPORT_BASE:-50000}
 ISO_SPORTS=${ISO_SPORTS:-64}
 ISO_TTL_MAX=${ISO_TTL_MAX:-6}
+ISO_COUNTERS=${ISO_COUNTERS:-0}
 KNOWN_TESTS="rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000 udpsweep udpsweeprev rcrep wbwrep wbw64 ttl sbw rbw sbw64 rcmtu ucxcfg"
 
 if [[ $# -ne 3 && $# -ne 4 ]]; then
@@ -70,7 +75,7 @@ TEST=$3
 NIC=${4:-mlx5_0}
 HOSTS=("$A" "$CTRL" "$TEST")
 
-declare -A IDX IP SKIPWHY MISSING
+declare -A IDX IP NDEV SKIPWHY MISSING
 TOOL_LINES=()
 GID_LINES=()
 ROUTE_LINES=()
@@ -130,6 +135,7 @@ level0() {
             GID_LINES+=("GID $host $NIC $idx $type $gid $ndev")
             if [[ -z ${IDX[$host]} && $type == "RoCE v2" && $gid == 0000:0000:0000:0000:0000:ffff:* ]]; then
                 IDX[$host]=$idx
+                NDEV[$host]=$ndev
                 IP[$host]=$(ipv4_of "$gid")
             fi
         done < <(remote "$host" "$(gids_cmd)")
@@ -297,6 +303,103 @@ tally() {
     fi
 }
 
+# remote command (plain sh): "name value" for every file of hw_counters/ and counters/ of port 1, then
+# "@name value" for the numeric lines of ethtool -S NETDEV when the netdev of HOST is known
+snap_cmd() {
+    local p=/sys/class/infiniband/$NIC/ports/1 nd=${NDEV[$1]:-} cmd
+    cmd='for f in @P@/hw_counters/* @P@/counters/*; do [ -f "$f" ] && printf "%s %s\n" "${f##*/}" "$(cat "$f" 2>/dev/null)"; done'
+    cmd=${cmd//@P@/$p}
+    if [[ -n $nd ]]; then
+        cmd+="; ethtool -S $nd 2>/dev/null | sed -n 's/^ *\\([A-Za-z0-9_.-]*\\): *\\([0-9][0-9]*\\) *\$/@\\1 \\2/p'"
+    fi
+    printf '%s; true' "$cmd"
+}
+
+# cnt_snap before|after X: with ISO_COUNTERS=1, one snapshot of A and one of X (one ssh call each); a call
+# that fails leaves UNREADABLE in the file
+cnt_snap() {
+    local w=$1 x=$2 k h
+    [[ $ISO_COUNTERS == 1 ]] || return 0
+    for k in a x; do
+        h=$A
+        [[ $k == x ]] && h=$x
+        remote "$h" "$(snap_cmd "$h")" >"$CNT_DIR/$w.$k" || echo UNREADABLE >"$CNT_DIR/$w.$k"
+    done
+}
+
+# cnt_deltas BEFORE AFTER: "name delta" lines sorted by name, or UNREADABLE. Only increases are shown. Byte
+# and packet traffic counters are left out (port_xmit_data port_rcv_data port_xmit_packets port_rcv_packets,
+# ethtool names with _bytes), unless the name also says discard drop err seq nak retry timeout rnr
+# duplicate icrc cnp ecn oos out_of; the two vport rdma unicast packet counters stay.
+cnt_deltas() {
+    if grep -q UNREADABLE "$1" "$2"; then
+        echo UNREADABLE
+        return 0
+    fi
+    awk '
+        NR == FNR { b[$1] = $2; next }
+        {
+            n = $1
+            if (!(n in b) || $2 !~ /^[0-9]+$/ || b[n] !~ /^[0-9]+$/) next
+            d = $2 - b[n]
+            if (d <= 0) next
+            eth = (substr(n, 1, 1) == "@")
+            if (eth) n = substr(n, 2)
+            keep = (n ~ /discard|drop|err|seq|nak|retry|timeout|rnr|duplicate|icrc|cnp|ecn|oos|out_of/)
+            vp = (n == "rx_vport_rdma_unicast_packets" || n == "tx_vport_rdma_unicast_packets")
+            traffic = (n == "port_xmit_data" || n == "port_rcv_data" || n == "port_xmit_packets" || n == "port_rcv_packets")
+            bytes = (eth && n ~ /_bytes/)
+            if (keep || vp || !(traffic || bytes)) printf "%s %.0f\n", n, d
+        }' "$1" "$2" | LC_ALL=C sort
+}
+
+# cnt_after X: the second snapshot, then CNT_A and CNT_X (cnt_deltas of A and of X)
+cnt_after() {
+    [[ $ISO_COUNTERS == 1 ]] || return 0
+    cnt_snap after "$1"
+    CNT_A=$(cnt_deltas "$CNT_DIR/before.a" "$CNT_DIR/after.a")
+    CNT_X=$(cnt_deltas "$CNT_DIR/before.x" "$CNT_DIR/after.x")
+}
+
+# cnt_emit HOST RAW: the DETAIL lines "  CNT host name +delta", at most 25 per host
+cnt_emit() {
+    local h=$1 raw=$2 k=0 name delta
+    [[ $ISO_COUNTERS == 1 ]] || return 0
+    if [[ $raw == UNREADABLE ]]; then
+        DETAIL+=("  CNT $h unreadable")
+        return 0
+    fi
+    if [[ -z $raw ]]; then
+        DETAIL+=("  CNT $h (no change)")
+        return 0
+    fi
+    while read -r name delta; do
+        k=$((k + 1))
+        if ((k <= 25)); then
+            DETAIL+=("  CNT $h $name +$delta")
+        fi
+    done <<<"$raw"
+    if ((k > 25)); then
+        DETAIL+=("  CNT $h (+$((k - 25)) more)")
+    fi
+}
+
+# cnt_summary HOST RAW: the page 1 line after a FAIL test: up to four most telling deltas of the receiver
+# (error-like names by size, else the rdma unicast packet counters)
+cnt_summary() {
+    local h=$1 raw=$2 top
+    [[ $ISO_COUNTERS == 1 ]] || return 0
+    if [[ $raw == UNREADABLE ]]; then
+        TEST_LINES+=("  -> $h: counters unreadable")
+        return 0
+    fi
+    top=$(awk '$1 ~ /discard|drop|err|seq|nak|retry|rnr|icrc|oos|out_of/ { print $2, $1 }' <<<"$raw" | sort -k1,1nr -k2,2 | head -n 4 | awk '{ printf "%s%s+%s", (NR > 1 ? " " : ""), $2, $1 }')
+    if [[ -z $top ]]; then
+        top=$(awk '$1 ~ /rdma_unicast/ { print $2, $1 }' <<<"$raw" | sort -k1,1nr -k2,2 | head -n 4 | awk '{ printf "%s%s+%s", (NR > 1 ? " " : ""), $2, $1 }')
+    fi
+    TEST_LINES+=("  -> $h: ${top:-no error counter moved}")
+}
+
 # sweep_check SERVER_OUTPUT: reads the receiver's "GOT [ports]" line; sets SWEEP_NLOST (source ports
 # of the sweep that never arrived) and SWEEP_LIST (those ports, cut at 40)
 sweep_check() {
@@ -315,6 +418,7 @@ sweep_check() {
 # run_reps KEY X NAME LABEL: the base test (rcrep: rc, wbwrep: wbw) ISO_REPS times, each with a fresh port
 # and the shorter ISO_REP_TIMEOUT; passes only when every run does
 run_reps() {
+    cnt_snap before "$2"
     local key=$1 x=$2 name=$3 label=$4 base=${3%rep} i pass=0 runs="" verdict=OK first=0 fs="" fc=""
     for ((i = 1; i <= ISO_REPS; i++)); do
         PORT=$((PORT + 1))
@@ -327,11 +431,15 @@ run_reps() {
             first=$i fs=$EX_SOUT fc=$EX_COUT
         fi
     done
+    cnt_after "$x"
     ((pass == ISO_REPS)) || verdict=FAIL
     tally "$key" "$name" "$verdict"
     TEST_LINES+=("$verdict $label $NIC $name pass=$pass/$ISO_REPS")
+    [[ $verdict == FAIL ]] && cnt_summary "$x" "${CNT_X:-}"
     DETAIL+=("== $label $name: $verdict")
     DETAIL+=("runs (server rc/client rc):$runs")
+    cnt_emit "$A" "${CNT_A:-}"
+    cnt_emit "$x" "${CNT_X:-}"
     if ((first > 0)); then
         DETAIL+=("first failure, run $first, server on $x:")
         DETAIL+=("$(last2 "$fs" | sed 's/^/  /')")
@@ -432,7 +540,9 @@ run_test() {
         ;;
     esac
     say "$label $name (port $port)"
+    cnt_snap before "$x"
     execute "$name" "$sh" "$ch" "$port" "$ISO_TIMEOUT"
+    cnt_after "$x"
     if ((EX_SRV_RC != 0 || EX_CLI_RC != 0)); then
         verdict=FAIL
     fi
@@ -443,6 +553,9 @@ run_test() {
     fi
     tally "$key" "$name" "$verdict"
     TEST_LINES+=("$verdict $label $NIC $name srv=$EX_SRV_RC cli=$EX_CLI_RC$extra")
+    if [[ $verdict == FAIL ]]; then
+        if [[ $sh == "$A" ]]; then cnt_summary "$sh" "${CNT_A:-}"; else cnt_summary "$sh" "${CNT_X:-}"; fi
+    fi
     DETAIL+=("== $label $name: $verdict")
     DETAIL+=("server on $sh, rc=$EX_SRV_RC$(note "$EX_SRV_RC"):")
     DETAIL+=("$(last2 "$EX_SOUT" | sed 's/^/  /')")
@@ -450,6 +563,8 @@ run_test() {
     DETAIL+=("client on $ch, rc=$EX_CLI_RC$(note "$EX_CLI_RC"):")
     DETAIL+=("$(last2 "$EX_COUT" | sed 's/^/  /')")
     [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$EX_COUT")")
+    cnt_emit "$A" "${CNT_A:-}"
+    cnt_emit "$x" "${CNT_X:-}"
     if [[ -n $extra ]]; then
         # wrapped: a page line is cut at 100 columns
         DETAIL+=("$(fold -s -w 88 <<<"lost sports: ${SWEEP_LIST:-none}" | sed '2,$s/^/  /')")
@@ -463,6 +578,10 @@ join() {
     echo "$*"
 }
 
+if [[ $ISO_COUNTERS == 1 ]]; then
+    CNT_DIR=$(mktemp -d)
+    trap 'rm -rf "$CNT_DIR"' EXIT
+fi
 level0
 route_line "$CTRL"
 route_line "$TEST"

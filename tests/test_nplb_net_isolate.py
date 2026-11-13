@@ -26,11 +26,13 @@ nodeC) n=2 ;;
 nodeT) n=3 ;;
 *) exit 255 ;;
 esac
+nd=ib0
+[[ -n ${FAKE_NO_NDEV:-} ]] && nd=""
 if [[ $cmd == *gid_attrs* ]]; then
-    printf '0\tRoCE v1\tfe80:0000:0000:0000:0000:0000:0000:000%s\tib0\n' "$n"
-    printf '1\tRoCE v2\tfe80:0000:0000:0000:0000:0000:0000:000%s\tib0\n' "$n"
-    printf '2\tRoCE v1\t0000:0000:0000:0000:0000:ffff:0a00:000%s\tib0\n' "$n"
-    printf '3\tRoCE v2\t0000:0000:0000:0000:0000:ffff:0a00:000%s\tib0\n' "$n"
+    printf '0\tRoCE v1\tfe80:0000:0000:0000:0000:0000:0000:000%s\t%s\n' "$n" "$nd"
+    printf '1\tRoCE v2\tfe80:0000:0000:0000:0000:0000:0000:000%s\t%s\n' "$n" "$nd"
+    printf '2\tRoCE v1\t0000:0000:0000:0000:0000:ffff:0a00:000%s\t%s\n' "$n" "$nd"
+    printf '3\tRoCE v2\t0000:0000:0000:0000:0000:ffff:0a00:000%s\t%s\n' "$n" "$nd"
     exit 0
 fi
 if [[ $cmd == *"command -v"* ]]; then
@@ -44,6 +46,45 @@ fi
 if [[ $cmd == "ip -o route get"* ]]; then
     echo "${cmd#ip -o route get }  dev ib0   src 10.0.0.$n  uid 1000"
     echo "    cache"
+    exit 0
+fi
+if [[ $cmd == *hw_counters* ]]; then
+    # counter snapshot: calls alternate before (odd) and after (even) per host; "@" marks an ethtool name
+    [[ ${FAKE_SNAP_FAIL:-} == "$host" ]] && exit 1
+    f="$FAKE_LOG.snap.$host"
+    k=$(($(cat "$f" 2>/dev/null || echo 0) + 1))
+    echo "$k" >"$f"
+    add=$(((k - 1) % 2))
+    emit() { printf '%s %s\n' "$1" "$((($2) + add * $3))"; }
+    case $host in
+    nodeA)
+        emit local_ack_timeout_err 0 1
+        emit port_xmit_data 5 100
+        emit rx_write_requests 3 0
+        ;;
+    nodeC)
+        emit rx_write_requests 1 1
+        ;;
+    nodeT)
+        emit port_rcv_data 1000 4000
+        emit port_xmit_packets 10 10
+        emit port_rcv_packets 100 50
+        emit port_rcv_errors 0 0
+        emit rx_write_requests 7 2
+        emit rx_vport_rdma_unicast_packets 1 40
+        emit tx_vport_rdma_unicast_packets 0 0
+        emit @rx_bytes_phy 1 999
+        if [[ -z ${FAKE_NO_ERR:-} ]]; then
+            emit rx_icrc_encapsulated 5 12
+            emit out_of_sequence 0 3
+            emit @rx_discards_phy 0 4
+            emit @rx_err_bytes 0 7
+        fi
+        if [[ -n ${FAKE_MANY:-} ]]; then
+            for i in $(seq -w 1 30); do emit "e_err_$i" 0 1; done
+        fi
+        ;;
+    esac
     exit 0
 fi
 if [[ $cmd == ping* ]]; then
@@ -530,3 +571,107 @@ def test_ucxcfg_says_so_when_ucx_info_is_missing(tmp_path: Path) -> None:
     )
     assert "UCX ucx_info missing" in result.stdout
     assert "UNKNOWN" in result.stdout  # no pair test ran
+
+
+def counter_run(tmp_path: Path, **extra: str) -> subprocess.CompletedProcess[str]:
+    return run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc", ISO_COUNTERS="1", **extra
+    )
+
+
+def snapshot_calls(tmp_path: Path) -> list[str]:
+    return [line for line in ssh_log(tmp_path) if "hw_counters" in line]
+
+
+def test_counter_deltas_are_listed_per_host_under_the_test(tmp_path: Path) -> None:
+    result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT")
+    assert result.returncode == 1, result.stdout + result.stderr
+    out = result.stdout
+    assert "  CNT nodeA local_ack_timeout_err +1" in out
+    assert "  CNT nodeC rx_write_requests +1" in out
+    # nodeT, sorted by name, with the delta of the second snapshot over the first
+    cnt_t = [line for line in out.splitlines() if line.startswith("  CNT nodeT ")]
+    assert cnt_t == [
+        "  CNT nodeT out_of_sequence +3",
+        "  CNT nodeT rx_discards_phy +4",
+        "  CNT nodeT rx_err_bytes +7",
+        "  CNT nodeT rx_icrc_encapsulated +12",
+        "  CNT nodeT rx_vport_rdma_unicast_packets +40",
+        "  CNT nodeT rx_write_requests +2",
+    ]
+    # the deltas sit under their test in DETAIL: nodeA-nodeT's block comes after nodeA-nodeC's
+    assert out.index("== nodeA-nodeC rc") < out.index("CNT nodeC") < out.index("== nodeA-nodeT rc")
+    assert out.index("== nodeA-nodeT rc") < out.index("CNT nodeT out_of_sequence")
+    # one snapshot per host before and one after each test: A, X, A, X
+    hosts = [line.split()[0] for line in snapshot_calls(tmp_path)]
+    assert hosts == ["nodeA", "nodeC", "nodeA", "nodeC", "nodeA", "nodeT", "nodeA", "nodeT"]
+    assert all("ethtool -S ib0" in line for line in snapshot_calls(tmp_path))
+    assert all(
+        "ports/1/hw_counters" in line and "ports/1/counters" in line
+        for line in snapshot_calls(tmp_path)
+    )
+    assert all("/sys/class/infiniband/mlx5_0/" in line for line in snapshot_calls(tmp_path))
+
+
+def test_the_filter_drops_traffic_counters_and_keeps_the_error_names(tmp_path: Path) -> None:
+    result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT")
+    for dropped in (
+        "port_rcv_data",  # traffic
+        "port_xmit_packets",  # traffic
+        "port_rcv_packets",  # traffic
+        "port_xmit_data",  # traffic (nodeA)
+        "rx_bytes_phy",  # ethtool _bytes
+        "port_rcv_errors",  # zero delta
+        "tx_vport_rdma_unicast_packets",  # zero delta
+    ):
+        assert f"CNT nodeT {dropped}" not in result.stdout, dropped
+        assert f"CNT nodeA {dropped}" not in result.stdout, dropped
+    # an ethtool name with _bytes stays when it names an error; rdma_unicast is kept
+    assert "CNT nodeT rx_err_bytes +7" in result.stdout
+    assert "CNT nodeT rx_vport_rdma_unicast_packets +40" in result.stdout
+
+
+def test_a_failing_test_gets_a_summary_line_of_the_receivers_telling_counters(
+    tmp_path: Path,
+) -> None:
+    result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT")
+    lines = result.stdout.splitlines()
+    i = lines.index("FAIL nodeA-nodeT mlx5_0 rc srv=124 cli=124")
+    assert lines[i + 1] == (
+        "  -> nodeT: rx_icrc_encapsulated+12 rx_err_bytes+7 rx_discards_phy+4 out_of_sequence+3"
+    )
+    # a passing test gets none
+    j = lines.index("OK nodeA-nodeC mlx5_0 rc srv=0 cli=0")
+    assert not lines[j + 1].startswith("  ->")
+
+
+def test_the_summary_falls_back_to_the_rdma_unicast_counters(tmp_path: Path) -> None:
+    result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT", FAKE_NO_ERR="1")
+    assert "  -> nodeT: rx_vport_rdma_unicast_packets+40" in result.stdout
+
+
+def test_at_most_25_counter_lines_per_host_then_a_count(tmp_path: Path) -> None:
+    result = counter_run(tmp_path, FAKE_FAIL_NODE="nodeT", FAKE_MANY="1")
+    cnt_t = [line for line in result.stdout.splitlines() if line.startswith("  CNT nodeT ")]
+    assert len(cnt_t) == 26  # 25 names and the count of the rest
+    assert cnt_t[-1] == "  CNT nodeT (+11 more)"  # 36 names in all
+
+
+def test_an_unreadable_snapshot_is_reported(tmp_path: Path) -> None:
+    result = counter_run(tmp_path, FAKE_SNAP_FAIL="nodeT")
+    assert "  CNT nodeT unreadable" in result.stdout
+    assert "  CNT nodeC rx_write_requests +1" in result.stdout
+
+
+def test_without_a_netdev_ethtool_is_not_asked_and_counters_are_off_by_default(
+    tmp_path: Path,
+) -> None:
+    result = counter_run(tmp_path, FAKE_NO_NDEV="1")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert snapshot_calls(tmp_path)
+    assert all("ethtool" not in line for line in snapshot_calls(tmp_path))
+    other = tmp_path / "off"
+    other.mkdir()
+    off = run_isolate(other, "nodeA", "nodeC", "nodeT", ISO_TESTS="rc")
+    assert off.returncode == 0, off.stdout + off.stderr
+    assert snapshot_calls(other) == [] and "CNT" not in off.stdout
