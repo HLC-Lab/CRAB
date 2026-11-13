@@ -128,3 +128,16 @@ def test_repeat_needs_a_positive_number(tmp_path: Path) -> None:
     env = make_env(tmp_path)
     assert batch(env, "start", "--repeat", "0", "1").returncode == 2
     assert batch(env, "start", "--repeat", "x", "1").returncode == 2
+
+
+def test_status_with_a_stale_pid_file_prints_no_error(tmp_path: Path) -> None:
+    env = make_env(tmp_path)
+    result = batch(env, "start", "1")
+    assert result.returncode == 0, result.stdout + result.stderr
+    log = current_log(env)
+    wait_for(lambda: log.exists() and log.read_text().endswith("batch: end\n"), "the batch end")
+    # a pid that cannot exist (above pid_max): the runner is gone, runner.pid stayed
+    (Path(env["WORK"]) / "batch" / "runner.pid").write_text("99999999\n")
+    status = batch(env, "status")
+    assert "VERDICT: FINISHED" in status.stdout
+    assert "/cmdline" not in status.stdout + status.stderr

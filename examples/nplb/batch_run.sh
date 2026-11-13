@@ -42,7 +42,8 @@ runner_pid() {
     local pid
     pid=$(cat "$PID_FILE" 2>/dev/null) || return 1
     [[ $pid =~ ^[0-9]+$ ]] || return 1
-    tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | grep -q 'batch_run.sh _loop' || return 1
+    [[ -r /proc/$pid/cmdline ]] || return 1
+    tr '\0' ' ' 2>/dev/null <"/proc/$pid/cmdline" | grep -q 'batch_run.sh _loop' || return 1
     echo "$pid"
 }
 
