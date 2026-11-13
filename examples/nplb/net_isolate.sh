@@ -13,6 +13,12 @@
 #   wbwtc             wbw with --tclass=ISO_TCLASS
 #   udp4791 udp5000   plain UDP from A's NIC address to the peer's, no RDMA, on that port
 #   udp4791tc         udp4791 with the sender's IP_TOS set to ISO_TCLASS
+# Opt-in tests (not in the default ISO_TESTS):
+#   udpsweep          UDP from ISO_SPORTS source ports (from ISO_SPORT_BASE) of A to port 5000 of the peer,
+#                     to find source ports (ECMP hash inputs) that get lost; udpsweeprev: peer to A
+#   rcrep, wbwrep     rc, wbw ISO_REPS times with fresh ports and ISO_REP_TIMEOUT; pass=k/N
+#   wbw64             ib_write_bw -x idx with 64 byte messages
+# ISO_TEST (singular) is read when ISO_TESTS is not set.
 # Stdout is the report, paged and saved as net-isolate; first content line "VERDICT: ...", then one
 # "OK|FAIL|SKIP A-X NIC test srv=RC cli=RC" line per test, TOOLS, ROUTE and GID lines, and a DETAIL
 # section with the last two output lines of each side. Exit 0 only for the OK verdict, 1 otherwise,
@@ -33,20 +39,23 @@ ISO_TIMEOUT=${ISO_TIMEOUT:-10}
 ISO_UCX=${ISO_UCX:-'$HOME/crab/lab/ucx-cuda/bin/ucx_perftest'}
 ISO_SETTLE=${ISO_SETTLE:-1}
 ISO_TCLASS=${ISO_TCLASS:-106}
-ISO_TESTS=${ISO_TESTS:-rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000}
+# ISO_TEST (singular) is taken when ISO_TESTS is not set: a typo the operator makes once
+ISO_TESTS=${ISO_TESTS:-${ISO_TEST:-rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000}}
+ISO_REPS=${ISO_REPS:-10}
+ISO_REP_TIMEOUT=${ISO_REP_TIMEOUT:-6}
+ISO_SPORT_BASE=${ISO_SPORT_BASE:-50000}
+ISO_SPORTS=${ISO_SPORTS:-64}
+KNOWN_TESTS="rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000 udpsweep udpsweeprev rcrep wbwrep wbw64"
 
 if [[ $# -ne 3 && $# -ne 4 ]]; then
     echo "usage: nplb net isolate A CTRL TEST [NIC]" >&2
     exit 2
 fi
 for t in $ISO_TESTS; do
-    case $t in
-    rc | ud256 | ud1024 | udbw | wbw | wbw0 | wbwtc | udp4791 | udp4791tc | udp5000) ;;
-    *)
-        echo "unknown test $t in ISO_TESTS (known: rc ud256 ud1024 udbw wbw wbw0 wbwtc udp4791 udp4791tc udp5000)" >&2
+    if [[ " $KNOWN_TESTS " != *" $t "* ]]; then
+        echo "unknown test $t in ISO_TESTS (known: $KNOWN_TESTS)" >&2
         exit 2
-        ;;
-    esac
+    fi
 done
 A=$1
 CTRL=$2
@@ -152,9 +161,9 @@ note() {
     esac
 }
 
-# commands NAME SRV_HOST CLI_HOST PORT: sets SRV_CMD and CLI_CMD (each side uses its own GID index)
+# commands NAME SRV_HOST CLI_HOST PORT [TIMEOUT]: sets SRV_CMD and CLI_CMD (each side uses its own GID index)
 commands() {
-    local name=$1 srv=$2 cli=$3 port=$4 sg=${IDX[$2]} cg=${IDX[$3]} addr=${IP[$2]} base_s base_c xs xc tc rt recv send tos=""
+    local name=$1 srv=$2 cli=$3 port=$4 sg=${IDX[$2]} cg=${IDX[$3]} to=${5:-$ISO_TIMEOUT} addr=${IP[$2]} base_s base_c xs xc tc rt recv send tos=""
     case $name in
     rc)
         base_s="ibv_rc_pingpong -d $NIC -i 1 -g $sg -p $port -n 100"
@@ -185,7 +194,7 @@ commands() {
         # The receiver exits 1 on a timeout (its own, before the outer one) and 2 on any other error
         # (a bind failure, say), printing the error; the sender binds the NIC address so the source IP is
         # the NIC's and sends 20 datagrams of 512 bytes, 0.1 s apart.
-        rt=$((ISO_TIMEOUT > 3 ? ISO_TIMEOUT - 2 : 1))
+        rt=$((to > 3 ? to - 2 : 1))
         [[ $name == udp4791tc ]] && tos="s.setsockopt(socket.IPPROTO_IP,socket.IP_TOS,$ISO_TCLASS);"
         recv='import os,socket,sys;sys.excepthook=lambda t,v,tb:(print(t.__name__+": "+str(v)),sys.stdout.flush(),os._exit(1 if issubclass(t,socket.timeout) else 2));'
         recv+="s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout($rt);s.bind((\"$addr\",$port));"
@@ -196,25 +205,121 @@ commands() {
         base_s="python3 -c '$recv'"
         base_c="python3 -c '$send'"
         ;;
+    wbw64)
+        base_s="ib_write_bw -d $NIC -i 1 -x $sg -D 2 -s 64 -p $port"
+        base_c="ib_write_bw -d $NIC -i 1 -x $cg -D 2 -s 64 -p $port $addr"
+        ;;
+    udpsweep | udpsweeprev)
+        # one datagram source port per socket, to see which source ports (ECMP hash inputs) get through.
+        # The sender binds ISO_SPORTS source ports from ISO_SPORT_BASE on, one socket each (SO_REUSEADDR),
+        # 3 datagrams of 512 bytes per port, 2 ms apart. The receiver binds port 5000 and collects until it
+        # has every source port or the time is up, then prints "GOT [sorted source ports]".
+        rt=$((to > 3 ? to - 2 : 1))
+        recv='import os,select,socket,sys,time;sys.excepthook=lambda t,v,tb:(print(t.__name__+": "+str(v)),sys.stdout.flush(),os._exit(2));'
+        recv+="s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.bind((\"$addr\",5000));seen=set();end=time.time()+$rt;"
+        recv+="[seen.add(s.recvfrom(2048)[1][1]) if select.select([s],[],[],0.2)[0] else 0 for _ in iter(lambda:len(seen)<$ISO_SPORTS and time.time()<end,False)];"
+        recv+='print("GOT",sorted(seen))'
+        send="import socket,time;[(lambda s:(s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1),s.bind((\"${IP[$cli]}\",p)),"
+        send+="[(s.sendto(b\"x\"*512,(\"$addr\",5000)),time.sleep(0.002)) for _ in range(3)],s.close()))(socket.socket(socket.AF_INET,socket.SOCK_DGRAM)) "
+        send+="for p in range($ISO_SPORT_BASE,$((ISO_SPORT_BASE + ISO_SPORTS)))];"
+        send+="print(\"sent\",$((3 * ISO_SPORTS)),\"datagrams from ports $ISO_SPORT_BASE-$((ISO_SPORT_BASE + ISO_SPORTS - 1)) to $addr:5000\")"
+        base_s="python3 -c '$recv'"
+        base_c="python3 -c '$send'"
+        ;;
     esac
-    SRV_CMD="timeout $ISO_TIMEOUT $base_s"
-    CLI_CMD="timeout $ISO_TIMEOUT $base_c"
+    SRV_CMD="timeout $to $base_s"
+    CLI_CMD="timeout $to $base_c"
 }
 
 # needs NAME: the tool a test uses
 needs() {
     case $1 in
-    rc) echo ibv_rc_pingpong ;;
+    rc | rcrep) echo ibv_rc_pingpong ;;
     ud256 | ud1024) echo ibv_ud_pingpong ;;
     udbw) echo ib_send_bw ;;
-    wbw | wbw0 | wbwtc) echo ib_write_bw ;;
+    wbw | wbw0 | wbwtc | wbwrep | wbw64) echo ib_write_bw ;;
     udp*) echo python3 ;;
     esac
 }
 
-# run_test KEY X NAME: server on X, client on A; KEY is ctrl or test
+# execute NAME SRV_HOST CLI_HOST PORT TIMEOUT: the server on SRV_HOST in the background, then the client
+# on CLI_HOST; sets EX_SRV_RC, EX_CLI_RC, EX_SOUT (server output) and EX_COUT (client output)
+execute() {
+    local sfile spid
+    commands "$1" "$2" "$3" "$4" "$5"
+    sfile=$(mktemp)
+    "${SSH_CMD[@]}" "$2" "$SRV_CMD" >"$sfile" 2>&1 </dev/null &
+    spid=$!
+    sleep "$ISO_SETTLE"
+    EX_COUT=$(remote "$3" "$CLI_CMD")
+    EX_CLI_RC=$?
+    wait "$spid"
+    EX_SRV_RC=$?
+    EX_SOUT=$(cat "$sfile")
+    rm -f "$sfile"
+}
+
+# tally KEY NAME VERDICT: count one result for the verdict; KEY is ctrl or test
+tally() {
+    if [[ $3 == FAIL ]]; then
+        if [[ $1 == ctrl ]]; then
+            FAILED_CTRL+=("$2")
+        else
+            FAILED_TEST+=("$2")
+        fi
+    elif [[ $1 == ctrl ]]; then
+        OK_CTRL=$((OK_CTRL + 1))
+    else
+        OK_TEST=$((OK_TEST + 1))
+    fi
+}
+
+# sweep_check SERVER_OUTPUT: reads the receiver's "GOT [ports]" line; sets SWEEP_NLOST (source ports
+# of the sweep that never arrived) and SWEEP_LIST (those ports, cut at 40)
+sweep_check() {
+    local got lost
+    local -a l
+    got=$(grep -m 1 '^GOT' <<<"$1" | tr -d '[],' | sed 's/^GOT//')
+    lost=$(awk -v b="$ISO_SPORT_BASE" -v n="$ISO_SPORTS" -v g="$got" 'BEGIN { m = split(g, a, " "); for (i = 1; i <= m; i++) seen[a[i]] = 1; for (p = b; p < b + n; p++) if (!(p in seen)) printf "%d ", p }')
+    read -ra l <<<"$lost"
+    SWEEP_NLOST=${#l[@]}
+    SWEEP_LIST="${l[*]:0:40}" SWEEP_MORE=""
+    if ((SWEEP_NLOST > 40)); then
+        SWEEP_MORE="(+$((SWEEP_NLOST - 40)) more)"
+    fi
+}
+
+# run_reps KEY X NAME LABEL: the base test (rcrep: rc, wbwrep: wbw) ISO_REPS times, each with a fresh port
+# and the shorter ISO_REP_TIMEOUT; passes only when every run does
+run_reps() {
+    local key=$1 x=$2 name=$3 label=$4 base=${3%rep} i pass=0 runs="" verdict=OK first=0 fs="" fc=""
+    for ((i = 1; i <= ISO_REPS; i++)); do
+        PORT=$((PORT + 1))
+        say "$label $name $i/$ISO_REPS (port $PORT)"
+        execute "$base" "$x" "$A" "$PORT" "$ISO_REP_TIMEOUT"
+        runs+=" $EX_SRV_RC/$EX_CLI_RC"
+        if ((EX_SRV_RC == 0 && EX_CLI_RC == 0)); then
+            pass=$((pass + 1))
+        elif ((first == 0)); then
+            first=$i fs=$EX_SOUT fc=$EX_COUT
+        fi
+    done
+    ((pass == ISO_REPS)) || verdict=FAIL
+    tally "$key" "$name" "$verdict"
+    TEST_LINES+=("$verdict $label $NIC $name pass=$pass/$ISO_REPS")
+    DETAIL+=("== $label $name: $verdict")
+    DETAIL+=("runs (server rc/client rc):$runs")
+    if ((first > 0)); then
+        DETAIL+=("first failure, run $first, server on $x:")
+        DETAIL+=("$(last2 "$fs" | sed 's/^/  /')")
+        DETAIL+=("first failure, run $first, client on $A:")
+        DETAIL+=("$(last2 "$fc" | sed 's/^/  /')")
+    fi
+}
+
+# run_test KEY X NAME: server on X, client on A (udpsweeprev: receiver on A, sender on X); KEY is ctrl or test
 run_test() {
-    local key=$1 x=$2 name=$3 label="$A-$2" why="" tool sfile sout cout srv_rc cli_rc spid verdict=OK port
+    local key=$1 x=$2 name=$3 label="$A-$2" why="" tool verdict=OK port sh=$2 ch=$A extra=""
     tool=$(needs "$name")
     if [[ -n ${SKIPWHY[$A]:-} ]]; then
         why="${SKIPWHY[$A]} on $A"
@@ -230,45 +335,45 @@ run_test() {
         TEST_LINES+=("SKIP $label $NIC $name: $why")
         return
     fi
+    if [[ $name == rcrep || $name == wbwrep ]]; then
+        run_reps "$key" "$x" "$name" "$label"
+        return
+    fi
+    if [[ $name == udpsweeprev ]]; then
+        sh=$A ch=$x
+    fi
     case $name in
+    udpsweep*) port=5000 ;;
     udp*) port=${name%tc} port=${port#udp} ;;
     *)
         PORT=$((PORT + 1))
         port=$PORT
         ;;
     esac
-    commands "$name" "$x" "$A" "$port"
     say "$label $name (port $port)"
-    sfile=$(mktemp)
-    "${SSH_CMD[@]}" "$x" "$SRV_CMD" >"$sfile" 2>&1 </dev/null &
-    spid=$!
-    sleep "$ISO_SETTLE"
-    cout=$(remote "$A" "$CLI_CMD")
-    cli_rc=$?
-    wait "$spid"
-    srv_rc=$?
-    sout=$(cat "$sfile")
-    rm -f "$sfile"
-    if ((srv_rc != 0 || cli_rc != 0)); then
+    execute "$name" "$sh" "$ch" "$port" "$ISO_TIMEOUT"
+    if ((EX_SRV_RC != 0 || EX_CLI_RC != 0)); then
         verdict=FAIL
-        if [[ $key == ctrl ]]; then
-            FAILED_CTRL+=("$name")
-        else
-            FAILED_TEST+=("$name")
-        fi
-    elif [[ $key == ctrl ]]; then
-        OK_CTRL=$((OK_CTRL + 1))
-    else
-        OK_TEST=$((OK_TEST + 1))
     fi
-    TEST_LINES+=("$verdict $label $NIC $name srv=$srv_rc cli=$cli_rc")
+    if [[ $name == udpsweep || $name == udpsweeprev ]]; then
+        sweep_check "$EX_SOUT"
+        extra=" delivered=$((ISO_SPORTS - SWEEP_NLOST))/$ISO_SPORTS"
+        ((SWEEP_NLOST == 0)) || verdict=FAIL
+    fi
+    tally "$key" "$name" "$verdict"
+    TEST_LINES+=("$verdict $label $NIC $name srv=$EX_SRV_RC cli=$EX_CLI_RC$extra")
     DETAIL+=("== $label $name: $verdict")
-    DETAIL+=("server on $x, rc=$srv_rc$(note "$srv_rc"):")
-    DETAIL+=("$(last2 "$sout" | sed 's/^/  /')")
-    [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$sout")")
-    DETAIL+=("client on $A, rc=$cli_rc$(note "$cli_rc"):")
-    DETAIL+=("$(last2 "$cout" | sed 's/^/  /')")
-    [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$cout")")
+    DETAIL+=("server on $sh, rc=$EX_SRV_RC$(note "$EX_SRV_RC"):")
+    DETAIL+=("$(last2 "$EX_SOUT" | sed 's/^/  /')")
+    [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$EX_SOUT")")
+    DETAIL+=("client on $ch, rc=$EX_CLI_RC$(note "$EX_CLI_RC"):")
+    DETAIL+=("$(last2 "$EX_COUT" | sed 's/^/  /')")
+    [[ $name == wbw0 ]] && DETAIL+=("$(gid_lines "$EX_COUT")")
+    if [[ -n $extra ]]; then
+        # wrapped: a page line is cut at 100 columns
+        DETAIL+=("$(fold -s -w 88 <<<"lost sports: ${SWEEP_LIST:-none}" | sed '2,$s/^/  /')")
+        [[ -z $SWEEP_MORE ]] || DETAIL+=("  $SWEEP_MORE")
+    fi
 }
 
 # join ARGS...: the arguments separated by spaces

@@ -53,6 +53,19 @@ if [[ $cmd == *"python3 -c"* ]]; then
         echo "sent 20 datagrams"
         exit 0
     fi
+    if [[ $cmd == *'"GOT"'* ]]; then
+        # sweep receiver: sees every source port except FAKE_LOSS when it runs on FAKE_LOSS_ON
+        re='len\(seen\)<([0-9]+)'
+        [[ $cmd =~ $re ]]
+        list=""
+        b=${FAKE_SWEEP_BASE:-50000}
+        for ((p = b; p < b + BASH_REMATCH[1]; p++)); do
+            if [[ ${FAKE_LOSS_ON:-} == "$host" && " ${FAKE_LOSS:-} " == *" $p "* ]]; then continue; fi
+            list+="${list:+, }$p"
+        done
+        echo "GOT [$list]"
+        exit 0
+    fi
     if [[ ${FAKE_BIND_FAIL:-} == "$host" ]]; then
         echo "OSError: [Errno 98] Address already in use"
         exit 2
@@ -68,6 +81,12 @@ if [[ $cmd == *ib_write_bw* ]]; then
     # perftest prints both addresses, GID included, before the results
     echo " local address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
     echo " remote address: LID 0x01 GID: 00:00:00:00:00:00:00:00:00:00:255:255:10:00:00:0$n"
+fi
+if [[ $cmd == *ibv_rc_pingpong* ]]; then
+    # FAKE_FAIL_PORTS: runs on these -p ports time out on both sides
+    for fp in ${FAKE_FAIL_PORTS:-}; do
+        [[ $cmd == *"-p $fp "* ]] && exit 124
+    done
 fi
 last=${cmd##* }
 if [[ $last =~ ^10\.0\.0\.([0-9])$ ]]; then
@@ -269,3 +288,133 @@ def test_a_missing_python3_skips_the_udp_tests(tmp_path: Path) -> None:
     assert "TOOLS nodeT: missing python3" in result.stdout
     assert "SKIP nodeA-nodeT mlx5_0 udp5000: python3 missing on nodeT" in result.stdout
     assert "OK nodeA-nodeC mlx5_0 udp5000 srv=0 cli=0" in result.stdout
+
+
+def test_a_sweep_that_loses_source_ports_fails_with_the_count_and_the_lost_list(
+    tmp_path: Path,
+) -> None:
+    result = run_isolate(
+        tmp_path,
+        "nodeA",
+        "nodeC",
+        "nodeT",
+        ISO_TESTS="udpsweep",
+        FAKE_LOSS_ON="nodeT",
+        FAKE_LOSS="50003 50010 50063",
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "OK nodeA-nodeC mlx5_0 udpsweep srv=0 cli=0 delivered=64/64" in result.stdout
+    assert "FAIL nodeA-nodeT mlx5_0 udpsweep srv=0 cli=0 delivered=61/64" in result.stdout
+    assert "lost sports: 50003 50010 50063" in result.stdout
+    assert (
+        "VERDICT: FAIL only on nodeA-nodeT: udpsweep (control nodeA-nodeC passes)" in result.stdout
+    )
+    py = [line for line in ssh_log(tmp_path) if " timeout 10 python3 -c " in line]
+    receivers = [line for line in py if '"GOT"' in line]
+    senders = [line for line in py if "SO_REUSEADDR" in line]
+    assert [line.split()[0] for line in receivers] == ["nodeC", "nodeT"]
+    assert all('bind(("10.0.0.3",5000))' in line for line in receivers if line.startswith("nodeT"))
+    assert all("settimeout" not in line and "len(seen)<64" in line for line in receivers)
+    assert all(line.startswith("nodeA ") for line in senders)
+    assert all('s.bind(("10.0.0.1",p))' in line for line in senders)
+    assert all("range(50000,50064)" in line and "range(3)" in line for line in senders)
+    assert all("'" not in line.split("python3 -c ", 1)[1][1:-1] for line in py)
+
+
+def test_a_long_lost_list_is_cut_at_forty_ports(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path,
+        "nodeA",
+        "nodeC",
+        "nodeT",
+        ISO_TESTS="udpsweep",
+        FAKE_LOSS_ON="nodeT",
+        FAKE_LOSS=" ".join(str(p) for p in range(50000, 50045)),
+    )
+    assert "delivered=19/64" in result.stdout
+    assert "50039" in result.stdout and "50040" not in result.stdout
+    assert "(+5 more)" in result.stdout
+
+
+def test_the_reverse_sweep_puts_the_receiver_on_a(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path,
+        "nodeA",
+        "nodeC",
+        "nodeT",
+        ISO_TESTS="udpsweeprev",
+        ISO_SPORT_BASE="40000",
+        FAKE_SWEEP_BASE="40000",
+        ISO_SPORTS="8",
+        FAKE_LOSS_ON="nodeT",
+        FAKE_LOSS="50001",
+    )
+    # nothing is lost when the receiver is on A: the fake only loses on nodeT
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK nodeA-nodeT mlx5_0 udpsweeprev srv=0 cli=0 delivered=8/8" in result.stdout
+    py = [line for line in ssh_log(tmp_path) if " timeout 10 python3 -c " in line]
+    receivers = [line for line in py if '"GOT"' in line]
+    senders = [line for line in py if "SO_REUSEADDR" in line]
+    assert [line.split()[0] for line in receivers] == ["nodeA", "nodeA"]
+    assert all('bind(("10.0.0.1",5000))' in line for line in receivers)
+    assert [line.split()[0] for line in senders] == ["nodeC", "nodeT"]
+    assert 's.bind(("10.0.0.3",p))' in senders[1] and '("10.0.0.1",5000)' in senders[1]
+    assert "range(40000,40008)" in senders[1]
+
+
+def test_a_reverse_sweep_losing_on_a_invalidates_the_control(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path,
+        "nodeA",
+        "nodeC",
+        "nodeT",
+        ISO_TESTS="udpsweeprev",
+        FAKE_LOSS_ON="nodeA",
+        FAKE_LOSS="50007",
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "FAIL nodeA-nodeC mlx5_0 udpsweeprev srv=0 cli=0 delivered=63/64" in result.stdout
+    assert "VERDICT: INVALID control pair nodeA-nodeC failed: udpsweeprev" in result.stdout
+
+
+def test_rcrep_counts_the_passing_runs_with_fresh_ports_and_a_short_timeout(
+    tmp_path: Path,
+) -> None:
+    result = run_isolate(
+        tmp_path,
+        "nodeA",
+        "nodeC",
+        "nodeT",
+        ISO_TESTS="rcrep",
+        ISO_REPS="5",
+        FAKE_FAIL_PORTS="18606 18608",
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "OK nodeA-nodeC mlx5_0 rcrep pass=5/5" in result.stdout
+    assert "FAIL nodeA-nodeT mlx5_0 rcrep pass=3/5" in result.stdout
+    assert "VERDICT: FAIL only on nodeA-nodeT: rcrep (control nodeA-nodeC passes)" in result.stdout
+    runs = [line for line in ssh_log(tmp_path) if " timeout 6 ibv_rc_pingpong " in line]
+    assert len(runs) == 20  # five runs, two sides, two pairs
+    ports = sorted({int(re.search(r"-p (\d+)", line).group(1)) for line in runs})  # type: ignore[union-attr]
+    assert ports == list(range(18600, 18610))
+
+
+def test_wbwrep_and_wbw64_use_the_gid_index(tmp_path: Path) -> None:
+    result = run_isolate(
+        tmp_path, "nodeA", "nodeC", "nodeT", ISO_TESTS="wbwrep wbw64", ISO_REPS="3"
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK nodeA-nodeT mlx5_0 wbwrep pass=3/3" in result.stdout
+    assert "OK nodeA-nodeT mlx5_0 wbw64 srv=0 cli=0" in result.stdout
+    lines = [line for line in ssh_log(tmp_path) if "ib_write_bw" in line and " timeout " in line]
+    reps = [line for line in lines if " timeout 6 " in line]
+    assert len(reps) == 12 and all("-x 3 -D 2 -s 65536 -p " in line for line in reps)
+    small = [line for line in lines if " -s 64 " in line]
+    assert len(small) == 4 and all(" timeout 10 " in line and " -x 3 " in line for line in small)
+
+
+def test_iso_test_singular_is_taken_when_iso_tests_is_not_set(tmp_path: Path) -> None:
+    result = run_isolate(tmp_path, "nodeA", "nodeC", "nodeT", ISO_TEST="rc")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.count("\nOK nodeA-") == 2
+    assert "ud256" not in result.stdout
