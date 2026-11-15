@@ -30,8 +30,10 @@ const meta = computed(() => {
   <div class="progress-line" role="status" aria-live="polite" data-testid="progress-line">
     <template v-if="stage">
       <span class="pulse" aria-hidden="true" />
-      <span class="text">{{ stageText(stage) }}</span>
-      <span class="meta" aria-hidden="true" data-testid="progress-meta">{{ meta }}</span>
+      <div class="body">
+        <span class="text">{{ stageText(stage) }}</span>
+        <span class="meta" aria-hidden="true" data-testid="progress-meta">{{ meta }}</span>
+      </div>
     </template>
   </div>
 </template>
@@ -39,14 +41,21 @@ const meta = computed(() => {
 <style scoped>
 .progress-line {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
   font-size: 0.85rem;
   color: var(--text2);
 }
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
 .pulse {
-  align-self: center;
+  flex: none;
+  margin-top: 0.35rem;
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
