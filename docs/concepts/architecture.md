@@ -1,9 +1,8 @@
 # Architecture
 
-This page explains how CRAB is structured. Two ideas are worth internalizing before reading the
-code: the orchestrator/worker split (how a run actually reaches the compute nodes) and the
-wrapper / recipe / receipt model (how arbitrary applications are made runnable). Everything
-else builds on these.
+CRAB rests on two ideas: the orchestrator/worker split (how a run reaches the compute nodes) and the
+wrapper / recipe / receipt model (how arbitrary applications are made runnable). Everything else
+builds on them.
 
 ## High-level responsibilities
 
@@ -18,7 +17,7 @@ else builds on these.
 
 ## The two-phase execution model
 
-`crab run` does **not** execute your benchmarks directly. A run is split across two separate
+`crab run` does not execute your benchmarks directly. A run is split across two separate
 processes, both implemented by the `Engine` class:
 
 ```mermaid
@@ -32,7 +31,7 @@ flowchart TD
     F -->|"results"| C
 ```
 
-The diagram shows the Slurm path; the local scheduler skips the queue, as step 4 below says.
+The diagram shows the Slurm path; the local scheduler skips the queue, as step 4 of phase 1 says.
 
 Phase 1, the orchestrator (`Engine._run_orchestrator`, runs on the login node):
 
@@ -55,7 +54,7 @@ Phase 2, the worker (`Engine._run_worker`, runs on the allocated compute nodes):
 3. Runs each experiment in turn through an `ExperimentRunner`.
 
 !!! info "The handoff is the filesystem"
-    The orchestrator and worker never share memory. They communicate **only** through the files
+    The orchestrator and worker never share memory. They communicate only through the files
     written into the data directory. That directory is both the input contract for the worker and
     the output location for results, which is why a CRAB run is fully reproducible from its folder.
 
@@ -129,7 +128,7 @@ Inside the worker, `ExperimentRunner` manages one experiment at a time:
    event loop that starts/stops applications on schedule, polls their processes, and resolves
    "start after app N finishes" dependencies. After `minruns` successful runs, the loop stops early once metrics
    reach statistical convergence (`core/data/utils.py::check_CI`, the confidence-interval
-   width falls below `beta × mean`).
+   width is smaller than `beta × mean`).
 3. `save_results()`: write per-application CSV (or HDF) files.
 4. `teardown()`: guarantee every process is killed before the next experiment.
 

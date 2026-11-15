@@ -1,7 +1,7 @@
 # Glossary
 
 CRAB reuses a few everyday words with precise, framework-specific meanings, and a couple of them
-collide with Slurm terminology. This page is the authoritative reference for what each term means
+collide with Slurm terminology. It is the authoritative reference for what each term means
 here.
 
 ### Aggressor
@@ -25,13 +25,13 @@ edited, which blocks Pull until the edits are committed, stashed or moved to `lo
 ### Collection (`collect`)
 
 Whether CRAB parses an application's output and stores its metrics. Set per application with
-`collect: true`. Applications that only generate interference typically set `collect: false`.
+`collect: true`. An application that only generates interference needs no metrics: set `collect: false`.
 
 ### Convergence
 
 The condition that stops an experiment's repeated runs early. After `minruns` successful runs, CRAB checks whether
 the [confidence interval](concepts/architecture.md#per-experiment-lifecycle) of each
-convergence-target metric has tightened below `beta × mean`; once all targets converge (or
+convergence-target metric has narrowed to less than `beta × mean`; once all targets converge (or
 `maxruns`/`timeout` is hit), the experiment ends. Which metrics are targets is set by the
 `conv` flag in a wrapper's `metadata`, or by `convergeall`.
 
@@ -87,7 +87,7 @@ job (a Slurm job on a cluster), producing one output directory under `data/<syst
 The command that actually starts an application's processes on the allocated nodes: `srun`,
 `mpirun`, or `direct` (the command as is, with no wrapper). The preset's `launcher` field picks the
 kind, and `launchers.srun` and `launchers.mpirun` hold its command and flags. A
-[receipt](#receipt) may set `launcher_override` to `srun` or `mpirun` for a benchmark that needs a
+[receipt](#receipt) can set `launcher_override` to `srun` or `mpirun` for a benchmark that needs a
 different launcher than the preset's.
 
 ### Orchestrator
@@ -100,7 +100,7 @@ benchmarks itself. It hands off to the [worker](#worker). See [Architecture](con
 
 **Two unrelated meanings.** Do not confuse them:
 
-1. CRAB allocation partition: a named group of nodes defined in `allocation.partitions`, typically
+1. CRAB allocation partition: a named group of nodes defined in `allocation.partitions`, such as
    `"victim"` and `"aggressor"`. Each app references its partition by name via the `partition` field
    (→ `partition_id`).
 2. Slurm partition: a queue/resource pool on the cluster, requested via an `sbatch` directive
@@ -168,7 +168,7 @@ inside the job.
 An [allocation](reference/configuration.md#shared-nodes) with `mode: "shared"`, in which every
 [application](#application) of a scope gets all of its nodes, so the apps run at the same time on
 the same hosts. Its `cores` key, `"disjoint"` (the default) or `"shared"`, says whether they run
-on separate cores or may compete for the same ones. Apps that run this way are said to
+on separate cores or can compete for the same ones. Apps that run this way are said to
 co-run.
 
 ### Target

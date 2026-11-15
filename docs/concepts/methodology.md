@@ -1,6 +1,6 @@
 # Methodology
 
-This page describes how CRAB measures: what one run is, how runs repeat, when CRAB decides it has
+The sections cover how CRAB measures: what one run is, how runs repeat, when CRAB decides it has
 enough of them, how co-running applications start and stop, and what counts as a failure. It also
 lists what a result file records and what it does not. Read it when you need to judge the numbers
 CRAB produces or to describe them in a paper. Every statement here comes from the engine's code;
@@ -41,7 +41,7 @@ Some consequences of how the loop is built:
 | `minruns` | `10` | Convergence is not checked before this many runs have succeeded. |
 | `maxruns` | `20` | The experiment never starts more runs than this, failed ones included. |
 | `timeout` | `1200.0` | Seconds of wall-clock time for the whole experiment, counted from its start. |
-| `alpha`, `beta` | `0.05`, `0.05` | The confidence level and the width threshold below. |
+| `alpha`, `beta` | `0.05`, `0.05` | The confidence level and the width threshold of the interval. |
 
 Once `minruns` runs have succeeded, CRAB checks convergence after every run (`check_CI` in
 `src/crab/core/data/utils.py`). The experiment stops when `maxruns` runs are done, or `minruns`
@@ -82,7 +82,7 @@ The samples in step 1 are every value the application printed, from every run. C
 average the iterations of a run first. A run that prints 1000 iterations adds 1000 samples, and
 the interval treats all of them as independent draws.
 
-That has two effects a careful reader should weigh:
+That has two effects to weigh:
 
 - Iterations inside one run share their nodes, placement and the traffic of that moment, so they
   are correlated. The interval then understates the uncertainty of the mean across runs, which is
@@ -129,7 +129,7 @@ Placement and sharing. CRAB gives each app a list of nodes before the job starts
 all the nodes and the apps compete inside each node. An app with `start: "sN"` runs on the nodes
 of the app it waits for, unless it names another partition. Each app has its own `ppn`, and can
 have its own core list (`cpus`). With `shared`, `cores` says whether apps keep to disjoint cores or
-may overlap. The launcher binds ranks as the [configuration
+can overlap. The launcher binds ranks as the [configuration
 reference](../reference/configuration.md#shared-nodes) describes. Under `srun` and `mpirun` the hosts of each app are in
 its launch line in `crab_run.json`.
 
@@ -157,7 +157,7 @@ What a failure leaves behind:
   `total_runs` to see how much data there is. `TIMEOUT` is set when the experiment's `timeout`
   hits in the middle of a run: CRAB stops the apps, the run is counted in `total_runs` but not
   in `failed_runs`, and the apps it stopped add no rows. When `timeout` passes between two runs,
-  the experiment just ends with the status it had, usually `COMPLETED`.
+  the experiment ends with the status it had, `COMPLETED` in most cases.
 - The job. A failed run does not stop the experiment, and an experiment whose runs failed does
   not by itself fail the job. An exception that escapes a run (for example the launcher cannot start) stops
   that experiment with status `FAILED`; CRAB writes the CSV of the runs finished so far, and the
@@ -187,7 +187,7 @@ lines. To rerun a study, keep the job folder or its `config.json`.
 
 ## Known limits
 
-- Convergence pools iterations, as described above. It is a stopping rule for the number of
+- Convergence pools iterations, as described in [It pools iterations](#it-pools-iterations). It is a stopping rule for the number of
   runs, not a statement about the confidence interval of the run-level mean.
 - The interval assumes independent, roughly normal samples. CRAB does not test either.
   Heavy-tailed latencies break the second assumption.
