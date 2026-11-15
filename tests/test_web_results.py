@@ -763,3 +763,39 @@ def test_results_experiments_disconnected_cluster_returns_empty(tmp_path: Path):
         resp = client.get(f"/api/results/{CLUSTER}/{SYSTEM}/{JOB_BASENAME}/experiments")
         assert resp.status_code == 200
         assert resp.json()["experiments"] == []
+
+
+# --- progress: the background fetch reports its stage under the cluster ---
+
+
+def _fetch_events(tmp_path: Path, transport_factory):
+    from conftest import RecordingBoard
+
+    _seed_job(tmp_path)
+    with _client(tmp_path, transport_factory=transport_factory) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        board = client.app.state.progress = RecordingBoard()
+        fetch_id = client.post(_fetch_url()).json()["fetch_id"]
+        status = _poll(client, fetch_id)
+    return board, status
+
+
+def test_a_results_fetch_reports_its_stage_to_the_task(tmp_path: Path):
+    board, status = _fetch_events(tmp_path, FakeFetchTransport)
+    assert status["status"] == "done"
+    assert board.events == [
+        (CLUSTER, "begin", "fetch-results"),
+        (CLUSTER, "end", "fetch-results", True),
+    ]
+    assert board.snapshot(CLUSTER) == []
+
+
+def test_a_failed_results_fetch_ends_its_stage_not_ok(tmp_path: Path):
+    def failing():
+        return FakeFetchTransport(fail=RemoteCommandError("Could not fetch results.", detail="x"))
+
+    board, status = _fetch_events(tmp_path, failing)
+    assert status["status"] == "error"
+    assert board.events[-1] == (CLUSTER, "end", "fetch-results", False)
+    assert board.snapshot(CLUSTER) == []

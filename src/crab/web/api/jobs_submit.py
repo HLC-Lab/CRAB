@@ -15,6 +15,7 @@ import uuid
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from crab.cli.progress import stage
 from crab.web.api.jobs import _profiles, _submissions
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
@@ -25,6 +26,7 @@ from crab.web.errors import (
     RemoteConnectionError,
     logger,
 )
+from crab.web.progress import watching
 from crab.web.remoteops.crab_cli import RemotePath, run_crab_json
 from crab.web.remoteops.transfer import stage_config
 from crab.web.settings import Settings
@@ -34,6 +36,10 @@ from crab.web.store.profiles import Profile
 from crab.web.trackers import ExpiringTracker
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
+
+# The give-up limits shown on the progress line (`stage_config` defaults to the first).
+STAGE_CONFIG_TIMEOUT_S = 30.0
+CRAB_RUN_TIMEOUT_S = 60.0
 
 
 class SubmitRequest(BaseModel):
@@ -115,12 +121,24 @@ async def _run_submission(
     would leave the tracker stuck at "pending" forever with no way to notice.
     """
     try:
-        staged_path = await stage_config(transport, profile, config, name, settings=settings)
+        with stage(
+            "stage-config",
+            "Sending the configuration to the cluster",
+            "the cluster to accept the config file in its staging folder",
+            STAGE_CONFIG_TIMEOUT_S,
+        ):
+            staged_path = await stage_config(transport, profile, config, name, settings=settings)
         run_args = ["run", RemotePath(staged_path), "-p", preset]
         if only:
             run_args += ["--only", ",".join(only)]
         run_args.append("--json")
-        result = await run_crab_json(transport, profile, run_args, timeout=60.0)
+        with stage(
+            "crab-run",
+            "Submitting the run",
+            "`crab run --json` to hand the jobs to Slurm",
+            CRAB_RUN_TIMEOUT_S,
+        ):
+            result = await run_crab_json(transport, profile, run_args, timeout=CRAB_RUN_TIMEOUT_S)
         record = JobsStore(settings).create(
             cluster=profile.name,
             job_id=str(result["job_id"]),
@@ -161,20 +179,22 @@ async def submit_job(body: SubmitRequest, request: Request) -> SubmissionAccepte
     tracker = _submissions(request)
     tracker[submission_id] = {"status": "pending"}
 
-    task = asyncio.create_task(
-        _run_submission(
-            tracker,
-            submission_id,
-            transport,
-            profile,
-            config,
-            name,
-            preset,
-            body.only,
-            request.app.state.settings,
-            body.rerun_of,
+    # The task copies the current context, so it reports to this cluster's progress.
+    with watching(request, profile.name):
+        task = asyncio.create_task(
+            _run_submission(
+                tracker,
+                submission_id,
+                transport,
+                profile,
+                config,
+                name,
+                preset,
+                body.only,
+                request.app.state.settings,
+                body.rerun_of,
+            )
         )
-    )
     pending_tasks = request.app.state.pending_submission_tasks
     pending_tasks.add(task)
     task.add_done_callback(pending_tasks.discard)
