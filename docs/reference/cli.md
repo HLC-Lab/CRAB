@@ -575,6 +575,15 @@ crab update --head
 crab update --json
 ```
 
+Progress output. `crab update`, `crab wrappers pull`, `crab wrappers status` and the first-use
+wrappers clone show what they wait for on stderr, for example `Pulling updates: waiting for git
+pull from <repository> (12 s, gives up after 120 s)`. On a terminal this is one line that updates
+in place. When the output goes to a file or a pipe, you get one line at the start, then at 10 s, at
+30 s and every 30 s after, and a closing line such as `Pulling updates: done in 41 s` when the step
+took 2 s or more. With `--json` nothing extra is printed, so stdout stays JSON. The repository
+address in the line never includes a user name or password. A git step gives up after 120 s (20 s
+for the `crab wrappers status` check of GitHub).
+
 ## `crab probe`
 
 Describes the node it runs on (GPUs, RDMA NIC ports, NUMA domains) as a preset

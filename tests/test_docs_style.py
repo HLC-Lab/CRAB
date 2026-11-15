@@ -38,9 +38,7 @@ PENDING: set[str] = {
     "docs/using/dashboard-wrappers.md",
     "docs/using/dashboard.md",
     "docs/using/presets.md",
-    "docs/using/results.md",
     "docs/using/running-without-slurm.md",
-    "docs/using/troubleshooting.md",
     "docs/using/writing-configs.md",
 }
 
