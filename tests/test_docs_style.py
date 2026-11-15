@@ -21,8 +21,8 @@ DOCS = REPO / "docs"
 _EXCLUDED_DIRS = ("dev",)
 _EXCLUDED_FILES = ("contributing.md",)
 
-# Pages not cleaned yet: the filler test is an expected failure for them (strict, so a page that
-# gets cleaned must be removed from this set).
+# Pages not cleaned yet. Every user-facing page is clean, so this stays empty (see
+# `test_every_user_page_is_clean`); a new page must pass the rules from its first commit.
 PENDING: set[str] = set()
 
 FILLER = (
@@ -133,8 +133,8 @@ def test_the_page_list_covers_the_user_docs() -> None:
     assert not any(n.startswith("dev/") or n == "contributing.md" for n in names)
 
 
-def test_pending_names_real_pages() -> None:
-    assert PENDING <= {_rel(p) for p in PAGES}
+def test_every_user_page_is_clean() -> None:
+    assert PENDING == set()
 
 
 @pytest.mark.parametrize("page", PAGES, ids=_IDS)
@@ -147,12 +147,7 @@ def test_no_ai_or_session_framing(page: Path) -> None:
     assert find_framing(page.read_text(encoding="utf-8")) == []
 
 
-def _filler_param(page: Path):
-    marks = [pytest.mark.xfail(strict=True, reason="page not cleaned yet")] if _rel(page) in PENDING else []
-    return pytest.param(page, id=_rel(page), marks=marks)
-
-
-@pytest.mark.parametrize("page", [_filler_param(p) for p in PAGES])
+@pytest.mark.parametrize("page", PAGES, ids=_IDS)
 def test_no_filler_words(page: Path) -> None:
     assert find_filler(page.read_text(encoding="utf-8")) == []
 
