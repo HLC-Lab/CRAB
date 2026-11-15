@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One app row inside ExperimentPane's Apps list: wrapper chip, node-group
 // picker, collect-metrics toggle, remove, args, start/end timing, CPUs and
-// environment variables.
+// environment variables and wrapper attributes.
 // `app` is the reactive AppDraft owned by the store's experiment array;
 // mutating its fields here writes straight back (same pattern as
 // AllocationEditor's `props.alloc` mutation).
@@ -9,6 +9,7 @@ import { computed } from "vue";
 import type { AppDraft } from "@/lib/config";
 import { RouterLink } from "vue-router";
 import ConfirmButton from "@/components/ConfirmButton.vue";
+import WrapperSettings from "@/components/author/WrapperSettings.vue";
 
 const props = defineProps<{
   app: AppDraft;
@@ -150,6 +151,7 @@ const reuseLabel = computed(() =>
         </button>
       </div>
     </div>
+    <WrapperSettings :app="app" />
   </div>
 </template>
 

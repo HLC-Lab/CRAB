@@ -38,7 +38,8 @@ export interface AppDraft {
   rest: Record<string, unknown>;
 }
 
-const RESERVED_APP_KEYS = new Set([
+/** App keys with their own editor field; every other key is a wrapper attribute (kept in `AppDraft.rest`). */
+export const RESERVED_APP_KEYS: ReadonlySet<string> = new Set([
   "path",
   "args",
   "collect",
