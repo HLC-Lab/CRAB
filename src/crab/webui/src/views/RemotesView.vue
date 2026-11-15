@@ -126,14 +126,9 @@ function confirmRemove(name: string) {
       <div class="grid">
         <label
           >Name
-          <input
-            v-model="form.name"
-            required
-            placeholder="my-cluster"
-            :aria-invalid="taken"
-            :aria-describedby="taken ? 'remote-name-taken' : undefined"
-          />
-          <small v-if="taken" id="remote-name-taken" class="field-hint field-error">{{
+          <input v-model="form.name" required placeholder="my-cluster" :aria-invalid="taken" />
+          <!-- Inside the label, so it is part of the field's accessible name when it shows. -->
+          <small v-if="taken" class="field-hint field-error">{{
             takenMessage(form.name ?? "")
           }}</small>
         </label>
