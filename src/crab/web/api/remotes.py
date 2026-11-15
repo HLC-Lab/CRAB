@@ -10,6 +10,7 @@ SSH/auth/connection failure surfaces as the error envelope.
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
@@ -39,6 +40,21 @@ def _manager(request: Request) -> ConnectionManager:
     if manager is None:
         raise RemoteConnectionError("Connection manager is not initialised.")
     return manager
+
+
+class StageOut(BaseModel):
+    """One slow step of an operation: elapsed time is `now - started_at`, never sent."""
+
+    stage: str
+    label: str
+    waiting_for: str
+    started_at: float
+    timeout_s: float | None = None
+
+
+class ProgressResponse(BaseModel):
+    now: float
+    stages: list[StageOut]
 
 
 class RemoteListItem(Profile):
@@ -111,6 +127,20 @@ async def connect_remote(name: str, request: Request, body: ConnectRequest | Non
         "reason": result.reason,
         "skew": result.skew,
     }
+
+
+@router.get("/{name}/progress")
+async def remote_progress(name: str, request: Request) -> ProgressResponse:
+    """The slow steps running now for this remote, and the server clock to read them against.
+
+    An unknown name or an idle remote answers an empty list. The UI polls this while a connect,
+    install or other slow call is in flight.
+    """
+    board = request.app.state.progress
+    return ProgressResponse(
+        now=board.now(),
+        stages=[StageOut(**asdict(s)) for s in board.snapshot(name)],
+    )
 
 
 @router.post("/{name}/disconnect", status_code=204)
