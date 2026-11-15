@@ -323,3 +323,22 @@ def test_a_json_wrappers_command_skips_the_first_use_clone_and_its_stage(
     monkeypatch.setattr(wrappers_clone, "ensure_wrappers_clone", _fake_first_clone)
     wrappers_cmd._ensure_wrappers(argparse.Namespace(json=True))
     assert recording.events == []
+
+
+def test_a_clone_with_options_that_take_values_names_the_url_not_the_value(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(gitops.subprocess, "run", FakeRun("unused", fail=False))
+    rec = Recorder()
+    with use_reporter(rec):
+        gitops.git(
+            tmp_path,
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            "main",
+            "https://u:pw@example.org/w.git",
+            str(tmp_path / "d"),
+        )
+    assert rec.begun[0].waiting_for == "git clone from https://example.org/w.git"

@@ -27,7 +27,9 @@ def _network_origin(repo: Path, args: tuple[str, ...]) -> str:
     from crab.cli.wrappers_clone import _without_credentials
 
     if args[0] == "clone":
-        url = next((a for a in args[1:] if not a.startswith("-")), "origin")
+        # `git clone [options] URL [DEST]`: options can take values (`--depth 1`), so the URL is
+        # the argument before the destination, not the first one without a dash.
+        url = args[-2] if len(args) >= 3 else args[-1] if len(args) == 2 else "origin"
         return _without_credentials(url)
     try:
         return _without_credentials(git(repo, "remote", "get-url", "origin"))
