@@ -108,12 +108,15 @@ A JSON file at `local/receipts/<benchmark_id>.json`, managed by `setup/memory.py
 output of building a recipe and the input the wrapper reads at runtime, recording:
 
 - `binary_path`: where the built executable lives.
-- `hooks.pre_run`: shell commands to run before launching the application.
+- `type`: how the binary was obtained: `binary`, `module` or `source`.
+- `hooks.pre_run`: shell commands to run before launching the application, such as a module load.
 - `launcher_override`: the launcher kind, `srun` or `mpirun`, to use instead of the preset's
-  launcher. Empty means use the preset's.
+  launcher. Empty means use the preset's. Any other value makes the experiment fail at setup.
 - `target_arch`: e.g. `gpu`, used for a guardrail check against the requested partition.
 
 The `local/receipts/` folder is created on first use; receipts in the older `config/environments/` folder are still read.
+At run time the orchestrator loads every receipt and exports each binary path as a `CRAB_PATH_<ID>`
+environment variable for wrappers to read.
 
 ## Per-experiment lifecycle
 
@@ -163,3 +166,42 @@ Results are written under `data/<CRAB_SYSTEM>/<name>_<timestamp>/`:
   `run_<n>/.wrappers/` launch scripts.
 - A system-level `metadata.csv` registry, appended atomically with file locking so concurrent
   CRAB jobs on a shared filesystem don't corrupt it.
+
+## Where CRAB keeps its files
+
+CRAB runs in one of two layouts, described in
+[ADR-038](../dev/dashboard/decisions/adr-038-two-layouts.md). The code is `src/crab/paths.py`, and
+`crab info` prints the layout (`installed` for a pip install) and the home.
+
+In a git checkout, `local/` sits at the root, next to `src/` and `wrappers/`. Git ignores it, so
+it holds the files that belong to this machine and never conflict with an update:
+
+| Path | What it is | Who creates it |
+|------|------------|----------------|
+| `local/presets/` | Your override files: `*.json` files that patch the shared presets from the crab-wrappers clone (see [Your overrides](../using/presets.md#your-overrides)). The shared presets are the files in `wrappers/presets/`. | You: run `mkdir -p local/presets` in the checkout, then add a file. |
+| `local/receipts/` | One receipt per configured benchmark. | `crab setup` |
+| `local/wrappers/` | Private or in-progress wrappers, searched before `wrappers/`. | You, if you need it. |
+
+A pip install has no checkout, so CRAB keeps its files in user folders. The table lists the places
+on Linux; other systems use their own user data and config folders.
+
+| Folder | What it holds |
+|--------|---------------|
+| `~/.local/share/crab` (the home) | `data/` (results), `benchmarks/` (source builds) and `wrappers/` (the crab-wrappers clone: the wrappers and the shared presets in `presets/`). |
+| `~/.config/crab` | `presets/` (your override files), `receipts/` and `wrappers/` (private or in-progress wrappers, searched before the shared ones). |
+
+Two variables move them:
+
+- `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`. It must be an
+  absolute path (`~` is fine): a relative value stops the command with an error.
+- `CRAB_PATH_PRESETS` sets the folder of your override files. It must be an absolute path
+  (`~` is fine), like `CRAB_HOME`.
+
+The package ships no presets: the shared ones come from the crab-wrappers clone, with the wrappers.
+
+The wrappers are not part of the package either. The first time a command needs them (`crab run`,
+`crab setup`, `crab wrappers ...`), CRAB prints one line and clones
+[crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) into `~/.local/share/crab/wrappers`. This
+needs git and network access on that machine. It does not happen in a call with `--json` (a hint is
+printed instead) or when `CRAB_PATH_WRAPPERS` is set. If the clone fails, run `crab wrappers pull`
+once the network is back.

@@ -1,30 +1,25 @@
 # Installation & benchmark setup
 
-Getting CRAB running is two steps: install the framework, then use the setup wizard to make the
-benchmarks you want available on this machine.
-
 ## Prerequisites
 
-- Python 3.10+ (the installer hard-fails below this; on a cluster you may need `module load python` first).
+- Python 3.10 or newer (the installer hard-fails on an older Python). On a cluster, run `module load python`.
 - Git.
-- A Slurm cluster to run experiments. `crab run` submits the job with `sbatch`; see the note
-  below for the one exception.
-- Network access. `make` downloads Python packages from PyPI and clones the wrappers from
-  github.com. `crab setup` clones the benchmark sources from github.com when you build from source.
-  A cluster login node usually has this; a compute node may not.
-- Build tools if you intend to *build* benchmarks from source with the setup wizard. Blink
-  needs CMake 3.16 or newer, a C and a C++ compiler, and the MPI compiler wrappers `mpicc` and
-  `mpicxx`. On a cluster these usually come from modules (see the build step below).
+- A Slurm cluster to run experiments. `crab run` submits the job with `sbatch`.
+- Network access to PyPI and github.com: `make` downloads Python packages and clones the wrappers,
+  and `crab setup` clones benchmark sources. A compute node might not have it.
+- Optional: build tools, to build benchmarks from source with `crab setup`. Blink needs CMake 3.16
+  or newer, a C and a C++ compiler, and the MPI compiler wrappers `mpicc` and `mpicxx`. On a
+  cluster, load them through the module line the wizard asks for.
 
 !!! warning "CRAB needs Slurm to run experiments"
     Every run is submitted through `sbatch`, except with the `local` preset: it runs a single-node
-    job directly on the machine you are on, without Slurm. That is meant for trying CRAB out and
-    for testing; real co-running experiments need a Slurm cluster.
+    job directly on the machine you are on, without Slurm. That is for trying CRAB out and for
+    testing. Real co-running experiments need a Slurm cluster.
 
 ## Install the framework
 
-The recommended path is the Makefile, which creates an isolated virtual environment, installs
-CRAB in editable mode, and launches the setup wizard:
+The Makefile creates an isolated virtual environment, installs CRAB in editable mode, clones the
+wrappers into `wrappers/` and starts the setup wizard:
 
 ```bash
 git clone https://github.com/HLC-Lab/CRAB
@@ -32,55 +27,29 @@ cd CRAB
 make
 ```
 
-`make` also clones the wrappers into `wrappers/`. They live in their own repository,
-[HLC-Lab/crab-wrappers](https://github.com/HLC-Lab/crab-wrappers), and CRAB does not ship them in
-its own tree.
+The wrappers live in [HLC-Lab/crab-wrappers](https://github.com/HLC-Lab/crab-wrappers), not in
+CRAB's own tree. Git ignores the `local/` folder at the checkout root: it holds your override
+presets, receipts and private wrappers, so updates never conflict with it (see
+[Where CRAB keeps its files](../concepts/architecture.md#where-crab-keeps-its-files)).
 
-`make` is idempotent: if CRAB is already installed it tells you so. Use `make clean` to remove
-the virtual environment and build artifacts, and `make setup` to re-run just the wizard.
-`make clean` leaves `wrappers/` alone.
+- `make` is idempotent: it tells you when CRAB is already installed.
+- `make setup` re-runs only the wizard.
+- `make clean` removes the virtual environment and the build artifacts. It leaves `wrappers/`
+  alone.
 
-A Python module on a cluster often sets `PYTHONPATH`. Python searches it before the
-environment's own packages, so `pip` or `crab` can fail with an `ImportError` from a path outside
-`.venv`. `make` ignores `PYTHONPATH` and `PYTHONHOME`, and activating the environment clears both
-in your shell (`activate.fish` does the same for fish):
-
-```bash
-source .venv/bin/activate   # also clears PYTHONPATH and PYTHONHOME in this shell
-```
-
-`deactivate` does not put them back. Open a new shell, or load the module again, if you need the
-module's search path. An environment created by an older checkout gets the same lines the next
-time you run `make` or `make core`; the output then says
-`added the PYTHONPATH reset to .venv/bin/activate`.
-
-### The `local/` folder
-
-`local/` sits at the root of the checkout (next to `src/` and `wrappers/`). Git ignores it, so
-it holds the files that belong to this machine and never conflict with an update:
-
-| Path | What it is | Who creates it |
-|------|------------|----------------|
-| `local/presets/` | Your override files: `*.json` files that patch the shared presets from the crab-wrappers clone (see [Your overrides](presets.md#your-overrides)). | You: run `mkdir -p local/presets` in the checkout, then add a file. |
-| `local/receipts/` | One receipt per configured benchmark. | `crab setup` |
-| `local/wrappers/` | Private or in-progress wrappers, searched before `wrappers/`. | You, if you need it. |
-
-Before the first `crab run` on a cluster that needs a Slurm account, add an override file in
-`local/presets/` with your account. The shared presets carry the mark `--account=<YOUR_ACCOUNT>`,
-and `crab run` refuses to start while a mark is unset. It prints the file to write, and
-`crab presets show <name>` prints it too. The [presets page](presets.md#your-overrides) has a
-complete example. The shared presets themselves are the files in `wrappers/presets/`.
-
-Once installed, activate the environment before using the `crab` command (this also enables
-shell tab-completion, registered during install):
+Activate the environment before you use `crab`. This also enables shell tab-completion, registered
+during install:
 
 ```bash
 source .venv/bin/activate
 ```
 
+If `pip` or `crab` fails with an `ImportError` from a path outside `.venv`, see
+[ImportError from a path outside .venv](troubleshooting.md#importerror-from-a-path-outside-venv).
+
 ### Manual install
 
-If you prefer not to use the Makefile:
+Without the Makefile, run from the CRAB checkout:
 
 ```bash
 git clone https://github.com/HLC-Lab/crab-wrappers wrappers   # the wrappers, next to CRAB's code
@@ -89,62 +58,46 @@ source .venv/bin/activate
 pip install -e .          # core framework
 ```
 
-Run the `git clone` from the CRAB checkout, so that the folder is `wrappers/` there. A command that
-needs a wrapper stops with `wrappers/ is missing: run crab update` when the folder is not there;
-`crab update` clones it.
-
-For the web dashboard, which runs on your laptop and drives clusters over SSH, install the `web`
-extra (`pip install -e ".[web]"`) and start it with `crab web`.
+If `wrappers/` is missing, `crab update` clones it. For the web dashboard, which runs on your
+laptop and drives clusters over SSH, install the `web` extra (`pip install -e ".[web]"`) and start
+it with `crab web`.
 
 ### Using an existing virtual environment
 
-CRAB can install into a virtual environment you already have, for example one shared with other
-tools. By default `make` uses `.venv` in the checkout and reuses it when it exists, so a second
-`make` builds nothing and appends nothing to `activate`. To use another environment, name it:
+By default `make` uses `.venv` in the checkout and reuses it when it exists. To install into
+another environment, such as one shared with other tools, name it:
 
 ```bash
 make VENV_DIR=<path-to-venv>
 ```
 
-- `VENV_DIR` is the folder of the virtual environment. If it already holds `bin/python`, `make`
-  installs CRAB into it. If not, `make` creates the environment there first.
-- `make` does not pick up an active `VIRTUAL_ENV`: an unrelated environment you happen to have
-  active would receive CRAB. Always pass `VENV_DIR` to use a specific one.
-- `make clean` deletes only the default `.venv`. With another `VENV_DIR` it removes the build
-  files and leaves the environment alone, printing `[=] leaving the venv <path> in place`.
-- The tab-completion lines are added to `activate` only when `make` creates the environment. An
-  environment that already exists keeps its `activate` file as it is.
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `argcomplete` is missing and `activate` has no completion lines | An earlier `make` failed halfway (for example offline) and left a half-built environment. `make` counts it as an existing one and skips the setup. | Delete that environment's folder and run `make` again. |
+- If `VENV_DIR` holds `bin/python`, `make` installs CRAB into it. If not, `make` creates the
+  environment there first.
+- `make` does not pick up an active `VIRTUAL_ENV`: pass `VENV_DIR` to use a specific environment.
+- `make clean` deletes only the default `.venv`. With another `VENV_DIR` it removes the build files
+  and prints `[=] leaving the venv <path> in place`.
+- The tab-completion lines are added to `activate` only when `make` creates the environment. If
+  `argcomplete` is missing, see [A half-built environment](troubleshooting.md#a-half-built-environment).
 
 ### Installing without the wizard
 
-Scripts and installers need CRAB without the interactive setup wizard. `make core` installs it
-and stops there:
+`make core` installs CRAB and stops before the wizard, which suits scripts and installers. It
+creates or reuses the virtual environment, runs `pip install -e .` and clones the wrappers into
+`wrappers/` when the folder is missing. Plain `make` does the same, then starts the wizard:
 
 ```bash
 make core
 make core VENV_DIR=<path-to-venv>
 ```
 
-`core` creates the virtual environment or reuses an existing one, runs `pip install -e .`, and
-puts the wrappers in `wrappers/` (it clones them when the folder is missing). It never starts
-`crab setup`. Plain `make` does the same and then starts the wizard.
-
-To register benchmarks afterwards, activate the environment and run `crab setup` (see
-[Set up benchmarks](#set-up-benchmarks-crab-setup)).
-
 ## Install with pip or pipx
 
 !!! note "Available from the first PyPI release"
-    The package `crab-hpc` is not on PyPI yet. These steps work from the first PyPI release of
-    `crab-hpc`. Until then, the git checkout above is the documented way to install CRAB on a
-    cluster, and it stays the main path.
+    The package `crab-hpc` is not on PyPI yet. These steps work from its first release. Until then,
+    the git checkout install is the documented way to install CRAB on a cluster.
 
-For a machine where you do not want a checkout, install the package into its own environment
-with pipx (the `web` extra adds the dashboard):
+On a machine where you do not want a checkout, install the package into its own environment with
+pipx (the `web` extra adds the dashboard):
 
 ```bash
 pipx install "crab-hpc[web]"
@@ -153,189 +106,85 @@ pipx install "crab-hpc[web]"
 Without the dashboard, `pipx install crab-hpc` is enough. `pip install crab-hpc` into a virtual
 environment works the same way.
 
-A pip install has no checkout, so CRAB keeps its files in user folders instead (the two layouts
-are described in [ADR-038](../dev/dashboard/decisions/adr-038-two-layouts.md); the code is
-`src/crab/paths.py`). `crab info` prints the layout (`installed`) and the home.
+A pip install keeps its files in user folders, and clones the wrappers on first use. See
+[Where CRAB keeps its files](../concepts/architecture.md#where-crab-keeps-its-files). If the clone
+fails, see [wrappers/ is missing](troubleshooting.md#wrappers-is-missing). `crab info` prints the
+layout.
 
-| Folder | What it holds |
-|--------|---------------|
-| `~/.local/share/crab` (the home) | `data/` (results), `benchmarks/` (source builds) and `wrappers/` (the crab-wrappers clone: the wrappers and the shared presets in `presets/`). |
-| `~/.config/crab` | `presets/` (your override files), `receipts/` and `wrappers/` (private or in-progress wrappers, searched before the shared ones). |
-
-These are the places on Linux; other systems use their own user data and config folders. Two
-variables move them:
-
-- `CRAB_HOME` sets the home, and puts the config folder at `$CRAB_HOME/config`. It must be an
-  absolute path (`~` is fine): a relative value stops the command with an error.
-- `CRAB_PATH_PRESETS` sets the folder of your override files. It must be an absolute path
-  (`~` is fine), like `CRAB_HOME`.
-
-The package ships no presets: the shared ones come from the crab-wrappers clone, with the
-wrappers. Your own override files go in `~/.config/crab/presets/` (see
-[Your overrides](presets.md#your-overrides)).
-
-The wrappers are not part of the package. The first time a command needs them (`crab run`,
-`crab setup`, `crab wrappers ...`), CRAB prints one line and clones
-[crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) into `~/.local/share/crab/wrappers`.
-This needs git and network access on that machine. It does not happen in a call with `--json`
-(there a hint is printed instead) or when `CRAB_PATH_WRAPPERS` is set. If the clone fails, run
-`crab wrappers pull` once the network is back.
-
-`crab update` on a pip install does not touch CRAB itself: it updates the wrappers and prints
-`pipx upgrade crab-hpc`, which is the command that upgrades the program. See
-[Keep it up to date](#keep-it-up-to-date).
-
-To drive a cluster that has CRAB installed this way from the dashboard, fill the remote's
-"Crab command" field (see [Connect a cluster](dashboard.md#connect-a-cluster)).
+To drive a cluster that has CRAB installed this way from the dashboard, fill the remote's "Crab
+command" field (see [Connect a cluster](dashboard.md#connect-a-cluster)).
 
 ## Set up benchmarks (`crab setup`)
 
-CRAB ships with recipes that know how to obtain and build a set of supported benchmarks. The
-wizard turns a recipe into a receipt, a record of where the built binary lives on this
-machine, so wrappers can find it at run time.
+CRAB ships recipes that know how to obtain and build the supported benchmarks. The wizard turns a
+recipe into a receipt, a record of where the built binary lives on this machine, so wrappers can
+find it at run time.
 
 ```bash
 crab setup
 ```
 
-`make` already runs this wizard once at the end of the install. Run `crab setup` yourself to add
-or reconfigure benchmarks later.
+`make` runs this wizard once at the end of the install. Run `crab setup` yourself to add or
+reconfigure benchmarks later. It asks before it overwrites an existing receipt. The wizard asks:
 
-The wizard walks through:
-
-1. Select suites. Choose which benchmark suites to install
-   (see [Supported benchmarks](../reference/supported-benchmarks.md)).
-2. Select versions. For suites with multiple versions (Quantum ESPRESSO offers v6 and v7),
-   pick which to build.
+1. Select the suites to install (see [Supported benchmarks](../reference/supported-benchmarks.md)).
+2. Select versions, for suites with several (Quantum ESPRESSO offers v6 and v7).
 3. Choose a strategy per benchmark:
 
     | Strategy | What it does |
     |----------|--------------|
     | Auto-detect | Looks for an existing build under `benchmarks/`, optionally doing a deep search of your home directory. For Blink it only finds a build that `crab setup` made (`benchmarks/blink/build/bin`). |
-    | Manual path | You supply the absolute path to an existing executable/directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
+    | Manual path | You supply the absolute path to an existing executable or directory; the recipe verifies it. For Blink, give the `build/bin` folder of your build. |
     | Environment module | You give a `module load …` command and the binary name; the module load is recorded as a pre-run hook. |
     | Build from source | Asks for a module line (blank loads no modules; the prompt shows `module load gcc openmpi` as an example), then clones and compiles the benchmark (with build parameters such as `cpu`/`gpu` arch for QE or the `gpu` backend of Blink), streaming the build log live. |
 
-For a source build, the module line is run in a non-interactive `bash`, so it must work there. If
+For a source build, the module line runs in a non-interactive `bash`, so it must work there. If
 CMake is a module on your cluster, add it to the line (for example
 `module load gcc openmpi cmake`). The same line is saved in the receipt as a pre-run hook, so jobs
 load those modules at run time. If the line fails, the wizard prints the shell's error and skips
 that benchmark without building anything.
 
-#### Example: build Blink from source
+On success the wizard writes a receipt to `local/receipts/<benchmark_id>.json`. Receipts written by
+older versions in `config/environments/` are still read. Source builds go under
+`benchmarks/<benchmark_id>/`, which git ignores. [Architecture](../concepts/architecture.md#receipt)
+lists what a receipt records.
 
-1. Run `crab setup` and choose "Install or configure a supported benchmark".
-2. The suite list pre-selects every suite that is not configured yet. Press Space to untick the
-   ones you do not want, so that only Blink Suite is ticked, then press Enter.
-3. At "Select Configuration Strategy", type `4` (Download and compile from source layout).
-4. At "Enter necessary pre-build cluster module loads", type your module line, for example
-   `module load gcc openmpi` (add CMake if it is a module), or press Enter to load no modules.
-5. At "GPU backend (auto uses CUDA or HIP when found, else CPU only)", press Enter to accept `auto`, or type one of the four answers below.
-6. A build panel shows the steps (clone, configure with CMake, compile) with the last lines of the
-   log. Blink is built under `benchmarks/blink/`.
-7. When it ends, the wizard saves the receipt `local/receipts/blink.json`.
-
-The GPU backend question comes after the module line. The answers mean:
-
-| Answer | What the build does |
-|--------|---------------------|
-| `auto` (default) | Builds GPU support only if CMake finds a CUDA or HIP toolkit, otherwise a CPU-only build. |
-| `off` | Builds for the CPU only, even if a toolkit is loaded. |
-| `cuda` | Builds with CUDA. If CMake finds no CUDA toolkit, the configure step fails. |
-| `hip` | Builds with HIP. If CMake finds no HIP toolkit, the configure step fails. |
-
-The default `auto` is right on a machine without a GPU toolkit. When `cuda` or `hip` fails, the
-message names the `gpu` setting and CMake's output, and says that if the toolkit was not found you
-should load a module that provides it, or set `gpu` to `auto` or `off`. The receipt records the answer you gave, not the backend CMake found:
-with `auto`, it does not say whether the build has GPU support.
-
-!!! note "Blink with CUDA on Leonardo"
-    Checked on Leonardo, November 2026: after `module purge`, the module line
-    `module load gcc/12.2.0 openmpi/4.1.6--gcc--12.2.0-cuda-12.2 cuda/12.2 cmake/3.27.9` configures
-    and builds Blink with `gpu` set to `cuda`. CRAB's own virtual environment on that cluster also
-    needs `module load python`. To run the result, use the `leonardo_gpu` preset and the configs in
-    [`examples/leonardo/gpu/`](https://github.com/HLC-Lab/CRAB/tree/develop/examples/leonardo/gpu).
-
-If an earlier build failed, it left a `benchmarks/blink` folder behind. The wizard then asks
-"Found a leftover build at ... Remove it and start again?" Answer yes to remove the folder and
-build again. If you answer no, Blink is skipped.
-
-On success the wizard writes a receipt to `local/receipts/<benchmark_id>.json` (receipts written
-by older versions in `config/environments/` are still read). Source builds
-are placed under `benchmarks/<benchmark_id>/` in the repo (this directory is git-ignored).
-
-Re-running `crab setup` lets you reconfigure an already-configured benchmark (it asks before
-overwriting an existing receipt).
-
-!!! info "What a receipt records"
-    Each receipt stores the benchmark's `binary_path`, its `type` (`binary` / `module` / `source`),
-    any `pre_run` hooks (e.g. a module load), and an optional `launcher_override` (`""` to use the
-    preset's launcher, or `"srun"` or `"mpirun"`; any other value makes the experiment fail at
-    setup). At run time the orchestrator loads every receipt and also exports each binary path as
-    a `CRAB_PATH_<ID>` environment variable for wrappers to read. See
-    [Architecture → wrapper / recipe / receipt](../concepts/architecture.md#the-wrapper-recipe-receipt-model).
+The [tutorial](../tutorial.md#step-1-build-the-benchmark) builds Blink with the wizard. The GPU
+backend question, its failures and a CUDA example are in
+[Supported benchmarks](../reference/supported-benchmarks.md#build-blink-with-crab-setup).
 
 ### Applications you installed yourself
 
-An application that is already installed does not need the wizard:
+An installed application does not need the wizard:
 
-- If its wrapper declares an `executable` and that program is on `PATH` when the job runs (for
-  example after a `module load` in your preset), CRAB finds it with no setup at all.
-- Otherwise record where it is: `crab receipts set <benchmark_id> --binary /path/to/program`,
-  optionally with `--pre-run "module load ..."` (repeatable) and `--launcher srun|mpirun`. Give
-  a command name on `PATH` (stored as typed, such as `xhpl`), or the full path: `~` is expanded,
-  and a relative path is made absolute from the folder you run the command in, so the receipt
-  works from any folder. A receipt that holds a relative path, for example one written by an
-  older CRAB, is not used: `crab wrappers list` shows it as missing, so register it again.
-- A config can also name the binary for one app directly, with a `binary` key next to `path`:
-  the full path (`~` and `$VAR` are expanded where the job runs) or a command name on `PATH`. A
-  relative path such as `bin/xhpl` is refused by `crab validate` and `crab run`, because it would
-  mean a different file depending on the folder the job starts in.
+- If its wrapper declares an `executable` that is on `PATH` when the job runs (for example after a
+  `module load` in your preset), CRAB finds it with no setup.
+- Otherwise record it with `crab receipts set <benchmark_id> --binary /path/to/program` (see
+  [`crab receipts set`](../reference/cli.md#crab-receipts-set)), or name it with a `binary` key next
+  to `path` in the config (see [Configuration schema](../reference/configuration.md)).
 
-`crab wrappers list` shows every wrapper CRAB can see and where each one's binary comes from.
+`crab wrappers list` shows every wrapper CRAB can see and where each one's binary comes from. If a
+binary is not found, see [A missing binary](troubleshooting.md#a-missing-binary).
 
 ## Keep it up to date
 
-Run `crab update` in the install. By default it goes to the release: a checkout moves to the
-newest release tag of its line, and the wrappers clone moves to the matching wrappers tag
-(`vX.Y.Z` of the CRAB version it ends on). `crab update --head` follows the branches of both
-instead, which is for developers. [`crab update`](../reference/cli.md#crab-update) lists every
-case. CRAB reinstalls dependencies only when they changed, and it stops without changing
-anything if tracked files have local edits.
+Run `crab update` in the install. A checkout moves to the newest release tag of its line, and the
+wrappers clone moves to the matching wrappers tag. `crab update --head` follows the branches of both
+instead, which is for developers.
 
-On a pip or pipx install, `crab update` updates only the wrappers (to the tag of the installed
-version, or the branch with `--head`) and prints `pipx upgrade crab-hpc`. Run that command to
-upgrade CRAB itself.
+On a pip or pipx install, `crab update` updates only the wrappers and prints
+`pipx upgrade crab-hpc`. Run that command to upgrade CRAB itself.
 
-Two cases need a little more:
-
-- It stops with "Local edits to tracked files would be overwritten". The message lists the
-  files. Move per-machine changes to `local/`, or commit or stash them. One old case has its own
-  message: the presets used to be tracked files in CRAB (`config/presets.json`, later
-  `src/crab/presets.json`), and if you put your account there, the update tells you to move
-  your changes into an override file in `local/presets/` (see
-  [Your overrides](presets.md#your-overrides)), run `git checkout <that file>`, and run
-  `crab update` again.
-- You come from v0.4.0 or older. Run `crab update` twice. The first run still executes the old
-  update code, which does not know how to fetch the wrappers. The second run uses the new code and
-  clones them.
-
-The wrappers are updated too: `crab update` pulls or moves `wrappers/` when that folder is its own
-git clone, and clones [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) when the folder
-is missing or holds only leftovers of the old copy that CRAB used to track (such as `__pycache__`
-folders). A `wrappers/` folder with anything else in it is left alone. Running `make` again also
-clones them when `wrappers/` is missing.
-
-Keep per-machine changes out of the tracked files so updates never conflict: the git-ignored
-`local/` folder holds `local/presets/` (your override files, see
-[Your overrides](presets.md#your-overrides)), `local/receipts/`, and `local/wrappers/` for private
-wrappers.
+[`crab update`](../reference/cli.md#crab-update) lists every case, and
+[Updating](troubleshooting.md#updating-crab-update-stops) covers each message it stops with. Keep
+per-machine changes in the git-ignored `local/` folder so updates never conflict.
 
 ## Next steps
 
 - On a cluster CRAB already knows (such as `leonardo`), set your project account before the first
-  run: the shared presets carry the mark `--account=<YOUR_ACCOUNT>`. Write an override file in
-  `local/presets/` that sets your account
-  ([how](presets.md#your-overrides)).
-- On a cluster CRAB doesn't already know, define a preset: [Configuring your cluster](presets.md).
+  run. The shared presets (the files in `wrappers/presets/`) carry the mark
+  `--account=<YOUR_ACCOUNT>`, and `crab run` refuses to start while a mark is unset. It prints the
+  file to write, and `crab presets show <name>` prints it too. Write an override file in
+  `local/presets/` that sets your account ([how](presets.md#your-overrides)).
+- On a cluster CRAB does not know, define a preset: [Configuring your cluster](presets.md).
 - Then write an experiment: [Configuration schema](../reference/configuration.md).

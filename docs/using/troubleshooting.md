@@ -36,6 +36,31 @@ A job that was accepted and then failed leaves its output in the job folder, und
 
 [Reading results](results.md#what-a-job-writes) lists the rest of the folder.
 
+## Installation
+
+### ImportError from a path outside `.venv`
+
+A Python module on a cluster often sets `PYTHONPATH`. Python searches it before the environment's
+own packages, so `pip` or `crab` can fail with an `ImportError` from a path outside `.venv`.
+
+`make` ignores `PYTHONPATH` and `PYTHONHOME`. Activating the environment clears both in your shell
+(`activate.fish` does the same for fish):
+
+```bash
+source .venv/bin/activate
+```
+
+`deactivate` does not put them back. Open a new shell, or load the module again, to get the
+module's search path back. An environment created by an older checkout gets the same lines the next
+time you run `make` or `make core`. The output then says
+`added the PYTHONPATH reset to .venv/bin/activate`.
+
+### A half-built environment
+
+`argcomplete` is missing and `activate` has no completion lines. An earlier `make` failed halfway
+(for example offline) and left a half-built environment. `make` counts it as an existing one and
+skips the setup. Delete that environment's folder and run `make` again.
+
 ## Wrappers, binaries and receipts
 
 ### "wrappers/ is missing"
@@ -133,6 +158,9 @@ The program was never built there, or was moved or deleted. Build it (`crab setu
 receipt at the real file with `crab receipts set <id> --binary <path>`, or set the app's `binary`
 key. A wrapper with no such path says `receipt '<id>'` or `no receipt (the wrapper has no
 benchmark_id)` in that place instead.
+
+A receipt that holds a relative path, for example one written by an older CRAB, is not used.
+`crab wrappers list` shows it as `missing`. Register the binary again.
 
 ### A receipt that cannot be read
 
@@ -273,6 +301,11 @@ then pull again`.
 
 On a pip or pipx install `crab update` leaves CRAB itself alone and prints
 `pipx upgrade crab-hpc`; run that to upgrade the program.
+
+### Updating from v0.4.0 or older
+
+Run `crab update` twice. The first run still executes the old update code, which does not know how
+to fetch the wrappers. The second run uses the new code and clones them.
 
 ### A slow `crab update`
 
