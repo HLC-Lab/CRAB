@@ -14,6 +14,7 @@ import {
   campaignJobCount,
   composeCampaignYaml,
   groupJobCount,
+  needsShellExpansion,
   sampleTags,
   CONFIG_HINT,
   CONFIG_PLACEHOLDER,
@@ -678,5 +679,97 @@ describe("config field copy", () => {
     expect(CONFIG_HINT).not.toContain("sbatchman-preset");
     expect(CONFIG_HINT).not.toContain("step 5");
     expect(CONFIG_HINT).not.toContain("—");
+  });
+});
+
+// -- Unquoted heredoc (a group that uses a shell variable such as $CRAB_ROOT) --
+
+function withArgs(args: string): SbatchmanCampaign {
+  const c = campaign();
+  c.groups[0].config.experiments["g500_baseline_{scale}_{ef}_{nodes}"].apps["0"].args = args;
+  return c;
+}
+
+function heredocLine(text: string): string {
+  const doc = yaml.load(text) as any;
+  const line = String(doc.jobs[0].preprocess)
+    .split("\n")
+    .find((l) => l.startsWith('cat > "$SBATCHMAN_JOB_DIR/config.json"'));
+  return line ?? "";
+}
+
+describe("needsShellExpansion", () => {
+  it.each(["$CRAB_ROOT/data", "${CRAB_ROOT}/data", "x $HOME y", "$_a1"])("is true for %j", (t) => {
+    expect(needsShellExpansion(t)).toBe(true);
+  });
+  it.each(["{nodes}", "-scale {scale}", "cost $5", "a $ b", "$", "${}", "{HOME}", ""])(
+    "is false for %j",
+    (t) => {
+      expect(needsShellExpansion(t)).toBe(false);
+    },
+  );
+});
+
+describe("heredoc quoting", () => {
+  it("keeps the heredoc quoted for {var} placeholders only", () => {
+    expect(heredocLine(composeCampaignYaml(campaign()))).toMatch(/<<'JSON'$/);
+    expect(heredocLine(composeCampaignYaml(withArgs("cost $5")))).toMatch(/<<'JSON'$/);
+  });
+
+  it("leaves the heredoc unquoted when the config holds $NAME", () => {
+    const text = composeCampaignYaml(withArgs("--in $CRAB_ROOT/data -scale {scale}"));
+    expect(heredocLine(text)).toMatch(/<<JSON$/);
+    const doc = yaml.load(text) as any;
+    const lines: string[] = doc.jobs[0].preprocess.split("\n");
+    const start = lines.findIndex((l) => l.endsWith("<<JSON"));
+    const end = lines.indexOf("JSON", start);
+    expect(end).toBeGreaterThan(start);
+    const body = JSON.parse(substituteAll(lines.slice(start + 1, end).join("\n"), { scale: "20", ef: "8", nodes: "4" }));
+    expect(body.experiments["g500_baseline_20_8_4"].apps["0"].args).toBe(
+      "--in $CRAB_ROOT/data -scale 20",
+    );
+  });
+
+  it("leaves the heredoc unquoted for ${NAME}", () => {
+    expect(heredocLine(composeCampaignYaml(withArgs("--in ${CRAB_ROOT}/data")))).toMatch(/<<JSON$/);
+  });
+
+  it("decides per group", () => {
+    const c = withArgs("--in $CRAB_ROOT/data");
+    const second = structuredClone(campaign().groups[0]);
+    second.tag = "other_{nodes}";
+    c.groups.push(second);
+    const doc = yaml.load(composeCampaignYaml(c)) as any;
+    expect(doc.jobs[0].preprocess).toContain("<<JSON\n");
+    expect(doc.jobs[1].preprocess).toContain("<<'JSON'\n");
+  });
+});
+
+describe("validateCampaign: unquoted heredoc limits", () => {
+  it("accepts a plain $NAME group", () => {
+    expect(validateCampaign(withArgs("--in $CRAB_ROOT/data"))).toEqual([]);
+  });
+
+  it.each([
+    ["a backtick", "--in `date` $CRAB_ROOT"],
+    ["a backslash", "--in a\\b $CRAB_ROOT"],
+    ["$(", "--in $(date) $CRAB_ROOT"],
+  ])("refuses %s in an unquoted group", (what, args) => {
+    const found = validateCampaign(withArgs(args));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain(what);
+    expect(found[0]).toContain("$CRAB_ROOT");
+    expect(found[0]).not.toMatch(/—|–/);
+  });
+
+  it.each(["--in `date`", "--in a\\b", "--in $(date)"])(
+    "does not refuse %j in a quoted group",
+    (args) => {
+      expect(validateCampaign(withArgs(args))).toEqual([]);
+    },
+  );
+
+  it("does not mistake a quote in an unquoted group for a backslash", () => {
+    expect(validateCampaign(withArgs('--name "x" $CRAB_ROOT'))).toEqual([]);
   });
 });

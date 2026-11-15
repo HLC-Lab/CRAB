@@ -205,17 +205,39 @@ function configJson(group: SbatchmanGroup): string {
   );
 }
 
+/** A shell variable the group wants bash to expand: `$NAME` or `${NAME}`. A `{var}`
+ * placeholder has no `$` and is SbatchMan's, not the shell's. */
+const SHELL_VARIABLE = /\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})/;
+
+/** True when the config.json text holds a shell variable, so its heredoc must be
+ * unquoted (`<<JSON`) for bash to expand it, as in examples/sbatchman/qe-alone.yaml. */
+export function needsShellExpansion(configText: string): boolean {
+  return SHELL_VARIABLE.test(configText);
+}
+
+/** What an unquoted heredoc would change in the JSON text. A literal backslash is the
+ * two characters `\\` in JSON text (a quote or newline is `\"` or `\n`, which an unquoted
+ * heredoc leaves alone), so this finds only real backslashes. */
+const UNQUOTED_HAZARDS: Array<[string, RegExp]> = [
+  ["a backtick", /`/],
+  ["a backslash", /\\\\/],
+  ["$(", /\$\(/],
+];
+
 /** The bash heredoc lines (at column 0) that write config.json. They become one
  * YAML block scalar, so the heredoc body and its `JSON` terminator reach bash at
- * column 0. environment.json is NOT written here (ADR-045): the job environment comes
- * from the SbatchMan config, which `crab worker` inherits. */
+ * column 0. The heredoc is quoted (`<<'JSON'`, no expansion) unless the config uses a
+ * shell variable such as $CRAB_ROOT. environment.json is NOT written here (ADR-045):
+ * the job environment comes from the SbatchMan config, which `crab worker` inherits. */
 function preprocessLines(_campaign: SbatchmanCampaign, group: SbatchmanGroup): string[] {
-  const heredoc = (relPath: string, json: string): string[] => [
-    `cat > "${WORKDIR}/${relPath}" <<'JSON'`,
+  const json = configJson(group);
+  const opener = needsShellExpansion(json) ? "<<JSON" : "<<'JSON'";
+  return [
+    `mkdir -p "${WORKDIR}"`,
+    `cat > "${WORKDIR}/config.json" ${opener}`,
     ...json.split("\n"),
     "JSON",
   ];
-  return [`mkdir -p "${WORKDIR}"`, ...heredoc("config.json", configJson(group))];
 }
 
 /** The file name the campaign is written under on the cluster: the backend's
@@ -317,6 +339,17 @@ function workerRefusals(group: SbatchmanGroup, where: string): string[] {
   return out;
 }
 
+/** An unquoted heredoc lets bash rewrite backticks, `$(`, and backslashes: refuse them in a
+ * group that uses a shell variable, where the quoted form is not available. */
+function unquotedHeredocIssues(group: SbatchmanGroup, where: string): string[] {
+  const json = configJson(group);
+  if (!needsShellExpansion(json)) return [];
+  return UNQUOTED_HAZARDS.filter(([, pattern]) => pattern.test(json)).map(
+    ([what]) =>
+      `${where}: this group uses a shell variable such as $CRAB_ROOT, so bash expands its config text and it may not contain ${what}; remove it, or remove the variable.`,
+  );
+}
+
 /** The problems of ONE variable combination: config.json with it substituted, then validateDraft. */
 function comboIssues(
   group: SbatchmanGroup,
@@ -373,6 +406,7 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
     if (!group.tag.trim())
       issues.push(`Group #${i + 1} has no tag: give it one, for example run_{nodes}.`);
     issues.push(...workerRefusals(group, where));
+    issues.push(...unquotedHeredocIssues(group, where));
 
     // Same (config, tag) in two groups after expansion: SbatchMan skips the later jobs.
     if (group.tag.trim() && group.configName.trim()) {
