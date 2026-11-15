@@ -435,12 +435,13 @@ def test_each_route_has_its_own_timeout(client_and_fake) -> None:
 
 
 def test_the_old_cluster_only_urls_are_gone(client_and_fake) -> None:
-    """No API route is left there: GET falls through to the SPA shell (HTML, not the catalog), POST
-    has no handler (405, the catch-all only takes GET). Neither reaches the cluster."""
+    """No API route is left there: GET answers 404 JSON `not_found` (not the SPA shell), POST
+    has no handler (405, the unknown-path route only takes GET). Neither reaches the cluster."""
     client, fake = client_and_fake
     before = len(fake.calls)
     got = client.get("/api/remotes/leonardo/wrappers")
-    assert got.headers["content-type"].startswith("text/html")
+    assert got.status_code == 404
+    assert got.json()["code"] == "not_found"
     posted = client.post("/api/remotes/leonardo/receipts", json=_BODY)
     assert posted.status_code == 405
     assert len(fake.calls) == before
