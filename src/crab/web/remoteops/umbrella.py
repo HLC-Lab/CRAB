@@ -14,6 +14,7 @@ so authoring is not blocked by it.
 from __future__ import annotations
 
 import re
+import secrets
 import shlex
 from dataclasses import dataclass, field
 from typing import Any
@@ -34,14 +35,14 @@ cd {root} 2>/dev/null || exit 2
 test -d benchmarks || exit 3
 set -- .local/configs.*.yaml
 test -f "$1" || exit 4
-echo '@@root'
+echo '@@{mark}:root'
 pwd
-echo '@@configs'
+echo '@@{mark}:configs'
 echo "$1"
-echo '@@benchmarks'
+echo '@@{mark}:benchmarks'
 for d in benchmarks/*/; do test -d "$d" && basename "$d"; done
-echo '@@content'
-cat -- "$1" 2>/dev/null || true
+echo '@@{mark}:content'
+head -c 1000000 -- "$1" 2>/dev/null || true
 exit 0
 """
 
@@ -96,13 +97,21 @@ def config_names(text: str) -> list[str]:
     return names
 
 
-def _parse(output: str) -> UmbrellaTarget:
-    """Read the probe's output. Anything before the first marker (a login banner) is ignored."""
+def _parse(output: str, mark: str) -> UmbrellaTarget:
+    """Read the probe's output. Anything before the first marker (a login banner) is ignored.
+
+    ``mark`` is random per call, so no file or folder name on the cluster can print a
+    marker line and redirect the parse. The configs file comes last, and once its section
+    starts nothing switches section again.
+    """
+    names = {
+        f"@@{mark}:{section}": section for section in ("root", "configs", "benchmarks", "content")
+    }
     sections: dict[str, list[str]] = {}
     current: str | None = None
     for line in output.splitlines():
-        if line in ("@@root", "@@configs", "@@benchmarks", "@@content"):
-            current = line[2:]
+        if current != "content" and line in names:
+            current = names[line]
             sections[current] = []
         elif current is not None:
             sections[current].append(line)
@@ -128,11 +137,13 @@ async def probe_umbrella(
     """One command on the cluster; ``PLAIN`` when it is not an umbrella or anything fails."""
     if transport is None or profile.is_local():
         return PLAIN
-    command = "bash -c " + shlex.quote(_SCRIPT.format(root=remote_path_expr(profile.remote_crab)))
+    mark = secrets.token_hex(8)
+    script = _SCRIPT.format(root=remote_path_expr(profile.remote_crab), mark=mark)
+    command = "bash -c " + shlex.quote(script)
     try:
         result = await transport.run(command, timeout=timeout)
     except CrabWebError:
         return PLAIN
     if not result.ok:
         return PLAIN
-    return _parse(result.stdout)
+    return _parse(result.stdout, mark)

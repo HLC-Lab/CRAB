@@ -7,6 +7,7 @@ ADR-026: SbatchMan owns launch/monitor/results, CRAB no longer triggers it.
 
 from __future__ import annotations
 
+import re
 import shlex
 from pathlib import Path
 
@@ -444,19 +445,47 @@ other:
     - just a string
 """
 
-_PROBE_OUTPUT = (
-    "Welcome to the cluster\n"
-    "@@root\n/home/researcher/base\n"
-    "@@configs\n.local/configs.leonardo.yaml\n"
-    "@@benchmarks\nblink\nqe\nbad name\n..\n.hidden\n"
-    "@@content\n" + _CONFIGS
-)
+_ROOT = "/home/researcher/base"
+_MARKER = re.compile(r"@@([0-9a-f]{16}):root")
+
+
+def _probe_output(
+    command: str,
+    *,
+    root: str = _ROOT,
+    configs: str = ".local/configs.leonardo.yaml",
+    benchmarks: tuple[str, ...] = ("blink", "qe"),
+    content: str = _CONFIGS,
+    banner: str = "",
+) -> str:
+    """What the probe script prints, using the random marker the command carries. The
+    content section is there only when the command asks for it."""
+    match = _MARKER.search(command)
+    assert match, "the probe command carries no marker"
+    mark = f"@@{match.group(1)}"
+    out = f"{banner}{mark}:root\n{root}\n{mark}:configs\n{configs}\n{mark}:benchmarks\n"
+    out += "".join(f"{name}\n" for name in benchmarks)
+    if f"{mark}:content" in command:
+        out += f"{mark}:content\n{content}"
+    return out
+
+
+def _ok(**fields):
+    """A probe answer: rc 0 and the script's output for ``fields``."""
+    return lambda command: CmdResult(0, _probe_output(command, **fields), "")
+
+
+_MESSY = {
+    "banner": "Welcome to the cluster\n",
+    "benchmarks": ("blink", "qe", "bad name", "..", ".hidden"),
+}
 
 
 class ProbeTransport(Transport):
     """Answers the umbrella probe with a fixed result, or raises."""
 
-    def __init__(self, result: CmdResult | Exception):
+    def __init__(self, result):
+        # A CmdResult, an exception to raise, or a function of the command.
         self._result = result
         self.calls: list[str] = []
 
@@ -470,7 +499,7 @@ class ProbeTransport(Transport):
         self.calls.append(command)
         if isinstance(self._result, Exception):
             raise self._result
-        return self._result
+        return self._result(command) if callable(self._result) else self._result
 
     async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
         raise AssertionError("the probe never writes")
@@ -499,7 +528,7 @@ _PLAIN = {
 
 
 def test_target_of_an_umbrella_lists_configs_and_benchmark_folders(tmp_path: Path):
-    transport = ProbeTransport(CmdResult(0, _PROBE_OUTPUT, ""))
+    transport = ProbeTransport(_ok(**_MESSY))
 
     body = _target(tmp_path, transport)
 
@@ -528,16 +557,11 @@ def test_target_with_a_failing_command_is_plain(tmp_path: Path):
 
 def test_target_with_output_that_is_not_the_probes_is_plain(tmp_path: Path):
     assert _target(tmp_path, ProbeTransport(CmdResult(0, "hello\n", ""))) == _PLAIN
-    assert _target(tmp_path, ProbeTransport(CmdResult(0, "@@root\nrelative\n", ""))) == _PLAIN
+    assert _target(tmp_path, ProbeTransport(_ok(root="relative"))) == _PLAIN
 
 
 def test_target_with_an_unreadable_configs_file_is_an_umbrella_without_names(tmp_path: Path):
-    output = (
-        "@@root\n/home/researcher/base\n@@configs\n.local/configs.leonardo.yaml\n"
-        "@@benchmarks\nblink\n@@content\n"
-    )
-
-    body = _target(tmp_path, ProbeTransport(CmdResult(0, output, "")))
+    body = _target(tmp_path, ProbeTransport(_ok(benchmarks=("blink",), content="")))
 
     assert body["kind"] == "umbrella"
     assert body["configs_names"] == []
@@ -545,26 +569,21 @@ def test_target_with_an_unreadable_configs_file_is_an_umbrella_without_names(tmp
 
 
 def test_target_with_a_configs_file_that_is_not_yaml_has_no_names(tmp_path: Path):
-    output = (
-        "@@root\n/home/researcher/base\n@@configs\n.local/configs.x.yaml\n"
-        "@@benchmarks\n@@content\nleonardo: [unclosed\n"
-    )
-
-    body = _target(tmp_path, ProbeTransport(CmdResult(0, output, "")))
+    body = _target(tmp_path, ProbeTransport(_ok(benchmarks=(), content="leonardo: [unclosed\n")))
 
     assert body["kind"] == "umbrella"
     assert body["configs_names"] == []
 
 
 def test_target_of_a_cluster_that_is_not_connected_is_plain_and_runs_nothing(tmp_path: Path):
-    transport = ProbeTransport(CmdResult(0, _PROBE_OUTPUT, ""))
+    transport = ProbeTransport(_ok(**_MESSY))
 
     assert _target(tmp_path, transport, connect=False) == _PLAIN
     assert transport.calls == []
 
 
 def test_target_of_a_local_profile_is_plain(tmp_path: Path):
-    transport = ProbeTransport(CmdResult(0, _PROBE_OUTPUT, ""))
+    transport = ProbeTransport(_ok(**_MESSY))
     with _client(tmp_path, transport) as client:
         client.post("/api/remotes", json={"name": "here", "transport": "local"})
 
@@ -624,6 +643,57 @@ async def test_the_probe_script_reads_a_real_umbrella_folder(tmp_path: Path):
     assert found.configs_names == ["crab_run_{nodes}", "crab_qe_{nodes}", "gpu_box"]
 
 
+def test_a_configs_file_cannot_redirect_the_probe_with_marker_lines(tmp_path: Path):
+    hostile = _CONFIGS + "@@root\n/etc\n@@configs\n.local/x.yaml\n@@benchmarks\nevil\n"
+
+    body = _target(tmp_path, ProbeTransport(_ok(content=hostile)))
+
+    assert body["root"] == _ROOT
+    assert body["configs_file"] == f"{_ROOT}/.local/configs.leonardo.yaml"
+    assert body["benchmarks"] == ["blink", "qe"]
+
+
+async def test_the_probe_script_ignores_marker_lines_in_a_real_configs_file(tmp_path: Path):
+    from crab.web.remoteops.umbrella import probe_umbrella
+
+    root = tmp_path / "umbrella"
+    (root / "benchmarks" / "blink").mkdir(parents=True)
+    (root / ".local").mkdir()
+    (root / ".local" / "configs.leonardo.yaml").write_text(
+        _CONFIGS + "@@root\n/etc\n@@benchmarks\nevil\n"
+    )
+    profile = _leonardo().model_copy(update={"remote_crab": str(root)})
+
+    found = await probe_umbrella(ShellTransport(), profile)
+
+    assert found.root == str(root.resolve())
+    assert found.benchmarks == ["blink"]
+
+
+async def test_the_probe_script_reads_at_most_a_megabyte_of_the_configs_file(tmp_path: Path):
+    from crab.web.remoteops.umbrella import probe_umbrella
+
+    root = tmp_path / "umbrella"
+    (root / "benchmarks").mkdir(parents=True)
+    (root / ".local").mkdir()
+    big = _CONFIGS + "# padding\n" * 300_000  # about 3 MB
+    (root / ".local" / "configs.leonardo.yaml").write_text(big)
+    profile = _leonardo().model_copy(update={"remote_crab": str(root)})
+
+    class Counting(ShellTransport):
+        size = 0
+
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            result = await super().run(command, timeout)
+            Counting.size = len(result.stdout.encode())
+            return result
+
+    found = await probe_umbrella(Counting(), profile)
+
+    assert Counting.size <= 1_000_000 + 1000
+    assert found.configs_names == ["crab_run_{nodes}", "crab_qe_{nodes}", "gpu_box"]
+
+
 async def test_the_probe_script_says_plain_for_each_missing_piece(tmp_path: Path):
     from crab.web.remoteops.umbrella import probe_umbrella
 
@@ -640,26 +710,21 @@ async def test_the_probe_script_says_plain_for_each_missing_piece(tmp_path: Path
 # --------------------------------------------------------------------------- #
 # Writing into an umbrella's benchmark folder
 # --------------------------------------------------------------------------- #
-_ROOT = "/home/researcher/base"
-_UMBRELLA_PROBE = (
-    f"@@root\n{_ROOT}\n@@configs\n.local/configs.leonardo.yaml\n"
-    "@@benchmarks\nblink\nqe\n@@content\n" + _CONFIGS
-)
-
-
 class UmbrellaTransport(FakeTransport):
     """FakeTransport plus the umbrella probe, and a `mkdir -p` that returns the folder it was
     asked for (as the real shell would after `cd ... && pwd`)."""
 
-    def __init__(self, probe: CmdResult | None = None):
+    def __init__(self, probe=None):
         super().__init__()
-        self._probe = probe if probe is not None else CmdResult(0, _UMBRELLA_PROBE, "")
+        self._probe = probe if probe is not None else _ok()
         self.made_dirs: list[str] = []
 
     async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
         if command.startswith("bash -c"):
             self.calls.append(command)
-            return self._probe
+            if isinstance(self._probe, Exception):
+                raise self._probe
+            return self._probe(command) if callable(self._probe) else self._probe
         if command.startswith("mkdir -p") and "benchmarks" in command:
             self.calls.append(command)
             folder = shlex.split(command)[2]
