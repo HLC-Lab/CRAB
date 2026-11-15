@@ -8,6 +8,7 @@ factory pattern keeps the app importable and testable without launching a server
 from __future__ import annotations
 
 import logging
+import re
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -155,12 +156,22 @@ def create_app(
 _LOCAL_HOSTNAMES = {"127.0.0.1", "localhost", "::1"}
 
 
-def _hostname(host_header: str) -> str:
-    """The bare hostname from a Host/Origin-style value ('[::1]:8899' -> '::1')."""
-    host = host_header.strip()
-    if host.startswith("["):
-        return host[1 : host.find("]")]
-    return host.split(":")[0]
+# A Host/Origin authority is a name (or a bracketed IPv6 literal) plus an optional
+# numeric port, and nothing else: no userinfo, no suffix after the bracket or port.
+_AUTHORITY = re.compile(r"^(?:\[([0-9A-Fa-f:.]+)\]|([A-Za-z0-9.-]+))(?::([0-9]{1,5}))?$")
+
+
+def _authority(value: str) -> tuple[str, int] | None:
+    """Parse a Host header or the part of an Origin after ``://`` into
+    ``(hostname, port)``, e.g. ``'[::1]:8899'`` -> ``('::1', 8899)``. An absent
+    port is 80. Returns None when the value is not exactly a name plus an
+    optional numeric port."""
+    match = _AUTHORITY.fullmatch(value.strip())
+    if match is None:
+        return None
+    name = match.group(1) or match.group(2)
+    port = match.group(3)
+    return name, int(port) if port is not None else 80
 
 
 def _install_api_guard(app: FastAPI) -> None:
@@ -178,14 +189,21 @@ def _install_api_guard(app: FastAPI) -> None:
         if not request.url.path.startswith("/api"):
             return await call_next(request)
 
-        host = request.headers.get("host", "")
-        if _hostname(host) not in _LOCAL_HOSTNAMES:
+        host = _authority(request.headers.get("host", ""))
+        if host is None or host[0] not in _LOCAL_HOSTNAMES:
             return _deny(403, "forbidden_host", "This API only serves local requests.")
 
         origin = request.headers.get("origin")
         if origin is not None:
-            origin_host = origin.split("://", 1)[-1]
-            if _hostname(origin_host) not in _LOCAL_HOSTNAMES:
+            origin_authority = _authority(origin.split("://", 1)[-1])
+            # The Origin port is compared to the port the request itself arrived on
+            # (its Host header), not to the configured one: a browser at
+            # localhost:5173 (Vite dev proxy) sends Host and Origin on that port.
+            if (
+                origin_authority is None
+                or origin_authority[0] not in _LOCAL_HOSTNAMES
+                or origin_authority[1] != host[1]
+            ):
                 return _deny(403, "forbidden_origin", "Cross-site requests are not allowed.")
 
         token = request.headers.get("x-crab-token", "")
@@ -222,6 +240,16 @@ def _mount_frontend(app: FastAPI, settings: Settings) -> None:
     """
     from fastapi import Response
     from fastapi.responses import FileResponse, HTMLResponse
+
+    from crab.web.errors import NotFoundError
+
+    # An unmatched /api path is an API error, never the app page. Registered after
+    # every router (so real routes win) and before the SPA catch-all, GET only: a
+    # wrong method on a real route keeps FastAPI's 405. Kept out of the schema.
+    @app.get("/api", include_in_schema=False)
+    @app.get("/api/{rest:path}", include_in_schema=False)
+    async def _unknown_api(rest: str = "") -> Response:
+        raise NotFoundError("No such API route.")
 
     index = settings.static_dir / "index.html"
 

@@ -152,8 +152,8 @@ function duplicateExperiment(i: number): void {
         @request-remove-experiment="requestRemoveExperiment"
       />
 
-      <!-- Main pane: the selected section or experiment, full width -->
-      <main class="pane">
+      <!-- Pane section: the selected section or experiment, full width -->
+      <section class="pane">
         <!-- GLOBAL · Basics -->
         <template v-if="view.kind === 'global' && view.id === 'job'">
           <BasicsPane :source-cluster="sourceCluster" />
@@ -182,7 +182,7 @@ function duplicateExperiment(i: number): void {
         </template>
 
         <p v-else class="empty pad">Select a section or experiment to edit.</p>
-      </main>
+      </section>
 
       <JsonPanel v-if="showJson" @imported="selectAfterLoad" />
     </div>
@@ -208,10 +208,15 @@ function duplicateExperiment(i: number): void {
 
 .layout {
   display: grid;
-  grid-template-columns: 15rem minmax(45rem, 1fr) auto;
+  grid-template-columns: 15rem minmax(0, 1fr) auto;
   gap: 1rem;
   align-items: start;
-  min-width: 60rem;
+}
+/* Below 90rem the JSON panel takes a row of its own (see JsonPanel.vue): no third column, so no empty column and gap beside the pane. */
+@media (max-width: 90rem) {
+  .layout {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
 }
 .pane {
   background: var(--bg1);
