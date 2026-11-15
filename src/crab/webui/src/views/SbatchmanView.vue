@@ -228,12 +228,30 @@ function confirmRemoveGroup(): void {
   color: var(--text2);
   border: 1px solid var(--border2);
 }
+/* Rail and pane side by side, the YAML preview under the pane. It moves to a third column
+   only when the window has room for all three (15rem + 45rem + 26rem + gaps + page padding),
+   so no window of 1280 px or more scrolls sideways. */
 .layout {
   display: grid;
-  grid-template-columns: 15rem minmax(45rem, 1fr) auto;
+  grid-template-columns: 15rem minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
   min-width: 60rem;
+}
+.layout > :deep(.yamlpane) {
+  grid-column: 2;
+  width: auto;
+}
+@media (min-width: 1500px) {
+  .layout {
+    grid-template-columns: 15rem minmax(45rem, 1fr) auto;
+  }
+  .layout > :deep(.yamlpane) {
+    grid-column: auto;
+  }
+  .layout > :deep(.yamlpane:not(.closed)) {
+    width: 26rem;
+  }
 }
 .pane {
   min-width: 0;

@@ -2,17 +2,22 @@
  * Page layout basics on every live route, end to end against a real `crab web`:
  * one `<main>` landmark per page, and no scroll container that shows a horizontal
  * scrollbar at a 1280x800 window (Author also with the JSON panel open).
+ *
+ * Both lines share this file. A route the running build does not have redirects (Author, Jobs
+ * and Results on the SbatchMan line, SbatchMan on the product line), and its cases skip.
  */
 import { expect, test, type Page } from "@playwright/test";
 
-const ROUTES = ["/remotes", "/author", "/wrappers", "/jobs", "/results"];
+const ROUTES = ["/remotes", "/sbatchman", "/author", "/wrappers", "/jobs", "/results"];
 
-/** Lets the route render before it is measured. */
+/** Lets the route render before it is measured; skips the test when the build has no such route. */
 async function open(page: Page, route: string): Promise<void> {
   await page.goto(route);
   await expect(page.locator("main.content")).toBeVisible();
-  // Author has no heading: its rail and pane are the signal that the view rendered.
-  if (route === "/author") await expect(page.locator(".layout .pane")).toBeVisible();
+  test.skip(new URL(page.url()).pathname !== route, `${route} is not a route of this build`);
+  // Author and SbatchMan have no heading: their rail and pane are the signal that the view rendered.
+  if (route === "/author" || route === "/sbatchman")
+    await expect(page.locator(".layout .pane")).toBeVisible();
   else await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await page.waitForLoadState("networkidle");
 }
