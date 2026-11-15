@@ -147,9 +147,30 @@ Copy the project's `SbatchMan/` folder to your laptop and run `sbatchman visuali
 
 ## The dashboard
 
-The dashboard's **SbatchMan** view writes a jobs file for a campaign and stages it on the cluster as `<Install dir>/CRAB/.web_staging/<campaign-slug>.yaml`. A copy stays on your laptop in `sbatchman_campaigns/` in the dashboard's data folder.
+The dashboard's **SbatchMan** view writes a jobs file for a campaign. A copy of each written file stays on your laptop in `sbatchman_campaigns/` in the dashboard's data folder. Connect the cluster as in [Connect a cluster](dashboard.md#connect-a-cluster); where the file lands depends on what the cluster's install directory (**Install dir** of the remote) holds.
 
-The generated file has no `configs:` line: add `configs: <configs file>` at its top level before you launch. Connect the cluster as in [Connect a cluster](dashboard.md#connect-a-cluster).
+**An umbrella install** has a `benchmarks/` folder and a configs file `.local/configs.<cluster>.yaml` under its install directory ([Partner umbrella](#partner-umbrella)). The view detects this when the cluster is connected, and then:
+
+- The **Benchmark folder** field names the folder under `benchmarks/` that gets the file. The existing folders are suggested, and it starts on the first one. A new name creates the folder.
+- The file is written to `<Install dir>/benchmarks/<folder>/<campaign-slug>.yaml`, next to the SbatchMan project that `sbatchman launch` runs in. Copy nothing by hand.
+- The file starts with `configs: ../../.local/<configs file name>`, the umbrella's own configs file as seen from the benchmark folder. The **Configs file** field in the campaign settings overrides it.
+- The **SbatchMan config** field suggests the config names of that configs file. It accepts any name.
+- A new folder has no SbatchMan project yet. The view says so: run `./install.sh` in the install directory, which runs `sbatchman init` in it and checks the file.
+
+Then, in the folder:
+
+```bash
+cd <Install dir>/benchmarks/<folder>
+sbatchman launch -f <campaign-slug>.yaml --dry-run
+```
+
+`<Install dir>` is the remote's install directory, `<folder>` the benchmark folder you named, and `<campaign-slug>` the file name shown in the preview. `--dry-run` lists the jobs without submitting them.
+
+**A plain install** has neither folder. The view stages the file as `<Install dir>/CRAB/.web_staging/<campaign-slug>.yaml`. It writes a `configs:` line only when you fill the **Configs file** field, so set it to the path of your configs file, relative to where you put the jobs file.
+
+If the dashboard cannot check the install (a dropped connection, an unexpected answer), a write that names a benchmark folder stops with an error and writes nothing, instead of falling back to the staging folder.
+
+A group whose config uses a shell variable such as `$CRAB_ROOT` (in a [wrapper attribute](#receipts-and-wrapper-attributes), say) gets an unquoted `<<JSON` heredoc, so the shell expands it, as in `qe-alone.yaml`. Such a group may not contain a backtick, a backslash or `$(`: the preview lists it as a problem. Every other group keeps the quoted `<<'JSON'` form.
 
 ## Troubleshooting
 

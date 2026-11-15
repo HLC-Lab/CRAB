@@ -1,10 +1,10 @@
 """Local copies of composed SbatchMan campaign YAML files.
 
 Each write is one timestamped ``.yaml`` file in ``settings.sbatchman_dir``, kept
-for the user's own reference/debugging. There is no CRUD beyond writing: the
-campaign-authoring state (groups, variables) lives only in the browser's Pinia
-store, so this is just an on-disk copy of what was pushed to the cluster —
-unlike ``store/library.py``'s CRAB configs, it isn't read back by the app.
+for the user's own reference/debugging. There is no CRUD beyond writing: this is just
+an on-disk copy of what was pushed to the cluster, and the app never reads it back. The
+editable campaign drafts (groups, variables) are a separate thing, kept by
+``store/campaign_library.py``.
 """
 
 from __future__ import annotations

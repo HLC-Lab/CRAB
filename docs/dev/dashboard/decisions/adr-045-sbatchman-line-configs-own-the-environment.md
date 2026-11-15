@@ -60,9 +60,9 @@ works.
 
 - SbatchMan skips relaunching an identical job unless `--force` is given, and `sbatchman campaign`
   cannot force it.
-- The dashboard campaign generator does not write `configs:` yet.
+- The dashboard campaign generator does not write `configs:` yet (see the update of 2026-11-15).
 - The generator's QE campaigns would still name `crab_run_{nodes}` (CPU only), so they fail on
-  Leonardo until the generator is updated to name `crab_qe_{nodes}`.
+  Leonardo until the generator is updated to name `crab_qe_{nodes}` (see the update of 2026-11-15).
 - Supporting `bind` and `cpus` under SbatchMan would need CRAB to read the topology from somewhere
   other than a preset.
 - Revisit this if the SbatchMan line is merged into one product line.
@@ -106,3 +106,19 @@ What did not change, and this ADR still relies on:
 - `{var}` is substituted in `command`, `preprocess` and the tag (`core/launcher.py:1136-1142`).
 - A list field of a config (`modules`, `env`) is appended to the same list of `default_conf`
   (`core/config_manager.py:264-272`).
+
+## Update 2026-11-15: the generator writes `configs:` and names the config you pick
+
+Two Consequences above are resolved:
+
+- The generator writes the `configs:` key, first in the document. On an umbrella cluster it is
+  `../../.local/<configs file name>`, the umbrella's own configs file as seen from
+  `benchmarks/<folder>/`; otherwise it is the value of the "Configs file" field, and an empty field
+  writes no key.
+- The config of a job is whatever you type in the group's SbatchMan config field, which suggests the
+  names in the cluster's configs file. The generator no longer assumes `crab_run_{nodes}`, so a QE
+  group names `crab_qe_{nodes}` like `examples/sbatchman/qe-alone.yaml`.
+
+A group that uses `$NAME` or `${NAME}` in its config gets an unquoted heredoc (`<<JSON`) so the
+shell expands it, as `qe-alone.yaml` does; the dashboard then refuses a backtick, a backslash and
+`$(` in that group. `cpus` and `bind` stay refused.

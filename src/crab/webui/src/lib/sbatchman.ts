@@ -4,7 +4,9 @@
 // It turns a CampaignSpec into a SbatchMan jobs YAML (`sbatchman launch -f`). Each
 // group becomes one `jobs:` entry whose `preprocess` writes config.json into
 // $SBATCHMAN_JOB_DIR and whose `command` runs the CRAB worker inside the allocation
-// SbatchMan obtained. The cartesian expansion of `variables` and the `{var}`
+// SbatchMan obtained. The document starts with the optional `configs:` key (the configs
+// file SbatchMan loads). A group's heredoc is quoted (`<<'JSON'`) unless its config uses a
+// shell variable such as $CRAB_ROOT, then unquoted so bash expands it. The cartesian expansion of `variables` and the `{var}`
 // substitution are done by SbatchMan at launch time (core/launcher.py,
 // core/variables.py); this module only PREVIEWS the product and emits the templates.
 //

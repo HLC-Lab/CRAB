@@ -2,7 +2,8 @@
 
 The config JSON is written to a per-profile staging directory so
 ``crab run <staged>`` can read it without
-inventing a separate upload mechanism. For an SSH profile that is
+inventing a separate upload mechanism. (``stage_text`` can write into any other directory
+instead, such as an umbrella install's ``benchmarks/<name>/``.) For an SSH profile that is
 ``<crab_dir>/.web_staging`` inside the existing CRAB checkout (``<remote_crab>/.crab_web_staging``
 when the profile names its own crab command, which has no checkout); for the
 ``local`` transport (no checkout concept: see ``crab_cli.build_crab_command``)
