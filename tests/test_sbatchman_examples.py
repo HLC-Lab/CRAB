@@ -123,7 +123,9 @@ def test_the_six_campaigns_are_shipped() -> None:
 
 
 @pytest.mark.parametrize("path", FILES, ids=lambda p: p.name)
-def test_the_file_has_the_shape_the_dashboard_writes(path: Path) -> None:
+def test_the_examples_share_one_shape(path: Path) -> None:
+    # Reads the shipped files only. That the dashboard's generator writes this same shape is
+    # checked by src/crab/webui/tests/unit/sbatchman.examples.spec.ts.
     doc = _load(path)
 
     assert doc["configs"] == "configs.leonardo.yaml"
