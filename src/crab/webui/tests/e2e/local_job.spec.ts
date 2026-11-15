@@ -40,6 +40,8 @@ class app(base):
 // touched file shows up as a difference.
 function snapshot(dir: string): string[] {
   const out: string[] = [];
+  // A fresh checkout has no data folder: an empty snapshot still catches one being created.
+  if (!existsSync(dir)) return out;
   const walk = (d: string) => {
     for (const name of readdirSync(d).sort()) {
       const full = join(d, name);
