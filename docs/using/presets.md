@@ -1,14 +1,13 @@
 # Configuring your cluster
 
 A preset is the [system-dependent](../concepts/system-dependent-vs-independent.md) half of a
-run: it tells CRAB how *this* machine runs work: which scheduler, which launcher and
-flags, CPU pinning, modules to load, and the Slurm directives every job needs. CRAB itself ships no
+run. It tells CRAB how this machine runs work: the scheduler, the launcher and its flags, CPU
+pinning, the modules to load, and the Slurm directives every job needs. CRAB itself ships no
 presets. The presets for the clusters it knows live in the
 [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) repository, and you adjust them to your
 account and your software with small override files of your own.
 
-This page is the practical how-to. For the exhaustive field and merge reference, see
-[Presets format](../reference/presets.md).
+The field and merge reference is [Presets format](../reference/presets.md).
 
 ## Where presets come from
 
@@ -37,7 +36,7 @@ At run time CRAB resolves which preset to use in this order:
 
 1. The `-p`/`--preset` flag: `crab run myconfig.json -p mycluster`
 2. The `CRAB_PRESET` environment variable
-3. A `.env` file in CRAB's home containing just the preset name: the repository root in a
+3. A `.env` file in CRAB's home that holds only the preset name: the repository root in a
    checkout, `~/.local/share/crab` (or `$CRAB_HOME`) in a pip install. A `.env` in the folder you
    run `crab` from is not read.
 
@@ -57,7 +56,7 @@ preset is refused with a message naming the key. `~` and `__CWD__` are fine.
 
 Never edit the shared presets: they are part of the crab-wrappers clone, and an edit there would
 turn every `crab update` into a conflict. Put your changes in override files instead. CRAB reads
-every `*.json` file of one folder, in name order, and a file may hold several presets:
+every `*.json` file of one folder, in name order, and a file can hold several presets:
 
 | Where CRAB runs | Your overrides folder |
 |---|---|
@@ -70,7 +69,7 @@ every `*.json` file of one folder, in name order, and a file may hold several pr
 folder, as an absolute path (`~` is fine): a path to a single file is refused with a message that
 names it. The folder does not exist until you make it.
 
-An entry with the name of a shared preset **patches** it: only the lines you write change, and
+An entry with the name of a shared preset patches it: only the lines you write change, and
 everything else stays as crab-wrappers has it. So the account of a cluster is two lines of yours:
 
 ```bash
@@ -96,7 +95,7 @@ lines appended) is the table of [merge semantics](../reference/presets.md#merge-
 
 ### Values only you know: marks
 
-A value only you can supply, such as your account, is written in the shared preset as a **mark**:
+A value only you can supply, such as your account, is written in the shared preset as a mark:
 `<YOUR_ACCOUNT>`, in capital letters. `crab run`, `crab validate -p` and `crab nodes -p` refuse a
 preset while a mark is unset, and print what to write:
 
@@ -114,7 +113,7 @@ replacing each <YOUR_...>:
 ```
 
 Paste that snippet into a file of your overrides folder and replace `<YOUR_ACCOUNT>` with your
-value, as in the example above. Run the command again and the refusal is gone.
+value. Run the command again and the refusal is gone.
 
 ### See where each value comes from
 
@@ -141,7 +140,7 @@ Personal tweaks go in .../local/presets/leonardo.json (a preset with this name p
 ```
 
 Use it whenever a preset behaves unexpectedly: it answers "is this my value or the shared one?".
-The paths above are shortened. The options of the command are in
+The paths in the output are shortened. The options of the command are in
 [`crab presets show`](../reference/cli.md#crab-presets-show).
 
 ### Variants with `extends`
@@ -160,7 +159,7 @@ what differs:
 ```
 
 `extends` names the preset to start from. `leonardo_short` is that preset, including any patch of
-yours, with the lines above changed. Select it like any other preset: `-p leonardo_short`. The
+yours, with the lines you wrote changed. Select it like any other preset: `-p leonardo_short`. The
 shared presets use the same mechanism for the choices a cluster offers, such as a GPU and a CPU
 partition. An entry that patches a shared name cannot also set `extends`.
 
@@ -199,9 +198,9 @@ $EDITOR local/presets/mine.json                     # shrink whole copies to pat
 Then check the file:
 
 - A whole copy of a shared preset still loads, but it now patches the shared one. Its `header`
-  lines are added after the shared header lines, and so is any flag not written as
-  `--name=value` (an mpirun flag and its value as two items, for example), so a copy that only
-  changes the account would repeat all of them. Cut each copy down to the lines you changed.
+  lines are added after the shared header lines. So is any flag not written as `--name=value`, such
+  as an mpirun flag and its value as two items. A copy that only changes the account would repeat
+  all of them, so cut each copy down to the lines you changed.
 - A `_common` entry is an error that says it was removed. Put its `env` in each preset instead;
   CRAB sets `CRAB_ROOT` itself.
 - A preset for a cluster that crab-wrappers does not have is a complete preset and works as it is.
@@ -216,12 +215,12 @@ Where a value goes depends on who knows it:
 
 | Kind | Example | Where it goes |
 |---|---|---|
-| Required from each user | your account | A mark in the shared preset, and your value in an override (above). |
+| Required from each user | your account | A mark in the shared preset, and your value in an override (see [Your overrides](#your-overrides)). |
 | A choice the cluster offers | GPU or CPU nodes, a partition | A shared variant preset: pick it with `-p`. `crab info` lists the variants. |
-| Your own environment | your UCX or OpenMPI build, a venv, modules, a QoS | Your override file. The recipes below cover each. |
+| Your own environment | your UCX or OpenMPI build, a venv, modules, a QoS | Your override file. The recipes in this section cover each. |
 | A gotcha of the cluster | `--gres=tmpfs:0`, an InfiniBand service level | Already in the shared preset. If one is missing, send it to crab-wrappers. |
 
-A shared preset may also carry a short `notes` list for what the other kinds cannot say. `crab
+A shared preset can also carry a short `notes` list for what the other kinds cannot say. `crab
 presets show` prints it, and `crab info --json` carries it.
 
 ### Your own UCX or OpenMPI build
@@ -280,11 +279,12 @@ Put the lines in `header`:
 
 Your header lines run after the shared ones, at the top of the job script and before `crab worker`
 starts, so the worker and the applications inherit what they set. This is the order of the
-[module flow](#module-flow). Header lines are shell lines, so `~` and `$HOME` work in them. They
-run inside the job script, which starts in the job's data folder and not in the folder you ran
-`crab run` from, so use absolute paths (or variables such as `$HOME`) for anything a header line
-sources or loads. Under
-the `local` scheduler there is no job script and `header` does not apply.
+[module flow](#module-flow).
+
+Header lines are shell lines, so `~` and `$HOME` work in them. They run inside the job script,
+which starts in the job's data folder and not in the folder you ran `crab run` from. Use absolute
+paths (or variables such as `$HOME`) for anything a header line sources or loads. Under the `local`
+scheduler there is no job script and `header` does not apply.
 
 ### A QoS
 

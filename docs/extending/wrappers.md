@@ -3,7 +3,7 @@
 A wrapper is a Python file that tells CRAB how to launch one application and how to turn its
 output into measurements. It is the only piece strictly required to support a new application.
 Wrappers are shared: one wrapper per application means everyone who runs it parses its output the
-same way. This page describes version 1 of the wrapper contract
+same way. The wrapper contract described here is version 1
 ([ADR-031](../dev/dashboard/decisions/adr-031-wrapper-contract-v1.md)).
 
 ## Start from the scaffold
@@ -153,7 +153,7 @@ that names neither is not checked. An empty command from `run_app()` fails the e
 ## Files the application writes
 
 Each app runs in its own working directory, `<experiment>/run_<n>/app_<id>/`, available to the
-wrapper as `self.run_dir`, so co-running apps never overwrite each other's files. `read_data()` may
+wrapper as `self.run_dir`, so co-running apps never overwrite each other's files. `read_data()` can
 read files there as well as stdout. Files listed by `get_extra_artifacts()` are copied to
 `<experiment>/artifacts/run_<n>/app_<id>/` after every run, including failed ones, so they survive
 `retain_files: false`.
@@ -178,7 +178,7 @@ crab parse myapp/myapp.py output.txt --args "-n 4" --json
 crab parse myapp/myapp.py samples/<case>/stdout.txt --check samples/<case>/expected.json
 ```
 
-`case.json`'s `set` holds extra config keys for the wrapper (see below); `crab parse` takes them as
+`case.json`'s `set` holds extra config keys for the wrapper (see [Custom configuration keys](#custom-configuration-keys)); `crab parse` takes them as
 `--set key=value`.
 
 ## Custom configuration keys

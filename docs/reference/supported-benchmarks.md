@@ -18,6 +18,41 @@ runs `cmake ... -DBLINK_TESTS=OFF` (this skips Blink's own tests, which would do
 googletest), so all the programs end up in `build/bin/`. This is the suite most
 communication-interference studies build on.
 
+### Build Blink with `crab setup`
+
+The [tutorial](../tutorial.md#step-1-build-the-benchmark) walks through the wizard for Blink. After
+the module line, the wizard asks "GPU backend (auto uses CUDA or HIP when found, else CPU only)".
+Press Enter to accept `auto`, or type one of the other answers:
+
+| Answer | What the build does |
+|--------|---------------------|
+| `auto` (default) | Builds GPU support only if CMake finds a CUDA or HIP toolkit, otherwise a CPU-only build. |
+| `off` | Builds for the CPU only, even if a toolkit is loaded. |
+| `cuda` | Builds with CUDA. If CMake finds no CUDA toolkit, the configure step fails. |
+| `hip` | Builds with HIP. If CMake finds no HIP toolkit, the configure step fails. |
+
+A build panel then shows the steps (clone, configure with CMake, compile) with the last lines of
+the log. Blink is built under `benchmarks/blink/`, and the wizard saves the receipt
+`local/receipts/blink.json`.
+
+The default `auto` is right on a machine without a GPU toolkit. When `cuda` or `hip` fails, the
+message names the `gpu` setting and CMake's output, and tells you to load a module that provides
+the toolkit or to set `gpu` to `auto` or `off`. The receipt records the answer you gave, not the
+backend CMake found, so with `auto` it does not say whether the build has GPU support.
+
+!!! note "Blink with CUDA on Leonardo"
+    Checked on Leonardo, November 2026: after `module purge`, the module line
+    `module load gcc/12.2.0 openmpi/4.1.6--gcc--12.2.0-cuda-12.2 cuda/12.2 cmake/3.27.9` configures
+    and builds Blink with `gpu` set to `cuda`. CRAB's own virtual environment on that cluster also
+    needs `module load python`. To run the result, use the `leonardo_gpu` preset and the configs in
+    [`examples/leonardo/gpu/`](https://github.com/HLC-Lab/CRAB/tree/develop/examples/leonardo/gpu).
+
+If an earlier build failed, it left a `benchmarks/blink` folder behind. The wizard then asks
+"Found a leftover build at ... Remove it and start again?" Answer yes to remove the folder and
+build again. If you answer no, Blink is skipped.
+
+### Blink wrappers
+
 The wrappers for the individual programs are in the
 [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) repository, under `blink/`, in the same
 folders Blink keeps their sources in (`src/alltoall/` → `blink/alltoall/`). Each one is named after
@@ -52,8 +87,8 @@ The QE DFT application (`pw.x`), available as two versions sharing one suite:
 ## Benchmarks without a recipe
 
 The wrappers repository contains additional wrappers (under `others/`: AMG, miniFE,
-Ember, GPU-communication benchmarks, DNN proxies, and others). These do **not** currently have
-recipes, so `crab setup` cannot build them from source. However, if you already have the binary
+Ember, GPU-communication benchmarks, DNN proxies, and others). These have no
+recipes, so `crab setup` cannot build them from source. If you already have the binary
 installed on your cluster, you can still use them: run `crab setup`, choose "Register a custom
 already-installed benchmark", and supply the path. The wrapper will then resolve the binary from
 the generated receipt like any other benchmark. The wrappers themselves are not guaranteed to work

@@ -69,7 +69,7 @@ When you bring CRAB to a new cluster, you adapt three things, and only these thr
 !!! tip "A useful rule of thumb"
     If a piece of information would be the same on every supercomputer in the world, it belongs in
     the experiment config or the wrapper. If it would differ between two clusters, it belongs in a
-    preset or a receipt. When in doubt, ask: *"Would I have to change this just because I moved to
+    preset or a receipt. When in doubt, ask: *"Would I have to change this only because I moved to
     a different machine?"*
 
 For the mechanics of how these pieces are wired together at run time, see

@@ -33,7 +33,7 @@ names it and says to move it into a folder. The package no longer contains `src/
 
 ## Structure
 
-A file is a single JSON object. Each top-level key is a preset name, and one file may hold several
+A file is a single JSON object. Each top-level key is a preset name, and one file can hold several
 presets. A preset name appears once per layer: the same name in two files of one folder is an
 error that names both files.
 
@@ -44,7 +44,7 @@ error that names both files.
 }
 ```
 
-A preset has the fields below. A `_common` key is an error: it held the one setting every preset
+A preset has these fields. A `_common` key is an error: it held the one setting every preset
 shares, which is now an engine default (see [Special tokens](#special-tokens)).
 
 | Field | Type | Meaning |
@@ -66,7 +66,7 @@ preset never holds `extends`.
 `"extends": "<name>"` makes a new preset out of an existing one, shared or yours. The new preset
 starts as the parent's resolved form, so a patch of the parent in your overrides also reaches it,
 and then the fields written beside `extends` are merged on top with the
-[rules below](#merge-semantics). Chains are allowed (a preset may extend a preset that extends
+[merge rules](#merge-semantics). Chains are allowed (a preset can extend a preset that extends
 another). An entry that has the name of a shared preset patches that preset and cannot also set
 `extends`.
 
@@ -84,7 +84,7 @@ with neither a shared preset of that name nor `extends` nor a `scheduler` is an 
 | `launchers.mpirun.flags` | Extra `mpirun` flags (`--map-by`, MCA parameters, …). | `[]` | `mpirun` |
 | `launchers.mpirun.dialect` | `"auto"`, `"openmpi4"`, `"openmpi5"` or `"hydra"`. Intel MPI is not supported. | `"auto"` | `mpirun` |
 | `launchers.mpirun.export` | Names of environment variables to forward to the remote ranks, in addition to the ones CRAB forwards itself; see [The mpirun launcher](#the-mpirun-launcher). | `[]` | `mpirun` |
-| `hosts` | List of `"name"` or `"name:cores"`. Only `localhost` may omit the core count. | `["localhost"]` | `local` only |
+| `hosts` | List of `"name"` or `"name:cores"`. Only `localhost` can omit the core count. | `["localhost"]` | `local` only |
 | `hostfile` | Path to a file instead of `hosts`, absolute or starting with `~`. A line is `h`, `h:N` or `h slots=N`; `#` starts a comment. | none | `local` only |
 | `exclusive` | `true` or `false`. | `true` | `local` only |
 
@@ -151,7 +151,7 @@ before the first run of such an experiment, and `crab probe --check`, compare a 
 | `nic_env` | The environment variable that selects a NIC for one rank, a shell variable name such as `UCX_NET_DEVICES`. `null` says the stack cannot do it. | `null` |
 | `numa` | Object of NUMA domain number to core list (`"0-15,32"`, the syntax of an app's `cpus`). Domains must not share a core. | `{}` |
 | `physical` | Object of NUMA domain number to core list: the first hardware thread of each physical core, a subset of that domain's `numa` list. Without it CRAB cannot tell SMT siblings from separate cores. `crab probe` writes it. | none |
-| `gpus` | List of GPUs. A GPU's id is its position in the list, in PCI bus order. Each entry may have `numa` (a domain from `numa`) and `pci` (`"0000:19:00.0"`, lowercase). | `[]` |
+| `gpus` | List of GPUs. A GPU's id is its position in the list, in PCI bus order. Each entry can have `numa` (a domain from `numa`) and `pci` (`"0000:19:00.0"`, lowercase). | `[]` |
 | `nics` | List of NIC ports. Each entry needs `dev` (a name such as `"mlx5_0:1"`, unique in the list). Optional: `numa`, `near_gpu` (an index into `gpus`), `card` (the PCI slot, `"19:00"`), `pci`, `dist` (`"PIX"`, `"PXB"`, `"PHB"`, `"NODE"` or `"SYS"`, the GPU to NIC distance), `tags` (list of labels), `rate_mbps`, `link_layer` (`"InfiniBand"` or `"Ethernet"`). | `[]` |
 | `source` | Where the block came from: `kind` (`"handwritten"` or `"probe"`, required inside `source`), and optional `version` and `date` (`2026-11-01`). | `{"kind": "handwritten"}` |
 
@@ -199,7 +199,7 @@ supported. Intel MPI, an Open MPI older than 4, and an `mpirun` that is only a s
 answer within 10 seconds is an error too. The other values (`"openmpi4"`, `"openmpi5"`,
 `"hydra"`) skip the probe.
 
-`<ranks>` is the app's `ppn` times the number of hosts, and `N` below is that `ppn`, the ranks per
+`<ranks>` is the app's `ppn` times the number of hosts, and `N` in the list is that `ppn`, the ranks per
 host:
 
 | | `openmpi4` | `openmpi5` | `hydra` |
@@ -226,12 +226,12 @@ names, as far as they are set in the environment the application starts in:
   preset's `env`;
 - every `CRAB_*` variable (not the internal `CRAB_SUPERVISOR_FD`);
 - the names in the application's own [`env`](configuration.md#the-apps-block), which its launch
-  script exports just before `mpirun` runs.
+  script exports right before `mpirun` runs.
 
 A multi-host local run starts the remote ranks over `ssh`, so the hosts need passwordless `ssh`
 between them and the same software at the same paths.
 
-Binding report. CRAB always asks `mpirun` for the `<report>` option above. The report goes to
+Binding report. CRAB always asks `mpirun` for the `<report>` option in the table. The report goes to
 `mpirun`'s standard error, which is also copied to `<experiment dir>/bindings_app_<id>.log` (with
 whatever the ranks write to their own standard error); see
 [What a run records about its launches](../using/running-without-slurm.md#what-a-run-records-about-its-launches).
@@ -283,9 +283,9 @@ A value that only the user knows is written as a mark, `<YOUR_NAME>`: `<YOUR_`, 
 letters, digits and underscores, then `>`. For example `--account=<YOUR_ACCOUNT>`, or
 `<YOUR_OPENMPI_DIR>/bin/mpirun`.
 
-- Where a mark may be written: in an `env` value, in a `sbatch` or launcher `flags` item written as
-  `--name=<YOUR_NAME>`, and in a launcher's `command`. It may be part of a longer value.
-- Where it may not: in a `header` line, which a patch cannot address by key, and in a flag item that
+- A mark can be written in an `env` value, in a `sbatch` or launcher `flags` item written as
+  `--name=<YOUR_NAME>`, and in a launcher's `command`. It can be part of a longer value.
+- A mark cannot be written in a `header` line, which a patch cannot address by key, and in a flag item that
   is not `--name=value`. A file that does this stops CRAB with an error that names the file and the
   preset.
 - A mark is always required. `crab run`, `crab validate -p` and `crab nodes -p` refuse a preset

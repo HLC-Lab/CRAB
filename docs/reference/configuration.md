@@ -5,7 +5,7 @@ This is the complete reference for a CRAB experiment config: the JSON file you p
 file runs on any cluster by selecting a different preset.
 
 For the conceptual walkthrough of writing one, see
-[Writing experiment configs](../using/writing-configs.md). This page is the exhaustive field list.
+[Writing experiment configs](../using/writing-configs.md). It is the exhaustive field list.
 
 ## The experiment hierarchy
 
@@ -24,7 +24,7 @@ Job: one `crab run`: one config file → one Slurm job → one output directory
 | Level | Where it lives | Notes |
 |-------|----------------|-------|
 | [Job](../glossary.md#job) | the whole config file | One `crab run` = one Slurm job = one `data/<system>/<name>_<timestamp>/` directory. Named by `global_options.name`. |
-| [Experiment](../glossary.md#experiment) | a key under `experiments` | Run one after another, in sorted key order. Has its own `apps`; may override options via `local_options`. |
+| [Experiment](../glossary.md#experiment) | a key under `experiments` | Run one after another, in sorted key order. Has its own `apps`; can override options via `local_options`. |
 | [Run](../glossary.md#run) | runtime only (not in the JSON) | One repetition of an experiment. Repeated until `minruns` runs succeed (at most `maxruns` runs), stopping early on convergence. |
 | [Application](../glossary.md#application) | a key under an experiment's `apps` | The processes launched concurrently within each run. |
 
@@ -73,9 +73,9 @@ is refused before anything runs, with a hint to run `crab update`.
     - a `ppn` (in `global_options`, `local_options` or an app) that is not a positive integer;
     - the `srun` launcher on a preset whose scheduler is `local` ("the srun launcher needs a Slurm
       preset");
-    - the `direct` launcher with `numnodes`, or the `ppn` of any app, above 1 ("the direct
+    - the `direct` launcher with `numnodes`, or the `ppn` of any app, greater than 1 ("the direct
       launcher runs a single process");
-    - `numnodes` above the number of hosts of a `local` preset.
+    - `numnodes` greater than the number of hosts of a `local` preset.
 
     `sbatch_directives` on a `local` preset only log a warning: the local scheduler ignores them.
 
@@ -86,14 +86,14 @@ is refused before anything runs, with a hint to run `crab update`.
     `local_options` and `apps`.
 
 !!! note "Legacy single-experiment form"
-    A config may instead use a top-level `applications` block in place of `experiments`. CRAB
-    wraps it automatically into a single experiment named `default_ex`. New configs should use the
+    A config can instead use a top-level `applications` block in place of `experiments`. CRAB
+    wraps it automatically into a single experiment named `default_ex`. Write new configs with the
     explicit `experiments` form.
 
 ## `global_options`
 
 Settings applied to the whole run. An experiment can override most of these in its own
-`local_options` (see [below](#per-experiment-overrides-local_options)).
+`local_options` (see [Per-experiment overrides](#per-experiment-overrides-local_options)).
 
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
@@ -107,7 +107,7 @@ Settings applied to the whole run. An experiment can override most of these in i
 | `timeout` | float | `1200.0` | Wall-clock budget for the experiment, in seconds. |
 | `convergeall` | bool | `false` | If true, every metric must converge; otherwise only metrics flagged `conv` in the wrapper. |
 | `alpha` | float | `0.05` | Confidence-interval significance level. |
-| `beta` | float | `0.05` | Convergence threshold: CI width must fall below `beta × mean`. |
+| `beta` | float | `0.05` | Convergence threshold: CI width must be smaller than `beta × mean`. |
 | `outformat` | `csv` | `csv` | Output file format. `csv` is the only format. |
 | `retain_files` | bool | `true` | Keep per-run working directories. If `false`, successful runs' scratch dirs are deleted. |
 | `tags` | string | `none` | Free-form label recorded in the run registry (`metadata.csv`). |
@@ -198,7 +198,7 @@ Partitioned allocation: add a `partitions` key to split nodes into named groups.
 }
 ```
 
-- `share` is a percentage. Either all partitions specify `share` (values should sum to 100) or none do (equal split).
+- `share` is a percentage. Either all partitions specify `share` (values must not sum to more than 100; a smaller sum leaves the other nodes idle) or none do (equal split).
 - The top-level `mode` controls how the partition node-blocks are laid out relative to each other.
 - If a partition contains multiple apps, an inner `mode` and `split` can be added inside the partition entry for intra-partition placement.
 - A chained app with no `partition`, or with the same one as the app it waits for, runs on that app's nodes and is not counted as a member of the partition.
@@ -246,7 +246,7 @@ The `cores` key says how they share the cores:
 | `cores` | Behaviour |
 |---------|-----------|
 | `"disjoint"` (default) | Apps on the same nodes run on different cores. |
-| `"shared"` | Apps may run on the same cores, so the result measures how the operating system schedules them as much as the hardware. CRAB warns about it. |
+| `"shared"` | Apps can run on the same cores, so the result measures how the operating system schedules them as much as the hardware. CRAB warns about it. |
 
 Where it applies. `mode: "shared"` goes at the top level of `allocation` when there are no
 `partitions`, or inside one partition, which then holds two or more apps (a partition with one
@@ -272,7 +272,7 @@ lists](#core-lists-and-environment-per-app-cpus-and-env) and the allocation's `c
   bare `localhost`; with several hosts the smallest count is used. CRAB warns that this split
   ignores NUMA and NIC locality: set `cpus` per app to control it.
 - With `cores: "shared"`, nothing is split. An app with `cpus` is still bound to them, and the
-  lists may overlap. An app without `cpus` is left unbound (`mpirun` is told not to bind it), so
+  lists can overlap. An app without `cpus` is left unbound (`mpirun` is told not to bind it), so
   that two launches do not both pile onto the first cores of the node.
 - Under Slurm there is no automatic split: the `srun` launcher gives each app its own cores with
   the flags in [Shared nodes under `srun`](#shared-nodes-under-srun).
@@ -304,7 +304,8 @@ All three also get `--ntasks-per-node=<the app's ppn>`. Notes:
 - CRAB's binding replaces any `--cpu-bind` in `launchers.srun.flags` or `launcher_flags` for the
   apps it binds. The pre-submit check warns about it, so it shows when you submit.
 - `cpus` under Slurm needs `--exclusive` among the `sbatch_directives` or the preset's `sbatch`;
-  see the errors above.
+  see the `cpus` errors in
+  [Core lists and environment per app](#core-lists-and-environment-per-app-cpus-and-env).
 - `mpirun` is unchanged: it binds as described in the
   [presets reference](presets.md#the-mpirun-launcher).
 
@@ -330,18 +331,18 @@ sorted key order.
 | Key | Type | Meaning |
 |-----|------|---------|
 | `description` | string | Optional free-text note (stored in the run's `config.json`). |
-| `local_options` | object | Per-experiment overrides of `global_options` (see below). |
+| `local_options` | object | Per-experiment overrides of `global_options` (see [Per-experiment overrides](#per-experiment-overrides-local_options)). |
 | `apps` | object | The applications to run concurrently in this experiment. |
 
 ### Per-experiment overrides (`local_options`)
 
-Any `global_options` key may be repeated in an experiment's `local_options`; the experiment's
+Any `global_options` key can be repeated in an experiment's `local_options`; the experiment's
 value wins for that experiment (the framework merges `{**global, **local}`). Use this to vary,
 say, `allocation` or `timeout` between experiments in the same run.
 
 !!! warning "`numnodes`, `walltime` and `sbatch_directives` are job-level"
     They are written once into the batch script when the job is submitted, so putting them in
-    `local_options` has no effect (CRAB warns). `ppn` is the exception: an experiment may set its
+    `local_options` has no effect (CRAB warns). `ppn` is the exception: an experiment can set its
     own, and the job's `--ntasks-per-node` is sized to the largest load; see
     [Ranks per node](#ranks-per-node-ppn).
 
@@ -362,8 +363,8 @@ application:
 | `end` | string | `""` | When to stop the app. See [Scheduling](#scheduling-start-and-end). |
 | `partition` | string | none | (partitioned allocation) The named partition this app belongs to, e.g. `"victim"` or `"aggressor"`. Must match a key in `allocation.partitions`. |
 | `ppn` | int | the experiment's, else the global one | Ranks per node for this app. See [Ranks per node](#ranks-per-node-ppn). |
-| `cpus` | string | none | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
-| `env` | object | `{}` | Environment variables set for this app's ranks only. See [below](#core-lists-and-environment-per-app-cpus-and-env). |
+| `cpus` | string | none | The cores this app's ranks are bound to, such as `"0-15,32"`: one core per rank. See [Core lists and environment per app](#core-lists-and-environment-per-app-cpus-and-env). |
+| `env` | object | `{}` | Environment variables set for this app's ranks only. See [Core lists and environment per app](#core-lists-and-environment-per-app-cpus-and-env). |
 | `nics` | list of strings | none | One NIC per rank: rank `i` on a node uses `nics[i % len(nics)]`. See [NICs per rank](#nics-per-rank-nics). |
 | `gpus` | list of integers | none | One GPU per rank: rank `i` on a node gets the GPU `gpus[i % len(gpus)]`. See [GPUs per rank](#gpus-per-rank-gpus). |
 | `bind` | object | none | Which cores and NICs the ranks get, stated without naming a device, so the same file runs on different clusters. See [Placement by intent](#placement-by-intent-bind). |
@@ -377,7 +378,7 @@ application:
 ### Core lists and environment per app (`cpus` and `env`)
 
 `cpus` is a string of comma-separated items, each a core number `N` or a range `A-B` with
-`A` not above `B`: `"0-15,32"`, `"4"`, `"0-3, 8-11"`. The cores are sorted, and a core listed
+`A` at most `B`: `"0-15,32"`, `"4"`, `"0-3, 8-11"`. The cores are sorted, and a core listed
 twice is an error. It must list at least the app's own `ppn` cores (one per rank), and the same
 list is used on every host the app runs on. The `mpirun` and `srun` launchers bind the ranks to
 it; see [Shared nodes](#shared-nodes) for how it combines with `allocation`, for the automatic
@@ -385,13 +386,13 @@ split of apps without one, and for the flags `srun` gets. The `direct` launcher 
 Other errors:
 
 - `cpus` on an app with `start: "sN"`: it runs on the cores of the app it waits for, so set
-  `cpus` there (its `ppn` may not exceed the number of those cores);
+  `cpus` there (its `ppn` cannot exceed the number of those cores);
 - `cpus` under Slurm without `--exclusive` among the `sbatch_directives` or the preset's `sbatch`.
 
 `env` is an object of strings. Each key has to be a valid shell variable name (letters, digits
-and underscores, not starting with a digit), and may not be one of the removed `CRAB_*` launch
+and underscores, not starting with a digit), and cannot be one of the removed `CRAB_*` launch
 keys listed in the [presets reference](presets.md#removed-keys). The app's launch script exports
-the variables just before the launch line, so they reach that app's ranks and no other app's, and
+the variables right before the launch line, so they reach that app's ranks and no other app's, and
 they win over a variable of the same name in the preset's `env`. A value is exported as written,
 without shell expansion. With `mpirun` on Open MPI, CRAB also names these variables in `-x` so
 that remote ranks receive them; Hydra passes the whole environment. Each app's `env` is recorded
@@ -412,12 +413,12 @@ To give each app its own network interface, see
 ### NICs per rank (`nics`)
 
 `nics` is a non-empty list of NIC device names, such as `["mlx5_0:1", "mlx5_1:1"]`. Each name
-may contain only letters, digits and `_ . : -`. Under any launcher, the app's ranks on a node
+can contain only letters, digits and `_ . : -`. Under any launcher, the app's ranks on a node
 are numbered from 0 (their local rank), and rank `i` gets `UCX_NET_DEVICES` set to
 `nics[i % len(nics)]`: with more ranks than NICs the list wraps around. A name that is not a
 string of those characters, an empty list or a value that is not a list is refused before the
 job is submitted. So is an app that sets both `nics` and `env.UCX_NET_DEVICES` (`nics and env
-UCX_NET_DEVICES both set the NIC; keep one`). An app chained with `start: "sN"` may set its own
+UCX_NET_DEVICES both set the NIC; keep one`). An app chained with `start: "sN"` can set its own
 `nics`.
 
 ```json
@@ -479,9 +480,9 @@ the cores and devices from the `topology` of the preset you run with
 
 | Key | Values |
 |---|---|
-| `nic` | `"default"` sets nothing and is the control run. `"nearest"` is the NIC nearest to the rank's GPU or core, `"far"` one in another NUMA domain, `"spread"` goes round robin over all NICs, `"single"` gives every rank the same one. `{"pick": "nearest", "ports": 2}` gives each rank both ports of its card; `{"tag": "x"}` takes the NICs the preset labelled `x`; `"exclusive": true` in the object form refuses a NIC shared by two ranks, and keeps the NIC to its app on a node (see "Apps that run at the same time" below). |
+| `nic` | `"default"` sets nothing and is the control run. `"nearest"` is the NIC nearest to the rank's GPU or core, `"far"` one in another NUMA domain, `"spread"` goes round robin over all NICs, `"single"` gives every rank the same one. `{"pick": "nearest", "ports": 2}` gives each rank both ports of its card; `{"tag": "x"}` takes the NICs the preset labelled `x`; `"exclusive": true` in the object form refuses a NIC shared by two ranks, and keeps the NIC to its app on a node (see Apps that run at the same time, later in this section). |
 | `cores` | `"launcher"` (the default) leaves the cores to the launcher. `"nearest"` gives each rank a physical core, taking apps that share nodes in order and never the same core twice. Without a GPU, when the NIC is picked with `"tag"` or `"spread"`, each rank takes a core in the NUMA domain of its NIC when it has a free one, and says so in a warning when it does not. `{"smt": true}` also uses SMT siblings. |
-| `gpu` | `"none"` (the default) and `"all"` set nothing, so every rank sees every GPU. `"per-rank"` gives rank `i` the `i`-th free GPU of the order below, skipping the GPUs held by apps that run beside it on the node, and refuses a ppn above the free count; `"shared"` goes round robin over all the GPUs and holds none. |
+| `gpu` | `"none"` (the default) and `"all"` set nothing, so every rank sees every GPU. `"per-rank"` gives rank `i` the `i`-th free GPU of the order the `order` key sets, skipping the GPUs held by apps that run beside it on the node, and refuses a ppn greater than the free count; `"shared"` goes round robin over all the GPUs and holds none. |
 | `order` | `"pack"` (the default) or `"spread"`, the order in which GPUs are taken. |
 
 `"nearest"` and `"far"` need something to be near to: a GPU, or `cores: "nearest"`. A request the
@@ -499,11 +500,11 @@ app 1: bind.gpu per-rank needs 2 GPUs per node (ppn 2), 1 of the topology's 4 ar
 ```
 
 To put apps on the same GPUs on purpose, use `"gpu": "shared"`. An app chained with `start: "sN"` runs after
-its head on the head's nodes, so it may use the GPUs and NICs of its own head; it avoids those of the apps
+its head on the head's nodes, so it can use the GPUs and NICs of its own head; it avoids those of the apps
 that run beside it.
 
 The NIC follows the GPU under `"nearest"`, so disjoint GPUs give different NICs where the node pairs them.
-The other picks may share a NIC between apps on purpose. `"exclusive": true` keeps the NIC to its app on a
+The other picks can share a NIC between apps on purpose. `"exclusive": true` keeps the NIC to its app on a
 node: a later app cannot name a NIC an exclusive app holds, and an exclusive app cannot take a NIC an
 earlier app uses. The messages are `app 1: NIC nic0:1 is held exclusively by app 0 (bind.nic exclusive) on
 the same node` and `app 1: bind.nic exclusive: NIC nic0:1 is also used by app 0 on the same node`. It only
@@ -521,7 +522,7 @@ the ranks. A preset without a `topology` cannot run a `bind` that asks for anyth
 **Node check.** Before the first run of an experiment whose apps use `bind`, CRAB runs a short check on every
 node they use, started through the experiment's launcher with one task per node. Each node must match the
 preset's `topology` where the placement relies on it (the NIC ports named are up and in the right PCI slot,
-the GPU count and slots, the GPUs the job can see, the cores it may use, the NUMA layout), and all nodes must
+the GPU count and slots, the GPUs the job can see, the cores it can use, the NUMA layout), and all nodes must
 agree with each other. A node that gives no answer, or whose check crashed, is asked once more, since the
 first step of a job can miss a node. If anything is still off the experiment stops before its first run, and
 the error names each problem with its node. When the problem is a NIC port, the message ends with the apps
@@ -557,7 +558,7 @@ The `start` and `end` strings encode the victim/aggressor model and timed/sequen
 | Value | Meaning |
 |-------|---------|
 | `"0"` or a number | Delay in seconds from the start of the run before launching. |
-| `"sN"` | Start only after application N has finished (a dependency, enabling sequential chains). The app runs on application N's nodes; see below. |
+| `"sN"` | Start only after application N has finished (a dependency, enabling sequential chains). The app runs on application N's nodes (see the paragraph "Which nodes a chained app uses"). |
 
 `end` sets when the app is stopped:
 
@@ -572,7 +573,7 @@ An app is stopped by killing it, and the output of a killed app is not collected
 run; CRAB warns about this combination before the run starts.
 
 Which nodes a chained app uses. An app with `start: "sN"` runs on the nodes of application N,
-which have just been released. This carries along a chain: in `0` → `s0` → `s1` all three apps
+which application N has released. This carries along a chain: in `0` → `s0` → `s1` all three apps
 run on app 0's nodes, and only app 0 gets a share of the allocation. A chained app that names a
 different `partition` than the app it waits for instead gets a share of its own partition:
 use this to start an app when another one ends, but on other nodes.
