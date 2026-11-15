@@ -937,3 +937,77 @@ def test_staging_path_with_a_benchmark_on_an_unconnected_cluster_is_the_staging_
         resp = _staging_path(client, benchmark="blink")
 
         assert resp.json() == {"path": "~/base/CRAB/.web_staging/my-c.yaml"}
+
+
+# --------------------------------------------------------------------------- #
+# A probe that fails must not turn a folder write into a staging write
+# --------------------------------------------------------------------------- #
+def _write_expecting_no_write(tmp_path: Path, probe) -> dict:
+    transport = UmbrellaTransport(probe=probe)
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body(benchmark="blink"))
+
+        assert transport.written_files == {}
+        assert transport.made_dirs == []
+        assert not any(c.startswith(("mkdir", "chmod", "ln", "mv")) for c in transport.calls)
+        assert _local_campaign_files(tmp_path) == []
+        return {"status": resp.status_code, **resp.json()}
+
+
+def test_write_into_a_benchmark_folder_fails_loudly_when_the_probe_cannot_reach_the_cluster(
+    tmp_path: Path,
+):
+    from crab.web.errors import RemoteConnectionError
+
+    body = _write_expecting_no_write(tmp_path, RemoteConnectionError("timed out"))
+
+    assert body["status"] == 502
+    assert body["code"] == "connection_error"
+
+
+@pytest.mark.parametrize("rc", [1, 126, 127, 255])
+def test_write_into_a_benchmark_folder_fails_loudly_on_an_unexpected_probe_exit(
+    tmp_path: Path, rc: int
+):
+    body = _write_expecting_no_write(tmp_path, CmdResult(rc, "", "ssh: broken pipe"))
+
+    assert body["status"] == 502
+    assert body["code"] == "remote_command_error"
+    assert "benchmarks folder" in body["message"]
+    assert "broken pipe" in body["detail"]
+
+
+@pytest.mark.parametrize("output", ["", "hello\n"])
+def test_write_into_a_benchmark_folder_fails_loudly_on_output_that_is_not_the_probes(
+    tmp_path: Path, output: str
+):
+    body = _write_expecting_no_write(tmp_path, CmdResult(0, output, ""))
+
+    assert body["status"] == 502
+    assert body["code"] == "remote_command_error"
+
+
+@pytest.mark.parametrize("rc", [2, 3, 4])
+def test_the_exit_codes_that_mean_plain_install_still_fall_back_to_staging(tmp_path: Path, rc: int):
+    transport = UmbrellaTransport(probe=CmdResult(rc, "", ""))
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body(benchmark="blink"))
+
+        assert resp.status_code == 200
+        assert resp.json()["remote_path"].endswith("/.web_staging/my-campaign.yaml")
+
+
+def test_the_path_preview_stays_quiet_when_the_probe_fails(tmp_path: Path):
+    from crab.web.errors import RemoteConnectionError
+
+    with _client(tmp_path, UmbrellaTransport(probe=RemoteConnectionError("timed out"))) as client:
+        _connect(client)
+
+        resp = _staging_path(client, benchmark="blink")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"path": "~/base/CRAB/.web_staging/my-c.yaml"}

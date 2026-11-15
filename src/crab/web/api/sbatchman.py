@@ -110,18 +110,19 @@ class StagingPathResponse(BaseModel):
 
 
 async def _benchmark_directory(
-    benchmark: str | None, profile: Profile, request: Request
+    benchmark: str | None, profile: Profile, request: Request, *, strict: bool = False
 ) -> tuple[str | None, bool]:
     """The folder a campaign goes into and whether Write would create it.
 
     ``(None, False)`` means the staging directory: no folder was asked for, or the cluster
     is not an umbrella install (a plain install has no `benchmarks/` to write into). A folder
-    that is not one safe name is refused first, whatever the cluster is.
+    that is not one safe name is refused first, whatever the cluster is. With ``strict`` (a
+    write) a probe that fails raises instead of reading as a plain install.
     """
     if benchmark is None:
         return None, False
     check_benchmark_folder(benchmark)
-    found = await probe_umbrella(_manager(request).get(profile.name), profile)
+    found = await probe_umbrella(_manager(request).get(profile.name), profile, strict=strict)
     if found.kind != "umbrella":
         return None, False
     return f"{found.root}/benchmarks/{benchmark}", benchmark not in found.benchmarks
@@ -164,7 +165,9 @@ async def write_campaign(body: WriteRequest, request: Request) -> WriteResponse:
     transport = _live_transport(body.profile_name, request)
     profile = _profile(body.profile_name, request)
     settings = request.app.state.settings
-    directory, new_folder = await _benchmark_directory(body.benchmark, profile, request)
+    directory, new_folder = await _benchmark_directory(
+        body.benchmark, profile, request, strict=True
+    )
 
     # The cluster first: an existing file (409) or a failed write leaves no local copy.
     remote_path = await stage_text(

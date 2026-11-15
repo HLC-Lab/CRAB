@@ -23,8 +23,8 @@ from typing import Any
 import yaml  # type: ignore[import-untyped]
 
 from crab.web.connections.transport import Transport
-from crab.web.errors import CrabWebError, InputError
-from crab.web.remoteops.crab_cli import remote_path_expr
+from crab.web.errors import CrabWebError, InputError, RemoteCommandError
+from crab.web.remoteops.crab_cli import output_tail, remote_path_expr
 from crab.web.store.profiles import Profile
 
 # A benchmark folder is one path segment: no slash, no `..`, no leading dot.
@@ -60,6 +60,10 @@ class UmbrellaTarget:
 
 
 PLAIN = UmbrellaTarget()
+
+# The script's own "this is not an umbrella" exits: no install directory, no `benchmarks/`,
+# no configs file. Any other failure says nothing about the install.
+_PLAIN_EXITS = (2, 3, 4)
 
 
 def check_benchmark_folder(folder: str) -> str:
@@ -97,7 +101,7 @@ def config_names(text: str) -> list[str]:
     return names
 
 
-def _parse(output: str, mark: str) -> UmbrellaTarget:
+def _parse(output: str, mark: str) -> UmbrellaTarget | None:
     """Read the probe's output. Anything before the first marker (a login banner) is ignored.
 
     ``mark`` is random per call, so no file or folder name on the cluster can print a
@@ -118,7 +122,7 @@ def _parse(output: str, mark: str) -> UmbrellaTarget:
     root = next((x.strip() for x in sections.get("root", []) if x.strip()), "")
     relative = next((x.strip() for x in sections.get("configs", []) if x.strip()), "")
     if not root.startswith("/") or not relative:
-        return PLAIN
+        return None
     benchmarks = sorted(
         {x.strip() for x in sections.get("benchmarks", []) if BENCHMARK_FOLDER.fullmatch(x.strip())}
     )
@@ -132,9 +136,20 @@ def _parse(output: str, mark: str) -> UmbrellaTarget:
 
 
 async def probe_umbrella(
-    transport: Transport | None, profile: Profile, *, timeout: float = 30.0
+    transport: Transport | None,
+    profile: Profile,
+    *,
+    strict: bool = False,
+    timeout: float = 30.0,
 ) -> UmbrellaTarget:
-    """One command on the cluster; ``PLAIN`` when it is not an umbrella or anything fails."""
+    """One command on the cluster: the umbrella it found, or ``PLAIN``.
+
+    Not strict (previews and suggestions): anything that goes wrong reads as plain, since a
+    failed probe must not block authoring. Strict (a write that depends on the answer): only
+    the script's own "not an umbrella" exits read as plain; a dropped connection, a timeout, any
+    other exit or output that is not the probe's raises, so the caller never falls back
+    to another directory by accident.
+    """
     if transport is None or profile.is_local():
         return PLAIN
     mark = secrets.token_hex(8)
@@ -143,7 +158,18 @@ async def probe_umbrella(
     try:
         result = await transport.run(command, timeout=timeout)
     except CrabWebError:
+        if strict:
+            raise
         return PLAIN
-    if not result.ok:
+    if not result.ok and result.rc in _PLAIN_EXITS:
         return PLAIN
-    return _parse(result.stdout, mark)
+    found = _parse(result.stdout, mark) if result.ok else None
+    if found is None:
+        if strict:
+            raise RemoteCommandError(
+                "Could not check whether this cluster has a benchmarks folder, so nothing "
+                "was written. Try again.",
+                detail=output_tail(result),
+            )
+        return PLAIN
+    return found
