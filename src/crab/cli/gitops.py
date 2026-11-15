@@ -6,19 +6,57 @@ import os
 import subprocess
 from pathlib import Path
 
+from crab.cli.progress import stage
+
 
 class GitError(Exception):
     """A git command failed, or a step refused to change a repository."""
 
 
+# The subcommands that talk to the network, and what the progress line calls them.
+_NETWORK_LABELS = {
+    "clone": "Cloning",
+    "fetch": "Fetching updates",
+    "pull": "Pulling updates",
+    "ls-remote": "Checking the remote",
+}
+
+
+def _network_origin(repo: Path, args: tuple[str, ...]) -> str:
+    """The remote a network subcommand talks to, without any user:password part."""
+    from crab.cli.wrappers_clone import _without_credentials
+
+    if args[0] == "clone":
+        url = next((a for a in args[1:] if not a.startswith("-")), "origin")
+        return _without_credentials(url)
+    try:
+        return _without_credentials(git(repo, "remote", "get-url", "origin"))
+    except GitError:
+        return "origin"
+
+
 def git(repo: Path, *args: str, timeout: float = 120, env: dict[str, str] | None = None) -> str:
     """Run `git -C repo args` and return its stripped stdout.
 
-    `env` is merged over the current environment for this one command.
+    `env` is merged over the current environment for this one command. A network subcommand
+    (clone, fetch, pull, ls-remote) is reported as a progress stage that names the remote.
 
     Raises:
         GitError: when git cannot run, times out, or exits non-zero.
     """
+    label = _NETWORK_LABELS.get(args[0]) if args else None
+    if label is None:
+        return _run_git(repo, args, timeout, env)
+    with stage(
+        f"git-{args[0]}",
+        label,
+        f"git {args[0]} from {_network_origin(repo, args)}",
+        timeout,
+    ):
+        return _run_git(repo, args, timeout, env)
+
+
+def _run_git(repo: Path, args: tuple[str, ...], timeout: float, env: dict[str, str] | None) -> str:
     try:
         result = subprocess.run(
             ["git", "-C", str(repo), *args],
