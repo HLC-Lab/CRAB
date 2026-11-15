@@ -10,6 +10,7 @@ import { useResultsStore } from "@/stores/results";
 import { formatBytes } from "@/lib/resultsChart";
 import { resultsKey } from "@/lib/jobKey";
 import { describeStaleness, filterEntries, sortEntries } from "@/lib/resultsIndex";
+import ProgressLine from "@/components/ProgressLine.vue";
 import ResultsTabs from "@/components/results/ResultsTabs.vue";
 import type { ResultsJobEntry } from "@/api/types";
 
@@ -162,6 +163,10 @@ async function fetchNow(entry: ResultsJobEntry) {
                 : "Fetch"
             }}
           </button>
+          <ProgressLine
+            v-if="results.fetchBusy[resultsKey(e.cluster, e.system, e.job_basename)]"
+            :cluster="e.cluster"
+          />
           <p
             v-if="results.fetchError[resultsKey(e.cluster, e.system, e.job_basename)]"
             class="banner err small"

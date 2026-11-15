@@ -30,6 +30,7 @@ vi.mock("@/api/client", () => ({
 }));
 
 import { ApiError, api } from "@/api/client";
+import { useProgressStore } from "@/stores/progress";
 import { useResultsStore } from "@/stores/results";
 
 const indexMock = vi.mocked(api.results.index);
@@ -352,5 +353,59 @@ describe("results store: cache size + clear", () => {
     expect(clearCacheMock).toHaveBeenCalled();
     expect(store.results).toEqual({});
     expect(store.cacheSize).toBe(0);
+  });
+});
+
+describe("results store: progress watching", () => {
+  function spyProgress(): string[] {
+    const calls: string[] = [];
+    const progress = useProgressStore();
+    vi.spyOn(progress, "watch").mockImplementation((c) => void calls.push(`watch ${c}`));
+    vi.spyOn(progress, "stop").mockImplementation((c) => void calls.push(`stop ${c}`));
+    return calls;
+  }
+
+  it("watches the cluster from the fetch request until the fetch is done", async () => {
+    const calls = spyProgress();
+    fetchMock.mockResolvedValue({ fetch_id: "fetch-1" });
+    fetchStatusMock.mockResolvedValueOnce({ status: "pending" });
+    fetchStatusMock.mockResolvedValueOnce({ status: "done" });
+    getMock.mockResolvedValue(SAMPLE_DATA);
+    cacheSizeMock.mockResolvedValue({ total_bytes: 1 });
+
+    const store = useResultsStore();
+    await store.fetchResults(CLUSTER, SYSTEM, JOB_BASENAME);
+    expect(calls).toEqual([`watch ${CLUSTER}`]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual([`watch ${CLUSTER}`]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual([`watch ${CLUSTER}`, `stop ${CLUSTER}`]);
+  });
+
+  it("stops watching when the fetch resolves with an error", async () => {
+    const calls = spyProgress();
+    fetchMock.mockResolvedValue({ fetch_id: "fetch-1" });
+    fetchStatusMock.mockResolvedValueOnce({ status: "error", message: "No." });
+    const store = useResultsStore();
+    await store.fetchResults(CLUSTER, SYSTEM, JOB_BASENAME);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual([`watch ${CLUSTER}`, `stop ${CLUSTER}`]);
+  });
+
+  it("stops watching when the poll itself fails", async () => {
+    const calls = spyProgress();
+    fetchMock.mockResolvedValue({ fetch_id: "fetch-1" });
+    fetchStatusMock.mockRejectedValueOnce(new ApiError("Gone.", 404));
+    const store = useResultsStore();
+    await store.fetchResults(CLUSTER, SYSTEM, JOB_BASENAME);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual([`watch ${CLUSTER}`, `stop ${CLUSTER}`]);
+  });
+
+  it("stops watching when the fetch cannot start", async () => {
+    const calls = spyProgress();
+    fetchMock.mockRejectedValueOnce(new ApiError("Not connected.", 502));
+    await useResultsStore().fetchResults(CLUSTER, SYSTEM, JOB_BASENAME);
+    expect(calls).toEqual([`watch ${CLUSTER}`, `stop ${CLUSTER}`]);
   });
 });

@@ -6,6 +6,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useJobsStore } from "@/stores/jobs";
 import ConfirmModal from "@/components/ConfirmModal.vue";
+import ProgressLine from "@/components/ProgressLine.vue";
 import SubmitJobModal from "@/components/jobs/SubmitJobModal.vue";
 import ConfigSnapshotModal from "@/components/jobs/ConfigSnapshotModal.vue";
 import { ansiToHtml } from "@/lib/ansi";
@@ -239,6 +240,7 @@ function toggleStatus(name: string) {
           </span>
           <span v-else class="state danger">Failed</span>
         </div>
+        <ProgressLine v-if="p.status === 'pending'" :cluster="p.profileName" />
         <template v-if="p.status === 'error'">
           <p class="banner err small">{{ p.errorMessage }}</p>
           <div class="toolbar">
