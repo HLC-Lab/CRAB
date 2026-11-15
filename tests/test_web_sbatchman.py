@@ -417,3 +417,221 @@ def test_campaign_with_var_placeholders_saves_without_validation(tmp_path: Path)
         resp = client.post("/api/sbatchman/campaigns", json={"name": "Swept", "spec": _SPEC})
         assert resp.status_code == 201
         assert "warnings" not in resp.json()
+
+
+# --------------------------------------------------------------------------- #
+# /api/sbatchman/target: umbrella or plain install
+# --------------------------------------------------------------------------- #
+_CONFIGS = """\
+variables:
+  nodes: [2, 4]
+
+leonardo:
+  scheduler: slurm
+  default_conf:
+    account: "x"
+  configs:
+    - name: "crab_run_{nodes}"
+      nodes: "{nodes}"
+    - name: "crab_qe_{nodes}"
+    - name: "crab_run_{nodes}"
+
+other:
+  scheduler: slurm
+  configs:
+    - name: "gpu_box"
+    - nodes: 3
+    - just a string
+"""
+
+_PROBE_OUTPUT = (
+    "Welcome to the cluster\n"
+    "@@root\n/home/researcher/base\n"
+    "@@configs\n.local/configs.leonardo.yaml\n"
+    "@@benchmarks\nblink\nqe\nbad name\n..\n.hidden\n"
+    "@@content\n" + _CONFIGS
+)
+
+
+class ProbeTransport(Transport):
+    """Answers the umbrella probe with a fixed result, or raises."""
+
+    def __init__(self, result: CmdResult | Exception):
+        self._result = result
+        self.calls: list[str] = []
+
+    @property
+    def alive(self) -> bool:
+        return True
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if "crab info --json" in command:  # the connect step, not the probe
+            return CmdResult(0, _INFO_JSON, "")
+        self.calls.append(command)
+        if isinstance(self._result, Exception):
+            raise self._result
+        return self._result
+
+    async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
+        raise AssertionError("the probe never writes")
+
+    async def close(self) -> None:
+        pass
+
+
+def _target(tmp_path: Path, transport: Transport, *, connect: bool = True) -> dict:
+    with _client(tmp_path, transport) as client:
+        client.post("/api/remotes", json=_leonardo_profile_body())
+        if connect:
+            client.post("/api/remotes/leonardo/connect")
+        resp = client.get("/api/sbatchman/target", params={"profile_name": "leonardo"})
+        assert resp.status_code == 200
+        return resp.json()
+
+
+_PLAIN = {
+    "kind": "plain",
+    "root": "",
+    "configs_file": "",
+    "configs_names": [],
+    "benchmarks": [],
+}
+
+
+def test_target_of_an_umbrella_lists_configs_and_benchmark_folders(tmp_path: Path):
+    transport = ProbeTransport(CmdResult(0, _PROBE_OUTPUT, ""))
+
+    body = _target(tmp_path, transport)
+
+    assert body == {
+        "kind": "umbrella",
+        "root": "/home/researcher/base",
+        "configs_file": "/home/researcher/base/.local/configs.leonardo.yaml",
+        # Both cluster blocks, in file order, once each; entries without a name are skipped.
+        "configs_names": ["crab_run_{nodes}", "crab_qe_{nodes}", "gpu_box"],
+        # Only names that are safe as one folder; sorted.
+        "benchmarks": ["blink", "qe"],
+    }
+    assert len(transport.calls) == 1
+
+
+def test_target_of_a_plain_install_is_plain(tmp_path: Path):
+    for rc in (2, 3, 4):
+        assert _target(tmp_path, ProbeTransport(CmdResult(rc, "", ""))) == _PLAIN
+
+
+def test_target_with_a_failing_command_is_plain(tmp_path: Path):
+    from crab.web.errors import RemoteConnectionError
+
+    assert _target(tmp_path, ProbeTransport(RemoteConnectionError("dropped"))) == _PLAIN
+
+
+def test_target_with_output_that_is_not_the_probes_is_plain(tmp_path: Path):
+    assert _target(tmp_path, ProbeTransport(CmdResult(0, "hello\n", ""))) == _PLAIN
+    assert _target(tmp_path, ProbeTransport(CmdResult(0, "@@root\nrelative\n", ""))) == _PLAIN
+
+
+def test_target_with_an_unreadable_configs_file_is_an_umbrella_without_names(tmp_path: Path):
+    output = (
+        "@@root\n/home/researcher/base\n@@configs\n.local/configs.leonardo.yaml\n"
+        "@@benchmarks\nblink\n@@content\n"
+    )
+
+    body = _target(tmp_path, ProbeTransport(CmdResult(0, output, "")))
+
+    assert body["kind"] == "umbrella"
+    assert body["configs_names"] == []
+    assert body["benchmarks"] == ["blink"]
+
+
+def test_target_with_a_configs_file_that_is_not_yaml_has_no_names(tmp_path: Path):
+    output = (
+        "@@root\n/home/researcher/base\n@@configs\n.local/configs.x.yaml\n"
+        "@@benchmarks\n@@content\nleonardo: [unclosed\n"
+    )
+
+    body = _target(tmp_path, ProbeTransport(CmdResult(0, output, "")))
+
+    assert body["kind"] == "umbrella"
+    assert body["configs_names"] == []
+
+
+def test_target_of_a_cluster_that_is_not_connected_is_plain_and_runs_nothing(tmp_path: Path):
+    transport = ProbeTransport(CmdResult(0, _PROBE_OUTPUT, ""))
+
+    assert _target(tmp_path, transport, connect=False) == _PLAIN
+    assert transport.calls == []
+
+
+def test_target_of_a_local_profile_is_plain(tmp_path: Path):
+    transport = ProbeTransport(CmdResult(0, _PROBE_OUTPUT, ""))
+    with _client(tmp_path, transport) as client:
+        client.post("/api/remotes", json={"name": "here", "transport": "local"})
+
+        resp = client.get("/api/sbatchman/target", params={"profile_name": "here"})
+
+        assert resp.json() == _PLAIN
+        assert transport.calls == []
+
+
+def test_target_of_an_unknown_profile_is_not_found(tmp_path: Path):
+    with _client(tmp_path, ProbeTransport(CmdResult(0, "", ""))) as client:
+        resp = client.get("/api/sbatchman/target", params={"profile_name": "nope"})
+
+        assert resp.status_code == 404
+
+
+class ShellTransport(Transport):
+    """Runs the probe in a real shell, so the script itself is tested."""
+
+    @property
+    def alive(self) -> bool:
+        return True
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        import asyncio
+
+        proc = await asyncio.create_subprocess_shell(
+            command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        out, err = await proc.communicate()
+        return CmdResult(proc.returncode or 0, out.decode(), err.decode())
+
+    async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
+        raise AssertionError("the probe never writes")
+
+    async def close(self) -> None:
+        pass
+
+
+async def test_the_probe_script_reads_a_real_umbrella_folder(tmp_path: Path):
+    from crab.web.remoteops.umbrella import probe_umbrella
+
+    root = tmp_path / "um brella"
+    (root / "benchmarks" / "blink").mkdir(parents=True)
+    (root / "benchmarks" / "qe").mkdir()
+    (root / "benchmarks" / "notes.txt").write_text("not a folder")
+    (root / ".local").mkdir()
+    (root / ".local" / "configs.leonardo.yaml").write_text(_CONFIGS)
+    profile = _leonardo().model_copy(update={"remote_crab": str(root)})
+
+    found = await probe_umbrella(ShellTransport(), profile)
+
+    assert found.kind == "umbrella"
+    assert found.root == str(root.resolve())
+    assert found.configs_file == f"{root.resolve()}/.local/configs.leonardo.yaml"
+    assert found.benchmarks == ["blink", "qe"]
+    assert found.configs_names == ["crab_run_{nodes}", "crab_qe_{nodes}", "gpu_box"]
+
+
+async def test_the_probe_script_says_plain_for_each_missing_piece(tmp_path: Path):
+    from crab.web.remoteops.umbrella import probe_umbrella
+
+    profile = _leonardo().model_copy(update={"remote_crab": str(tmp_path / "um")})
+    no_root = await probe_umbrella(ShellTransport(), profile)
+    (tmp_path / "um").mkdir()
+    no_benchmarks = await probe_umbrella(ShellTransport(), profile)
+    (tmp_path / "um" / "benchmarks").mkdir()
+    no_configs = await probe_umbrella(ShellTransport(), profile)
+
+    assert [no_root.kind, no_benchmarks.kind, no_configs.kind] == ["plain"] * 3

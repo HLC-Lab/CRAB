@@ -8,7 +8,7 @@ runs `sbatchman launch` (ADR-026).
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, Literal
 
 # PyYAML arrives through uvicorn[standard]; declaring it in the web extra is an owner decision.
 import yaml  # type: ignore[import-untyped]
@@ -19,6 +19,7 @@ from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import InputError, RemoteCommandError, RemoteConnectionError
 from crab.web.remoteops.transfer import stage_text, staging_dir
+from crab.web.remoteops.umbrella import probe_umbrella
 from crab.web.store.campaign_library import CampaignEntry, CampaignLibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.store.sbatchman import campaign_slug, save_campaign_yaml
@@ -74,6 +75,34 @@ def _check_campaign_yaml(text: str) -> None:
         raise InputError(f"The campaign file is not valid YAML{reason}.") from e
     if not isinstance(doc, dict) or "jobs" not in doc:
         raise InputError("The campaign file has no `jobs` section.")
+
+
+class TargetResponse(BaseModel):
+    """What the cluster's install looks like to the campaign editor. Paths are absolute on
+    the cluster and empty for a plain install."""
+
+    kind: Literal["umbrella", "plain"]
+    root: str
+    configs_file: str
+    configs_names: list[str]
+    benchmarks: list[str]
+
+
+@router.get("/target", response_model=TargetResponse)
+async def target(profile_name: str, request: Request) -> TargetResponse:
+    """Whether the cluster is an umbrella install (a `benchmarks/` folder and a configs file
+    under the install directory), with the config names and benchmark folders it offers.
+    A cluster that is not connected, not an umbrella, or does not answer reads as plain."""
+    profile = _profile(profile_name, request)
+    transport = _manager(request).get(profile_name)
+    found = await probe_umbrella(transport, profile)
+    return TargetResponse(
+        kind="umbrella" if found.kind == "umbrella" else "plain",
+        root=found.root,
+        configs_file=found.configs_file,
+        configs_names=found.configs_names,
+        benchmarks=found.benchmarks,
+    )
 
 
 class StagingPathResponse(BaseModel):
