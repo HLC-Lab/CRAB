@@ -19,6 +19,7 @@ from crab.web.errors import (  # noqa: E402
     RemoteCommandError,
     RemoteConnectionError,
 )
+from crab.web.remoteops.crab_cli import remote_path_expr  # noqa: E402
 from crab.web.remoteops.transfer import stage_config, stage_text, staging_dir  # noqa: E402
 from crab.web.settings import Settings  # noqa: E402
 from crab.web.store.profiles import Profile  # noqa: E402
@@ -387,3 +388,27 @@ async def test_stage_text_quotes_a_staging_directory_with_spaces_quotes_and_doll
         ["-e", f"{weird}/c.yaml"],
         ["-f", tmp],
     ]
+
+
+async def test_stage_text_can_target_any_directory():
+    folder = "/home/u/umbrella/benchmarks/blink"
+    transport = RecordingTransport(resolver_output=folder + "\n")
+
+    path = await stage_text(transport, _ssh_profile(), "x", "c.yaml", directory=folder)
+
+    assert path == f"{folder}/c.yaml"
+    quoted = remote_path_expr(folder)
+    assert transport.ops[0] == ("run", f"mkdir -p {quoted} && cd {quoted} && pwd")
+    assert transport.ops[1][1].startswith(f"{folder}/c.yaml.tmp-")
+
+
+async def test_stage_text_names_the_given_directory_when_it_cannot_be_made():
+    transport = RecordingTransport(fail_on="mkdir")
+
+    with pytest.raises(RemoteCommandError) as caught:
+        await stage_text(
+            transport, _ssh_profile(), "x", "c.yaml", directory="/home/u/umbrella/benchmarks/blink"
+        )
+
+    assert "/home/u/umbrella/benchmarks/blink" in str(caught.value)
+    assert ".web_staging" not in str(caught.value)

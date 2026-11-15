@@ -47,17 +47,19 @@ async def _resolve_staging_dir(
     profile: Profile,
     settings: Settings | None,
     timeout: float,
+    directory: str | None = None,
 ) -> str:
-    """Resolve the staging dir to an absolute path, creating it if needed.
+    """Resolve the staging dir (or ``directory``, when given) to an absolute path,
+    creating it if needed.
 
-    ``staging_dir`` may contain a literal ``~`` for SSH profiles. Only a shell
+    The directory may contain a literal ``~`` for SSH profiles. Only a shell
     can expand that (``mkdir -p "$HOME/..."`` via ``remote_path_expr``), but
     a write goes over SFTP, which has no shell and does no expansion of its
     own: so mkdir and the write could target different trees if each handled
     ``~`` separately. Instead, one shell round-trip resolves the directory to
     an absolute path (``cd ... && pwd``) that mkdir and every write share.
     """
-    remote_dir = staging_dir(profile, settings)
+    remote_dir = directory if directory is not None else staging_dir(profile, settings)
     quoted_dir = remote_path_expr(remote_dir)
     resolve_cmd = f"mkdir -p {quoted_dir} && cd {quoted_dir} && pwd"
     result = await transport.run(resolve_cmd, timeout=timeout)
@@ -101,12 +103,14 @@ async def stage_text(
     filename: str,
     *,
     overwrite: bool = True,
+    directory: str | None = None,
     settings: Settings | None = None,
     timeout: float = 30.0,
 ) -> str:
     """Write raw ``text`` to ``filename`` in the staging dir; return its absolute
     path. Same directory/resolution as ``stage_config``, for content that isn't
-    a CRAB config JSON blob (e.g. a composed SbatchMan campaign YAML).
+    a CRAB config JSON blob (e.g. a composed SbatchMan campaign YAML). ``directory``
+    (a raw path, ``~`` allowed) replaces the staging dir; it is created if missing.
 
     With ``overwrite=False`` an existing file of that name raises ``ConflictError``
     and nothing is replaced. The text goes to a unique temporary name first and gets
@@ -116,7 +120,9 @@ async def stage_text(
     separate ``test -e`` followed by ``mv`` could not promise. Either way a failed write
     never leaves a half file under the real name.
     """
-    absolute_dir = await _resolve_staging_dir(transport, profile, settings, timeout)
+    absolute_dir = await _resolve_staging_dir(
+        transport, profile, settings, timeout, directory=directory
+    )
     remote_path = f"{absolute_dir}/{filename}"
     temp_path = f"{remote_path}.tmp-{secrets.token_hex(4)}"
     quoted_temp = shlex.quote(temp_path)
