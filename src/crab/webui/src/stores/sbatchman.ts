@@ -563,6 +563,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     configNames,
     benchmark,
     effectiveBenchmark,
+    benchmarkProblem,
     target,
     newFolderNotice,
     variables,

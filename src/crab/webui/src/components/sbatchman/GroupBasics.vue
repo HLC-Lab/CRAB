@@ -13,6 +13,8 @@ import { CONFIG_HINT, CONFIG_PLACEHOLDER } from "@/lib/sbatchman";
 const props = defineProps<{
   tag: string;
   configName: string;
+  /** Config names the cluster's configs file defines, offered as suggestions (any text is valid). */
+  configNames?: string[];
   draft: Draft;
   samples: string[];
 }>();
@@ -39,7 +41,16 @@ const d = computed(() => props.draft);
       <small>Identifies this group's jobs to SbatchMan. Can use {var} placeholders.</small>
     </label>
     <label
-      >SbatchMan config <input v-model="configNameModel" :placeholder="CONFIG_PLACEHOLDER" />
+      >SbatchMan config
+      <input
+        v-model="configNameModel"
+        list="sbatchman-config-names"
+        autocomplete="off"
+        :placeholder="CONFIG_PLACEHOLDER"
+      />
+      <datalist id="sbatchman-config-names">
+        <option v-for="n in configNames ?? []" :key="n" :value="n" />
+      </datalist>
       <small>{{ CONFIG_HINT }}</small>
     </label>
     <label

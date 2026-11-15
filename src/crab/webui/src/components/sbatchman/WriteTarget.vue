@@ -3,9 +3,10 @@
 // cluster choice of the page (it also feeds the wrapper picker), the path the
 // file will land at, and Write files. When writing is not possible the reason
 // sits next to the button: a problem count that opens the problem list, or a
-// pointer to Remotes when no cluster is connected. When the cluster already has a
-// file with this name it asks whether to replace it. Presentational only: the
-// store owns the state and does the API call.
+// pointer to Remotes when no cluster is connected. On an umbrella install it also asks
+// for the benchmark folder the file goes into (existing folders are suggested, a new name
+// is allowed). When the cluster already has a file with this name it asks whether to
+// replace it. Presentational only: the store owns the state and does the API call.
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import type { SbatchmanWriteResult } from "@/api/types";
@@ -19,12 +20,22 @@ const props = defineProps<{
   /** Number of validation problems; Write files is disabled while it is above zero. */
   problemCount: number;
   canWrite: boolean;
+  /** The cluster is an umbrella install: the file goes into a benchmark folder. */
+  isUmbrella: boolean;
+  /** The folder as typed, and the one used when it is empty. */
+  benchmark: string;
+  defaultBenchmark: string;
+  /** Existing benchmark folders, offered as suggestions. */
+  benchmarks: string[];
+  /** Why the folder blocks Write files, if it does. */
+  benchmarkProblem: string | null;
   lastWrite: SbatchmanWriteResult | null;
   /** The cluster already has a file with this name: ask before replacing it. */
   needsOverwrite: boolean;
 }>();
 const emit = defineEmits<{
   "update:destination": [string];
+  "update:benchmark": [string];
   write: [];
   replace: [];
   "show-problems": [];
@@ -63,6 +74,23 @@ const stagingFile = computed(() => props.stagingPath.slice(props.stagingPath.las
         </div>
       </div>
 
+      <div v-if="isUmbrella" class="lbl folder">
+        <label class="seclabel" for="benchmark-folder">Benchmark folder</label>
+        <input
+          id="benchmark-folder"
+          list="benchmark-folders"
+          autocomplete="off"
+          spellcheck="false"
+          :value="benchmark"
+          :placeholder="defaultBenchmark || 'a folder name'"
+          :aria-invalid="benchmarkProblem ? 'true' : undefined"
+          @input="emit('update:benchmark', ($event.target as HTMLInputElement).value)"
+        />
+        <datalist id="benchmark-folders">
+          <option v-for="b in benchmarks" :key="b" :value="b" />
+        </datalist>
+      </div>
+
       <div class="go">
         <button
           v-if="problemCount"
@@ -78,6 +106,8 @@ const stagingFile = computed(() => props.stagingPath.slice(props.stagingPath.las
         </button>
       </div>
     </div>
+
+    <p v-if="benchmarkProblem" class="out problem" role="alert">{{ benchmarkProblem }}</p>
 
     <div v-if="needsOverwrite" class="out replace" role="alert">
       <span>A file with this name already exists on the cluster. Replace it?</span>
@@ -147,6 +177,26 @@ select {
 select:focus {
   outline: none;
   border-color: var(--accent);
+}
+.folder input {
+  width: 11rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+}
+.folder input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.folder input[aria-invalid="true"] {
+  border-color: var(--warn);
+}
+.out.problem {
+  color: var(--warn);
 }
 .staging {
   display: flex;

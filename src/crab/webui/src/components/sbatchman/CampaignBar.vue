@@ -3,17 +3,27 @@
 // take theirs from the SbatchMan config, so this card says where to find it and
 // holds the `configs:` key that tells SbatchMan which configs file to read.
 // (Campaign-wide sweep variables live in the Variables card, next to the group's own.)
+import { computed } from "vue";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 
 const store = useSbatchmanStore();
+// On an umbrella install an empty field writes the umbrella's own configs file: show it.
+const derived = computed(() => (store.configsFile.trim() ? "" : store.configsRef));
 </script>
 
 <template>
   <div class="bar">
     <label class="configs">
       Configs file
-      <input v-model="store.configsFile" placeholder="../../.local/configs.leonardo.yaml" />
-      <small>
+      <input
+        v-model="store.configsFile"
+        :placeholder="derived || '../../.local/configs.leonardo.yaml'"
+      />
+      <small v-if="derived">
+        Written as the configs: key, relative to this file. Left empty, it uses this cluster's own
+        configs file: {{ derived }}.
+      </small>
+      <small v-else>
         Written as the configs: key, relative to this file. Leave it empty to write no key.
       </small>
     </label>

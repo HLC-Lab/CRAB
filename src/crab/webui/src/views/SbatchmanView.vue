@@ -84,9 +84,15 @@ function confirmRemoveGroup(): void {
         :busy="store.busy"
         :problem-count="store.issues.length"
         :can-write="store.canWrite"
+        :is-umbrella="store.target?.kind === 'umbrella'"
+        :benchmark="store.benchmark"
+        :default-benchmark="store.effectiveBenchmark"
+        :benchmarks="store.target?.benchmarks ?? []"
+        :benchmark-problem="store.benchmarkProblem"
         :last-write="store.lastWrite"
         :needs-overwrite="store.needsOverwrite"
         @update:destination="store.destination = $event"
+        @update:benchmark="store.benchmark = $event"
         @write="store.write"
         @replace="store.write({ overwrite: true })"
         @show-problems="showProblems"
@@ -96,6 +102,9 @@ function confirmRemoveGroup(): void {
     <!-- Page-level so they show even with the YAML preview hidden. -->
     <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
     <p v-if="store.notice" class="banner info" role="status">{{ store.notice }}</p>
+    <p v-if="store.newFolderNotice" class="banner info" role="status">
+      {{ store.newFolderNotice }}
+    </p>
 
     <div class="layout">
       <GroupRail
@@ -127,6 +136,7 @@ function confirmRemoveGroup(): void {
             <GroupBasics
               :tag="group.tag"
               :config-name="group.configName"
+              :config-names="store.configNames"
               :draft="group.draft"
               :samples="store.tagSamples(store.selected)"
               @update:tag="group.tag = $event"
