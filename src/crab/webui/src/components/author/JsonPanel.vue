@@ -101,6 +101,13 @@ async function onImportFileChosen(e: Event): Promise<void> {
   display: flex;
   flex-direction: column;
 }
+/* Below 90rem the rail, the pane and a 26rem panel do not fit in one row: the panel takes a row of its own. */
+@media (max-width: 90rem) {
+  .jsonpane {
+    grid-column: 1 / -1;
+    width: auto;
+  }
+}
 .jsonpane header {
   position: sticky;
   top: 0;
