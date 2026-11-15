@@ -79,6 +79,29 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/remotes/{name}/progress": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Remote Progress
+     * @description The slow steps running now for this remote, and the server clock to read them against.
+     *
+     *     An unknown name or an idle remote answers an empty list. The UI polls this while a connect,
+     *     install or other slow call is in flight.
+     */
+    get: operations["remote_progress_api_remotes__name__progress_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/remotes/{name}/disconnect": {
     parameters: {
       query?: never;
@@ -977,6 +1000,13 @@ export interface components {
       /** Preset */
       preset?: string | null;
     };
+    /** ProgressResponse */
+    ProgressResponse: {
+      /** Now */
+      now: number;
+      /** Stages */
+      stages: components["schemas"]["StageOut"][];
+    };
     /** ReceiptImport */
     ReceiptImport: {
       /** Id */
@@ -1172,6 +1202,22 @@ export interface components {
        * @default []
        */
       warnings: string[];
+    };
+    /**
+     * StageOut
+     * @description One slow step of an operation: elapsed time is `now - started_at`, never sent.
+     */
+    StageOut: {
+      /** Stage */
+      stage: string;
+      /** Label */
+      label: string;
+      /** Waiting For */
+      waiting_for: string;
+      /** Started At */
+      started_at: number;
+      /** Timeout S */
+      timeout_s?: number | null;
     };
     /**
      * StaleCluster
@@ -1428,6 +1474,37 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  remote_progress_api_remotes__name__progress_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProgressResponse"];
         };
       };
       /** @description Validation Error */
