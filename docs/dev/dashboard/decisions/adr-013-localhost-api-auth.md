@@ -16,7 +16,11 @@ Defense in two layers, enforced by middleware on every `/api/*` request:
 
 1. **Host/Origin gate** — requests whose `Host` (or `Origin`, when present) is not
    `127.0.0.1`, `localhost`, or `::1` are rejected (403). This kills DNS rebinding, where the
-   request arrives with the attacker's hostname.
+   request arrives with the attacker's hostname. The value must be exactly one of those names
+   (`::1` in square brackets) with at most a numeric port after it: anything extra, such as
+   `[::1].evil.com`, `localhost:80.evil.com` or a `user@` prefix, is refused. When an `Origin`
+   is present, its port must also equal the port in the request's `Host` header (a missing
+   port means 80), so another local page on a different port cannot drive the API.
 2. **Session token** — `create_app` generates a random token per process; the served
    `index.html` carries it in a `<meta name="crab-token">` tag; the SPA echoes it as
    `X-Crab-Token` on every call; anything without it gets 401. There are **zero open API

@@ -175,6 +175,59 @@ def test_spa_serving_and_fallback(tmp_path: Path):
     assert client.get("/api/health").status_code == 200
 
 
+def _assert_json_not_found(resp) -> None:
+    assert resp.status_code == 404
+    assert resp.headers["content-type"].startswith("application/json")
+    assert "<html" not in resp.text.lower()
+    assert resp.json()["code"] == "not_found"
+    assert resp.json()["message"]
+
+
+def test_unknown_api_path_answers_404_json_not_the_spa(tmp_path: Path):
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text(
+        "<!doctype html><html><head></head><title>app</title></html>"
+    )
+    client = auth_client(create_app(_settings(tmp_path, static=static)))
+
+    _assert_json_not_found(client.get("/api/nope"))
+    _assert_json_not_found(client.get("/api/nope/deeper/still"))
+    _assert_json_not_found(client.get("/api"))
+
+    # Real routes and client-side routes are untouched.
+    assert client.get("/api/health").status_code == 200
+    assert "title>app" in client.get("/jobs/123").text
+
+
+def test_unknown_api_path_is_404_json_in_placeholder_mode_too(tmp_path: Path):
+    static = tmp_path / "empty-static"
+    static.mkdir()
+    client = auth_client(create_app(_settings(tmp_path, static=static)))
+    _assert_json_not_found(client.get("/api/nope"))
+    _assert_json_not_found(client.get("/api"))
+    assert client.get("/api/health").status_code == 200
+
+
+def test_unknown_api_path_still_needs_the_token(tmp_path: Path):
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<!doctype html><title>app</title>")
+    bare = TestClient(create_app(_settings(tmp_path, static=static)), base_url="http://127.0.0.1")
+    with bare:
+        resp = bare.get("/api/nope")
+        assert resp.status_code == 401
+        assert resp.json()["code"] == "auth_required"
+
+
+def test_the_unknown_api_route_stays_out_of_the_schema(tmp_path: Path):
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<!doctype html><title>app</title>")
+    app = create_app(_settings(tmp_path, static=static))
+    assert not [p for p in app.openapi()["paths"] if "{rest}" in p or p == "/api"]
+
+
 def test_hashed_assets_get_a_long_lived_cache_header(tmp_path: Path):
     """Vite content-hashes every filename under assets/, so a
     changed file is always a new URL -- safe to cache for a long time."""

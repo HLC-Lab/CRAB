@@ -347,6 +347,11 @@ def test_loopback_host_forms_are_accepted(tmp_path: Path, host: str):
         "user@localhost",
         f"user@localhost:{_PORT}",
         "user:pass@127.0.0.1",
+        "[::1].evil.com",
+        "[::1]evil",
+        "[::1",
+        "localhost:abc",
+        "localhost:80.evil.com",
     ],
 )
 def test_lookalike_and_malformed_hosts_are_refused_even_with_the_token(tmp_path: Path, host: str):
@@ -373,6 +378,8 @@ def test_lookalike_and_malformed_hosts_are_refused_even_with_the_token(tmp_path:
         "http://localhost.evil.com",
         "http://127.0.0.1.evil.com",
         "http://localhost@evil.com",
+        "http://[::1].evil.com",
+        "http://localhost:8765.evil.com",
         "",
     ],
 )
@@ -407,6 +414,38 @@ def test_same_origin_forms_are_accepted_on_mutating_requests(tmp_path: Path, ori
             client.put("/api/remotes/leonardo", headers=headers, json=_PROFILE).status_code == 200
         )
         assert client.delete("/api/remotes/leonardo", headers=headers).status_code == 204
+
+
+@pytest.mark.parametrize("method", ["post", "put", "delete"])
+@pytest.mark.parametrize("origin", ["http://localhost:9999", "http://127.0.0.1"])
+def test_a_loopback_origin_on_another_port_is_refused(tmp_path: Path, method: str, origin: str):
+    # The Origin port must equal the port of the request's own Host header.
+    app, client = _port_client(tmp_path)
+    headers = {"X-Crab-Token": app.state.api_token, "Origin": origin}
+    with client:
+        if method == "post":
+            resp = client.post("/api/remotes", headers=headers, json=_PROFILE)
+        elif method == "put":
+            resp = client.put("/api/remotes/leonardo", headers=headers, json=_PROFILE)
+        else:
+            resp = client.delete("/api/remotes/leonardo", headers=headers)
+        assert resp.status_code == 403
+        assert resp.json()["code"] == "forbidden_origin"
+        listed = client.get("/api/remotes", headers={"X-Crab-Token": app.state.api_token})
+        assert listed.json() == []
+
+
+def test_the_origin_port_is_compared_to_the_host_port(tmp_path: Path):
+    app, client = _port_client(tmp_path)
+    token = {"X-Crab-Token": app.state.api_token}
+    with client:
+        same = client.get("/api/health", headers={**token, "Origin": f"http://localhost:{_PORT}"})
+        assert same.status_code == 200
+        # No port on the Host means 80, so a portless Origin matches it.
+        portless = client.get(
+            "/api/health", headers={**token, "Host": "localhost", "Origin": "http://localhost"}
+        )
+        assert portless.status_code == 200
 
 
 def test_a_request_without_origin_is_judged_on_host_and_token_alone(tmp_path: Path):
