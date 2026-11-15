@@ -15,11 +15,21 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-15
+
 ### Added
 
 - **`crab probe` warns when it probably describes a login node, or when `nvidia-smi` sees other GPUs
   than sysfs.** It still exits 0 and prints the block; the warnings appear only when it reads the live
   node, not with `--sysfs` or `--node-file`.
+- **Slow steps show a progress line.** `crab update` and `crab wrappers` print the current stage, what
+  they wait for and how long. On a terminal this is one updating line; otherwise plain lines. The
+  dashboard shows the same for connect, install, wrappers, benchmarks, submit and results fetch, on the
+  Remotes card and where the action runs. It reads the new `GET /api/remotes/{name}/progress`.
+- **The Author view edits wrapper attributes.** An app card has a wrapper settings section for
+  attributes such as `input_file`.
+- **`make core` installs CRAB and the wrappers without the setup wizard.** Scripts and installers can
+  call it. `make` also reuses an existing virtual environment.
 
 ### Changed
 
@@ -36,6 +46,23 @@ its notes live in the tag and the GitHub release.
   refused two ranks of one app sharing a NIC. Now a NIC held by an `exclusive` app, or one an
   `exclusive` app would take from another app, stops the run before it is submitted. Apps that name
   no NIC are not checked.
+- **`crab web` listens on port 8899 by default.** The default was 8765. `--port` and `CRAB_WEB_PORT` still
+  set it, and a `CRAB_WEB_PORT` that is not a port number now prints a warning. Breaking: a bookmark or
+  script that uses port 8765 needs the new port or `--port 8765`.
+- **The dashboard API refuses a lookalike Host or Origin and an Origin on another port.** A Host or Origin
+  must be a loopback name with a numeric port, and an Origin must use the port the request arrived on.
+  An unknown `/api` path answers a 404 JSON error, not the app page. Breaking: a client that relied on
+  either old behavior, such as a reverse proxy that rewrites Host, now gets a 403 or a 404.
+- **The Add cluster form refuses a name that exists.** The message says what to do and sits beside the
+  Name field, and save errors show inside the form.
+- **`crab update` and `crab wrappers pull` refuse inside a superproject.** When CRAB or the wrappers
+  clone is a submodule of an umbrella checkout, the message tells you to update the umbrella.
+- **The custom benchmark wizard asks for the benchmark ID** and defaults to no launcher override.
+- **Cluster profiles are saved with private permissions.** A setup line that is not valid is refused
+  when the profile is saved.
+- **The docs were rewritten for plain English.** Every user page is tighter, the installation layout
+  moved to the architecture page, and a style guide and a test keep dashes, filler words and AI framing
+  out.
 
 ### Fixed
 
@@ -48,6 +75,21 @@ its notes live in the tag and the GitHub release.
   inside a multibyte character.
 - **A `null` tag in the `topology` of a preset is an error.** It used to be accepted and read as the
   tag `None`. The message names the NIC and the tag position.
+- **The Author page has one main landmark and fits a 1280 px window.**
+- **Dialogs trap focus and close on Escape.** Error banners are announced, icon buttons and inputs have
+  names, and the dimmest text meets a 4.5:1 contrast in both themes. Connection errors say what to do
+  and show the cluster's own message.
+- **The dashboard copes with a bad cluster.** A dropped or slow SSH connection is noticed, and one slow
+  cluster no longer blocks the others. A timed-out CRAB check no longer leaves the cluster shown as
+  connected. A cluster with an older or newer CRAB gives a readable error on every call. Installing
+  again on a half-built folder continues instead of failing.
+- **`crab update` keeps a detached checkout on its own release line.** A checkout on the SbatchMan line
+  no longer picks a product tag.
+- **`make` works on a cluster with a Python module loaded.** It ignores an inherited `PYTHONPATH`, and
+  `activate` clears `PYTHONPATH` and `PYTHONHOME`. `make clean` never deletes a venv outside the
+  checkout, and `make` does not clone the wrappers when `CRAB_PATH_WRAPPERS` points at them.
+- **The progress line keeps its dot beside the text when the text wraps**, and never reroutes standard
+  output.
 
 ## [1.4.0] - 2026-11-02
 
