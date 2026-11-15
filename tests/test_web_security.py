@@ -482,6 +482,7 @@ _ALL_ROUTER_ROUTES = [
     ("results", "GET", "/api/results"),
     ("sbatchman", "GET", "/api/sbatchman/campaigns"),
     ("sbatchman_write", "POST", "/api/sbatchman/write"),
+    ("sbatchman_target", "GET", "/api/sbatchman/target"),
 ]
 _ROUTER_ROUTES = [
     route for route in _ALL_ROUTER_ROUTES if route_is_mounted("/".join(route[2].split("/")[:3]))

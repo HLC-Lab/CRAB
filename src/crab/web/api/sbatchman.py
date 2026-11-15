@@ -19,7 +19,7 @@ from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import InputError, RemoteCommandError, RemoteConnectionError
 from crab.web.remoteops.transfer import stage_text, staging_dir
-from crab.web.remoteops.umbrella import probe_umbrella
+from crab.web.remoteops.umbrella import check_benchmark_folder, probe_umbrella
 from crab.web.store.campaign_library import CampaignEntry, CampaignLibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.store.sbatchman import campaign_slug, save_campaign_yaml
@@ -109,11 +109,34 @@ class StagingPathResponse(BaseModel):
     path: str
 
 
+async def _benchmark_directory(
+    benchmark: str | None, profile: Profile, request: Request
+) -> tuple[str | None, bool]:
+    """The folder a campaign goes into and whether Write would create it.
+
+    ``(None, False)`` means the staging directory: no folder was asked for, or the cluster
+    is not an umbrella install (a plain install has no `benchmarks/` to write into). A folder
+    that is not one safe name is refused first, whatever the cluster is.
+    """
+    if benchmark is None:
+        return None, False
+    check_benchmark_folder(benchmark)
+    found = await probe_umbrella(_manager(request).get(profile.name), profile)
+    if found.kind != "umbrella":
+        return None, False
+    return f"{found.root}/benchmarks/{benchmark}", benchmark not in found.benchmarks
+
+
 @router.get("/staging-path", response_model=StagingPathResponse)
-async def staging_path(profile_name: str, name: str, request: Request) -> StagingPathResponse:
-    """Where Write files will put this campaign on the cluster (`~` preserved)."""
+async def staging_path(
+    profile_name: str, name: str, request: Request, benchmark: str | None = None
+) -> StagingPathResponse:
+    """Where Write files will put this campaign on the cluster (`~` preserved): the
+    benchmark folder on an umbrella install when one is given, else the staging directory."""
     profile = _profile(profile_name, request)
-    directory = staging_dir(profile, request.app.state.settings)
+    directory, _ = await _benchmark_directory(benchmark, profile, request)
+    if directory is None:
+        directory = staging_dir(profile, request.app.state.settings)
     return StagingPathResponse(path=f"{directory}/{_campaign_filename(name)}")
 
 
@@ -123,11 +146,16 @@ class WriteRequest(BaseModel):
     name: str = "campaign"
     # Replace a file of the same name that is already on the cluster.
     overwrite: bool = False
+    # The folder under `<install dir>/benchmarks/` to write into. Only an umbrella install
+    # has one; on a plain install it is ignored and the file goes to the staging directory.
+    benchmark: str | None = None
 
 
 class WriteResponse(BaseModel):
     local_path: str
     remote_path: str
+    # The benchmark folder did not exist and this write created it.
+    new_folder: bool = False
 
 
 @router.post("/write", response_model=WriteResponse)
@@ -136,6 +164,7 @@ async def write_campaign(body: WriteRequest, request: Request) -> WriteResponse:
     transport = _live_transport(body.profile_name, request)
     profile = _profile(body.profile_name, request)
     settings = request.app.state.settings
+    directory, new_folder = await _benchmark_directory(body.benchmark, profile, request)
 
     # The cluster first: an existing file (409) or a failed write leaves no local copy.
     remote_path = await stage_text(
@@ -144,6 +173,7 @@ async def write_campaign(body: WriteRequest, request: Request) -> WriteResponse:
         body.yaml,
         _campaign_filename(body.name),
         overwrite=body.overwrite,
+        directory=directory,
         settings=settings,
     )
     try:
@@ -154,7 +184,7 @@ async def write_campaign(body: WriteRequest, request: Request) -> WriteResponse:
             "but saving the local copy failed.",
             detail=str(e),
         ) from e
-    return WriteResponse(local_path=str(local_path), remote_path=remote_path)
+    return WriteResponse(local_path=str(local_path), remote_path=remote_path, new_folder=new_folder)
 
 
 # --------------------------------------------------------------------------- #

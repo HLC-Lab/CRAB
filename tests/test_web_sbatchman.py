@@ -635,3 +635,240 @@ async def test_the_probe_script_says_plain_for_each_missing_piece(tmp_path: Path
     no_configs = await probe_umbrella(ShellTransport(), profile)
 
     assert [no_root.kind, no_benchmarks.kind, no_configs.kind] == ["plain"] * 3
+
+
+# --------------------------------------------------------------------------- #
+# Writing into an umbrella's benchmark folder
+# --------------------------------------------------------------------------- #
+_ROOT = "/home/researcher/base"
+_UMBRELLA_PROBE = (
+    f"@@root\n{_ROOT}\n@@configs\n.local/configs.leonardo.yaml\n"
+    "@@benchmarks\nblink\nqe\n@@content\n" + _CONFIGS
+)
+
+
+class UmbrellaTransport(FakeTransport):
+    """FakeTransport plus the umbrella probe, and a `mkdir -p` that returns the folder it was
+    asked for (as the real shell would after `cd ... && pwd`)."""
+
+    def __init__(self, probe: CmdResult | None = None):
+        super().__init__()
+        self._probe = probe if probe is not None else CmdResult(0, _UMBRELLA_PROBE, "")
+        self.made_dirs: list[str] = []
+
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if command.startswith("bash -c"):
+            self.calls.append(command)
+            return self._probe
+        if command.startswith("mkdir -p") and "benchmarks" in command:
+            self.calls.append(command)
+            folder = shlex.split(command)[2]
+            self.made_dirs.append(folder)
+            return CmdResult(0, folder + "\n", "")
+        return await super().run(command, timeout)
+
+    def probes(self) -> list[str]:
+        return [c for c in self.calls if c.startswith("bash -c")]
+
+
+def test_write_into_an_umbrella_puts_the_file_in_the_benchmark_folder(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body(benchmark="blink"))
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["remote_path"] == f"{_ROOT}/benchmarks/blink/my-campaign.yaml"
+        assert body["new_folder"] is False
+        assert transport.written_files == {body["remote_path"]: _YAML}
+        assert transport.made_dirs == [f"{_ROOT}/benchmarks/blink"]
+        # The local copy is still kept.
+        assert Path(body["local_path"]).read_text() == _YAML
+
+
+def test_write_into_a_new_benchmark_folder_creates_it_and_says_so(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body(benchmark="new-bench"))
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["remote_path"] == f"{_ROOT}/benchmarks/new-bench/my-campaign.yaml"
+        assert body["new_folder"] is True
+        assert transport.made_dirs == [f"{_ROOT}/benchmarks/new-bench"]
+
+
+def test_write_into_a_benchmark_folder_still_asks_before_replacing(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+        first = client.post("/api/sbatchman/write", json=_write_body(benchmark="blink"))
+        assert first.status_code == 200
+        before = list(_local_campaign_files(tmp_path))
+        other_yaml = 'jobs:\n  - tag: "changed"\n'
+
+        second = client.post(
+            "/api/sbatchman/write", json=_write_body(other_yaml, benchmark="blink")
+        )
+
+        assert second.status_code == 409
+        assert second.json()["code"] == "conflict"
+        assert list(transport.written_files.values()) == [_YAML]
+        assert _local_campaign_files(tmp_path) == before
+
+        third = client.post(
+            "/api/sbatchman/write",
+            json=_write_body(other_yaml, benchmark="blink", overwrite=True),
+        )
+        assert third.status_code == 200
+        assert list(transport.written_files.values()) == [other_yaml]
+
+
+def test_the_same_file_name_in_two_benchmark_folders_is_not_a_conflict(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        one = client.post("/api/sbatchman/write", json=_write_body(benchmark="blink"))
+        two = client.post("/api/sbatchman/write", json=_write_body(benchmark="qe"))
+
+        assert one.status_code == two.status_code == 200
+        assert sorted(transport.written_files) == [
+            f"{_ROOT}/benchmarks/blink/my-campaign.yaml",
+            f"{_ROOT}/benchmarks/qe/my-campaign.yaml",
+        ]
+
+
+@pytest.mark.parametrize(
+    "folder", ["..", ".", "a/b", "../x", "/etc", "", " ", ".hidden", "-x", "a b", "x" * 61, "a\nb"]
+)
+def test_write_refuses_a_benchmark_folder_that_is_not_one_safe_name(tmp_path: Path, folder: str):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body(benchmark=folder))
+
+        assert resp.status_code == 422
+        assert resp.json()["code"] == "input_error"
+        assert "benchmark folder" in resp.json()["message"]
+        assert transport.written_files == {}
+        assert transport.made_dirs == []
+        assert _local_campaign_files(tmp_path) == []
+
+
+def test_write_accepts_the_longest_folder_name_and_dots_dashes_underscores(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        for folder in ("a" * 60, "Qe_v1.2-x"):
+            resp = client.post("/api/sbatchman/write", json=_write_body(benchmark=folder))
+            assert resp.status_code == 200, folder
+
+
+def test_a_plain_install_ignores_the_benchmark_folder(tmp_path: Path):
+    transport = UmbrellaTransport(probe=CmdResult(3, "", ""))
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body(benchmark="blink"))
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["remote_path"] == "/home/researcher/base/CRAB/.web_staging/my-campaign.yaml"
+        assert body["new_folder"] is False
+        assert transport.made_dirs == []
+        assert Path(body["local_path"]).read_text() == _YAML
+
+
+def test_a_write_without_a_benchmark_never_probes_and_stays_in_staging(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body())
+
+        assert resp.status_code == 200
+        assert resp.json()["remote_path"].endswith("/.web_staging/my-campaign.yaml")
+        assert resp.json()["new_folder"] is False
+        assert transport.probes() == []
+
+
+def test_a_failed_folder_creation_leaves_no_local_copy(tmp_path: Path):
+    class NoFolder(UmbrellaTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if command.startswith("mkdir -p"):
+                return CmdResult(1, "", "permission denied")
+            return await super().run(command, timeout)
+
+    with _client(tmp_path, NoFolder()) as client:
+        _connect(client)
+
+        resp = client.post("/api/sbatchman/write", json=_write_body(benchmark="blink"))
+
+        assert resp.status_code == 502
+        assert _local_campaign_files(tmp_path) == []
+
+
+def _staging_path(client, **params) -> object:
+    return client.get(
+        "/api/sbatchman/staging-path", params={"profile_name": "leonardo", "name": "My C", **params}
+    )
+
+
+def test_staging_path_with_a_benchmark_shows_the_folder_in_an_umbrella(tmp_path: Path):
+    with _client(tmp_path, UmbrellaTransport()) as client:
+        _connect(client)
+
+        resp = _staging_path(client, benchmark="blink")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"path": f"{_ROOT}/benchmarks/blink/my-c.yaml"}
+
+
+def test_staging_path_with_a_benchmark_matches_where_write_puts_the_file(tmp_path: Path):
+    with _client(tmp_path, UmbrellaTransport()) as client:
+        _connect(client)
+
+        shown = _staging_path(client, benchmark="new-bench").json()["path"]
+        written = client.post(
+            "/api/sbatchman/write", json=_write_body(name="My C", benchmark="new-bench")
+        ).json()["remote_path"]
+
+        assert shown == written
+
+
+def test_staging_path_without_a_benchmark_or_on_a_plain_install_is_the_staging_dir(tmp_path: Path):
+    with _client(tmp_path, UmbrellaTransport(probe=CmdResult(3, "", ""))) as client:
+        _connect(client)
+
+        plain = _staging_path(client, benchmark="blink").json()["path"]
+        bare = _staging_path(client).json()["path"]
+
+        assert plain == bare == "~/base/CRAB/.web_staging/my-c.yaml"
+
+
+def test_staging_path_refuses_a_bad_benchmark_folder(tmp_path: Path):
+    with _client(tmp_path, UmbrellaTransport()) as client:
+        _connect(client)
+
+        for folder in ("..", "a/b", ""):
+            resp = _staging_path(client, benchmark=folder)
+            assert resp.status_code == 422, folder
+            assert resp.json()["code"] == "input_error"
+
+
+def test_staging_path_with_a_benchmark_on_an_unconnected_cluster_is_the_staging_dir(
+    tmp_path: Path,
+):
+    with _client(tmp_path, UmbrellaTransport()) as client:
+        client.post("/api/remotes", json=_leonardo_profile_body())
+
+        resp = _staging_path(client, benchmark="blink")
+
+        assert resp.json() == {"path": "~/base/CRAB/.web_staging/my-c.yaml"}
