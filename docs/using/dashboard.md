@@ -2,7 +2,7 @@
 
 !!! note "This guide covers the full dashboard"
     The `sbatchman` branch of CRAB only authors SbatchMan campaigns. Its top bar has **Remotes**,
-    **Wrappers** and **SbatchMan**: the Author, Jobs and Results sections described below are not
+    **Wrappers** and **SbatchMan**: the Author, Jobs and Results sections of this guide are not
     shown there. For that branch, read [Using CRAB with SbatchMan](sbatchman-integration.md), which
     also says where the SbatchMan view writes a campaign file.
 

@@ -170,7 +170,7 @@ sbatchman launch -f <campaign-slug>.yaml --dry-run
 
 If the dashboard cannot check the install (a dropped connection, an unexpected answer), a write that names a benchmark folder stops with an error and writes nothing, instead of falling back to the staging folder.
 
-A group whose config uses a shell variable such as `$CRAB_ROOT` (in a [wrapper attribute](#receipts-and-wrapper-attributes), say) gets an unquoted `<<JSON` heredoc, so the shell expands it, as in `qe-alone.yaml`. Such a group may not contain a backtick, a backslash or `$(`: the preview lists it as a problem. Every other group keeps the quoted `<<'JSON'` form.
+A group whose config uses a shell variable such as `$CRAB_ROOT` (in a [wrapper attribute](#receipts-and-wrapper-attributes), say) gets an unquoted `<<JSON` heredoc, so the shell expands it, as in `qe-alone.yaml`. Such a group must not contain a backtick, a backslash or `$(`: the preview lists it as a problem. Every other group keeps the quoted `<<'JSON'` form.
 
 ## Troubleshooting
 

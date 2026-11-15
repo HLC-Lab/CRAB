@@ -19,7 +19,7 @@
 ## Install the framework
 
 The Makefile creates an isolated virtual environment, installs CRAB in editable mode, clones the
-wrappers into `wrappers/` and starts the setup wizard. The clone below takes the `sbatchman`
+wrappers into `wrappers/` and starts the setup wizard. This clone takes the `sbatchman`
 branch, the line of CRAB that launches jobs through SbatchMan
 (see [Using CRAB with SbatchMan](sbatchman-integration.md)):
 
