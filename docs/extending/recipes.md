@@ -117,7 +117,7 @@ from .base import BuildManifest, BuildParameter
         )
 ```
 
-## What the binary_path should point to
+## What binary_path points to
 
 Return whatever directory or file your [wrapper](wrappers.md) expects. The convention used by the
 shipped recipes is to return the directory containing the binaries (e.g. `bin/`, `src/`) and let

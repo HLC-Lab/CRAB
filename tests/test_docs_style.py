@@ -24,13 +24,10 @@ _EXCLUDED_FILES = ("contributing.md",)
 # Pages not cleaned yet: the filler test is an expected failure for them (strict, so a page that
 # gets cleaned must be removed from this set).
 PENDING: set[str] = {
-    "docs/extending/recipes.md",
-    "docs/extending/wrappers.md",
     "docs/reference/api.md",
     "docs/reference/cli.md",
     "docs/reference/configuration.md",
     "docs/reference/presets.md",
-    "docs/reference/supported-benchmarks.md",
 }
 
 FILLER = (
