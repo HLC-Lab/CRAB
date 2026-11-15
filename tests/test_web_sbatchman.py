@@ -46,7 +46,7 @@ def _leonardo() -> Profile:
 
 class FakeTransport(Transport):
     """A cluster that keeps files: write_file puts them in `written_files`, and the
-    shell commands stage_text issues (`test -e`, `chmod`, `mv -f`, `rm -f`) act on it."""
+    shell commands stage_text issues (`chmod`, `ln`, `test -e`, `mv -f`, `rm -f`) act on it."""
 
     def __init__(self):
         self._alive = True
@@ -66,6 +66,12 @@ class FakeTransport(Transport):
         argv = shlex.split(command)
         if argv[:2] == ["test", "-e"]:
             return CmdResult(0 if argv[2] in self.written_files else 1, "", "")
+        if argv[:2] == ["ln", "--"]:
+            # A hard link: refused when the final name is taken, otherwise both names hold it.
+            if argv[3] in self.written_files:
+                return CmdResult(1, "", "ln: failed to create hard link: File exists")
+            self.written_files[argv[3]] = self.written_files[argv[2]]
+            return CmdResult(0, "", "")
         if argv[:2] == ["chmod", "600"]:
             return CmdResult(0 if argv[2] in self.written_files else 1, "", "")
         if argv[:2] == ["mv", "-f"]:

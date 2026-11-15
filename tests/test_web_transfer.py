@@ -226,22 +226,52 @@ async def test_stage_text_removes_the_temp_file_when_the_move_fails():
 
 async def test_stage_text_refuses_to_replace_an_existing_file_unless_told_to():
     class ExistingFile(RecordingTransport):
+        """`ln` finds the final name taken, and `test -e` confirms it exists."""
+
         async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
-            if command.startswith("test -e"):
+            if command.startswith("ln "):
                 self.ops.append(("run", command))
-                return CmdResult(0, "", "")
+                return CmdResult(1, "", "ln: failed to create hard link: File exists")
             return await super().run(command, timeout)
 
     refused = ExistingFile()
     with pytest.raises(ConflictError, match="already exists on the cluster"):
         await stage_text(refused, _ssh_profile(), "x", "c.yaml", overwrite=False)
     assert ("run", f"test -e {_DIR}/c.yaml") in refused.ops
-    assert not any(kind == "write" for kind, _ in refused.ops)
+    tmp = refused.ops[1][1]
+    assert refused.ops[-1] == ("run", f"rm -f {shlex.quote(tmp)}")
 
     allowed = ExistingFile()
     path = await stage_text(allowed, _ssh_profile(), "x", "c.yaml")
     assert path == f"{_DIR}/c.yaml"
-    assert not any(command.startswith("test -e") for _, command in allowed.ops)
+    assert not any(command.startswith(("test -e", "ln ")) for _, command in allowed.ops)
+    assert allowed.ops[-1][1].startswith("mv -f ")
+
+
+async def test_stage_text_without_overwrite_links_the_temp_file_then_removes_it():
+    transport = RecordingTransport()
+
+    path = await stage_text(transport, _ssh_profile(), "x", "c.yaml", overwrite=False)
+
+    assert path == f"{_DIR}/c.yaml"
+    assert [kind for kind, _ in transport.ops] == ["run", "write", "run", "run", "run"]
+    tmp = transport.ops[1][1]
+    assert transport.ops[2][1] == f"chmod 600 {shlex.quote(tmp)}"
+    assert transport.ops[3][1] == f"ln -- {shlex.quote(tmp)} {shlex.quote(path)}"
+    assert transport.ops[4][1] == f"rm -f {shlex.quote(tmp)}"
+    # The existence check is only asked after a failed link, never before the write.
+    assert not any(command.startswith("test -e") for _, command in transport.ops)
+    assert not any(command.startswith("mv ") for _, command in transport.ops)
+
+
+async def test_stage_text_with_overwrite_still_ends_in_mv_and_never_links():
+    transport = RecordingTransport()
+
+    path = await stage_text(transport, _ssh_profile(), "x", "c.yaml", overwrite=True)
+
+    tmp = transport.ops[1][1]
+    assert transport.ops[-1] == ("run", f"mv -f {shlex.quote(tmp)} {shlex.quote(path)}")
+    assert not any(command.startswith(("ln ", "test -e")) for _, command in transport.ops)
 
 
 class ScriptedTransport(RecordingTransport):
@@ -276,25 +306,49 @@ class ScriptedTransport(RecordingTransport):
         await super().write_file(path, content, timeout)
 
 
-async def test_stage_text_treats_an_unknown_test_result_as_a_failure_and_writes_nothing():
-    # `test -e` answers 0 (exists) or 1 (absent); anything else (ssh itself failed: 255)
-    # says nothing about the file, so nothing may be written on the strength of it.
-    transport = ScriptedTransport(rc_for={"test -e": 255})
+async def test_stage_text_a_failed_link_with_an_unreadable_check_is_a_failure():
+    # `ln` failed and `test -e` answers neither 0 (exists) nor 1 (absent), say 255 when ssh
+    # itself failed: that says nothing about the file, so it must not read as a conflict.
+    transport = ScriptedTransport(rc_for={"ln ": 1, "test -e": 255})
 
     with pytest.raises(RemoteCommandError) as excinfo:
         await stage_text(transport, _ssh_profile(), "x", "c.yaml", overwrite=False)
 
+    assert not isinstance(excinfo.value, ConflictError)
     assert excinfo.value.detail == "ssh: connection reset"
-    assert not any(kind == "write" for kind, _ in transport.ops)
+    tmp = transport.ops[1][1]
+    assert transport.ops[-1] == ("run", f"rm -f {shlex.quote(tmp)}")
 
 
-async def test_stage_text_continues_when_test_says_the_file_is_absent():
-    transport = ScriptedTransport(rc_for={"test -e": 1})
+async def test_stage_text_a_failed_link_on_an_absent_file_is_a_command_error():
+    # The link failed for some other reason (no hard links on that filesystem, say).
+    transport = ScriptedTransport(rc_for={"ln ": 1, "test -e": 1})
+
+    with pytest.raises(RemoteCommandError) as excinfo:
+        await stage_text(transport, _ssh_profile(), "x", "c.yaml", overwrite=False)
+
+    assert not isinstance(excinfo.value, ConflictError)
+    assert excinfo.value.detail == "ssh: connection reset"
+    tmp = transport.ops[1][1]
+    assert transport.ops[-1] == ("run", f"rm -f {shlex.quote(tmp)}")
+
+
+async def test_stage_text_a_failed_link_on_an_existing_file_is_a_conflict_and_cleans_up():
+    transport = ScriptedTransport(rc_for={"ln ": 1, "test -e": 0})
+
+    with pytest.raises(ConflictError, match="already exists on the cluster"):
+        await stage_text(transport, _ssh_profile(), "x", "c.yaml", overwrite=False)
+
+    tmp = transport.ops[1][1]
+    assert transport.ops[-1] == ("run", f"rm -f {shlex.quote(tmp)}")
+
+
+async def test_stage_text_a_failed_cleanup_after_the_link_still_returns_the_path():
+    transport = ScriptedTransport(rc_for={"rm -f": 1})
 
     path = await stage_text(transport, _ssh_profile(), "x", "c.yaml", overwrite=False)
 
     assert path == f"{_DIR}/c.yaml"
-    assert [kind for kind, _ in transport.ops] == ["run", "run", "write", "run", "run"]
 
 
 async def test_stage_text_cleanup_failure_does_not_hide_the_original_error():
@@ -318,18 +372,18 @@ async def test_stage_text_cleans_up_when_cancelled_and_stays_cancelled():
 
 async def test_stage_text_quotes_a_staging_directory_with_spaces_quotes_and_dollars():
     weird = "/home/u/my dir/it's $HOME/.web_staging"
-    transport = ScriptedTransport(rc_for={"test -e": 1, "mv -f": 1}, resolver_output=weird + "\n")
+    transport = ScriptedTransport(rc_for={"ln ": 1, "test -e": 1}, resolver_output=weird + "\n")
 
     with pytest.raises(RemoteCommandError):
         await stage_text(transport, _ssh_profile(), "x", "c.yaml", overwrite=False)
 
     commands = [command for kind, command in transport.ops if kind == "run"][1:]
-    assert [shlex.split(command)[0] for command in commands] == ["test", "chmod", "mv", "rm"]
-    tmp = transport.ops[2][1]
+    assert [shlex.split(command)[0] for command in commands] == ["chmod", "ln", "test", "rm"]
+    tmp = transport.ops[1][1]
     assert tmp.startswith(f"{weird}/c.yaml.tmp-")
     assert [shlex.split(command)[1:] for command in commands] == [
-        ["-e", f"{weird}/c.yaml"],
         ["600", tmp],
-        ["-f", tmp, f"{weird}/c.yaml"],
+        ["--", tmp, f"{weird}/c.yaml"],
+        ["-e", f"{weird}/c.yaml"],
         ["-f", tmp],
     ]

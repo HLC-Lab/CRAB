@@ -109,46 +109,61 @@ async def stage_text(
     a CRAB config JSON blob (e.g. a composed SbatchMan campaign YAML).
 
     With ``overwrite=False`` an existing file of that name raises ``ConflictError``
-    and nothing is written. The text goes to a unique temporary name first, gets
-    mode 600 whatever the umask, and is then moved onto the final name, so a failed
-    write never leaves a half file under the real name.
+    and nothing is replaced. The text goes to a unique temporary name first and gets
+    mode 600 whatever the umask. It then reaches the final name by ``mv -f`` (overwrite)
+    or by a hard link (no overwrite). ``ln`` fails atomically when the name is taken, so
+    a file that appears between the request and the write is never clobbered, which a
+    separate ``test -e`` followed by ``mv`` could not promise. Either way a failed write
+    never leaves a half file under the real name.
     """
     absolute_dir = await _resolve_staging_dir(transport, profile, settings, timeout)
     remote_path = f"{absolute_dir}/{filename}"
-    if not overwrite:
-        exists = await transport.run(f"test -e {shlex.quote(remote_path)}", timeout=timeout)
-        # `test` answers 0 (exists) or 1 (absent). Any other code (ssh itself failing, say)
-        # says nothing about the file, so nothing is written on the strength of it.
-        if exists.rc == 0:
-            raise ConflictError(
-                f"A campaign file named {filename} already exists on the cluster. "
-                "Write again to replace it."
-            )
-        if exists.rc != 1:
-            raise RemoteCommandError(
-                f"Could not check whether {filename} already exists on the cluster.",
-                detail=output_tail(exists),
-            )
     temp_path = f"{remote_path}.tmp-{secrets.token_hex(4)}"
+    quoted_temp = shlex.quote(temp_path)
+    quoted_final = shlex.quote(remote_path)
     try:
         # The SFTP create uses the server's umask, so the content is readable by whoever that
         # allows until the chmod below runs.
         await transport.write_file(temp_path, text, timeout=timeout)
-        for command, what in (
-            (f"chmod 600 {shlex.quote(temp_path)}", "set the permissions of"),
-            (f"mv -f {shlex.quote(temp_path)} {shlex.quote(remote_path)}", "move"),
-        ):
-            result = await transport.run(command, timeout=timeout)
+        result = await transport.run(f"chmod 600 {quoted_temp}", timeout=timeout)
+        if not result.ok:
+            raise RemoteCommandError(
+                f"Could not set the permissions of the staged file {filename}.",
+                detail=output_tail(result),
+            )
+        if overwrite:
+            result = await transport.run(f"mv -f {quoted_temp} {quoted_final}", timeout=timeout)
             if not result.ok:
                 raise RemoteCommandError(
-                    f"Could not {what} the staged file {filename}.", detail=output_tail(result)
+                    f"Could not move the staged file {filename}.", detail=output_tail(result)
+                )
+        else:
+            result = await transport.run(f"ln -- {quoted_temp} {quoted_final}", timeout=timeout)
+            if not result.ok:
+                # `test` answers 0 (exists) or 1 (absent). Any other code (ssh itself failing,
+                # say) says nothing about the file, so it must not read as a conflict.
+                exists = await transport.run(f"test -e {quoted_final}", timeout=timeout)
+                if exists.rc == 0:
+                    raise ConflictError(
+                        f"A campaign file named {filename} already exists on the cluster. "
+                        "Write again to replace it."
+                    )
+                raise RemoteCommandError(
+                    f"Could not move the staged file {filename} into place.",
+                    detail=output_tail(exists if exists.rc != 1 else result),
                 )
     except BaseException:
         # Best effort, and also when cancelled: the connection may be the very thing that
         # failed. The original error (or the cancellation) keeps propagating.
         try:
-            await transport.run(f"rm -f {shlex.quote(temp_path)}", timeout=timeout)
+            await transport.run(f"rm -f {quoted_temp}", timeout=timeout)
         except CrabWebError:
             pass
         raise
+    if not overwrite:
+        # The file is in place under the final name; the second link to it is only litter.
+        try:
+            await transport.run(f"rm -f {quoted_temp}", timeout=timeout)
+        except CrabWebError:
+            pass
     return remote_path
