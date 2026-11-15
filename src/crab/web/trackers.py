@@ -22,18 +22,28 @@ PENDING_TTL = 24 * 3600.0
 class ExpiringTracker:
     """id -> status dict, with lazy time-based expiry."""
 
-    def __init__(self, clock: Callable[[], float] = time.monotonic):
+    def __init__(
+        self,
+        clock: Callable[[], float] = time.monotonic,
+        pending_ttl: float | None = None,
+        terminal_ttl: float | None = None,
+    ):
+        """`pending_ttl` and `terminal_ttl` override the module defaults for this tracker."""
         self._clock = clock
+        self._pending_ttl = pending_ttl
+        self._terminal_ttl = terminal_ttl
         # id -> (created_at, finished_at or None, status dict)
         self._entries: dict[str, tuple[float, float | None, dict[str, Any]]] = {}
 
     def _sweep(self) -> None:
         now = self._clock()
+        terminal_ttl = TERMINAL_TTL if self._terminal_ttl is None else self._terminal_ttl
+        pending_ttl = PENDING_TTL if self._pending_ttl is None else self._pending_ttl
         expired = [
             key
             for key, (created, finished, _value) in self._entries.items()
-            if (finished is not None and now - finished >= TERMINAL_TTL)
-            or now - created >= PENDING_TTL
+            if (finished is not None and now - finished >= terminal_ttl)
+            or now - created >= pending_ttl
         ]
         for key in expired:
             del self._entries[key]
@@ -61,6 +71,11 @@ class ExpiringTracker:
         self._sweep()
         entry = self._entries.get(key)
         return entry[2] if entry is not None else None
+
+    def items(self) -> list[tuple[str, dict[str, Any]]]:
+        """Every live entry, in the order it was first stored."""
+        self._sweep()
+        return [(key, entry[2]) for key, entry in self._entries.items()]
 
     def pop(self, key: str, default: dict[str, Any] | None = None) -> dict[str, Any] | None:
         self._sweep()

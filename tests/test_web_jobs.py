@@ -1461,3 +1461,80 @@ def test_worst_status_empty_is_none():
 
 def test_worst_status_falls_back_to_the_only_status_present():
     assert worst_status(["UNKNOWN"]) == "UNKNOWN"
+
+
+# --- progress: staging and `crab run` report their stages ---
+
+
+class _RunFails(ScriptedTransport):
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        if "crab run" in command:
+            return CmdResult(1, "", "boom")
+        return await super().run(command, timeout)
+
+
+async def _submit_with_board(tmp_path: Path, transport: Transport):
+    from conftest import RecordingBoard
+    from crab.cli.progress import use_reporter
+
+    board = RecordingBoard()
+    with use_reporter(board.reporter("leonardo")):
+        await _run_submission(
+            {},
+            "sub-1",
+            transport,
+            _profile(tmp_path),
+            _SNAPSHOT,
+            "My Run",
+            "leonardo",
+            None,
+            _settings(tmp_path),
+        )
+    return board
+
+
+async def test_run_submission_reports_staging_then_the_run(tmp_path: Path):
+    board = await _submit_with_board(tmp_path, ScriptedTransport())
+    assert board.events == [
+        ("leonardo", "begin", "stage-config"),
+        ("leonardo", "end", "stage-config", True),
+        ("leonardo", "begin", "crab-run"),
+        ("leonardo", "end", "crab-run", True),
+    ]
+    assert [s.timeout_s for s in board.begun] == [30, 60]
+    assert board.snapshot("leonardo") == []
+
+
+async def test_a_failing_crab_run_ends_its_stage_not_ok(tmp_path: Path):
+    board = await _submit_with_board(tmp_path, _RunFails())
+    assert board.events[-2:] == [
+        ("leonardo", "begin", "crab-run"),
+        ("leonardo", "end", "crab-run", False),
+    ]
+    assert board.snapshot("leonardo") == []
+
+
+def test_the_reporter_set_in_the_handler_reaches_the_background_task(tmp_path: Path):
+    import time
+
+    from conftest import RecordingBoard
+
+    with _client(tmp_path) as client:
+        client.post("/api/remotes", json=_leonardo_profile())
+        client.post("/api/remotes/leonardo/connect")
+        entry = client.post("/api/experiments", json={"name": "My Run", "config": _SNAPSHOT}).json()
+        board = client.app.state.progress = RecordingBoard()
+
+        resp = client.post(
+            "/api/jobs/submit", json={"profile_name": "leonardo", "config_id": entry["id"]}
+        )
+        assert resp.status_code == 202
+        sid = resp.json()["submission_id"]
+        for _ in range(100):
+            if client.get(f"/api/jobs/submissions/{sid}").json()["status"] != "pending":
+                break
+            time.sleep(0.01)
+
+    assert [e[2] for e in board.events if e[1] == "begin"] == ["stage-config", "crab-run"]
+    assert all(e[3] for e in board.events if e[1] == "end")
+    assert board.snapshot("leonardo") == []

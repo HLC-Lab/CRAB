@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from crab import __version__
 from crab.web.errors import register_exception_handlers
+from crab.web.progress import ProgressBoard
 from crab.web.settings import Settings, get_settings
 from crab.web.trackers import ExpiringTracker
 
@@ -92,6 +93,9 @@ def create_app(
     # `submissions` above: fetch_id -> status dict, not persisted.
     app.state.result_fetches = ExpiringTracker()
     app.state.pending_result_fetch_tasks = set()
+    # What each cluster's slow operation is doing now (connect, install, ...), read by the
+    # progress route. In-memory, like the trackers above.
+    app.state.progress = ProgressBoard()
     # Per-process API secret: the SPA receives it via a meta tag in the served
     # index.html and echoes it as X-Crab-Token. This app runs SSH commands, so
     # its localhost API must not be drivable by a hostile web page.

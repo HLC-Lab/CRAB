@@ -30,6 +30,13 @@ PROFILES_VERSION = 1
 _VALID_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 # `/api/wrappers/local/...` is the laptop, so no cluster profile may take the name.
 _LAPTOP_NAME = "local"
+
+
+def duplicate_name_message(name: str) -> str:
+    """The 409 text for a remote name that is taken: what happened and what to do."""
+    return f"A remote named {name!r} already exists. Choose another name or edit that one."
+
+
 # Serialises read-modify-write of clusters.json: the dashboard is one process, so one lock
 # is enough to keep two concurrent requests from overwriting each other's change.
 _WRITE_LOCK = threading.Lock()
@@ -209,7 +216,7 @@ class ProfileStore:
         with _WRITE_LOCK:
             store = self._load()
             if any(p.name == profile.name for p in store.clusters):
-                raise ConflictError(f"A profile named {profile.name!r} already exists.")
+                raise ConflictError(duplicate_name_message(profile.name))
             store.clusters.append(profile)
             self._save(store)
         return profile

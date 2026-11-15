@@ -133,8 +133,10 @@ def _ensure_wrappers(args: argparse.Namespace) -> None:
     if getattr(args, "json", False):
         return
     from crab.cli import wrappers_clone
+    from crab.cli.progress_render import reporting
 
-    wrappers_clone.ensure_wrappers_clone(print)
+    with reporting(args):
+        wrappers_clone.ensure_wrappers_clone(print)
 
 
 def handle_wrappers_list(args: argparse.Namespace) -> None:
@@ -242,6 +244,7 @@ def _wrappers_folder() -> tuple[Path, Path]:
 def handle_wrappers_status(args: argparse.Namespace) -> None:
     from crab.cli import contract
     from crab.cli.contract import CONTRACT_SCHEMA
+    from crab.cli.progress_render import reporting
     from crab.cli.wrappers_clone import clone_status
 
     _, wrappers_dir = _wrappers_folder()
@@ -262,13 +265,16 @@ def handle_wrappers_status(args: argparse.Namespace) -> None:
         if data["modified"]:
             print(f"  modified: {', '.join(data['modified'])}")
 
-    contract.emit({"schema": CONTRACT_SCHEMA, **clone_status(wrappers_dir)}, args.json, human)
+    with reporting(args):
+        status = clone_status(wrappers_dir)
+    contract.emit({"schema": CONTRACT_SCHEMA, **status}, args.json, human)
 
 
 def handle_wrappers_pull(args: argparse.Namespace) -> None:
     from crab.cli import contract, wrappers_clone
     from crab.cli.contract import CONTRACT_SCHEMA
     from crab.cli.gitops import GitError, is_repo_root, superproject_root
+    from crab.cli.progress_render import reporting
 
     root, wrappers_dir = _wrappers_folder()
     superproject = superproject_root(wrappers_dir) if is_repo_root(wrappers_dir) else None
@@ -290,9 +296,10 @@ def handle_wrappers_pull(args: argparse.Namespace) -> None:
             1,
         )
     try:
-        entry = wrappers_clone.update_wrappers_clone(
-            root, wrappers_dir, wrappers_clone.WRAPPERS_REPO_URL
-        )
+        with reporting(args):
+            entry = wrappers_clone.update_wrappers_clone(
+                root, wrappers_dir, wrappers_clone.WRAPPERS_REPO_URL
+            )
     except GitError as exc:
         _fail(f"wrappers pull stopped: {exc}", 1)
 

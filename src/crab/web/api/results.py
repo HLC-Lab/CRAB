@@ -22,11 +22,13 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from crab.cli.export import collect_result_data
+from crab.cli.progress import stage
 from crab.web.api.jobs import _cached_within, _live_or_cached, worst_status
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
 from crab.web.errors import CrabWebError, NotFoundError, RemoteConnectionError, logger
 from crab.web.models.results import ResultsData
+from crab.web.progress import watching
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.settings import Settings
 from crab.web.store.cache import LocalCache
@@ -384,7 +386,12 @@ async def _run_fetch(
     would leave the tracker stuck at "pending" forever with no way to notice.
     """
     try:
-        await transport.fetch_tree(remote_dir, local_dir)
+        with stage(
+            "fetch-results",
+            "Fetching the results",
+            "the cluster to send the result files over SFTP",
+        ):
+            await transport.fetch_tree(remote_dir, local_dir)
         tracker[fetch_id] = {"status": "done"}
     except CrabWebError as e:
         tracker[fetch_id] = {"status": "error", "message": e.message, "detail": e.detail}
@@ -414,19 +421,21 @@ async def fetch_results(
     tracker = _fetches(request)
     tracker[fetch_id] = {"status": "pending"}
 
-    task = asyncio.create_task(
-        _run_fetch(
-            tracker,
-            fetch_id,
-            transport,
-            profile,
-            remote_dir,
-            str(local_dir),
-            request.app.state.settings,
-            system,
-            job_basename,
+    # The task copies the current context, so it reports to this cluster's progress.
+    with watching(request, cluster):
+        task = asyncio.create_task(
+            _run_fetch(
+                tracker,
+                fetch_id,
+                transport,
+                profile,
+                remote_dir,
+                str(local_dir),
+                request.app.state.settings,
+                system,
+                job_basename,
+            )
         )
-    )
     pending_tasks = request.app.state.pending_result_fetch_tasks
     pending_tasks.add(task)
     task.add_done_callback(pending_tasks.discard)

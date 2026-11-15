@@ -24,6 +24,7 @@ vi.mock("@/api/client", () => ({
 
 import { ApiError, api } from "@/api/client";
 import { useJobsStore } from "@/stores/jobs";
+import { useProgressStore } from "@/stores/progress";
 
 const listMock = vi.mocked(api.jobs.list);
 const submitMock = vi.mocked(api.jobs.submit);
@@ -376,5 +377,58 @@ describe("jobs store async submit", () => {
     await store.submit({ profile_name: "leonardo", config: {} as never, name: "Inline config" });
 
     expect(store.pendingSubmissionsList[0].label).toBe("Inline config");
+  });
+});
+
+describe("jobs store: progress watching of a submit", () => {
+  function spyProgress(): string[] {
+    const calls: string[] = [];
+    const progress = useProgressStore();
+    vi.spyOn(progress, "watch").mockImplementation((c) => void calls.push(`watch ${c}`));
+    vi.spyOn(progress, "stop").mockImplementation((c) => void calls.push(`stop ${c}`));
+    return calls;
+  }
+
+  it("watches the cluster once the submit is accepted, until the task is done", async () => {
+    const calls = spyProgress();
+    submitMock.mockResolvedValue({ submission_id: "sub-1" });
+    submissionStatusMock.mockResolvedValueOnce({ status: "pending" });
+    submissionStatusMock.mockResolvedValueOnce({
+      status: "done",
+      record: { id: "leonardo:1", config_name: "My Run" },
+    });
+    listMock.mockResolvedValue([]);
+    const store = useJobsStore();
+    await store.submit({ profile_name: "leonardo", config_id: "cfg" }, "My Run");
+    expect(calls).toEqual(["watch leonardo"]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual(["watch leonardo"]);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual(["watch leonardo", "stop leonardo"]);
+  });
+
+  it("does not watch a submit that was refused", async () => {
+    const calls = spyProgress();
+    submitMock.mockRejectedValueOnce(new ApiError("Not connected.", 502));
+    await useJobsStore().submit({ profile_name: "leonardo", config_id: "cfg" });
+    expect(calls).toEqual([]);
+  });
+
+  it("stops watching when the task ends in an error", async () => {
+    const calls = spyProgress();
+    submitMock.mockResolvedValue({ submission_id: "sub-1" });
+    submissionStatusMock.mockResolvedValueOnce({ status: "error", message: "Failed." });
+    await useJobsStore().submit({ profile_name: "leonardo", config_id: "cfg" });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual(["watch leonardo", "stop leonardo"]);
+  });
+
+  it("stops watching when the status poll itself fails", async () => {
+    const calls = spyProgress();
+    submitMock.mockResolvedValue({ submission_id: "sub-1" });
+    submissionStatusMock.mockRejectedValueOnce(new ApiError("Gone.", 404));
+    await useJobsStore().submit({ profile_name: "leonardo", config_id: "cfg" });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls).toEqual(["watch leonardo", "stop leonardo"]);
   });
 });

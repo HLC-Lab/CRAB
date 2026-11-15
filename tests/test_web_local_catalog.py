@@ -36,3 +36,21 @@ def test_local_benchmarks_runs_the_real_cli(tmp_path: Path, monkeypatch: pytest.
         assert {"relpath", "loadable"}.issubset(body["wrappers"][0].keys())
         listed = {w["relpath"]: w for w in body["wrappers"]}
         assert listed["fixture/path_app.py"]["loadable"] is True
+
+
+def test_local_benchmarks_report_their_stage_under_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from conftest import RecordingBoard
+
+    monkeypatch.setenv("CRAB_PATH_WRAPPERS", str(FIXTURE_WRAPPERS))
+    settings = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
+    app = create_app(settings)
+    app.state.progress = RecordingBoard()
+    with auth_client(app) as client:
+        assert client.get("/api/local/benchmarks").status_code == 200
+    assert app.state.progress.events == [
+        ("local", "begin", "benchmarks"),
+        ("local", "end", "benchmarks", True),
+    ]
+    assert app.state.progress.snapshot("local") == []

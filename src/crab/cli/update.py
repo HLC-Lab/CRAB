@@ -24,6 +24,7 @@ from typing import Any
 
 from crab import paths
 from crab.cli.gitops import GitError, git, is_repo_root, superproject_root
+from crab.cli.progress import stage
 from crab.cli.wrappers_clone import WRAPPERS_REPO_URL, modified_files, update_wrappers_clone
 
 _TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(\+sbatchman)?$")
@@ -250,35 +251,38 @@ def _pip_install(root: Path) -> None:
     import importlib.util
     import sys
 
-    # The dist was renamed to crab-hpc: the old one owns the `crab` script the new one writes.
-    try:
-        importlib.metadata.distribution("crab")
-    except importlib.metadata.PackageNotFoundError:
-        pass
-    else:
+    target = f"{root}[web]" if importlib.util.find_spec("fastapi") else str(root)
+    with stage("pip-install", "Reinstalling CRAB's dependencies", f"pip install -e {target}"):
+        # The dist was renamed to crab-hpc: the old one owns the `crab` script the new one writes.
+        try:
+            importlib.metadata.distribution("crab")
+        except importlib.metadata.PackageNotFoundError:
+            pass
+        else:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "uninstall", "-q", "-y", "crab"],
+                cwd=paths.neutral_dir(),
+                check=True,
+            )
         subprocess.run(
-            [sys.executable, "-m", "pip", "uninstall", "-q", "-y", "crab"],
+            [sys.executable, "-m", "pip", "install", "-q", "-e", target],
             cwd=paths.neutral_dir(),
             check=True,
         )
-    target = f"{root}[web]" if importlib.util.find_spec("fastapi") else str(root)
-    subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-q", "-e", target],
-        cwd=paths.neutral_dir(),
-        check=True,
-    )
 
 
 def handle_update(args: Any) -> None:
     import sys
 
     from crab.cli import contract
+    from crab.cli.progress_render import reporting
     from crab.core import wrapper_paths
 
     root = Path(wrapper_paths._CRAB_ROOT)
     wrappers_dir = Path(wrapper_paths.wrapper_search_path()[1])
     try:
-        result = run_update(root, wrappers_dir, WRAPPERS_REPO_URL, _pip_install, head=args.head)
+        with reporting(args):
+            result = run_update(root, wrappers_dir, WRAPPERS_REPO_URL, _pip_install, head=args.head)
     except (UpdateError, subprocess.CalledProcessError) as exc:
         print(f"crab: update stopped: {exc}", file=sys.stderr)
         sys.exit(1)

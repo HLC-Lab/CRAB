@@ -45,6 +45,8 @@ CRAB_REPO_BRANCH = "sbatchman"
 # Clone + build can be slow (network + pip). Generous ceiling; transport.run
 # still maps the timeout to a connection error so the UI never hangs forever.
 INSTALL_TIMEOUT = 600.0
+# Upper bound for `crab info --json` in `detect`.
+DETECT_TIMEOUT_S = 30.0
 
 # Cap captured output so a chatty build doesn't bloat the response.
 _MAX_CAPTURE = 40_000
@@ -197,7 +199,7 @@ async def detect(transport: Transport, profile: Profile) -> DetectResult:
     A dropped or timed-out connection raises ``RemoteConnectionError`` from the transport.
     """
     args = ["info", "--json"]
-    result = await transport.run(build_crab_command(profile, args), timeout=30.0)
+    result = await transport.run(build_crab_command(profile, args), timeout=DETECT_TIMEOUT_S)
     if not result.ok:
         reason = _no_crab_reason(result)
         if reason is not None:

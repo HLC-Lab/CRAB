@@ -10,16 +10,19 @@ SSH/auth/connection failure surfaces as the error envelope.
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from crab.cli.progress import stage
 from crab.web.connections.manager import ConnectionManager
-from crab.web.connections.transport import Transport
+from crab.web.connections.transport import CONNECT_TIMEOUT_S, Transport
 from crab.web.errors import ConflictError, RemoteConnectionError
-from crab.web.remoteops.bootstrap import detect
+from crab.web.progress import watching
+from crab.web.remoteops.bootstrap import DETECT_TIMEOUT_S, DetectResult, detect
 from crab.web.remoteops.crab_cli import run_crab_json
-from crab.web.store.profiles import Profile, ProfileStore
+from crab.web.store.profiles import Profile, ProfileStore, duplicate_name_message
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,21 @@ def _manager(request: Request) -> ConnectionManager:
     if manager is None:
         raise RemoteConnectionError("Connection manager is not initialised.")
     return manager
+
+
+class StageOut(BaseModel):
+    """One slow step of an operation: elapsed time is `now - started_at`, never sent."""
+
+    stage: str
+    label: str
+    waiting_for: str
+    started_at: float
+    timeout_s: float | None = None
+
+
+class ProgressResponse(BaseModel):
+    now: float
+    stages: list[StageOut]
 
 
 class RemoteListItem(Profile):
@@ -71,7 +89,7 @@ async def update_remote(name: str, profile: Profile, request: Request) -> Profil
         # Renaming: the new name must be free, and any live connection is keyed
         # by the old name: close it so it can't linger unreachable.
         if any(p.name == profile.name for p in store.list()):
-            raise ConflictError(f"A profile named {profile.name!r} already exists.")
+            raise ConflictError(duplicate_name_message(profile.name))
         updated = store.update(name, profile)
         manager = getattr(request.app.state, "manager", None)
         if manager:
@@ -92,18 +110,13 @@ async def remove_remote(name: str, request: Request) -> None:
 async def connect_remote(name: str, request: Request, body: ConnectRequest | None = None) -> dict:
     profile = _store(request).get(name)
     manager = _manager(request)
-    transport = await manager.connect(profile, password=(body.password if body else None))
-    # `detect` returns gracefully when CRAB is absent (no exception, no warning
-    # log); a real connection drop/timeout still raises. Then the transport is
-    # closed, so the cluster is not left listed as connected while nothing works.
-    try:
-        result = await detect(transport, profile)
-    except Exception:
-        try:
-            await manager.disconnect(name)
-        except Exception:
-            logger.warning("Closing the transport of '%s' failed after a failed check.", name)
-        raise
+    password = body.password if body else None
+    with watching(request, name):
+        transport = await _open_transport(manager, profile, password)
+        # `detect` returns gracefully when CRAB is absent (no exception, no warning
+        # log); a real connection drop/timeout still raises. Then the transport is
+        # closed, so the cluster is not left listed as connected while nothing works.
+        result = await _check_crab(manager, name, transport, profile)
     return {
         "connected": True,
         "info": result.info,
@@ -111,6 +124,55 @@ async def connect_remote(name: str, request: Request, body: ConnectRequest | Non
         "reason": result.reason,
         "skew": result.skew,
     }
+
+
+async def _open_transport(
+    manager: ConnectionManager, profile: Profile, password: str | None
+) -> Transport:
+    """Open (or reuse) the transport; an SSH profile shows the connection as a stage."""
+    if profile.is_local():
+        return await manager.connect(profile, password=password)
+    where = f"{profile.host}:{profile.port}"
+    with stage(
+        "ssh-connect",
+        "Connecting to the cluster",
+        f"the login node ({where}) to accept the connection and your credentials",
+        CONNECT_TIMEOUT_S,
+    ):
+        return await manager.connect(profile, password=password)
+
+
+async def _check_crab(
+    manager: ConnectionManager, name: str, transport: Transport, profile: Profile
+) -> DetectResult:
+    try:
+        with stage(
+            "crab-check",
+            "Checking CRAB on the cluster",
+            "`crab info --json` to report CRAB's version and presets",
+            DETECT_TIMEOUT_S,
+        ):
+            return await detect(transport, profile)
+    except Exception:
+        try:
+            await manager.disconnect(name)
+        except Exception:
+            logger.warning("Closing the transport of '%s' failed after a failed check.", name)
+        raise
+
+
+@router.get("/{name}/progress")
+async def remote_progress(name: str, request: Request) -> ProgressResponse:
+    """The slow steps running now for this remote, and the server clock to read them against.
+
+    An unknown name or an idle remote answers an empty list. The UI polls this while a connect,
+    install or other slow call is in flight.
+    """
+    board = request.app.state.progress
+    return ProgressResponse(
+        now=board.now(),
+        stages=[StageOut(**asdict(s)) for s in board.snapshot(name)],
+    )
 
 
 @router.post("/{name}/disconnect", status_code=204)
@@ -143,7 +205,16 @@ async def remote_benchmarks(name: str, request: Request) -> dict:
     """
     profile = _store(request).get(name)
     transport = _live_transport(name, request)
-    return await run_crab_json(transport, profile, ["list-benchmarks", "--json"], timeout=90.0)
+    with (
+        watching(request, name),
+        stage(
+            "benchmarks",
+            "Listing the benchmarks",
+            "`crab list-benchmarks --json` to load every wrapper module",
+            90.0,
+        ),
+    ):
+        return await run_crab_json(transport, profile, ["list-benchmarks", "--json"], timeout=90.0)
 
 
 @router.get("/{name}/nodes")

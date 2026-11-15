@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
+import { useProgressStore } from "@/stores/progress";
 import type { BootstrapPlan, CrabInfo, Profile, RemoteListItem, StepResult } from "@/api/types";
 
 function msg(e: unknown): string {
@@ -15,6 +16,8 @@ function detailOf(e: unknown): string | undefined {
 }
 
 export const useRemotesStore = defineStore("remotes", () => {
+  // The slow calls below (connect, install) show the backend's stage while they run.
+  const progress = useProgressStore();
   const items = ref<RemoteListItem[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -87,6 +90,7 @@ export const useRemotesStore = defineStore("remotes", () => {
     delete connectDetail.value[name];
     delete crabMissing.value[name];
     delete skew.value[name];
+    progress.watch(name);
     try {
       const res = await api.remotes.connect(name, password);
       if (res.crab_installed && res.info) {
@@ -107,6 +111,7 @@ export const useRemotesStore = defineStore("remotes", () => {
       delete info.value[name];
       await refresh();
     } finally {
+      progress.stop(name);
       busy.value[name] = false;
     }
   }
@@ -149,6 +154,7 @@ export const useRemotesStore = defineStore("remotes", () => {
   async function install(name: string, preCommands: string[]) {
     bootstrapBusy.value[name] = true;
     delete bootstrapError.value[name];
+    progress.watch(name);
     try {
       installResult.value[name] = await api.remotes.bootstrap.install(name, preCommands);
       const res = await api.remotes.bootstrap.verify(name);
@@ -167,6 +173,7 @@ export const useRemotesStore = defineStore("remotes", () => {
     } catch (e) {
       bootstrapError.value[name] = msg(e);
     } finally {
+      progress.stop(name);
       bootstrapBusy.value[name] = false;
     }
   }

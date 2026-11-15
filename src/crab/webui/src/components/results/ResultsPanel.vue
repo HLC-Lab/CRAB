@@ -11,6 +11,7 @@ import { useResultsStore } from "@/stores/results";
 import { assignColors, formatBytes } from "@/lib/resultsChart";
 import { resultsKey } from "@/lib/jobKey";
 import { runFailureNote } from "@/lib/jobStatus";
+import ProgressLine from "@/components/ProgressLine.vue";
 import ResultsChart from "@/components/results/ResultsChart.vue";
 import ResultsTable from "@/components/results/ResultsTable.vue";
 
@@ -116,6 +117,7 @@ async function clearCache() {
       <button class="btn primary" :disabled="results.fetchBusy[key]" @click="fetchNow">
         {{ results.fetchBusy[key] ? "Fetching…" : "Fetch results" }}
       </button>
+      <ProgressLine v-if="results.fetchBusy[key]" :cluster="cluster" />
       <p v-if="results.fetchError[key]" class="banner err small">
         {{ results.fetchError[key] }}
       </p>
@@ -169,6 +171,7 @@ async function clearCache() {
             {{ results.fetchBusy[key] ? "Refetching…" : "Refetch" }}
           </button>
         </div>
+        <ProgressLine v-if="results.fetchBusy[key]" :cluster="cluster" />
         <p v-if="results.fetchError[key]" class="banner err small">
           {{ results.fetchError[key] }}
         </p>

@@ -350,3 +350,63 @@ def test_bootstrap_plan_and_install_refuse_a_crab_command_profile(tmp_path: Path
 
         # verify is only a `crab info` re-check, so it stays available.
         assert client.post("/api/remotes/leo/bootstrap/verify").json()["installed"] is True
+
+
+# --------------------------------------------------------------------------- #
+# Progress: install and verify report their stages
+# --------------------------------------------------------------------------- #
+class _BrokenRun(FakeTransport):
+    async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+        from crab.web.errors import RemoteConnectionError
+
+        raise RemoteConnectionError("The connection dropped.")
+
+
+def _progress_client(tmp_path: Path, transport: FakeTransport):
+    from conftest import RecordingBoard
+
+    async def connector(profile, password):
+        return transport
+
+    app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
+    app.state.progress = RecordingBoard()
+    return app, auth_client(app)
+
+
+def _connect_leo(client) -> None:
+    client.post("/api/remotes", json=_profile().model_dump())
+    client.post("/api/remotes/leo/connect")
+
+
+def test_install_and_verify_report_their_stages(tmp_path: Path):
+    app, client = _progress_client(tmp_path, FakeTransport())
+    with client:
+        _connect_leo(client)
+        app.state.progress.events.clear()
+        app.state.progress.begun.clear()
+        assert client.post("/api/remotes/leo/bootstrap/install", json={}).status_code == 200
+        assert client.post("/api/remotes/leo/bootstrap/verify").status_code == 200
+    board = app.state.progress
+    assert board.events == [
+        ("leo", "begin", "install"),
+        ("leo", "end", "install", True),
+        ("leo", "begin", "verify"),
+        ("leo", "end", "verify", True),
+    ]
+    assert board.begun[0].timeout_s == 600
+    assert board.snapshot("leo") == []
+
+
+def test_a_failed_install_ends_its_stage_not_ok(tmp_path: Path):
+    transport = FakeTransport()
+    app, client = _progress_client(tmp_path, transport)
+    with client:
+        _connect_leo(client)
+        transport.run = _BrokenRun().run  # type: ignore[method-assign]
+        app.state.progress.events.clear()
+        assert client.post("/api/remotes/leo/bootstrap/install", json={}).status_code == 502
+    assert app.state.progress.events == [
+        ("leo", "begin", "install"),
+        ("leo", "end", "install", False),
+    ]
+    assert app.state.progress.snapshot("leo") == []

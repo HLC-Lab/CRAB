@@ -3,6 +3,7 @@
 // summary on the right. The selection is the route's `wrapper`, so a link can open one.
 import { computed, watch } from "vue";
 import type { WrapperTarget, WrappersError } from "@/api/types";
+import ProgressLine from "@/components/ProgressLine.vue";
 import { firstWrapper, librarySections } from "@/lib/wrapperTree";
 import { useWrappersStore } from "@/stores/wrappers";
 import WrapperSummary from "./WrapperSummary.vue";
@@ -42,7 +43,10 @@ function errorText(e: WrappersError): string {
 
 <template>
   <p v-if="error && !list" class="error" role="alert">{{ errorText(error) }}</p>
-  <p v-else-if="!list" class="quiet">Loading wrappers from {{ target.label }}…</p>
+  <template v-else-if="!list">
+    <p class="quiet">Loading wrappers from {{ target.label }}…</p>
+    <ProgressLine :cluster="target.id" />
+  </template>
   <p v-else-if="!list.wrappers.length" class="quiet">
     No wrappers found on {{ target.label }}. The Status tab can clone or pull them.
   </p>

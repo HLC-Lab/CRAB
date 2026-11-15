@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api, ApiError } from "@/api/client";
+import { useProgressStore } from "@/stores/progress";
 import type { CancelResponse, CrabConfig, JobListItem, JobLogs } from "@/api/types";
 
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
@@ -39,6 +40,7 @@ export interface SubmitBody {
 }
 
 export const useJobsStore = defineStore("jobs", () => {
+  const progress = useProgressStore();
   const items = ref<JobListItem[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -161,13 +163,14 @@ export const useJobsStore = defineStore("jobs", () => {
   // Polls one pending submission until it resolves. A plain setInterval per
   // submission (cleared on resolution) rather than one shared timer, since
   // several submits/reruns can be in flight independently.
-  function pollSubmission(id: string) {
+  function pollSubmission(id: string, profileName: string) {
     const timer = setInterval(async () => {
       let status;
       try {
         status = await api.jobs.submissionStatus(id);
       } catch (e) {
         clearInterval(timer);
+        progress.stop(profileName);
         const entry = pendingSubmissions.value[id];
         if (entry)
           pendingSubmissions.value[id] = { ...entry, status: "error", errorMessage: msg(e) };
@@ -175,6 +178,7 @@ export const useJobsStore = defineStore("jobs", () => {
       }
       if (status.status === "pending") return;
       clearInterval(timer);
+      progress.stop(profileName);
       if (status.status === "done") {
         delete pendingSubmissions.value[id];
         await refresh();
@@ -207,7 +211,9 @@ export const useJobsStore = defineStore("jobs", () => {
         profileName: body.profile_name,
         status: "pending",
       };
-      pollSubmission(accepted.submission_id);
+      // The staging and `crab run` happen in the background: show their stage until it ends.
+      progress.watch(body.profile_name);
+      pollSubmission(accepted.submission_id, body.profile_name);
       return true;
     } catch (e) {
       submitError.value = msg(e);

@@ -23,6 +23,7 @@ import type {
   LibraryEntry,
   NodesResult,
   Profile,
+  ProgressResponse,
   PullResult,
   ReceiptImport,
   ReceiptImportResult,
@@ -133,6 +134,10 @@ export const api = {
     benchmarks: (name: string) =>
       request<BenchmarksResult>(`/api/remotes/${encodeURIComponent(name)}/benchmarks`),
     nodes: (name: string) => request<NodesResult>(`/api/remotes/${encodeURIComponent(name)}/nodes`),
+
+    // The slow steps running now for this remote (or `local`), polled while a call is busy.
+    progress: (name: string) =>
+      request<ProgressResponse>(`/api/remotes/${encodeURIComponent(name)}/progress`),
 
     bootstrap: {
       plan: (name: string) =>

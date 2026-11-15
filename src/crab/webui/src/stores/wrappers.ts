@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
+import { useProgressStore } from "@/stores/progress";
 import type {
   CloneStatus,
   PullResult,
@@ -24,6 +25,9 @@ function toError(e: unknown): WrappersError {
 }
 
 export const useWrappersStore = defineStore("wrappers", () => {
+  // The list and pull calls are slow (they load every wrapper, or fetch from GitHub): they show
+  // the backend's stage for their target while they run.
+  const progress = useProgressStore();
   // Keyed "<target>:<relpath>".
   const importing = ref<Record<string, boolean>>({});
   const importError = ref<Record<string, string>>({});
@@ -46,11 +50,13 @@ export const useWrappersStore = defineStore("wrappers", () => {
   async function loadList(target: string) {
     listLoading.value[target] = true;
     delete listError.value[target];
+    progress.watch(target);
     try {
       lists.value[target] = await api.wrappers.list(target);
     } catch (e) {
       listError.value[target] = toError(e);
     } finally {
+      progress.stop(target);
       listLoading.value[target] = false;
     }
   }
@@ -84,12 +90,14 @@ export const useWrappersStore = defineStore("wrappers", () => {
   async function pull(target: string): Promise<boolean> {
     pulling.value[target] = true;
     delete pullError.value[target];
+    progress.watch(target);
     try {
       lastPull.value[target] = await api.wrappers.pull(target);
     } catch (e) {
       pullError.value[target] = toError(e);
       return false;
     } finally {
+      progress.stop(target);
       pulling.value[target] = false;
     }
     await Promise.all([loadStatus(target), loadList(target)]);

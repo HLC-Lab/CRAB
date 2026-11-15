@@ -11,9 +11,11 @@ wrapper picker's local half.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
+from crab.cli.progress import stage
 from crab.web.connections.transport import LocalTransport
+from crab.web.progress import watching
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.store.profiles import Profile
 
@@ -26,12 +28,21 @@ _LOCAL_PROFILE = Profile(name="local", transport="local")
 
 
 @router.get("/benchmarks")
-async def local_benchmarks() -> dict:
+async def local_benchmarks(request: Request) -> dict:
     """`crab list-benchmarks --json` on the machine running crab web.
 
     Introspection runs every wrapper module, so allow the same generous
     timeout as the remote path.
     """
-    return await run_crab_json(
-        LocalTransport(), _LOCAL_PROFILE, ["list-benchmarks", "--json"], timeout=90.0
-    )
+    with (
+        watching(request, "local"),
+        stage(
+            "benchmarks",
+            "Listing the benchmarks",
+            "`crab list-benchmarks --json` to load every wrapper module",
+            90.0,
+        ),
+    ):
+        return await run_crab_json(
+            LocalTransport(), _LOCAL_PROFILE, ["list-benchmarks", "--json"], timeout=90.0
+        )

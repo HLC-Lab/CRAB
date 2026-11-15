@@ -5,7 +5,9 @@
 import { computed } from "vue";
 import type { PullResult, WrapperTarget, WrappersError } from "@/api/types";
 import ModifiedFiles from "@/components/wrappers/ModifiedFiles.vue";
+import ProgressLine from "@/components/ProgressLine.vue";
 import { attentionCount, drift, driftLines, relativeTime, shortSha } from "@/lib/wrappers";
+import { useProgressStore } from "@/stores/progress";
 import { useRemotesStore } from "@/stores/remotes";
 import { useWrappersStore } from "@/stores/wrappers";
 
@@ -21,6 +23,7 @@ const emit = defineEmits<{ select: [id: string]; check: []; connect: [name: stri
 
 const remotes = useRemotesStore();
 const store = useWrappersStore();
+const progress = useProgressStore();
 
 const checking = computed(() => props.targets.some((t) => store.statusLoading[t.id]));
 const laptopOnly = computed(() => props.targets.length === 1);
@@ -183,7 +186,12 @@ function select(t: WrapperTarget) {
 
           <tr v-if="hasNote(t)" class="extra">
             <td colspan="5">
-              <span v-if="store.pulling[t.id]" class="muted">Pulling on {{ t.label }}…</span>
+              <template v-if="store.pulling[t.id]">
+                <span v-if="!progress.current[t.id]?.stages.length" class="muted"
+                  >Pulling on {{ t.label }}…</span
+                >
+                <ProgressLine :cluster="t.id" />
+              </template>
               <span v-else-if="store.pullError[t.id]" class="error" role="alert">{{
                 pullErrorText(t, store.pullError[t.id]!)
               }}</span>

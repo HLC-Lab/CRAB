@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api, ApiError } from "@/api/client";
+import { useProgressStore } from "@/stores/progress";
 import { resultsKey } from "@/lib/jobKey";
 import type { ExperimentRunStatus, ResultsData, ResultsJobEntry } from "@/api/types";
 
@@ -14,6 +15,7 @@ function msg(e: unknown): string {
 }
 
 export const useResultsStore = defineStore("results", () => {
+  const progress = useProgressStore();
   // Loaded/cached-state per (cluster, system, jobBasename) -- job identity
   // is off the local registry, so a record id can't key this map
   // (a CLI-only job has none). `notFetched[key]` distinguishes "we asked and
@@ -137,12 +139,14 @@ export const useResultsStore = defineStore("results", () => {
         status = await api.results.fetchStatus(cluster, system, jobBasename, fetchId);
       } catch (e) {
         clearInterval(timer);
+        progress.stop(cluster);
         fetchBusy.value[key] = false;
         fetchError.value[key] = msg(e);
         return;
       }
       if (status.status === "pending") return;
       clearInterval(timer);
+      progress.stop(cluster);
       fetchBusy.value[key] = false;
       if (status.status === "done") {
         await loadResults(cluster, system, jobBasename, true); // just fetched -- always reload
@@ -159,10 +163,13 @@ export const useResultsStore = defineStore("results", () => {
     const key = resultsKey(cluster, system, jobBasename);
     fetchBusy.value[key] = true;
     delete fetchError.value[key];
+    // The fetch runs in the background; the line shows its stage until the poll sees it end.
+    progress.watch(cluster);
     try {
       const accepted = await api.results.fetch(cluster, system, jobBasename);
       pollFetch(cluster, system, jobBasename, accepted.fetch_id);
     } catch (e) {
+      progress.stop(cluster);
       fetchBusy.value[key] = false;
       fetchError.value[key] = msg(e);
     }

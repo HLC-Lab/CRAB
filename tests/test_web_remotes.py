@@ -64,6 +64,9 @@ class FakeTransport(Transport):
         self._alive = False
 
 
+_DUPLICATE_MESSAGE = "A remote named {name!r} already exists. Choose another name or edit that one."
+
+
 def _leonardo() -> Profile:
     return Profile(
         name="leonardo",
@@ -522,6 +525,7 @@ def test_remotes_api_full_flow(tmp_path: Path):
         dup = client.post("/api/remotes", json=payload)
         assert dup.status_code == 409
         assert dup.json()["code"] == "conflict"
+        assert dup.json()["message"] == _DUPLICATE_MESSAGE.format(name="leonardo")
 
         # Connect runs `crab info --json` (fake) and returns it.
         conn = client.post("/api/remotes/leonardo/connect")
@@ -556,6 +560,7 @@ def test_rename_to_an_existing_name_conflicts(tmp_path: Path):
         clash = client.put("/api/remotes/leonardo", json={**a, "name": "other"})
         assert clash.status_code == 409
         assert clash.json()["code"] == "conflict"
+        assert clash.json()["message"] == _DUPLICATE_MESSAGE.format(name="other")
 
 
 def test_rename_closes_the_stale_connection(tmp_path: Path):
@@ -655,3 +660,144 @@ def test_connect_keeps_the_transport_when_detect_succeeds(tmp_path: Path):
         assert client.app.state.manager.get("leonardo") is transport
         assert transport.close_calls == 0
         assert client.get("/api/remotes").json()[0]["connected"] is True
+
+
+# --------------------------------------------------------------------------- #
+# Progress: connect reports its stages
+# --------------------------------------------------------------------------- #
+def _progress_app(tmp_path: Path, connector):
+    from conftest import RecordingBoard
+
+    app = create_app(_settings(tmp_path), manager=ConnectionManager(connector=connector))
+    app.state.progress = RecordingBoard()
+    return app
+
+
+def _add_and_connect(client, password: str | None = None):
+    assert client.post("/api/remotes", json=_leonardo().model_dump()).status_code == 201
+    body = {"password": password} if password else None
+    return client.post("/api/remotes/leonardo/connect", json=body)
+
+
+def test_connect_reports_the_connection_then_the_crab_check(tmp_path: Path):
+    async def connector(profile, password):
+        return FakeTransport()
+
+    app = _progress_app(tmp_path, connector)
+    with auth_client(app) as client:
+        assert _add_and_connect(client).status_code == 200
+    board = app.state.progress
+    assert board.events == [
+        ("leonardo", "begin", "ssh-connect"),
+        ("leonardo", "end", "ssh-connect", True),
+        ("leonardo", "begin", "crab-check"),
+        ("leonardo", "end", "crab-check", True),
+    ]
+    connect, check = board.begun
+    assert connect.timeout_s == 30 and check.timeout_s == 30
+    assert "login.cluster.example.org" in connect.waiting_for
+    assert "crab info --json" in check.waiting_for
+    assert board.snapshot("leonardo") == []
+
+
+def test_the_connect_stage_is_visible_on_the_route_while_the_connection_opens(tmp_path: Path):
+    seen: list[list[str]] = []
+
+    async def connector(profile, password):
+        seen.append([s.stage for s in app.state.progress.snapshot("leonardo")])
+        return FakeTransport()
+
+    app = _progress_app(tmp_path, connector)
+    with auth_client(app) as client:
+        assert _add_and_connect(client).status_code == 200
+    assert seen == [["ssh-connect"]]
+
+
+def test_a_failed_connection_ends_its_stage_not_ok_and_skips_the_check(tmp_path: Path):
+    from crab.web.errors import RemoteConnectionError
+
+    async def connector(profile, password):
+        raise RemoteConnectionError("Timed out connecting to the login node.")
+
+    app = _progress_app(tmp_path, connector)
+    with auth_client(app) as client:
+        assert _add_and_connect(client).status_code == 502
+    board = app.state.progress
+    assert board.events == [
+        ("leonardo", "begin", "ssh-connect"),
+        ("leonardo", "end", "ssh-connect", False),
+    ]
+    assert board.snapshot("leonardo") == []
+
+
+def test_a_failed_crab_check_ends_its_stage_not_ok_and_leaves_nothing_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from crab.web.errors import RemoteConnectionError
+
+    async def failing_detect(transport, profile):
+        raise RemoteConnectionError("Timed out waiting for crab info.")
+
+    monkeypatch.setattr("crab.web.api.remotes.detect", failing_detect)
+
+    async def connector(profile, password):
+        return FakeTransport()
+
+    app = _progress_app(tmp_path, connector)
+    with auth_client(app) as client:
+        assert _add_and_connect(client).status_code == 502
+    board = app.state.progress
+    assert board.events[-2:] == [
+        ("leonardo", "begin", "crab-check"),
+        ("leonardo", "end", "crab-check", False),
+    ]
+    assert board.snapshot("leonardo") == []
+
+
+def test_a_password_never_appears_in_a_stage_text(tmp_path: Path):
+    async def connector(profile, password):
+        assert password == "hunter2-secret"
+        return FakeTransport()
+
+    app = _progress_app(tmp_path, connector)
+    with auth_client(app) as client:
+        assert _add_and_connect(client, password="hunter2-secret").status_code == 200
+    assert "hunter2" not in repr(app.state.progress.begun)
+
+
+def test_a_local_remote_has_no_connection_stage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from crab.web.remoteops.bootstrap import DetectResult
+
+    async def fake_detect(transport, profile):
+        return DetectResult(installed=True, info={"presets": []})
+
+    monkeypatch.setattr("crab.web.api.remotes.detect", fake_detect)
+
+    async def connector(profile, password):
+        raise AssertionError("connector used for local transport")
+
+    app = _progress_app(tmp_path, connector)
+    local = Profile(name="laptop", transport="local", preset="local")
+    with auth_client(app) as client:
+        assert client.post("/api/remotes", json=local.model_dump()).status_code == 201
+        assert client.post("/api/remotes/laptop/connect").status_code == 200
+    assert [e[2] for e in app.state.progress.events if e[1] == "begin"] == ["crab-check"]
+
+
+def test_remote_benchmarks_report_their_stage(tmp_path: Path):
+    async def connector(profile, password):
+        return FakeTransport(stdout=json.dumps({"schema": CONTRACT_SCHEMA, "wrappers": []}))
+
+    app = _progress_app(tmp_path, connector)
+    with auth_client(app) as client:
+        _add_and_connect(client)
+        app.state.progress.events.clear()
+        app.state.progress.begun.clear()
+        assert client.get("/api/remotes/leonardo/benchmarks").status_code == 200
+    board = app.state.progress
+    assert board.events == [
+        ("leonardo", "begin", "benchmarks"),
+        ("leonardo", "end", "benchmarks", True),
+    ]
+    assert board.begun[0].timeout_s == 90
+    assert board.snapshot("leonardo") == []

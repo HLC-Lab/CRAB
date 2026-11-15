@@ -4,7 +4,9 @@ import { useRemotesStore } from "@/stores/remotes";
 import { crabCommandNote, crabCommandView, crabDir } from "@/lib/remoteCrab";
 import { needsLabel, presetsHint } from "@/lib/presetSetup";
 import { isSbatchmanMode } from "@/lib/mode";
+import { nameTaken, takenMessage } from "@/lib/remoteName";
 import type { Profile, StepResult } from "@/api/types";
+import ProgressLine from "@/components/ProgressLine.vue";
 
 const store = useRemotesStore();
 // CRAB presets do not exist on the SbatchMan line (ADR-045): hide their field, list and hint.
@@ -49,16 +51,20 @@ const blank = (): Partial<Profile> => ({
 const form = reactive<Partial<Profile>>(blank());
 // Hint, install-panel switch and save payload for the "Crab command" field.
 const crabView = computed(() => crabCommandView(form.crab_command, form.remote_crab));
+// The name belongs to another remote: refused here, before the backend answers 409.
+const taken = computed(() => nameTaken(store.items, form.name ?? "", editingName.value));
 
 onMounted(() => store.refresh());
 
 function startAdd() {
+  store.error = null; // a fresh form must not open on an old failure
   editingName.value = null;
   Object.assign(form, blank());
   showForm.value = true;
 }
 
 function startEdit(r: Profile) {
+  store.error = null;
   editingName.value = r.name;
   Object.assign(form, blank(), r);
   showForm.value = true;
@@ -109,7 +115,8 @@ function confirmRemove(name: string) {
       </div>
     </header>
 
-    <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
+    <!-- While the form is open, a failure shows inside it, next to what caused it. -->
+    <p v-if="store.error && !showForm" class="banner err" role="alert">{{ store.error }}</p>
 
     <!-- Add / edit form -->
     <form v-if="showForm" class="card form" @submit.prevent="submit">
@@ -120,7 +127,14 @@ function confirmRemove(name: string) {
         </button>
       </div>
       <div class="grid">
-        <label>Name <input v-model="form.name" required placeholder="my-cluster" /></label>
+        <label
+          >Name
+          <input v-model="form.name" required placeholder="my-cluster" :aria-invalid="taken" />
+          <!-- Inside the label, so it is part of the field's accessible name when it shows. -->
+          <small v-if="taken" class="field-hint field-error">{{
+            takenMessage(form.name ?? "")
+          }}</small>
+        </label>
         <label
           >Transport
           <select v-model="form.transport">
@@ -168,7 +182,8 @@ function confirmRemove(name: string) {
           >Preset <input v-model="form.preset" placeholder="cluster preset"
         /></label>
       </div>
-      <button class="btn primary" type="submit" :disabled="!!crabView.error">
+      <p v-if="store.error" class="banner err small" role="alert">{{ store.error }}</p>
+      <button class="btn primary" type="submit" :disabled="!!crabView.error || taken">
         {{ editingName ? "Save changes" : "Save" }}
       </button>
     </form>
@@ -241,6 +256,8 @@ function confirmRemove(name: string) {
             </button>
           </div>
         </div>
+
+        <ProgressLine :cluster="r.name" />
 
         <!-- Real connection or auth failures are shown as-is, also while a profile is listed as connected. -->
         <p v-if="store.connectError[r.name]" class="banner err small" role="alert">

@@ -12,6 +12,7 @@ vi.mock("@/api/client", () => ({
       list: vi.fn(),
       connect: vi.fn(),
       disconnect: vi.fn(),
+      progress: vi.fn(),
       bootstrap: { plan: vi.fn(), install: vi.fn(), verify: vi.fn() },
     },
   },
@@ -25,6 +26,7 @@ vi.mock("@/api/client", () => ({
 }));
 
 import { api, ApiError } from "@/api/client";
+import { useProgressStore } from "@/stores/progress";
 import { useRemotesStore } from "@/stores/remotes";
 
 const INFO = { schema: 1, crab_version: "0.1.0", crab_root: "/h/CRAB", presets: [] };
@@ -35,6 +37,7 @@ beforeEach(() => {
   setActivePinia(createPinia());
   vi.mocked(api.remotes.list).mockResolvedValue([]);
   vi.mocked(api.remotes.disconnect).mockResolvedValue(undefined as never);
+  vi.mocked(api.remotes.progress).mockResolvedValue({ now: 0, stages: [] });
 });
 
 function connectReturns(skew: string | null) {
@@ -197,5 +200,57 @@ describe("remotes store connect detail and stale info", () => {
     failsWithDetail(STDERR);
     await store.connect("leo");
     expect(store.info.leo).toBeUndefined();
+  });
+});
+
+describe("remotes store progress watching", () => {
+  function spyProgress(): string[] {
+    const calls: string[] = [];
+    const progress = useProgressStore();
+    vi.spyOn(progress, "watch").mockImplementation((c) => void calls.push(`watch ${c}`));
+    vi.spyOn(progress, "stop").mockImplementation((c) => void calls.push(`stop ${c}`));
+    return calls;
+  }
+
+  it("watches while a connect is in flight and stops when it settles", async () => {
+    const calls = spyProgress();
+    vi.mocked(api.remotes.connect).mockImplementation(async () => {
+      calls.push("connect");
+      return { connected: true, info: INFO, crab_installed: true, reason: null, skew: null };
+    });
+    await useRemotesStore().connect("leo");
+    expect(calls).toEqual(["watch leo", "connect", "stop leo"]);
+  });
+
+  it("stops watching when the connect fails", async () => {
+    const calls = spyProgress();
+    vi.mocked(api.remotes.connect).mockRejectedValue(
+      new ApiError({ code: "connection_error", message: "Timed out." }, 502),
+    );
+    await useRemotesStore().connect("leo");
+    expect(calls).toEqual(["watch leo", "stop leo"]);
+  });
+
+  it("watches during an install and its check, then stops", async () => {
+    const calls = spyProgress();
+    vi.mocked(api.remotes.bootstrap.install).mockImplementation(async () => {
+      calls.push("install");
+      return { rc: 0, ok: true, stdout: "", stderr: "" };
+    });
+    vi.mocked(api.remotes.bootstrap.verify).mockImplementation(async () => {
+      calls.push("verify");
+      return { installed: true, info: INFO, reason: null, skew: null };
+    });
+    await useRemotesStore().install("leo", []);
+    expect(calls).toEqual(["watch leo", "install", "verify", "stop leo"]);
+  });
+
+  it("stops watching when the install fails", async () => {
+    const calls = spyProgress();
+    vi.mocked(api.remotes.bootstrap.install).mockRejectedValue(
+      new ApiError({ code: "connection_error", message: "Dropped." }, 502),
+    );
+    await useRemotesStore().install("leo", []);
+    expect(calls).toEqual(["watch leo", "stop leo"]);
   });
 });
