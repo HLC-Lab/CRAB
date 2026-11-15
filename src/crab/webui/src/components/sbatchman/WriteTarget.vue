@@ -141,6 +141,7 @@ const stagingFile = computed(() => props.stagingPath.slice(props.stagingPath.las
 }
 .main {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.8rem;
 }

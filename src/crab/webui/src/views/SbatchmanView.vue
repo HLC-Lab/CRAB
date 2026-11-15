@@ -223,6 +223,18 @@ function confirmRemoveGroup(): void {
   margin: 0 -1.5rem 0.25rem;
   padding: 1rem 1.5rem 0.75rem;
 }
+/* A narrow window: the bar stops being sticky and wraps, so the write block gets its own row
+   instead of a sliver beside the library buttons. */
+@media (max-width: 900px) {
+  .actionbar {
+    position: static;
+    flex-wrap: wrap;
+  }
+  .actionbar > :deep(.write-target) {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+}
 .banner {
   padding: 0.5rem 0.75rem;
   border-radius: var(--r);
