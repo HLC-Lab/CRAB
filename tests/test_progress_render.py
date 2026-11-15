@@ -132,3 +132,36 @@ def test_reporting_makes_the_reporter_current_and_restores_it(capsys):
     assert isinstance(current_reporter(), NullReporter)
     captured = capsys.readouterr()
     assert captured.out == "" and captured.err == ""
+
+
+def test_the_rich_line_never_reroutes_stdout(tmp_path):
+    """A `print()` inside a stage reaches stdout even when stderr is a terminal (a pty here)."""
+    import os
+    import pty
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = (
+        "import argparse\n"
+        "from crab.cli.progress import stage\n"
+        "from crab.cli.progress_render import reporting\n"
+        "with reporting(argparse.Namespace(json=False)):\n"
+        "    with stage('x', 'Working', 'a thing'):\n"
+        "        print('PAYLOAD-ON-STDOUT', flush=True)\n"
+    )
+    src = Path(__file__).resolve().parent.parent / "src"
+    master, slave = pty.openpty()
+    try:
+        done = subprocess.run(
+            [sys.executable, "-c", script],
+            stdout=subprocess.PIPE,
+            stderr=slave,
+            env={**os.environ, "PYTHONPATH": str(src)},
+            timeout=60,
+        )
+    finally:
+        os.close(slave)
+        os.close(master)
+    assert done.returncode == 0
+    assert done.stdout.decode() == "PAYLOAD-ON-STDOUT\n"

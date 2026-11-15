@@ -142,6 +142,10 @@ class RichReporter:
                     console=self._console,
                     refresh_per_second=4,
                     transient=True,
+                    # Never swap sys.stdout or sys.stderr: a `print()` inside a stage must
+                    # reach the real stdout, and stderr lines must not be reordered.
+                    redirect_stdout=False,
+                    redirect_stderr=False,
                 )
                 self._live.start()
 
