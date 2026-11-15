@@ -4,6 +4,7 @@ import { useRemotesStore } from "@/stores/remotes";
 import { crabCommandNote, crabCommandView, crabDir } from "@/lib/remoteCrab";
 import { needsLabel, presetsHint } from "@/lib/presetSetup";
 import type { Profile, StepResult } from "@/api/types";
+import ProgressLine from "@/components/ProgressLine.vue";
 
 const store = useRemotesStore();
 const showForm = ref(false);
@@ -236,6 +237,8 @@ function confirmRemove(name: string) {
             </button>
           </div>
         </div>
+
+        <ProgressLine :cluster="r.name" />
 
         <!-- Real connection or auth failures are shown as-is, also while a profile is listed as connected. -->
         <p v-if="store.connectError[r.name]" class="banner err small" role="alert">
