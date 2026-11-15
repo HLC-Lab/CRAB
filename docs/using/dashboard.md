@@ -73,6 +73,11 @@ Click **+ Add cluster**, fill in the form and click **Save**. The form has these
 | `Crab command (optional)` | One executable that runs `crab` on the cluster, for example `~/.local/bin/crab` for a CRAB installed with pipx. Leave it empty for the CRAB checkout in `Install dir`. See [A cluster where CRAB is a pipx install](#a-cluster-where-crab-is-a-pipx-install). |
 | `Preset` | The [preset](../glossary.md#preset) the Submit window starts with for this cluster. Empty means the first preset the cluster reports. |
 
+A name that another cluster already has is refused as you type: a red line under `Name` says
+`A remote named '<name>' already exists. Choose another name.` and **Save** stays disabled. To
+change that cluster instead, use its pencil button. If the backend refuses a save for another
+reason, for example the reserved name `local`, the reason shows inside the open form.
+
 <!-- screenshot: remotes-add-cluster -->
 
 The three `Auth` methods:
@@ -94,6 +99,34 @@ cluster is connected when its dot is green and the button says **Disconnect**. T
 name shows the CRAB version there, the install folder and the presets the cluster defines.
 
 <!-- screenshot: remotes-connected -->
+
+### The progress line
+
+A connect can take a while: some clusters rotate their login nodes or check a certificate before
+they answer. While the dashboard waits, a line under the profile says what it is doing, what it
+waits for, how long it has waited and when it gives up:
+
+```text
+Connecting to the cluster: waiting for the login node (login.hpc.example.org:22) to accept the connection and your credentials
+12 s waited, gives up after 30 s
+```
+
+The counter moves every second, so a slow connect does not look like a hang. The line shows one
+step at a time, in this order:
+
+| Line starts with | What it waits for | Gives up after |
+|---|---|---|
+| `Connecting to the cluster` | The login node to accept the SSH connection and your credentials. | 30 s |
+| `Checking CRAB on the cluster` | `crab info --json` to report CRAB's version and presets. | 30 s |
+| `Installing CRAB on the cluster` | The install commands to finish on the login node. | 10 min |
+| `Checking the install` | `crab info --json` again, after an install. | 30 s |
+
+The same line appears for the other slow steps, under the cluster they run on: `Listing the
+wrappers` (90 s) and `Updating the wrappers` (180 s) on the [Wrappers page](dashboard-wrappers.md),
+`Sending the configuration to the cluster` (30 s) and `Submitting the run` (60 s) on a submitted
+job in the Jobs list, and `Fetching the results` on a job's results. The results fetch has no time limit, so its line shows only the wait. The line never
+shows a password. When the step ends, the line goes away and the result or the error takes its
+place.
 
 If the connection fails, the reason shows under the profile exactly as the dashboard got it. The
 common ones are an agent that is not running, a rejected login (an expired certificate, for

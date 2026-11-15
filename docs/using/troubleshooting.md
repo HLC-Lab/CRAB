@@ -274,6 +274,17 @@ then pull again`.
 On a pip or pipx install `crab update` leaves CRAB itself alone and prints
 `pipx upgrade crab-hpc`; run that to upgrade the program.
 
+### A slow `crab update`
+
+`crab update`, `crab wrappers pull`, `crab wrappers status` and the first-use wrappers clone show
+what they wait for on stderr, for example `Pulling updates: waiting for git pull from <repository>
+(12 s, gives up after 120 s)`. On a terminal this is one line that updates in place. When the
+output goes to a file or a pipe, you get one line at the start, then at 10 s, at 30 s and every 30
+s after, and a closing line such as `Pulling updates: done in 41 s` when the step took 2 s or
+more. With `--json` nothing extra is printed, so stdout stays JSON. The repository address in the
+line never includes a user name or password. A git step gives up after 120 s (20 s for the
+`crab wrappers status` check of GitHub).
+
 ## Slurm
 
 ### The job is refused at submit
@@ -334,6 +345,24 @@ the `srun` launcher. See [The mpirun dialects](running-without-slurm.md#the-mpir
 
 Another `crab web` (or another program) holds port 8899. Stop the other instance, or start on
 another port with `crab web --port 8899`. `CRAB_WEB_PORT` sets the default.
+
+### Connect is slow
+
+While **Connect** works, a line under the cluster shows the step, what it waits for and the
+seconds waited, for example `Connecting to the cluster: waiting for the login node
+(<host>:<port>) to accept the connection and your credentials`, then `12 s waited, gives up after
+30 s`. A growing counter means the dashboard is waiting, not stuck.
+
+- `Connecting to the cluster` is the SSH connection and login. A login node that rotates between
+  addresses, or a certificate login, can take several seconds. At 30 s the connect stops with
+  `Timed out connecting to <host>:<port> after <seconds>s.` (see the table below).
+- `Checking CRAB on the cluster` runs `crab info --json` in a login shell. A slow shell start-up
+  (a long `.bashrc`, a `module load`) shows here. At 30 s the check stops and the cluster is not
+  left connected.
+- `Installing CRAB on the cluster` can run for several minutes. It gives up after 10 minutes.
+
+If the line stays on one step until it gives up, test the same step by hand: `ssh <user>@<host>`
+for the first, then `crab info --json` in a login shell on the cluster for the second.
 
 ### Connect fails
 
