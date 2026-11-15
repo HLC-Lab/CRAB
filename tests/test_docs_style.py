@@ -35,9 +35,6 @@ PENDING: set[str] = {
     "docs/reference/configuration.md",
     "docs/reference/presets.md",
     "docs/reference/supported-benchmarks.md",
-    "docs/using/dashboard-wrappers.md",
-    "docs/using/dashboard.md",
-    "docs/using/running-without-slurm.md",
 }
 
 FILLER = (

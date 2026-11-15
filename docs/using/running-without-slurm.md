@@ -1,11 +1,10 @@
 # Running without Slurm
 
 A preset with `"scheduler": "local"` runs the job on the machine where you type `crab run`, with
-no Slurm involved. Use it to try CRAB on a laptop or workstation, or to run on a few machines
-that you reach over `ssh`. The preset still comes from the shared presets
-(the crab-wrappers clone) or from your own override files (`~/.config/crab/presets/`, or
-`local/presets/` in a checkout); see [Configuring your cluster](presets.md) for where presets live and how one is
-selected.
+no Slurm. Use it to try CRAB on a laptop or workstation, or to run on a few machines that you reach
+over `ssh`. The preset comes from the shared presets (the crab-wrappers clone) or from your own
+override files (`~/.config/crab/presets/`, or `local/presets/` in a checkout). See
+[Configuring your cluster](presets.md) for where presets live and how one is selected.
 
 CRAB never picks a local preset on its own: ask for it with `-p`.
 
@@ -37,7 +36,7 @@ workstations:
 
 | Field | Meaning |
 |-------|---------|
-| `hosts` | A list of `"name"` or `"name:cores"`. Only `localhost` may omit its core count. The job uses the first `numnodes` hosts, in order; a config that asks for more nodes than the preset has hosts is refused. |
+| `hosts` | A list of `"name"` or `"name:cores"`. Only `localhost` can omit its core count. The job uses the first `numnodes` hosts, in order; a config that asks for more nodes than the preset has hosts is refused. |
 | `hostfile` | A path (absolute, or starting with `~`) instead of `hosts`. A line is `h`, `h:N` or `h slots=N`, and `#` starts a comment. Give `hosts` or `hostfile`, not both. |
 | `exclusive` | `true` (the default) keeps other CRAB jobs off the job's hosts while it runs; see [Exclusive hosts](#exclusive-hosts). |
 | `launcher` | `"mpirun"` or `"direct"`. The default is `"direct"`. `"srun"` needs Slurm and is refused here. |
@@ -170,7 +169,7 @@ A local job has a time limit like a Slurm job. CRAB reads it from the config's
 | `D-H:M` | `1-12:30` | days, hours, minutes |
 | `D-H:M:S` | `1-12:30:15` | days, hours, minutes, seconds |
 
-Minutes and seconds must be below 60 after the first field. A walltime that is zero, not in one of
+After the first field, minutes and seconds must be 59 or lower. A walltime that is zero, not in one of
 these formats, or `UNLIMITED` or `INFINITE` is refused when the job is submitted: a local job
 needs a finite limit.
 
@@ -236,13 +235,14 @@ preset and not the allocation.
 ## What a run records about its launches
 
 For every application started with `mpirun`, CRAB asks `mpirun` to report how it bound the ranks
-to cores, and keeps the report in `<experiment dir>/bindings_app_<id>.log`, where the experiment
-dir is `<run data dir>/<experiment name>/` and `<id>` is the application's number. For an
-application started with `srun`, the file holds whatever `srun` and the ranks write to standard
-error, including the `--cpu-bind=verbose` CPU masks when CRAB binds the cores. Each run of
-the experiment appends to it, under a `# run <n>` line. Because the file lives in the experiment
-directory and not in a run directory, it stays even when `retain_files` is `false`. Use it to
-check that the applications sit on the cores you meant.
+to cores, and keeps the report in `<experiment dir>/bindings_app_<id>.log`. The experiment dir is
+`<run data dir>/<experiment name>/` and `<id>` is the application's number.
+
+For an application started with `srun`, the file holds whatever `srun` and the ranks write to
+standard error, including the `--cpu-bind=verbose` CPU masks when CRAB binds the cores. Each run of
+the experiment appends to it, under a `# run <n>` line. The file lives in the experiment directory,
+not in a run directory, so it stays even when `retain_files` is `false`. Use it to check that the
+applications sit on the cores you meant.
 
 The job's `crab_run.json`, in the run's data directory, records which CRAB and which wrapper
 files produced the results. Three of its sections describe the launches:

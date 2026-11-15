@@ -22,8 +22,7 @@ pip install -e ".[web]"
 crab web
 ```
 
-If the extra is missing, `crab web` offers to install it into the active environment and asks for a
-`y` first.
+If the extra is missing, `crab web` offers to install it into the active environment and asks for `y`.
 
 `crab web` starts a server on this laptop and opens `http://127.0.0.1:8899` in your default
 browser. It prints the address and runs until you stop it.
@@ -31,12 +30,9 @@ browser. It prints the address and runs until you stop it.
 | Flag | Meaning |
 |---|---|
 | `--host HOST` | The address to bind. The default is `127.0.0.1`. |
-| `--port PORT` | The port. The default is `8899`. The environment variable `CRAB_WEB_PORT` sets the default, and the flag wins. |
+| `--port PORT` | The port. The default is `8899`. The environment variable `CRAB_WEB_PORT` sets the default, and the flag wins. When the port is taken, `crab web` says so and exits: start it with `--port <other-port>`. |
 | `--no-browser` | Do not open a browser. Open the address yourself. |
 | `-v`, `--verbose` | Log startup and every request. The default prints only warnings and errors. |
-
-When the port is taken, `crab web` says so and exits. Start it on another port with
-`crab web --port 8899`.
 
 Stop it with `Ctrl-C` in the terminal that runs it. Closing the browser tab does not stop it.
 Cluster connections close when it stops, and you connect again the next time.
@@ -46,8 +42,8 @@ Cluster connections close when it stops, and you connect again the next time.
 Every request the page makes to the dashboard's API carries a token. `crab web` makes a new random
 token each time it starts and puts it in the page it serves. The token and a check of the `Host`
 and `Origin` headers together stop other web pages open in your browser from driving your SSH
-connections. The server answers API requests only when they are addressed to `127.0.0.1`, `localhost` or `::1`, so
-`--host` does not make the dashboard reachable from another machine.
+connections. The server answers API requests only when they are addressed to `127.0.0.1`, `localhost` or `::1`,
+so `--host` does not make the dashboard reachable from another machine.
 
 After you restart `crab web`, an old tab has the old token. Its requests fail with `Missing or
 wrong session token. Reload the dashboard tab to pick up the current session.` Reload the tab.
@@ -66,7 +62,7 @@ Click **+ Add cluster**, fill in the form and click **Save**. The form has these
 | `Host` | The login node, for example `login.hpc.example.org`. |
 | `User` | Your user name on the cluster. |
 | `Port` | The SSH port. The default is `22`. |
-| `Auth` | How to log in: `agent (ssh-agent / cert)`, `key file` or `password`. See below. |
+| `Auth` | How to log in: `agent (ssh-agent / cert)`, `key file` or `password`. The list after this table explains each. |
 | `Key path` | Shown for `key file`: the private key, for example `~/.ssh/id_ed25519`. |
 | `Host key` | `strict` checks the cluster's host key against your `~/.ssh/known_hosts`. `insecure (rotating login nodes)` skips the check. Use `insecure` only for a cluster whose login nodes present a different host key on each connection. The profile then shows `hostkey:insecure` as a reminder. |
 | `Install dir` | The folder on the cluster that holds CRAB. The default is `~`. CRAB lives in a `CRAB` folder inside it, and the field shows the result, for example `CRAB goes in ~/CRAB`. |
@@ -82,11 +78,11 @@ reason, for example the reserved name `local`, the reason shows inside the open 
 
 The three `Auth` methods:
 
-- **`agent`** uses your running `ssh-agent`, which covers keys you loaded and certificates from a
+- `agent` uses your running `ssh-agent`, which covers keys you loaded and certificates from a
   login tool such as `step-cli`. Start `crab web` from the shell that has the agent, because the
   dashboard reads `SSH_AUTH_SOCK` from its environment. Without it, Connect fails and says so.
-- **`key file`** reads the private key at `Key path`.
-- **`password`** shows a `password` box next to Connect. The dashboard keeps the password in memory
+- `key file` reads the private key at `Key path`.
+- `password` shows a `password` box next to Connect. The dashboard keeps the password in memory
   for that connection and never writes it down.
 
 The pencil button edits a profile and is disabled while the cluster is connected. The bin button
@@ -124,9 +120,10 @@ step at a time, in this order:
 The same line appears for the other slow steps, under the cluster they run on: `Listing the
 wrappers` (90 s) and `Updating the wrappers` (180 s) on the [Wrappers page](dashboard-wrappers.md),
 `Sending the configuration to the cluster` (30 s) and `Submitting the run` (60 s) on a submitted
-job in the Jobs list, and `Fetching the results` on a job's results. The results fetch has no time limit, so its line shows only the wait. The line never
-shows a password. When the step ends, the line goes away and the result or the error takes its
-place.
+job in the Jobs list, and `Fetching the results` on a job's results.
+
+The results fetch has no time limit, so its line shows only the wait. The line never shows a
+password. When the step ends, the line goes away and the result or the error takes its place.
 
 If the connection fails, the reason shows under the profile exactly as the dashboard got it. The
 common ones are an agent that is not running, a rejected login (an expired certificate, for
@@ -189,17 +186,17 @@ do not, the profile shows one of two lines in orange:
 
 On every command, the dashboard opens a login shell on the cluster, runs the lines of the profile's
 `remote_setup` list, goes to `<Install dir>/CRAB`, activates its `.venv` and runs `crab`. With a
-`Crab command` set, it runs that command instead of the last three steps. A cluster
-that needs `module load` lines before CRAB works can have them in `clusters.json`, in the
-`remote_setup` list of its profile, for example `"remote_setup": ["module load python"]`. The form
-does not show that field. Edit the file, then reconnect.
+`Crab command` set, it runs that command instead of the last three steps. A cluster that needs
+`module load` lines before CRAB works can have them in `clusters.json`, in the `remote_setup` list
+of its profile, for example `"remote_setup": ["module load python"]`. The form does not show that
+field. Edit the file, then reconnect.
 
 ## Write an experiment
 
 The **Author** page is an editor for an experiment config, which the dashboard calls a use case.
-It writes the same JSON that `crab run` reads (see the [configuration
-reference](../reference/configuration.md)), so anything you build here also runs from the command
-line.
+It writes the same JSON that `crab run` reads (see the
+[configuration reference](../reference/configuration.md)), so anything you build here also runs
+from the command line.
 
 <!-- screenshot: author-overview -->
 
@@ -221,20 +218,22 @@ The left rail has two groups. **Setup** holds the settings of the whole use case
 
 ### Setup
 
-- **Basics.** `Name` names the run and prefixes its output folder. `Nodes` is the total number of
+- `Basics`: `Name` names the run and prefixes its output folder. `Nodes` is the total number of
   nodes to allocate. `Processes per node` is the ppn. The `cluster nodes` link opens a read-only
   list of the Slurm partitions of the cluster you picked under `Wrappers from`, to help size
   `Nodes`.
-- **Node allocation.** By default all nodes run one workload. `+ divide the nodes` splits the
-  nodes into named slices. Drag a divider or type a percentage to size them, and `+ add a slice`
-  adds more. Then pick how the slices are placed: `linear` (a block each), `interleaved` (with
-  `every N node(s)`), `random` (with a `seed`) or `shared` (every app on all nodes, with `cores`
-  `disjoint` or `shared`). `shared` is available only while there are no slices. The `seed` field of
-  `random` starts blank, with the hint `blank: a new seed for each experiment, saved with the
-  results`; type a number to pin the seed. The strip under
-  the bar is an illustration. The exact assignment happens at run time. For what each mode means,
-  see the [configuration reference](../reference/configuration.md#allocation-fields).
-- **Run settings.** `Convergence` has `Min runs`, `Max runs`, `Timeout (s)`, `Converge all`,
+- `Node allocation`: by default all nodes run one workload. `+ divide the nodes` splits them into
+  named slices. Drag a divider or type a percentage to size them, and `+ add a slice` adds more.
+  Then pick how the slices are placed:
+    - `linear` (a block each) or `interleaved` (with `every N node(s)`).
+    - `random`, with a `seed`. The field starts blank, with the hint `blank: a new seed for each
+      experiment, saved with the results`. Type a number to pin the seed.
+    - `shared`: every app on all nodes, with `cores` `disjoint` or `shared`. It is available only
+      while there are no slices.
+
+  The strip under the bar is an illustration. The exact assignment happens at run time. For what
+  each mode means, see the [configuration reference](../reference/configuration.md#allocation-fields).
+- `Run settings`: `Convergence` has `Min runs`, `Max runs`, `Timeout (s)`, `Converge all`,
   `Alpha` and `Beta` (see [Convergence](../glossary.md#convergence)). `Output` has `Format`,
   `Retain files` and `Tags`. `Advanced` has `Extra info`, `Walltime`, `Data path`, `Launcher` and
   `Replace the preset's flags`. `Slurm directives` takes one `#SBATCH` directive per line. CRAB sets
@@ -248,9 +247,9 @@ A dot next to `Node allocation` or `Run settings` in the rail means something is
 Click an experiment in the rail. It has:
 
 - `Experiment name` and `Description`.
-- **Placement.** The experiment uses the global allocation. `Override for this experiment` gives it
+- `Placement`: the experiment uses the global allocation. `Override for this experiment` gives it
   its own, and `Use global allocation` goes back. The badge says `inherited` or `override`.
-- **Override run settings.** Change convergence, output and advanced settings for this experiment
+- `Override run settings`: change convergence, output and advanced settings for this experiment
   only. A field left on `inherit` or blank uses the global value.
 - The flow diagram: apps that start together sit in a column, and an arrow runs from an app to
   each app that starts after it. Colors are node groups.
@@ -261,13 +260,12 @@ Click an experiment in the rail. It has:
 Each app runs a [wrapper](../glossary.md#wrapper). Click `Choose wrapper…` on the card to open the
 picker. It lists the wrappers by suite, and the search box matches the name, the path and the
 suite. A tag on each row says where the wrapper exists: `host` (this laptop), `remote` (the
-cluster) or `host + remote`. `unloadable` means the wrapper could not be introspected. Its path
-still works.
+cluster) or `host + remote`. `unloadable` means the wrapper could not be introspected; its path still works.
 
-`Wrappers from` above the apps picks which connected cluster supplies the list. With no cluster
+The `Wrappers from` selector at the top of the apps list picks which connected cluster supplies the list. With no cluster
 connected, the picker shows this laptop's wrappers only. To use a path that is in none of the lists,
 type it in the search box and click `+ Add "<path>"`. A warning sign on a card means the wrapper is
-on this laptop but not on the chosen cluster, so a run there may fail until the wrapper is
+on this laptop but not on the chosen cluster, so a run there can fail until the wrapper is
 there. `About this wrapper` opens the [Wrappers page](dashboard-wrappers.md) on it.
 
 ### The rest of an app card
@@ -366,15 +364,16 @@ Click the card anywhere else to open the job.
 The job page lists every experiment of that submission, with its status, its number of nodes and
 ppn, and the apps it ran. A line such as `3/10 runs failed` means the experiment kept its
 [convergence](../glossary.md#convergence) loop going and collected data from the runs that worked.
+
 **Logs** on an experiment shows the error log of each app that failed, and says so when nothing
 failed. The line of an experiment with a random allocation ends with `· random · seed N`, the seed
-that laid out its nodes. Put that number in the `seed` field to repeat the layout on the same node
-list.
+that laid out its nodes. Put that number in the `seed` field to repeat the layout on the same nodes.
 
 To run only part of the job again:
 
-- **Rerun N failed experiment(s)** runs exactly the failed experiments, after a confirmation.
-- **Select experiments to rerun…** shows a checkbox on each experiment. Tick some and click
+- Click **Rerun N failed experiment(s)** to run exactly the failed experiments, after a
+  confirmation.
+- Click **Select experiments to rerun…** to show a checkbox on each experiment. Tick some and click
   **Rerun selected**.
 
 A rerun is always a new job on the same cluster with the same config. When it covers only some
@@ -396,8 +395,7 @@ unavailable` and cannot be rerun here.
 
 ## Read results
 
-The **Results** page has two tabs, `Jobs` and `Compare`. **Refresh** on the right reloads the list
-from the clusters.
+The **Results** page has two tabs, `Jobs` and `Compare`. **Refresh** on the right reloads the list from the clusters.
 
 ### Pick a job
 
@@ -420,8 +418,7 @@ only when you ask. Click a card to open the job.
 
 The job page has a tree on the left and a viewer on the right. Open an experiment in the tree and
 click one of its apps. A note such as `3/10 runs failed` marks an experiment where some runs
-failed. If nothing is fetched yet, **Fetch results** starts the download. **Refetch** downloads
-the job again.
+failed. If nothing is fetched yet, **Fetch results** starts the download. **Refetch** downloads it again.
 
 The viewer has two views, `Chart` and `Table`.
 
@@ -493,5 +490,4 @@ To reset part of it, stop `crab web` and delete what you want gone:
 - Everything: delete the config folder and the data folder. Back up `experiments/` first, since it
   holds your use cases.
 
-The next start creates the folders again. Your theme choice is not in these folders. The browser
-keeps it.
+The next start creates the folders again. The browser keeps your theme choice, not these folders.

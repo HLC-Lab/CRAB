@@ -5,20 +5,19 @@ which [wrappers](../glossary.md#wrapper) CRAB can see on this laptop and on each
 connect, whether their copy is current, and what each one measures. It does not edit wrappers: you
 write them in your editor (see [Writing a new wrapper](#writing-a-new-wrapper)).
 
-Every check on this page runs the `crab` command that is installed on the machine in question, so
-the dashboard shows what a run there would see. The equivalent commands are listed at the end.
+Every check runs the `crab` that is installed on the machine in question, so the dashboard shows
+what a run there would see. The [equivalent commands](#the-same-from-the-command-line) are at the end.
 
 ## Targets
 
 A target is a place the dashboard looks at wrappers (see the [glossary](../glossary.md#target)):
 
-- **This laptop** is the machine running `crab web`. It is always listed and needs no connection.
+- This laptop is the machine running `crab web`. It is always listed and needs no connection.
 - Each cluster profile from the **Remotes** page is a target too. A cluster is listed before you
   connect to it, but its wrappers show only once it is connected.
 
 Each target has its own crab-wrappers clone (the folder `crab update` manages) and its own
-[receipts](../glossary.md#receipt), so the same wrapper can be fine on one target and broken on
-another.
+[receipts](../glossary.md#receipt), so a wrapper can work on one target and fail on another.
 
 ## Status
 
@@ -26,7 +25,7 @@ The **Status** tab has one row per target:
 
 | Column | Shows |
 |---|---|
-| Target | The name, and below it the wrappers folder (with `over ssh` for a cluster). A cluster that is not connected says `not connected`, with a **Connect** button (a cluster that logs in with a password says **Connect in Remotes** instead). |
+| Target | The name, and under it the wrappers folder (with `over ssh` for a cluster). A cluster that is not connected says `not connected`, with a **Connect** button (a cluster that logs in with a password says **Connect in Remotes** instead). |
 | crab-wrappers | The short commit id and the subject line of the clone's latest commit. |
 | GitHub | How the clone compares with [HLC-Lab/crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) on GitHub. |
 | Wrappers | How many wrappers the target has, and `N need attention` when some do. |
@@ -46,13 +45,14 @@ The GitHub column says one of these:
 
 Pull reports what it did under the row: `Pulled <old> to <new>`, `Already up to date`, or
 `Cloned at <commit>`. A pull that fails (edits in the way, a diverged clone) shows the error there
-and changes nothing. The dashboard checks GitHub when you open the page; the line under the table
-says when, and **Check again** repeats it. If a cluster's `crab` is too old for a command, the row
-says `Update crab on <cluster> (crab update) to see this.`
+and changes nothing.
+The dashboard checks GitHub when you open the page (the line under the table says when), and
+**Check again** repeats the check. If a cluster's `crab` is too old for a command, the row says
+`Update crab on <cluster> (crab update) to see this.`
 
 ### Needs attention
 
-Click a connected row to select it (the arrow marks the selected one). Below the table the page
+Click a connected row to select it (the arrow marks the selected one). Under the table the page
 lists what is wrong with that target's wrappers, or says `Nothing needs attention on <target>`.
 The page starts on the first target that has a problem, else on This laptop.
 
@@ -95,16 +95,16 @@ shows:
   the clone's commit. A wrapper in `local/wrappers` says `only in this checkout`, and any other
   wrapper without a GitHub link (for example one in a folder that is not a clone of a GitHub
   repository) says `not on GitHub`.
-- **Cannot load**, with the full error, when the wrapper does not import.
+- `Cannot load`, with the full error, when the wrapper does not import.
 - The description. It is the wrapper file's docstring. When there is none, it is the first
-  paragraph of the nearest `README.md` below the wrappers folder, with a line saying so. When
+  paragraph of the nearest `README.md` under the wrappers folder, with a line saying so. When
   there is neither, a line says there is no description.
-- **What it measures.** The metrics the wrapper declares, with their unit. `convergence target`
+- What it measures: the metrics the wrapper declares, with their unit. `convergence target`
   marks a metric an experiment waits on (see [Convergence](../glossary.md#convergence)), and
   `check` marks a pass or fail verdict on the run (see
   [Correctness checks](../extending/wrappers.md#correctness-checks)). A wrapper with none says
   `This wrapper declares no metrics.`
-- **How it runs.** The wrapper's executable (or `not declared`) and where its binary comes from on
+- How it runs: the wrapper's executable (or `not declared`) and where its binary comes from on
   the shown target: `found, set in config`, `found, receipt`, `found on PATH`, `missing on <target>`
   with the reason, or `could not look up the binary here` with the reason. **Import binary**
   appears here too, under the same conditions as in Status.
