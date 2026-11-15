@@ -11,7 +11,6 @@ import asyncio
 import time
 from typing import Any, Literal
 
-# PyYAML arrives through uvicorn[standard]; declaring it in the web extra is an owner decision.
 import yaml  # type: ignore[import-untyped]
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
