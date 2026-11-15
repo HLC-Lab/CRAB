@@ -700,6 +700,28 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sbatchman/target": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Target
+     * @description Whether the cluster is an umbrella install (a `benchmarks/` folder and a configs file
+     *     under the install directory), with the config names and benchmark folders it offers.
+     *     A cluster that is not connected, not an umbrella, or does not answer reads as plain.
+     */
+    get: operations["target_api_sbatchman_target_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sbatchman/staging-path": {
     parameters: {
       query?: never;
@@ -709,7 +731,8 @@ export interface paths {
     };
     /**
      * Staging Path
-     * @description Where Write files will put this campaign on the cluster (`~` preserved).
+     * @description Where Write files will put this campaign on the cluster (`~` preserved): the
+     *     benchmark folder on an umbrella install when one is given, else the staging directory.
      */
     get: operations["staging_path_api_sbatchman_staging_path_get"];
     put?: never;
@@ -1319,11 +1342,6 @@ export interface components {
        */
       warnings: string[];
     };
-    /** StagingPathResponse */
-    StagingPathResponse: {
-      /** Path */
-      path: string;
-    };
     /**
      * StageOut
      * @description One slow step of an operation: elapsed time is `now - started_at`, never sent.
@@ -1339,6 +1357,11 @@ export interface components {
       started_at: number;
       /** Timeout S */
       timeout_s?: number | null;
+    };
+    /** StagingPathResponse */
+    StagingPathResponse: {
+      /** Path */
+      path: string;
     };
     /**
      * StaleCluster
@@ -1399,6 +1422,26 @@ export interface components {
       /** Rerun Of */
       rerun_of?: string | null;
     };
+    /**
+     * TargetResponse
+     * @description What the cluster's install looks like to the campaign editor. Paths are absolute on
+     *     the cluster and empty for a plain install.
+     */
+    TargetResponse: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "umbrella" | "plain";
+      /** Root */
+      root: string;
+      /** Configs File */
+      configs_file: string;
+      /** Configs Names */
+      configs_names: string[];
+      /** Benchmarks */
+      benchmarks: string[];
+    };
     /** UseCaseReport */
     UseCaseReport: {
       /** Config Name */
@@ -1439,6 +1482,8 @@ export interface components {
        * @default false
        */
       overwrite: boolean;
+      /** Benchmark */
+      benchmark?: string | null;
     };
     /** WriteResponse */
     WriteResponse: {
@@ -1446,6 +1491,11 @@ export interface components {
       local_path: string;
       /** Remote Path */
       remote_path: string;
+      /**
+       * New Folder
+       * @default false
+       */
+      new_folder: boolean;
     };
   };
   responses: never;
@@ -2630,11 +2680,43 @@ export interface operations {
       };
     };
   };
+  target_api_sbatchman_target_get: {
+    parameters: {
+      query: {
+        profile_name: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TargetResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   staging_path_api_sbatchman_staging_path_get: {
     parameters: {
       query: {
         profile_name: string;
         name: string;
+        benchmark?: string | null;
       };
       header?: never;
       path?: never;
