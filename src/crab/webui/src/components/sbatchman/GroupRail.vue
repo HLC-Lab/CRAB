@@ -28,7 +28,7 @@ const emit = defineEmits<{
         <li :class="{ on: campaignActive }">
           <button type="button" class="camp" @click="emit('select-campaign')">
             <span>Campaign settings</span>
-            <small>CRAB checkout, system, environment</small>
+            <small>Configs file and environment</small>
           </button>
         </li>
       </ul>

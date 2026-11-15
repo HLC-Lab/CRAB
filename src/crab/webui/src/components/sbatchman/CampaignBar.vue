@@ -45,6 +45,21 @@ const derived = computed(() => (store.configsFile.trim() ? "" : store.configsRef
   flex-direction: column;
   gap: 0.25rem;
   max-width: 38rem;
+  color: var(--text2);
+  font-size: var(--t-md);
+}
+input {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--r);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--mono);
+  font-size: var(--t-md);
+}
+input:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 .note,
 .configs small {
