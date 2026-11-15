@@ -45,6 +45,9 @@ export interface SbatchmanGroup {
 }
 
 export interface SbatchmanCampaign {
+  /** The `configs:` value: where SbatchMan reads the cluster's configs file from, relative
+   * to the jobs file. Empty or missing writes no key. */
+  configsFile?: string;
   /** Campaign-global variables (merged into every group). */
   variables: SbatchmanVar[];
   groups: SbatchmanGroup[];
@@ -232,6 +235,8 @@ export function campaignFileName(name: string): string {
 /** Compose the full SbatchMan jobs YAML for a campaign. */
 export function composeCampaignYaml(campaign: SbatchmanCampaign): string {
   const doc: Record<string, unknown> = {};
+  const configsFile = campaign.configsFile?.trim();
+  if (configsFile) doc.configs = configsFile;
   if (campaign.variables.length) doc.variables = varsObject(campaign.variables);
   doc.jobs = campaign.groups.map((group) => {
     const job: Record<string, unknown> = { config: group.configName, tag: group.tag };

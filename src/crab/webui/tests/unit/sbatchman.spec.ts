@@ -117,11 +117,26 @@ describe("sampleTags", () => {
   });
 });
 
+describe("composeCampaignYaml configs key", () => {
+  it("writes the configs file first in the document", () => {
+    const c = { ...campaign(), configsFile: "../../.local/configs.leonardo.yaml" };
+    const text = composeCampaignYaml(c);
+    expect(text.startsWith("configs: ../../.local/configs.leonardo.yaml\n")).toBe(true);
+    const doc = yaml.load(text) as any;
+    expect(Object.keys(doc)[0]).toBe("configs");
+    expect(doc.configs).toBe("../../.local/configs.leonardo.yaml");
+  });
+
+  it.each([undefined, "", "   "])("omits the key when the file is %j", (configsFile) => {
+    const doc = yaml.load(composeCampaignYaml({ ...campaign(), configsFile })) as any;
+    expect(Object.keys(doc)).not.toContain("configs");
+  });
+});
+
 describe("composeCampaignYaml", () => {
   it("emits YAML that parses to the expected structure", () => {
     const doc = yaml.load(composeCampaignYaml(campaign())) as any;
-    // SbatchMan reads a non-empty `configs:` as a definition file to re-provision from
-    // and crashes on a registry path; the key is optional, so the writer omits it.
+    // The key is optional: with no configs file set the writer omits it.
     expect(Object.keys(doc)).not.toContain("configs");
     expect(doc.variables.scale).toEqual([20, 24]);
     expect(doc.variables.ef).toEqual([8, 16]);

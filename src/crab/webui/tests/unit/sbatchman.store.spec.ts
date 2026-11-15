@@ -249,6 +249,62 @@ describe("sbatchman store: campaign library", () => {
   });
 });
 
+describe("sbatchman store: configs file", () => {
+  it("is empty by default and the YAML has no configs key", () => {
+    const store = useSbatchmanStore();
+    expect(store.configsFile).toBe("");
+    expect(store.yaml).not.toMatch(/^configs:/m);
+  });
+
+  it("reaches the YAML as the first key", () => {
+    const store = useSbatchmanStore();
+    store.configsFile = "../../.local/configs.x.yaml";
+    expect(store.yaml.startsWith("configs: ../../.local/configs.x.yaml\n")).toBe(true);
+  });
+
+  it("is part of the saved spec and marks the campaign dirty", async () => {
+    createMock.mockResolvedValueOnce(entry({ id: "new-id", name: "c" }));
+    listMock.mockResolvedValueOnce([]);
+    const store = useSbatchmanStore();
+    store.name = "c";
+    store.configsFile = "cfg.yaml";
+    expect(store.isDirty).toBe(true);
+    await store.save();
+    expect(createMock).toHaveBeenCalledWith(
+      "c",
+      expect.objectContaining({ configsFile: "cfg.yaml" }),
+    );
+    expect(store.isDirty).toBe(false);
+  });
+
+  it("survives opening a saved campaign and is cleared by New", async () => {
+    getMock.mockResolvedValueOnce(
+      entry({
+        spec: {
+          version: 1,
+          variables: [],
+          groups: [],
+          configsFile: "saved.yaml",
+        } as unknown as Record<string, unknown>,
+      }),
+    );
+    const store = useSbatchmanStore();
+    await store.open("a2a-baseline");
+    expect(store.configsFile).toBe("saved.yaml");
+    expect(store.isDirty).toBe(false);
+    store.newCampaign();
+    expect(store.configsFile).toBe("");
+  });
+
+  it("is empty for a saved campaign that predates the field", async () => {
+    getMock.mockResolvedValueOnce(entry());
+    const store = useSbatchmanStore();
+    store.configsFile = "leftover.yaml";
+    await store.open("a2a-baseline");
+    expect(store.configsFile).toBe("");
+  });
+});
+
 describe("sbatchman store: write is gated on validation", () => {
   function makeValid(store: ReturnType<typeof useSbatchmanStore>): void {
     const g = store.groups[0];
@@ -422,6 +478,6 @@ describe("sbatchman store: campaign format version", () => {
     expect(sent).not.toHaveProperty("crabRoot");
     expect(sent).not.toHaveProperty("system");
     expect(sent).not.toHaveProperty("env");
-    expect(Object.keys(sent).sort()).toEqual(["groups", "variables", "version"]);
+    expect(Object.keys(sent).sort()).toEqual(["configsFile", "groups", "variables", "version"]);
   });
 });

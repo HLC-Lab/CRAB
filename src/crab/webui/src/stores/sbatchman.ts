@@ -59,6 +59,8 @@ function emptyGroup(name: string): GroupState {
  * dict backend-side (`store/campaign_library.py`). */
 export interface CampaignSpec {
   version: number;
+  /** The `configs:` value; missing in a spec saved before the field existed. */
+  configsFile?: string;
   variables: SbatchmanVar[];
   groups: GroupState[];
 }
@@ -100,6 +102,7 @@ function normalizeSpec(raw: unknown): CampaignSpec {
   const str = (v: unknown): string => (typeof v === "string" ? v : "");
   return {
     version: CAMPAIGN_SPEC_VERSION,
+    configsFile: str(s.configsFile),
     variables: list(s.variables).map((v) => ({ name: str(v?.name), values: list(v?.values) })),
     groups: list(s.groups).map((g) => ({
       tag: str(g?.tag),
@@ -123,6 +126,8 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const variables = reactive<SbatchmanVar[]>([]);
   const groups = reactive<GroupState[]>([emptyGroup("run")]);
   const selected = ref(0);
+  // The `configs:` value of the jobs file (empty = no key).
+  const configsFile = ref("");
 
   // Destination + write state: which connected profile to push the
   // campaign to, and the outcome of the last write round-trip. Launching is
@@ -146,6 +151,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   const spec = computed<CampaignSpec>(() => ({
     version: CAMPAIGN_SPEC_VERSION,
+    configsFile: configsFile.value,
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
@@ -177,6 +183,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   }
 
   const campaign = computed<SbatchmanCampaign>(() => ({
+    configsFile: configsFile.value,
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
@@ -279,6 +286,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   }
 
   function _load(s: CampaignSpec) {
+    configsFile.value = s.configsFile ?? "";
     variables.splice(0, variables.length, ...s.variables.map((v) => ({ ...v })));
     groups.splice(
       0,
@@ -433,6 +441,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   return {
     name,
+    configsFile,
     variables,
     groups,
     selected,
