@@ -63,8 +63,37 @@ def test_stages_are_listed_in_the_order_they_began():
 def test_a_name_that_looks_like_another_key_does_not_collide():
     board = ProgressBoard()
     board.reporter("a").begin(CONNECT)
-    board.reporter("a:ssh").begin(CHECK)
+    board.reporter("a\x00ssh-connect").begin(CHECK)  # the separator itself, in a name
     assert board.snapshot("a") == [CONNECT]
+    assert board.snapshot("a\x00ssh-connect") == [CHECK]
+
+
+def test_two_overlapping_operations_do_not_pop_each_others_stage():
+    board = ProgressBoard()
+    first, second = board.reporter("a"), board.reporter("a")  # two requests, one cluster
+    first.begin(CONNECT)
+    second.begin(Stage("ssh-connect", "Connecting", "the login node", 1005.0, 30))
+    first.end("ssh-connect", True)
+    assert [s.stage for s in board.snapshot("a")] == ["ssh-connect"]
+    second.end("ssh-connect", False)
+    assert board.snapshot("a") == []
+
+
+def test_one_operation_beginning_a_stage_twice_ends_them_one_by_one():
+    board = ProgressBoard()
+    reporter = board.reporter("a")
+    reporter.begin(CONNECT)
+    reporter.begin(CONNECT)
+    reporter.end("ssh-connect", True)
+    assert len(board.snapshot("a")) == 1
+    reporter.end("ssh-connect", True)
+    assert board.snapshot("a") == []
+
+
+def test_ending_a_stage_that_never_began_is_ignored():
+    board = ProgressBoard()
+    board.reporter("a").end("ssh-connect", True)
+    assert board.snapshot("a") == []
 
 
 def test_a_stage_whose_operation_crashed_expires_by_itself():

@@ -165,3 +165,14 @@ def test_the_rich_line_never_reroutes_stdout(tmp_path):
         os.close(master)
     assert done.returncode == 0
     assert done.stdout.decode() == "PAYLOAD-ON-STDOUT\n"
+
+
+def test_reporting_restores_the_previous_reporter_when_the_body_raises():
+    import pytest
+
+    from crab.cli.progress import current_reporter
+
+    with pytest.raises(RuntimeError):
+        with progress_render.reporting(argparse.Namespace(json=False)):
+            raise RuntimeError("boom")
+    assert isinstance(current_reporter(), NullReporter)

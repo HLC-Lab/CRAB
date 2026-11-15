@@ -11,6 +11,7 @@ net for an operation that vanished without ending (it must outlast the longest t
 from __future__ import annotations
 
 import time
+import uuid
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import asdict
@@ -20,21 +21,35 @@ from crab.cli.progress import Reporter, Stage, use_reporter
 from crab.web.trackers import ExpiringTracker
 
 PENDING_TTL = 30 * 60.0
-_SEP = "\x00"
 
 
 class _ClusterReporter:
+    """The reporter of one operation: it ends only the stages it began itself.
+
+    Two requests on one cluster each get their own reporter, so one finishing never removes
+    the stage the other still waits on, even when both run the same stage id.
+    """
+
     def __init__(self, board: ProgressBoard, cluster: str) -> None:
         self._board, self._cluster = board, cluster
+        self._open: dict[str, list[str]] = {}  # stage id -> tokens, newest last
 
     def begin(self, stage: Stage) -> None:
-        self._board._stages[f"{self._cluster}{_SEP}{stage.stage}"] = {
+        token = uuid.uuid4().hex
+        self._open.setdefault(stage.stage, []).append(token)
+        self._board._stages[token] = {
             "status": "pending",
+            "cluster": self._cluster,
             **asdict(stage),
         }
 
     def end(self, stage_id: str, ok: bool) -> None:
-        self._board._stages.pop(f"{self._cluster}{_SEP}{stage_id}", None)
+        tokens = self._open.get(stage_id)
+        if not tokens:
+            return
+        self._board._stages.pop(tokens.pop(), None)
+        if not tokens:
+            del self._open[stage_id]
 
 
 class ProgressBoard:
@@ -46,6 +61,7 @@ class ProgressBoard:
         ttl_clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._clock = clock
+        # token -> the stage and its cluster; the token is private to one begin.
         self._stages = ExpiringTracker(clock=ttl_clock, pending_ttl=PENDING_TTL)
 
     def reporter(self, cluster: str) -> Reporter:
@@ -56,20 +72,21 @@ class ProgressBoard:
         return self._clock()
 
     def snapshot(self, cluster: str) -> list[Stage]:
-        """The cluster's active stages, oldest first."""
-        prefix = f"{cluster}{_SEP}"
-        found = [
-            Stage(
-                v["stage"],
-                v["label"],
-                v["waiting_for"],
-                v["started_at"],
-                v["timeout_s"],
+        """The cluster's active stages, oldest first.
+
+        A stage id that several operations have open shows once, with the oldest start.
+        """
+        found: dict[str, Stage] = {}
+        for _token, v in self._stages.items():
+            if v["cluster"] != cluster:
+                continue
+            candidate = Stage(
+                v["stage"], v["label"], v["waiting_for"], v["started_at"], v["timeout_s"]
             )
-            for key, v in self._stages.items()
-            if key.startswith(prefix)
-        ]
-        return sorted(found, key=lambda s: s.started_at)
+            kept = found.get(candidate.stage)
+            if kept is None or candidate.started_at < kept.started_at:
+                found[candidate.stage] = candidate
+        return sorted(found.values(), key=lambda s: s.started_at)
 
 
 def watching(request: Any, cluster: str) -> AbstractContextManager[Reporter]:
