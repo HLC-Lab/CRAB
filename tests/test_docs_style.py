@@ -52,7 +52,9 @@ FILLER = (
     "typically",
     "currently",
 )
-_FILLER_RE = re.compile(r"(?<![\w-])(" + "|".join(re.escape(w) for w in FILLER) + r")(?![\w-])", re.IGNORECASE)
+_FILLER_RE = re.compile(
+    r"(?<![\w-])(" + "|".join(re.escape(w) for w in FILLER) + r")(?![\w-])", re.IGNORECASE
+)
 
 # Case matters for "AI" (the word) and not for the phrases.
 _FRAMING_RES = (
@@ -111,7 +113,9 @@ def find_dashes(text: str) -> list[int]:
 
 def find_filler(text: str) -> list[tuple[int, str]]:
     """(line, word) for each filler word in the prose."""
-    return [(n, m.group(1).lower()) for n, line in prose_lines(text) for m in _FILLER_RE.finditer(line)]
+    return [
+        (n, m.group(1).lower()) for n, line in prose_lines(text) for m in _FILLER_RE.finditer(line)
+    ]
 
 
 def find_framing(text: str) -> list[tuple[int, str]]:
@@ -158,9 +162,15 @@ def test_the_writing_rule_checks_catch_what_they_should() -> None:
     assert find_dashes("```\nx — y\n```") == [2]
     assert find_dashes("a - b, a-b") == []
 
-    assert find_filler("You may run it.\nNote that it is just fine.") == [(1, "may"), (2, "note that"), (2, "just")]
+    assert find_filler("You may run it.\nNote that it is just fine.") == [
+        (1, "may"),
+        (2, "note that"),
+        (2, "just"),
+    ]
     assert find_filler("See the list below.") == [(1, "below")]
-    assert find_filler("Run `just may` now.\n```\nshould above\n```\n[x](https://a/below/may)") == []
+    assert (
+        find_filler("Run `just may` now.\n```\nshould above\n```\n[x](https://a/below/may)") == []
+    )
     assert find_filler("Use `crab run`, then check the results.") == []
     assert find_filler("It is mayonnaise and justice.") == []
     assert find_filler("````text\n```\nmay\n```\nshould\n````\nPlain.") == []
