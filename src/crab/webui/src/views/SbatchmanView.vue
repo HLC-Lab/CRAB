@@ -126,11 +126,11 @@ function confirmRemoveGroup(): void {
           >
             <GroupBasics
               :tag="group.tag"
-              :preset="group.preset"
+              :config-name="group.configName"
               :draft="group.draft"
               :samples="store.tagSamples(store.selected)"
               @update:tag="group.tag = $event"
-              @update:preset="group.preset = $event"
+              @update:configName="group.configName = $event"
             />
           </SectionCard>
           <SectionCard

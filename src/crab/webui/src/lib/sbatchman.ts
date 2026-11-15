@@ -36,8 +36,8 @@ export interface SbatchmanVar {
 export interface SbatchmanGroup {
   /** Tag template, e.g. "run_{nodes}". */
   tag: string;
-  /** SbatchMan config name (the field is called `preset`), may be templated, e.g. "{nodes}_nodes". */
-  preset: string;
+  /** SbatchMan config name (the field is called `configName`), may be templated, e.g. "{nodes}_nodes". */
+  configName: string;
   /** Variables scoped to this group (merged over the campaign-global ones). */
   variables: SbatchmanVar[];
   /** The CRAB experiment JSON (from config.ts::toConfig); may hold `{var}`. */
@@ -77,7 +77,7 @@ function tokenNames(texts: string[]): Map<string, boolean> {
 
 /** Names actually referenced (as `{name}`) across a group's templates + JSON. */
 function usedNames(group: SbatchmanGroup): Set<string> {
-  return new Set(tokenNames([group.tag, group.preset, JSON.stringify(group.config)]).keys());
+  return new Set(tokenNames([group.tag, group.configName, JSON.stringify(group.config)]).keys());
 }
 
 /** Only the effective variables a group actually references (what SbatchMan expands). */
@@ -234,7 +234,7 @@ export function composeCampaignYaml(campaign: SbatchmanCampaign): string {
   const doc: Record<string, unknown> = {};
   if (campaign.variables.length) doc.variables = varsObject(campaign.variables);
   doc.jobs = campaign.groups.map((group) => {
-    const job: Record<string, unknown> = { config: group.preset, tag: group.tag };
+    const job: Record<string, unknown> = { config: group.configName, tag: group.tag };
     if (group.variables.length) job.variables = varsObject(group.variables);
     // Trailing newline so the heredoc's `JSON` terminator line is newline-ended.
     job.preprocess = preprocessLines(campaign, group).join("\n") + "\n";
@@ -364,18 +364,18 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
   campaign.groups.forEach((group, i) => {
     const where = group.tag.trim() ? `Group "${group.tag.trim()}"` : `Group #${i + 1}`;
     issues.push(...varIssues(group.variables, where));
-    if (!group.preset.trim()) issues.push(`${where}: set the SbatchMan config it runs with.`);
+    if (!group.configName.trim()) issues.push(`${where}: set the SbatchMan config it runs with.`);
     if (!group.tag.trim())
       issues.push(`Group #${i + 1} has no tag: give it one, for example run_{nodes}.`);
     issues.push(...workerRefusals(group, where));
 
     // Same (config, tag) in two groups after expansion: SbatchMan skips the later jobs.
-    if (group.tag.trim() && group.preset.trim()) {
-      const names = tokenNames([group.tag, group.preset]);
+    if (group.tag.trim() && group.configName.trim()) {
+      const names = tokenNames([group.tag, group.configName]);
       const tagVars = effectiveVars(campaign, group).filter((v) => names.has(v.name));
       const pairs = new Set(
         cartesian(tagVars, COMBO_CAP).map((combo) =>
-          JSON.stringify([substitute(group.preset, combo), substitute(group.tag, combo)]),
+          JSON.stringify([substitute(group.configName, combo), substitute(group.tag, combo)]),
         ),
       );
       for (const pair of pairs) {
@@ -392,7 +392,7 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
     }
 
     const defined = new Set(effectiveVars(campaign, group).map((v) => v.name.trim()));
-    const referenced = tokenNames([group.tag, group.preset, JSON.stringify(group.config)]);
+    const referenced = tokenNames([group.tag, group.configName, JSON.stringify(group.config)]);
     const unknown = [...referenced].filter(([n, plain]) => plain && !defined.has(n));
     for (const [n] of unknown) issues.push(`${where}: {${n}} is not a defined variable.`);
     if (unknown.length) return; // the experiment can't be checked with unresolved tokens
@@ -404,6 +404,6 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
 
 /** The "SbatchMan config" field's placeholder and hint: what name goes there and where it
  * comes from (docs/using/sbatchman-integration.md). */
-export const PRESET_PLACEHOLDER = "crab_run";
-export const PRESET_HINT =
+export const CONFIG_PLACEHOLDER = "crab_run";
+export const CONFIG_HINT =
   "The SbatchMan config this group runs with: its name in your SbatchMan configs file, for example crab_run_{nodes}. See docs/using/sbatchman-integration.md.";

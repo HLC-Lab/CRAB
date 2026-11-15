@@ -48,7 +48,7 @@ const writeMock = vi.mocked(api.sbatchman.write);
 function group(tag: string): GroupState {
   const draft = emptyDraft();
   draft.experiments.push(emptyExperiment("run"));
-  return { tag, preset: "", variables: [], draft };
+  return { tag, configName: "", variables: [], draft };
 }
 
 function entry(overrides: Partial<CampaignEntry> = {}): CampaignEntry {
@@ -253,7 +253,7 @@ describe("sbatchman store: write is gated on validation", () => {
   function makeValid(store: ReturnType<typeof useSbatchmanStore>): void {
     const g = store.groups[0];
     g.tag = "run";
-    g.preset = "cpu";
+    g.configName = "cpu";
     g.draft.numnodes = "2";
     const app = emptyApp();
     app.path = "blink/a2a_b.py";
@@ -302,7 +302,7 @@ describe("sbatchman store: older saved specs and stale write results", () => {
     expect(store.error).toBeNull();
     expect(store.variables).toEqual([]);
     const g = store.groups[0];
-    expect(g.preset).toBe("");
+    expect(g.configName).toBe("");
     expect(g.variables).toEqual([]);
     expect(g.draft.options).toEqual(emptyDraft().options);
     expect(g.draft.experiments[0].apps).toEqual([]);

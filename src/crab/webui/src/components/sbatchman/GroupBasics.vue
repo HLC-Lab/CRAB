@@ -8,26 +8,26 @@
 // variable combination already substituted, and reports the problems in the preview.
 import { computed } from "vue";
 import type { Draft } from "@/lib/config";
-import { PRESET_HINT, PRESET_PLACEHOLDER } from "@/lib/sbatchman";
+import { CONFIG_HINT, CONFIG_PLACEHOLDER } from "@/lib/sbatchman";
 
 const props = defineProps<{
   tag: string;
-  preset: string;
+  configName: string;
   draft: Draft;
   samples: string[];
 }>();
 const emit = defineEmits<{
   "update:tag": [string];
-  "update:preset": [string];
+  "update:configName": [string];
 }>();
 
 const tagModel = computed({
   get: () => props.tag,
   set: (v: string) => emit("update:tag", v),
 });
-const presetModel = computed({
-  get: () => props.preset,
-  set: (v: string) => emit("update:preset", v),
+const configNameModel = computed({
+  get: () => props.configName,
+  set: (v: string) => emit("update:configName", v),
 });
 const d = computed(() => props.draft);
 </script>
@@ -39,8 +39,8 @@ const d = computed(() => props.draft);
       <small>Identifies this group's jobs to SbatchMan. Can use {var} placeholders.</small>
     </label>
     <label
-      >SbatchMan config <input v-model="presetModel" :placeholder="PRESET_PLACEHOLDER" />
-      <small>{{ PRESET_HINT }}</small>
+      >SbatchMan config <input v-model="configNameModel" :placeholder="CONFIG_PLACEHOLDER" />
+      <small>{{ CONFIG_HINT }}</small>
     </label>
     <label
       >Nodes <input v-model="d.numnodes" placeholder="e.g. {nodes}" />

@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { PRESET_HINT, PRESET_PLACEHOLDER, validateCampaign } from "@/lib/sbatchman";
+import { CONFIG_HINT, CONFIG_PLACEHOLDER, validateCampaign } from "@/lib/sbatchman";
 
 const src = join(dirname(fileURLToPath(import.meta.url)), "../../src");
 const componentDir = join(src, "components/sbatchman");
@@ -32,7 +32,7 @@ describe("SbatchMan editor copy", () => {
 
   for (const file of vueFiles) {
     it(`${file.slice(src.length + 1)}: no template text says preset`, () => {
-      // Code is not text: drop {{ expressions }} and bound attributes (:preset="group.preset"); the
+      // Code is not text: drop {{ expressions }} and bound attributes (:config-name="group.configName"); the
       // placeholder and hint constants are checked as strings below.
       const text = template(file)
         .replace(/\{\{[\s\S]*?\}\}/g, "")
@@ -51,21 +51,21 @@ describe("SbatchMan editor copy", () => {
     const broken = {
       variables: [{ name: "v", values: [1, 1] }],
       groups: [
-        { tag: "", preset: "", variables: [], config },
-        { tag: "t", preset: "", variables: [], config },
-        { tag: "t", preset: "", variables: [], config },
+        { tag: "", configName: "", variables: [], config },
+        { tag: "t", configName: "", variables: [], config },
+        { tag: "t", configName: "", variables: [], config },
       ],
     };
     const messages = validateCampaign(broken);
     expect(messages.length).toBeGreaterThan(0);
-    for (const text of [PRESET_HINT, PRESET_PLACEHOLDER, ...messages]) {
+    for (const text of [CONFIG_HINT, CONFIG_PLACEHOLDER, ...messages]) {
       expect(text).not.toMatch(/preset/i);
     }
   });
 
   it("the hint names the integration guide path", () => {
-    expect(PRESET_HINT).toContain("docs/using/sbatchman-integration.md");
-    expect(PRESET_HINT).toContain("SbatchMan config");
+    expect(CONFIG_HINT).toContain("docs/using/sbatchman-integration.md");
+    expect(CONFIG_HINT).toContain("SbatchMan config");
   });
 
   it("the campaign note and the group label say config", () => {

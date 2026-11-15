@@ -15,8 +15,8 @@ import {
   composeCampaignYaml,
   groupJobCount,
   sampleTags,
-  PRESET_HINT,
-  PRESET_PLACEHOLDER,
+  CONFIG_HINT,
+  CONFIG_PLACEHOLDER,
   type SbatchmanCampaign,
   type SbatchmanGroup,
   validateCampaign,
@@ -31,7 +31,7 @@ function campaign(): SbatchmanCampaign {
     groups: [
       {
         tag: "g500_baseline_{scale}_{ef}_{nodes}",
-        preset: "{nodes}_nodes",
+        configName: "{nodes}_nodes",
         variables: [{ name: "nodes", values: [8, 16, 32] }],
         config: {
           global_options: { numnodes: "{nodes}" },
@@ -389,7 +389,7 @@ describe("validateCampaign", () => {
 
   it("flags a group with no SbatchMan config name", () => {
     const c = campaign();
-    c.groups[0].preset = " ";
+    c.groups[0].configName = " ";
     expect(validateCampaign(c)).toContain(
       'Group "g500_baseline_{scale}_{ef}_{nodes}": set the SbatchMan config it runs with.',
     );
@@ -415,7 +415,7 @@ describe("validateCampaign", () => {
   it("names an untagged group by position, without quotes", () => {
     const c = campaign();
     c.groups[0].tag = "";
-    c.groups[0].preset = "";
+    c.groups[0].configName = "";
     expect(validateCampaign(c)).toContain("Group #1: set the SbatchMan config it runs with.");
   });
 });
@@ -503,7 +503,7 @@ describe("validateCampaign: what the worker refuses and what the user must fix b
         values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
       }));
       c.groups[0].tag = Array.from({ length: 10 }, (_, i) => `{v${i}}`).join("_");
-      c.groups[0].preset = "p";
+      c.groups[0].configName = "p";
       c.groups[0].config.global_options.numnodes = "{v9}";
       c.groups[0].config.experiments = { e: { apps: { "0": { path: "g500.py" } } } };
       const started = Date.now();
@@ -545,7 +545,7 @@ describe("validateCampaign: what the worker refuses and what the user must fix b
       }
     });
 
-    it("flags two groups with the same preset and tag, naming both", () => {
+    it("flags two groups with the same config and tag, naming both", () => {
       const c = campaign();
       c.groups.push({ ...second(), tag: c.groups[0].tag });
       const hits = validateCampaign(c).filter((i) => i.includes("#1") && i.includes("#2"));
@@ -556,15 +556,15 @@ describe("validateCampaign: what the worker refuses and what the user must fix b
       expect(hits[0]).toContain("skips");
     });
 
-    it("accepts the same preset with different tags", () => {
+    it("accepts the same config with different tags", () => {
       const c = campaign();
       c.groups.push({ ...second(), tag: "other_{scale}_{ef}_{nodes}" });
       expect(validateCampaign(c)).toEqual([]);
     });
 
-    it("accepts the same tag with different presets", () => {
+    it("accepts the same tag with different configs", () => {
       const c = campaign();
-      c.groups.push({ ...second(), preset: "other_preset" });
+      c.groups.push({ ...second(), configName: "other_config" });
       expect(validateCampaign(c)).toEqual([]);
     });
 
@@ -572,14 +572,14 @@ describe("validateCampaign: what the worker refuses and what the user must fix b
       const c = campaign();
       c.groups[0].variables = [{ name: "n", values: [1, 2] }];
       c.groups[0].tag = "t_{n}";
-      c.groups[0].preset = "p";
+      c.groups[0].configName = "p";
       c.groups[0].config = {
         global_options: { numnodes: "2" },
         experiments: { e: { apps: { "0": { path: "g500.py" } } } },
       };
       c.groups.push({
         tag: "t_1",
-        preset: "p",
+        configName: "p",
         variables: [],
         config: {
           global_options: { numnodes: "2" },
@@ -655,13 +655,13 @@ describe("validateCampaign with a wrapper catalog", () => {
   });
 });
 
-describe("preset field copy", () => {
+describe("config field copy", () => {
   it("tells the user which name to put and where it comes from", () => {
-    expect(PRESET_PLACEHOLDER).toBe("crab_run");
-    expect(PRESET_HINT).toContain("crab_run_{nodes}");
-    expect(PRESET_HINT).toContain("configs file");
-    expect(PRESET_HINT).not.toContain("sbatchman-preset");
-    expect(PRESET_HINT).not.toContain("step 5");
-    expect(PRESET_HINT).not.toContain("—");
+    expect(CONFIG_PLACEHOLDER).toBe("crab_run");
+    expect(CONFIG_HINT).toContain("crab_run_{nodes}");
+    expect(CONFIG_HINT).toContain("configs file");
+    expect(CONFIG_HINT).not.toContain("sbatchman-preset");
+    expect(CONFIG_HINT).not.toContain("step 5");
+    expect(CONFIG_HINT).not.toContain("—");
   });
 });

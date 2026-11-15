@@ -41,7 +41,7 @@ export class CampaignVersionError extends Error {}
 
 export interface GroupState {
   tag: string;
-  preset: string;
+  configName: string;
   variables: SbatchmanVar[];
   draft: Draft;
 }
@@ -49,7 +49,7 @@ export interface GroupState {
 function emptyGroup(name: string): GroupState {
   const draft = emptyDraft();
   draft.experiments.push(emptyExperiment(name));
-  return { tag: "", preset: "", variables: [], draft };
+  return { tag: "", configName: "", variables: [], draft };
 }
 
 /** The saved/loaded shape of a campaign draft: everything needed to
@@ -103,7 +103,7 @@ function normalizeSpec(raw: unknown): CampaignSpec {
     variables: list(s.variables).map((v) => ({ name: str(v?.name), values: list(v?.values) })),
     groups: list(s.groups).map((g) => ({
       tag: str(g?.tag),
-      preset: str(g?.preset),
+      configName: str(g?.configName),
       variables: list(g?.variables).map((v) => ({ name: str(v?.name), values: list(v?.values) })),
       draft: normalizeDraft(g?.draft),
     })),
@@ -149,7 +149,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
-      preset: g.preset,
+      configName: g.configName,
       variables: g.variables.map((v) => ({ ...v })),
       draft: g.draft,
     })),
@@ -180,7 +180,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
-      preset: g.preset,
+      configName: g.configName,
       variables: g.variables.map((v) => ({ ...v })),
       config: toConfig(g.draft),
     })),
@@ -285,7 +285,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
       groups.length,
       ...s.groups.map((g) => ({
         tag: g.tag,
-        preset: g.preset,
+        configName: g.configName,
         variables: g.variables.map((v) => ({ ...v })),
         draft: g.draft,
       })),

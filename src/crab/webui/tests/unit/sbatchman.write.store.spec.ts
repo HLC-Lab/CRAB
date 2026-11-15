@@ -34,7 +34,7 @@ async function settle(): Promise<void> {
 function makeWritable(store: ReturnType<typeof useSbatchmanStore>): void {
   const g = store.groups[0];
   g.tag = "pilot";
-  g.preset = "crab_run";
+  g.configName = "crab_run";
   g.draft.numnodes = "2";
   const app = emptyApp();
   app.path = "blink/alltoall/alltoall_b.py";
