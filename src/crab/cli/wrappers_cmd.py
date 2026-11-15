@@ -133,8 +133,10 @@ def _ensure_wrappers(args: argparse.Namespace) -> None:
     if getattr(args, "json", False):
         return
     from crab.cli import wrappers_clone
+    from crab.cli.progress_render import reporting
 
-    wrappers_clone.ensure_wrappers_clone(print)
+    with reporting(args):
+        wrappers_clone.ensure_wrappers_clone(print)
 
 
 def handle_wrappers_list(args: argparse.Namespace) -> None:

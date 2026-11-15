@@ -182,9 +182,11 @@ def handle_logs(args):
 
 def handle_setup(args):
     from crab.cli import wrappers_clone
+    from crab.cli.progress_render import reporting
     from crab.setup.wizard import run as run_wizard
 
-    wrappers_clone.ensure_wrappers_clone(print)
+    with reporting(args):
+        wrappers_clone.ensure_wrappers_clone(print)
     run_wizard()
 
 

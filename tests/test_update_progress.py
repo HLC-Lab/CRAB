@@ -287,3 +287,39 @@ def test_a_plain_wrappers_status_shows_the_wait_on_stderr(clone, capsys) -> None
     captured = capsys.readouterr()
     assert "waiting for git ls-remote from" in captured.err
     assert "waiting for" not in captured.out
+
+
+def _fake_first_clone(announce) -> None:
+    with stage("git-clone", "Cloning", "git clone from https://example.org/w.git"):
+        announce("Cloning the CRAB wrappers (first use)")
+
+
+def test_the_first_use_clone_of_a_wrappers_command_shows_its_stage(
+    recording, monkeypatch, capsys
+) -> None:
+    from crab.cli import wrappers_clone
+
+    monkeypatch.setattr(wrappers_clone, "ensure_wrappers_clone", _fake_first_clone)
+    wrappers_cmd._ensure_wrappers(argparse.Namespace(json=False))
+    assert recording.ids() == ["git-clone"]
+    assert "first use" in capsys.readouterr().out
+
+
+def test_the_first_use_clone_during_setup_shows_its_stage(recording, monkeypatch) -> None:
+    from crab.cli import main, wrappers_clone
+
+    monkeypatch.setattr(wrappers_clone, "ensure_wrappers_clone", _fake_first_clone)
+    monkeypatch.setattr("crab.setup.wizard.run", lambda: None)
+    main.handle_setup(argparse.Namespace())
+    assert recording.ids() == ["git-clone"]
+    assert recording.events[-1] == ("end", "git-clone", True)
+
+
+def test_a_json_wrappers_command_skips_the_first_use_clone_and_its_stage(
+    recording, monkeypatch
+) -> None:
+    from crab.cli import wrappers_clone
+
+    monkeypatch.setattr(wrappers_clone, "ensure_wrappers_clone", _fake_first_clone)
+    wrappers_cmd._ensure_wrappers(argparse.Namespace(json=True))
+    assert recording.events == []
