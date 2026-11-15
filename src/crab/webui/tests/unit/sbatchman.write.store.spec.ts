@@ -5,13 +5,14 @@
  */
 import { createPinia, setActivePinia } from "pinia";
 import { nextTick } from "vue";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/api/client", () => ({
   api: {
     sbatchman: {
       write: vi.fn(),
       stagingPath: vi.fn(),
+      target: vi.fn().mockRejectedValue(new Error("no target in this spec")),
       campaigns: {},
     },
   },
@@ -20,15 +21,14 @@ vi.mock("@/api/client", () => ({
 
 import { api, ApiError } from "@/api/client";
 import { emptyApp } from "@/lib/config";
-import { useSbatchmanStore } from "@/stores/sbatchman";
+import { STAGING_DEBOUNCE_MS, useSbatchmanStore } from "@/stores/sbatchman";
 
 const stagingMock = vi.mocked(api.sbatchman.stagingPath);
 
-/** Let the store's watcher run and its pending promises settle. */
+/** Let the store's watchers run, the path preview's debounce elapse and promises settle. */
 async function settle(): Promise<void> {
   await nextTick();
-  await Promise.resolve();
-  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(STAGING_DEBOUNCE_MS);
 }
 
 function makeWritable(store: ReturnType<typeof useSbatchmanStore>): void {
@@ -44,6 +44,11 @@ function makeWritable(store: ReturnType<typeof useSbatchmanStore>): void {
 beforeEach(() => {
   setActivePinia(createPinia());
   stagingMock.mockReset();
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("staging path", () => {
@@ -63,7 +68,7 @@ describe("staging path", () => {
     store.destination = "leonardo";
     await settle();
 
-    expect(stagingMock).toHaveBeenCalledWith("leonardo", "Pilot A2A");
+    expect(stagingMock).toHaveBeenCalledWith("leonardo", "Pilot A2A", undefined);
     expect(store.stagingPath).toBe("~/CRAB/.web_staging/pilot-a2a.yaml");
   });
 
@@ -77,7 +82,7 @@ describe("staging path", () => {
     store.name = "b";
     await settle();
 
-    expect(stagingMock).toHaveBeenLastCalledWith("leonardo", "b");
+    expect(stagingMock).toHaveBeenLastCalledWith("leonardo", "b", undefined);
     expect(store.stagingPath).toBe("~/CRAB/.web_staging/b.yaml");
   });
 
@@ -188,7 +193,11 @@ describe("write block", () => {
 
 describe("write result", () => {
   const writeMock = vi.mocked(api.sbatchman.write);
-  const result = { local_path: "/data/20260101T000000Z-pilot.yaml", remote_path: "/c/pilot.yaml" };
+  const result = {
+    local_path: "/data/20260101T000000Z-pilot.yaml",
+    remote_path: "/c/pilot.yaml",
+    new_folder: false,
+  };
 
   function conflict(): Error {
     return Object.assign(new ApiError("A campaign file named pilot.yaml already exists."), {
@@ -249,7 +258,7 @@ describe("write result", () => {
     const store = writableStore();
     await store.write();
 
-    expect(writeMock).toHaveBeenCalledWith("leonardo", store.yaml, store.name, false);
+    expect(writeMock).toHaveBeenCalledWith("leonardo", store.yaml, store.name, false, undefined);
   });
 
   it("turns a 409 into a replace question instead of an error", async () => {
@@ -271,7 +280,7 @@ describe("write result", () => {
 
     expect(await store.write({ overwrite: true })).toBe(true);
 
-    expect(writeMock).toHaveBeenLastCalledWith("leonardo", store.yaml, store.name, true);
+    expect(writeMock).toHaveBeenLastCalledWith("leonardo", store.yaml, store.name, true, undefined);
     expect(store.needsOverwrite).toBe(false);
     expect(store.lastWrite).toEqual(result);
   });
@@ -362,7 +371,13 @@ describe("write result", () => {
     store.groups[0].draft.numnodes = "4";
     await store.write({ overwrite: true });
 
-    expect(writeMock).toHaveBeenLastCalledWith("leonardo", store.yaml, store.name, false);
+    expect(writeMock).toHaveBeenLastCalledWith(
+      "leonardo",
+      store.yaml,
+      store.name,
+      false,
+      undefined,
+    );
   });
 
   it("still shows any other error as before", async () => {

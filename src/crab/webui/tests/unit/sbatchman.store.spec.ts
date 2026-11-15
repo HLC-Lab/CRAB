@@ -296,6 +296,32 @@ describe("sbatchman store: configs file", () => {
     expect(store.configsFile).toBe("");
   });
 
+  it("keeps the benchmark folder through save and open, empty for older campaigns", async () => {
+    createMock.mockResolvedValueOnce(entry({ id: "new-id", name: "c" }));
+    listMock.mockResolvedValueOnce([]);
+    const store = useSbatchmanStore();
+    store.name = "c";
+    store.benchmark = "blink";
+    await store.save();
+    expect(createMock).toHaveBeenCalledWith("c", expect.objectContaining({ benchmark: "blink" }));
+
+    getMock.mockResolvedValueOnce(
+      entry({
+        spec: { version: 1, variables: [], groups: [], benchmark: "qe" } as unknown as Record<
+          string,
+          unknown
+        >,
+      }),
+    );
+    await store.open("a2a-baseline");
+    expect(store.benchmark).toBe("qe");
+    expect(store.isDirty).toBe(false);
+
+    getMock.mockResolvedValueOnce(entry());
+    await store.open("a2a-baseline");
+    expect(store.benchmark).toBe("");
+  });
+
   it("is empty for a saved campaign that predates the field", async () => {
     getMock.mockResolvedValueOnce(entry());
     const store = useSbatchmanStore();
@@ -478,6 +504,12 @@ describe("sbatchman store: campaign format version", () => {
     expect(sent).not.toHaveProperty("crabRoot");
     expect(sent).not.toHaveProperty("system");
     expect(sent).not.toHaveProperty("env");
-    expect(Object.keys(sent).sort()).toEqual(["configsFile", "groups", "variables", "version"]);
+    expect(Object.keys(sent).sort()).toEqual([
+      "benchmark",
+      "configsFile",
+      "groups",
+      "variables",
+      "version",
+    ]);
   });
 });

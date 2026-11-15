@@ -7,7 +7,7 @@ import { defineStore } from "pinia";
 import { computed, reactive, ref, watch } from "vue";
 import { api, ApiError } from "@/api/client";
 import { useCatalogStore } from "@/stores/catalog";
-import type { CampaignEntry, SbatchmanWriteResult } from "@/api/types";
+import type { CampaignEntry, SbatchmanTarget, SbatchmanWriteResult } from "@/api/types";
 import {
   type Draft,
   emptyAllocation,
@@ -36,6 +36,12 @@ function msg(e: unknown): string {
 /** Format of a saved campaign spec. A spec saved before the field existed is version 1. */
 export const CAMPAIGN_SPEC_VERSION = 1;
 
+/** How long the path preview waits for typing to pause before asking the backend. */
+export const STAGING_DEBOUNCE_MS = 300;
+
+/** The backend's rule for a benchmark folder (`remoteops/umbrella.py`): one safe name. */
+const BENCHMARK_FOLDER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,59}$/;
+
 /** A saved campaign in a format newer than this dashboard understands. */
 export class CampaignVersionError extends Error {}
 
@@ -61,6 +67,8 @@ export interface CampaignSpec {
   version: number;
   /** The `configs:` value; missing in a spec saved before the field existed. */
   configsFile?: string;
+  /** The benchmark folder the user typed; empty means the default. Missing in an older spec. */
+  benchmark?: string;
   variables: SbatchmanVar[];
   groups: GroupState[];
 }
@@ -103,6 +111,7 @@ function normalizeSpec(raw: unknown): CampaignSpec {
   return {
     version: CAMPAIGN_SPEC_VERSION,
     configsFile: str(s.configsFile),
+    benchmark: str(s.benchmark),
     variables: list(s.variables).map((v) => ({ name: str(v?.name), values: list(v?.values) })),
     groups: list(s.groups).map((g) => ({
       tag: str(g?.tag),
@@ -119,6 +128,7 @@ interface WriteSnapshot {
   destination: string;
   name: string;
   yaml: string;
+  benchmark: string | undefined;
 }
 
 export const useSbatchmanStore = defineStore("sbatchman", () => {
@@ -144,6 +154,39 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   // backend (it owns the slug and staging-dir rules). Empty until known.
   const stagingPath = ref("");
 
+  // What the chosen cluster looks like (an umbrella install or a plain one), once known. A
+  // failed lookup leaves it null, which behaves as a plain install: authoring is never blocked.
+  const target = ref<SbatchmanTarget | null>(null);
+  // The benchmark folder as typed. Empty in an umbrella means the first existing folder.
+  const benchmark = ref("");
+  const isUmbrella = computed(() => target.value?.kind === "umbrella");
+  const effectiveBenchmark = computed(() => {
+    const t = target.value;
+    if (!t || t.kind !== "umbrella") return "";
+    return benchmark.value.trim() || t.benchmarks[0] || "";
+  });
+  // What goes to the backend: the folder in an umbrella, otherwise nothing (never "").
+  const sentBenchmark = computed<string | undefined>(
+    () => (isUmbrella.value && effectiveBenchmark.value) || undefined,
+  );
+  const benchmarkProblem = computed<string | null>(() => {
+    if (!isUmbrella.value) return null;
+    const folder = effectiveBenchmark.value;
+    if (!folder) return "Name the benchmark folder this campaign goes into.";
+    if (!BENCHMARK_FOLDER.test(folder))
+      return "The benchmark folder must be one name of letters, digits, dots, dashes and underscores, at most 60 characters, starting with a letter or digit.";
+    return null;
+  });
+  const configNames = computed(() => (isUmbrella.value ? (target.value?.configs_names ?? []) : []));
+  // The `configs:` value: what the user typed, else the umbrella's own configs file as the
+  // benchmark folder sees it (`benchmarks/<b>/` is two levels below the install directory).
+  const configsRef = computed(() => {
+    const typed = configsFile.value.trim();
+    if (typed) return typed;
+    const file = target.value?.kind === "umbrella" ? target.value.configs_file : "";
+    return file ? `../../.local/${file.split("/").pop()}` : "";
+  });
+
   // Campaign library: save/load, mirroring stores/author.ts.
   const library = ref<CampaignEntry[]>([]);
   const entryId = ref<string | null>(null);
@@ -152,6 +195,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const spec = computed<CampaignSpec>(() => ({
     version: CAMPAIGN_SPEC_VERSION,
     configsFile: configsFile.value,
+    benchmark: benchmark.value,
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
@@ -183,7 +227,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   }
 
   const campaign = computed<SbatchmanCampaign>(() => ({
-    configsFile: configsFile.value,
+    configsFile: configsRef.value,
     variables: variables.map((v) => ({ ...v })),
     groups: groups.map((g) => ({
       tag: g.tag,
@@ -222,12 +266,14 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     destination: destination.value,
     name: name.value,
     yaml: yaml.value,
+    benchmark: sentBenchmark.value,
   });
   const isCurrentWrite = (w: WriteSnapshot | null): boolean =>
     w !== null &&
     w.destination === destination.value &&
     w.name === name.value &&
-    w.yaml === yaml.value;
+    w.yaml === yaml.value &&
+    w.benchmark === sentBenchmark.value;
   const needsOverwrite = computed(() => isCurrentWrite(overwriteFor.value));
   const totalJobs = computed(() => campaignJobCount(campaign.value));
   // Problems that would break `sbatchman launch` or the CRAB worker; write() refuses
@@ -236,10 +282,14 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   // Why Write files is unavailable, if it is. Problems come first: the user can
   // act on them even with a cluster connected.
-  type WriteBlock = { kind: "issues"; count: number } | { kind: "no-cluster" };
+  type WriteBlock =
+    | { kind: "issues"; count: number }
+    | { kind: "no-cluster" }
+    | { kind: "benchmark"; message: string };
   const writeBlock = computed<WriteBlock | null>(() => {
     if (issues.value.length) return { kind: "issues", count: issues.value.length };
     if (!destination.value) return { kind: "no-cluster" };
+    if (benchmarkProblem.value) return { kind: "benchmark", message: benchmarkProblem.value };
     return null;
   });
   const canWrite = computed(() => writeBlock.value === null && !busy.value);
@@ -249,27 +299,77 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     if (!connected.includes(destination.value)) destination.value = connected[0] ?? "";
   }
 
-  // Only the newest lookup may set the path: names change per keystroke.
-  let stagingRequest = 0;
-  watch([destination, name], async ([cluster, campaignName]) => {
-    const mine = ++stagingRequest;
+  // The cluster's target, newest lookup wins. A failed lookup reads as a plain install.
+  let targetRequest = 0;
+  async function refreshTarget(): Promise<void> {
+    const cluster = destination.value;
+    const mine = ++targetRequest;
     if (!cluster) {
-      stagingPath.value = "";
+      target.value = null;
       return;
     }
     try {
-      const res = await api.sbatchman.stagingPath(cluster, campaignName);
-      if (mine === stagingRequest) stagingPath.value = res.path;
+      const found = await api.sbatchman.target(cluster);
+      if (mine === targetRequest) target.value = found;
     } catch {
-      // The preview is a convenience: a failed lookup shows no path, and Write
-      // files reports its own errors.
-      if (mine === stagingRequest) stagingPath.value = "";
+      if (mine === targetRequest) target.value = null;
     }
+  }
+  watch(destination, () => {
+    target.value = null;
+    void refreshTarget();
+  });
+
+  // The path preview: names change per keystroke, so it waits for typing to pause
+  // (STAGING_DEBOUNCE_MS), runs one request at a time, and takes only an answer that still
+  // describes the current cluster, name and folder. It is a convenience: a failed lookup shows
+  // no path, and Write files reports its own errors.
+  let stagingTimer: ReturnType<typeof setTimeout> | undefined;
+  let stagingBusy = false;
+  let stagingAgain = false;
+  async function refreshStagingPath(): Promise<void> {
+    if (stagingBusy) {
+      stagingAgain = true;
+      return;
+    }
+    stagingBusy = true;
+    try {
+      do {
+        stagingAgain = false;
+        const cluster = destination.value;
+        const campaignName = name.value;
+        const folder = sentBenchmark.value;
+        if (!cluster || benchmarkProblem.value) {
+          stagingPath.value = "";
+          continue;
+        }
+        const current = () =>
+          cluster === destination.value &&
+          campaignName === name.value &&
+          folder === sentBenchmark.value;
+        try {
+          const res = await api.sbatchman.stagingPath(cluster, campaignName, folder);
+          if (current()) stagingPath.value = res.path;
+        } catch {
+          if (current()) stagingPath.value = "";
+        }
+      } while (stagingAgain);
+    } finally {
+      stagingBusy = false;
+    }
+  }
+  watch([destination, name, sentBenchmark, benchmarkProblem], () => {
+    clearTimeout(stagingTimer);
+    if (!destination.value || benchmarkProblem.value) {
+      stagingPath.value = "";
+      return;
+    }
+    stagingTimer = setTimeout(() => void refreshStagingPath(), STAGING_DEBOUNCE_MS);
   });
 
   // "Written to ..." and the replace question describe the YAML as it was when written:
   // once the campaign or its name changes they would be stale.
-  watch([yaml, name, destination], () => {
+  watch([yaml, name, destination, sentBenchmark], () => {
     lastWrite.value = null;
     overwriteFor.value = null;
   });
@@ -287,6 +387,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
 
   function _load(s: CampaignSpec) {
     configsFile.value = s.configsFile ?? "";
+    benchmark.value = s.benchmark ?? "";
     variables.splice(0, variables.length, ...s.variables.map((v) => ({ ...v })));
     groups.splice(
       0,
@@ -422,9 +523,17 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     // cluster, name or YAML is dropped, not shown as if it described the current one.
     const sent = currentWrite();
     try {
-      const written = await api.sbatchman.write(sent.destination, sent.yaml, sent.name, overwrite);
+      const written = await api.sbatchman.write(
+        sent.destination,
+        sent.yaml,
+        sent.name,
+        overwrite,
+        sent.benchmark,
+      );
       if (!isCurrentWrite(sent)) return false;
       lastWrite.value = written;
+      // A folder this write made is now one of the cluster's folders.
+      if (written.new_folder) void refreshTarget();
       return true;
     } catch (e) {
       if (!isCurrentWrite(sent)) return false;
@@ -439,9 +548,23 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     }
   }
 
+  // After a write that made its folder: the folder has no SbatchMan project yet (the dashboard
+  // never runs `sbatchman init`, ADR-026), so say what to do next.
+  const newFolderNotice = computed<string | null>(() =>
+    lastWrite.value?.new_folder
+      ? `New folder: run ./install.sh in ${target.value?.root ?? "the install directory"} to create its SbatchMan project and check the file.`
+      : null,
+  );
+
   return {
     name,
     configsFile,
+    configsRef,
+    configNames,
+    benchmark,
+    effectiveBenchmark,
+    target,
+    newFolderNotice,
     variables,
     groups,
     selected,
