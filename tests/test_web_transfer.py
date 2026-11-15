@@ -412,3 +412,32 @@ async def test_stage_text_names_the_given_directory_when_it_cannot_be_made():
 
     assert "/home/u/umbrella/benchmarks/blink" in str(caught.value)
     assert ".web_staging" not in str(caught.value)
+
+
+async def test_a_failed_folder_creation_says_folder_not_staging_directory():
+    transport = RecordingTransport(fail_on="mkdir")
+
+    with pytest.raises(RemoteCommandError) as caught:
+        await stage_text(transport, _ssh_profile(), "x", "c.yaml", directory="/u/benchmarks/blink")
+
+    assert "the folder /u/benchmarks/blink" in str(caught.value)
+    assert "staging directory" not in str(caught.value)
+
+
+async def test_an_unresolvable_folder_says_folder_not_staging_directory():
+    transport = RecordingTransport(resolver_output="not a path\n")
+
+    with pytest.raises(RemoteCommandError) as caught:
+        await stage_text(transport, _ssh_profile(), "x", "c.yaml", directory="/u/benchmarks/blink")
+
+    assert "the folder /u/benchmarks/blink" in str(caught.value)
+    assert "staging directory" not in str(caught.value)
+
+
+async def test_a_failed_staging_directory_creation_still_says_staging_directory():
+    transport = RecordingTransport(fail_on="mkdir")
+
+    with pytest.raises(RemoteCommandError) as caught:
+        await stage_text(transport, _ssh_profile(), "x", "c.yaml")
+
+    assert "the staging directory" in str(caught.value)

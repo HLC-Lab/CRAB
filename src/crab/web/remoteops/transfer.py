@@ -61,11 +61,12 @@ async def _resolve_staging_dir(
     """
     remote_dir = directory if directory is not None else staging_dir(profile, settings)
     quoted_dir = remote_path_expr(remote_dir)
+    what = "the staging directory" if directory is None else "the folder"
     resolve_cmd = f"mkdir -p {quoted_dir} && cd {quoted_dir} && pwd"
     result = await transport.run(resolve_cmd, timeout=timeout)
     if not result.ok:
         raise RemoteCommandError(
-            f"Could not create the staging directory {remote_dir}.",
+            f"Could not create {what} {remote_dir}.",
             detail=output_tail(result),
         )
     # A login shell can print a banner or module messages before `pwd` runs: the
@@ -74,7 +75,7 @@ async def _resolve_staging_dir(
     absolute_dir = lines[-1] if lines else ""
     if not absolute_dir.startswith("/"):
         raise RemoteCommandError(
-            f"Could not resolve the staging directory {remote_dir}.",
+            f"Could not resolve {what} {remote_dir}.",
             detail=output_tail(result),
         )
     return absolute_dir
