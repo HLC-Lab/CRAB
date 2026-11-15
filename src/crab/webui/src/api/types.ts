@@ -259,6 +259,10 @@ export type SbatchmanWriteResult = components["schemas"]["WriteResponse"];
 /** GET /api/sbatchman/staging-path — where Write files will put the campaign YAML. */
 export type SbatchmanStagingPath = components["schemas"]["StagingPathResponse"];
 
+/** GET /api/sbatchman/target: whether the cluster is an umbrella install, with the config
+ * names and benchmark folders it offers. */
+export type SbatchmanTarget = components["schemas"]["TargetResponse"];
+
 /** /api/sbatchman/campaigns — saved campaign drafts. `spec` is opaque
  * here (the backend never validates it); `stores/sbatchman.ts` casts it to its
  * own typed `CampaignSpec` shape on load. */

@@ -32,6 +32,7 @@ import type {
   ResultsIndex,
   SavedEntry,
   SbatchmanStagingPath,
+  SbatchmanTarget,
   SbatchmanWriteResult,
   StepResult,
   SubmissionAccepted,
@@ -245,16 +246,29 @@ export const api = {
   },
 
   sbatchman: {
-    // `overwrite` is not in the generated request type yet (generated.ts is regenerated separately).
-    write: (profileName: string, yaml: string, name: string, overwrite = false) =>
+    // `benchmark` is the folder under an umbrella install's `benchmarks/`. Leave it undefined
+    // for none: the server refuses an empty name.
+    write: (
+      profileName: string,
+      yaml: string,
+      name: string,
+      overwrite = false,
+      benchmark?: string,
+    ) =>
       request<SbatchmanWriteResult>("/api/sbatchman/write", {
         method: "POST",
-        body: JSON.stringify({ profile_name: profileName, yaml, name, overwrite }),
+        body: JSON.stringify({ profile_name: profileName, yaml, name, overwrite, benchmark }),
       }),
 
-    stagingPath: (profileName: string, name: string) =>
+    stagingPath: (profileName: string, name: string, benchmark?: string) =>
       request<SbatchmanStagingPath>(
-        `/api/sbatchman/staging-path?profile_name=${encodeURIComponent(profileName)}&name=${encodeURIComponent(name)}`,
+        `/api/sbatchman/staging-path?profile_name=${encodeURIComponent(profileName)}&name=${encodeURIComponent(name)}` +
+          (benchmark === undefined ? "" : `&benchmark=${encodeURIComponent(benchmark)}`),
+      ),
+
+    target: (profileName: string) =>
+      request<SbatchmanTarget>(
+        `/api/sbatchman/target?profile_name=${encodeURIComponent(profileName)}`,
       ),
 
     campaigns: {
