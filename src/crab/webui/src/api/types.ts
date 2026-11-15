@@ -28,6 +28,12 @@ export type Profile = components["schemas"]["Profile"];
 /** GET /api/remotes item = profile + live connection state. */
 export type RemoteListItem = components["schemas"]["RemoteListItem"];
 
+/** One slow step of an operation, from GET /api/remotes/{name}/progress. */
+export type ProgressStage = components["schemas"]["StageOut"];
+
+/** GET /api/remotes/{name}/progress: the running stages and the server clock (epoch seconds). */
+export type ProgressResponse = components["schemas"]["ProgressResponse"];
+
 /** crab info --json (subset the UI uses). */
 export interface CrabInfo {
   schema: number;
