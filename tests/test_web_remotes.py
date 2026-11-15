@@ -64,6 +64,9 @@ class FakeTransport(Transport):
         self._alive = False
 
 
+_DUPLICATE_MESSAGE = "A remote named {name!r} already exists. Choose another name or edit that one."
+
+
 def _leonardo() -> Profile:
     return Profile(
         name="leonardo",
@@ -522,6 +525,7 @@ def test_remotes_api_full_flow(tmp_path: Path):
         dup = client.post("/api/remotes", json=payload)
         assert dup.status_code == 409
         assert dup.json()["code"] == "conflict"
+        assert dup.json()["message"] == _DUPLICATE_MESSAGE.format(name="leonardo")
 
         # Connect runs `crab info --json` (fake) and returns it.
         conn = client.post("/api/remotes/leonardo/connect")
@@ -556,6 +560,7 @@ def test_rename_to_an_existing_name_conflicts(tmp_path: Path):
         clash = client.put("/api/remotes/leonardo", json={**a, "name": "other"})
         assert clash.status_code == 409
         assert clash.json()["code"] == "conflict"
+        assert clash.json()["message"] == _DUPLICATE_MESSAGE.format(name="other")
 
 
 def test_rename_closes_the_stale_connection(tmp_path: Path):

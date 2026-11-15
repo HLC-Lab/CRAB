@@ -22,7 +22,7 @@ from crab.web.errors import ConflictError, RemoteConnectionError
 from crab.web.progress import watching
 from crab.web.remoteops.bootstrap import DETECT_TIMEOUT_S, DetectResult, detect
 from crab.web.remoteops.crab_cli import run_crab_json
-from crab.web.store.profiles import Profile, ProfileStore
+from crab.web.store.profiles import Profile, ProfileStore, duplicate_name_message
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,7 @@ async def update_remote(name: str, profile: Profile, request: Request) -> Profil
         # Renaming: the new name must be free, and any live connection is keyed
         # by the old name: close it so it can't linger unreachable.
         if any(p.name == profile.name for p in store.list()):
-            raise ConflictError(f"A profile named {profile.name!r} already exists.")
+            raise ConflictError(duplicate_name_message(profile.name))
         updated = store.update(name, profile)
         manager = getattr(request.app.state, "manager", None)
         if manager:
