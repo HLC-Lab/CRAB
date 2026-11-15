@@ -724,7 +724,9 @@ describe("heredoc quoting", () => {
     const start = lines.findIndex((l) => l.endsWith("<<JSON"));
     const end = lines.indexOf("JSON", start);
     expect(end).toBeGreaterThan(start);
-    const body = JSON.parse(substituteAll(lines.slice(start + 1, end).join("\n"), { scale: "20", ef: "8", nodes: "4" }));
+    const body = JSON.parse(
+      substituteAll(lines.slice(start + 1, end).join("\n"), { scale: "20", ef: "8", nodes: "4" }),
+    );
     expect(body.experiments["g500_baseline_20_8_4"].apps["0"].args).toBe(
       "--in $CRAB_ROOT/data -scale 20",
     );

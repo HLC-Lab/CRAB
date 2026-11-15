@@ -20,7 +20,10 @@ import {
   type SbatchmanVar,
 } from "@/lib/sbatchman";
 
-const examplesDir = join(dirname(fileURLToPath(import.meta.url)), "../../../../../examples/sbatchman");
+const examplesDir = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../../examples/sbatchman",
+);
 
 interface ParsedJob {
   config: string;
