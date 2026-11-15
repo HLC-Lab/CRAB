@@ -127,7 +127,7 @@ crab export data/leonardo/interference_2026-06-09_14-30-05-123456/ -o results.ht
 
 The exported file is a self-contained snapshot built from the dashboard template bundled in the
 package (`src/crab/crab_dashboard.html`) with the data pre-loaded and the "drop folder" UI hidden.
-The output file should not be committed to version control. See [Share results with `crab
+Do not commit the output file to version control. See [Share results with `crab
 export`](../using/results.md#share-results-with-crab-export) for what the file holds and when to
 use it instead of the dashboard.
 
@@ -414,7 +414,7 @@ crab wrappers new [--name NAME] [--local | --dir DIR] APP
 | Subcommand | What it does |
 |---|---|
 | `list` | Every wrapper on the search path, and where its binary comes from: `config`, `receipt`, `path`, `missing`, or `error` when the lookup itself failed. Wrappers that cannot be loaded are listed with the error. |
-| `show` | Describes one wrapper by its path under the wrappers folders (the first folder holding it wins; an old `suite/name.py` path resolves to the file's new group folder). Only files `list` shows qualify. Reports what it is (the module docstring, else the first paragraph of the nearest `README.md` below the wrappers folder, with its source), the declared metrics (name, unit, role, convergence flag), the executable and where its binary comes from, and, for a file committed in a git clone, that clone's commit and a GitHub URL to the file at it (null for the URL when `origin` is not on GitHub). It prints neither source text nor sample cases. Exits 2 for an unknown wrapper, an absolute path, or a path with `..`. |
+| `show` | Describes one wrapper by its path under the wrappers folders (the first folder holding it wins; an old `suite/name.py` path resolves to the file's new group folder). Only files `list` shows qualify. Reports what it is (the module docstring, else the first paragraph of the nearest `README.md` under the wrappers folder, with its source), the declared metrics (name, unit, role, convergence flag), the executable and where its binary comes from, and, for a file committed in a git clone, that clone's commit and a GitHub URL to the file at it (null for the URL when `origin` is not on GitHub). It prints neither source text nor sample cases. Exits 2 for an unknown wrapper, an absolute path, or a path with `..`. |
 | `status` | Reports the shared wrappers clone (the folder `crab update` manages): its commit (with the commit's subject line) and branch, the tracked files with local edits (staged or not; untracked files are not listed), the commit GitHub's `origin` has for that branch (`git ls-remote`, 20 s timeout, never prompting for credentials), and `state`: `up to date`, `behind`, `ahead`, `diverged`, or `unknown` when the folder is not a clone, has no commits, or GitHub cannot be reached (`upstream.error` says why). It reads without writing and never fetches, so `behind` without counts means GitHub has commits this clone has not fetched; counts appear once the commit is local. `upstream.url` is the `origin` URL without any `user:password@` part. A detached HEAD is compared with `origin`'s HEAD. Exits 0 even when the folder is missing or GitHub is unreachable. |
 | `pull` | Fast-forwards the shared wrappers clone with `git pull --ff-only`, or clones it when the folder is missing (the same code as the wrappers part of `crab update`). Reports `action` (`updated`, `up to date`, `cloned`) with the old and new commit; for a folder that is not a clone it reports `action: "skipped"` with a `detail` and exits 0. Exits 1, changing nothing, when tracked files have local edits or the pull fails (for example a diverged clone, or a detached HEAD, which is not on a branch). |
 | `test` | Runs the sample cases (`<app>/samples/<case>/`) of the named apps, or of all apps, and compares each result with its `expected.json`. With `--strict`, a wrapper that no case covers fails unless `unverified.txt` in its folder lists it. Exits 1 on any failure. |
@@ -589,7 +589,7 @@ for the `crab wrappers status` check of GitHub).
 Describes the node it runs on (GPUs, RDMA NIC ports, NUMA domains) as a preset
 [`topology`](presets.md#topology) block. The block is built from Linux sysfs alone, so building it needs no vendor tool. A live run
 (no `--sysfs`, no `--node-file`) on a node with NVIDIA GPUs also runs `nvidia-smi` to count the GPUs this
-process sees, only to add a warning (see the warnings below); without `nvidia-smi` the probe still works
+process sees, only to add a warning; without `nvidia-smi` the probe still works
 and the block is the same. Run it on a compute node, inside an allocation: a login node has other hardware. Review what it prints, then
 paste the block into a preset override.
 
@@ -602,21 +602,21 @@ crab probe --check (-p PRESET | --topology-file FILE) [--sysfs DIR] [--node-file
 |------|---------|---------|
 | `--sysfs DIR` | The sysfs root to read, for a copy of `/sys`. | `/sys` |
 | `--node-file FILE` | Rebuild the block from a file saved with `crab probe --json`, without reading sysfs. Use it to build a block on another machine. | none |
-| `--check` | Check this node against a topology instead of describing it (see below). | off |
+| `--check` | Check this node against a topology instead of describing it (see [`crab probe --check`](#crab-probe-check)). | off |
 | `-p`, `--preset` | With `--check`: the preset whose `topology` to check against. | none |
 | `--topology-file FILE` | With `--check`: a topology block, or a `crab probe --json` file, to check against. | none |
 | `--json` | Print `{"node": ..., "topology": ..., "warnings": [...]}` as JSON. `node` is the raw data and holds the hostname; `topology` does not. | off |
 
 What goes into the block:
 
-- **GPUs** are the display and 3D controllers of NVIDIA, AMD and Intel (an Intel VGA device is an
+- GPUs are the display and 3D controllers of NVIDIA, AMD and Intel (an Intel VGA device is an
   integrated GPU and is skipped), numbered in PCI bus order. When a node has GPUs of several vendors, the
   most common vendor is kept and the others are named in a warning.
-- **NIC ports** are the active ports under `/sys/class/infiniband`, named as UCX names them
+- NIC ports are the active ports under `/sys/class/infiniband`, named as UCX names them
   (`mlx5_0:1`), with their NUMA domain, PCI slot (`card`), rate and link layer. A port that is not
   active is left out and named in a warning. Other NIC families (Slingshot `cxi`, for example) are not
   read.
-- **`near_gpu` and `dist`** give each NIC its closest GPU and the distance class between them
+- `near_gpu` and `dist` give each NIC its closest GPU and the distance class between them
   (`PIX`, `PXB`, `PHB`, `NODE` or `SYS`). They are left out when the PCI
   tree is not visible (some virtual machines and containers hide it), and a warning says so. The classes
   are worked out from the PCI tree, not read from `nvidia-smi`. On a GPU node with four GPUs and four
