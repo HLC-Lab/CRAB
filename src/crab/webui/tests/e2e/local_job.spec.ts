@@ -40,6 +40,8 @@ class app(base):
 // touched file shows up as a difference.
 function snapshot(dir: string): string[] {
   const out: string[] = [];
+  // A fresh checkout has no data folder: an empty snapshot still catches one being created.
+  if (!existsSync(dir)) return out;
   const walk = (d: string) => {
     for (const name of readdirSync(d).sort()) {
       const full = join(d, name);
@@ -72,8 +74,20 @@ test.beforeAll(() => {
   dataBefore = snapshot(repoData);
 });
 
-test.afterAll(() => {
+test.afterAll(async ({ browser }) => {
   if (work) rmSync(work, { recursive: true, force: true });
+  // One server and profile store serve every spec: drop the "laptop" remote so the
+  // specs that run after this one still see a state with no cluster connected.
+  const baseURL = test.info().project.use.baseURL;
+  const context = await browser.newContext({ baseURL });
+  try {
+    const page = await context.newPage();
+    await page.goto("/");
+    const token = (await page.locator('meta[name="crab-token"]').getAttribute("content")) ?? "";
+    await page.request.delete("/api/remotes/laptop", { headers: { "x-crab-token": token } });
+  } finally {
+    await context.close();
+  }
 });
 
 // Author, Submit and Jobs are unhooked from nav/routing on this branch (ADR-026): SbatchMan
