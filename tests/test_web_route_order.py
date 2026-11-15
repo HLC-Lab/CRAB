@@ -61,11 +61,12 @@ def test_dead_routers_are_not_mounted_and_live_ones_are(tmp_path: Path, monkeypa
     with auth_client(app) as client:
         posted = client.post("/api/jobs/submit", json={})
         assert posted.status_code in (404, 405), posted.status_code
-        # A GET to an unmatched /api/... path falls through to the SPA catch-all (200 with
-        # the HTML shell) when the frontend is built, else 404: never the JSON jobs list.
+        # A GET to an unmatched /api/... path is an API error (404 JSON, code not_found),
+        # never the JSON jobs list and never the SPA shell.
         listed = client.get("/api/jobs")
-        assert listed.status_code in (200, 404), listed.status_code
-        assert "application/json" not in listed.headers.get("content-type", "")
+        assert listed.status_code == 404, listed.status_code
+        assert listed.headers["content-type"].startswith("application/json")
+        assert listed.json()["code"] == "not_found"
         assert client.get("/api/health").status_code == 200
     assert calls == []
 
