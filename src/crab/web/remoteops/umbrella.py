@@ -41,9 +41,12 @@ echo '@@{mark}:configs'
 echo "$1"
 echo '@@{mark}:benchmarks'
 for d in benchmarks/*/; do test -d "$d" && basename "$d"; done
-echo '@@{mark}:content'
+{content}exit 0
+"""
+
+# The configs file, capped, as the last section. Left out when only the folders are wanted.
+_CONTENT = """echo '@@{mark}:content'
 head -c 1000000 -- "$1" 2>/dev/null || true
-exit 0
 """
 
 
@@ -140,6 +143,7 @@ async def probe_umbrella(
     profile: Profile,
     *,
     strict: bool = False,
+    with_content: bool = True,
     timeout: float = 30.0,
 ) -> UmbrellaTarget:
     """One command on the cluster: the umbrella it found, or ``PLAIN``.
@@ -148,12 +152,17 @@ async def probe_umbrella(
     failed probe must not block authoring. Strict (a write that depends on the answer): only
     the script's own "not an umbrella" exits read as plain; a dropped connection, a timeout, any
     other exit or output that is not the probe's raises, so the caller never falls back
-    to another directory by accident.
+    to another directory by accident. ``with_content=False`` skips reading the configs file
+    (``configs_names`` stays empty), for callers that only need the root and the folders.
     """
     if transport is None or profile.is_local():
         return PLAIN
     mark = secrets.token_hex(8)
-    script = _SCRIPT.format(root=remote_path_expr(profile.remote_crab), mark=mark)
+    script = _SCRIPT.format(
+        root=remote_path_expr(profile.remote_crab),
+        mark=mark,
+        content=_CONTENT.format(mark=mark) if with_content else "",
+    )
     command = "bash -c " + shlex.quote(script)
     try:
         result = await transport.run(command, timeout=timeout)

@@ -1011,3 +1011,119 @@ def test_the_path_preview_stays_quiet_when_the_probe_fails(tmp_path: Path):
 
         assert resp.status_code == 200
         assert resp.json() == {"path": "~/base/CRAB/.web_staging/my-c.yaml"}
+
+
+# --------------------------------------------------------------------------- #
+# The path preview reuses a recent probe
+# --------------------------------------------------------------------------- #
+def test_two_path_previews_within_the_ttl_probe_once(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        first = _staging_path(client, benchmark="blink")
+        second = _staging_path(client, benchmark="qe", name="Other")
+
+        assert first.json() == {"path": f"{_ROOT}/benchmarks/blink/my-c.yaml"}
+        assert second.json() == {"path": f"{_ROOT}/benchmarks/qe/other.yaml"}
+        assert len(transport.probes()) == 1
+
+
+def test_the_preview_probe_does_not_read_the_configs_file(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        _staging_path(client, benchmark="blink")
+
+        assert ":content" not in transport.probes()[0]
+        assert "head -c" not in transport.probes()[0]
+
+
+def test_the_target_probe_still_reads_the_configs_file(tmp_path: Path):
+    transport = ProbeTransport(_ok())
+
+    body = _target(tmp_path, transport)
+
+    assert body["configs_names"]
+    assert ":content" in transport.calls[0]
+
+
+def test_a_path_preview_after_the_ttl_probes_again(tmp_path: Path, monkeypatch):
+    import crab.web.api.sbatchman as api
+
+    clock = [1000.0]
+    monkeypatch.setattr(api, "_now", lambda: clock[0])
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        _staging_path(client, benchmark="blink")
+        clock[0] += api.UMBRELLA_PROBE_TTL - 1
+        _staging_path(client, benchmark="blink")
+        assert len(transport.probes()) == 1
+        clock[0] += 2
+        _staging_path(client, benchmark="blink")
+        assert len(transport.probes()) == 2
+
+
+def test_a_plain_answer_is_reused_too(tmp_path: Path):
+    transport = UmbrellaTransport(probe=CmdResult(3, "", ""))
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        _staging_path(client, benchmark="blink")
+        _staging_path(client, benchmark="blink")
+
+        assert len(transport.probes()) == 1
+
+
+def test_a_failed_probe_is_not_reused(tmp_path: Path):
+    from crab.web.errors import RemoteConnectionError
+
+    answers = [RemoteConnectionError("timed out"), None]
+
+    def flaky(command: str) -> CmdResult:
+        answer = answers.pop(0) if answers else None
+        if answer is not None:
+            raise answer
+        return CmdResult(0, _probe_output(command), "")
+
+    transport = UmbrellaTransport(probe=flaky)
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        failed = _staging_path(client, benchmark="blink")
+        later = _staging_path(client, benchmark="blink")
+
+        assert failed.json() == {"path": "~/base/CRAB/.web_staging/my-c.yaml"}
+        assert later.json() == {"path": f"{_ROOT}/benchmarks/blink/my-c.yaml"}
+        assert len(transport.probes()) == 2
+
+
+def test_a_write_clears_the_cache_and_never_uses_it(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+
+        _staging_path(client, benchmark="new-bench")  # probe 1, cached
+        written = client.post("/api/sbatchman/write", json=_write_body(benchmark="new-bench"))
+        assert written.json()["new_folder"] is True  # probe 2, fresh
+        _staging_path(client, benchmark="new-bench")  # probe 3: the write cleared the cache
+
+        assert len(transport.probes()) == 3
+        assert ":content" not in transport.probes()[1]
+
+
+def test_the_cache_is_per_cluster_install_dir(tmp_path: Path):
+    transport = UmbrellaTransport()
+    with _client(tmp_path, transport) as client:
+        _connect(client)
+        _staging_path(client, benchmark="blink")
+        client.put(
+            "/api/remotes/leonardo", json={**_leonardo_profile_body(), "remote_crab": "~/other"}
+        )
+
+        _staging_path(client, benchmark="blink")
+
+        assert len(transport.probes()) == 2

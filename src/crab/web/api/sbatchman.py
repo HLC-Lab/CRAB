@@ -8,6 +8,7 @@ runs `sbatchman launch` (ADR-026).
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any, Literal
 
 # PyYAML arrives through uvicorn[standard]; declaring it in the web extra is an owner decision.
@@ -17,9 +18,14 @@ from pydantic import BaseModel, Field
 
 from crab.web.connections.manager import ConnectionManager
 from crab.web.connections.transport import Transport
-from crab.web.errors import InputError, RemoteCommandError, RemoteConnectionError
+from crab.web.errors import CrabWebError, InputError, RemoteCommandError, RemoteConnectionError
 from crab.web.remoteops.transfer import stage_text, staging_dir
-from crab.web.remoteops.umbrella import check_benchmark_folder, probe_umbrella
+from crab.web.remoteops.umbrella import (
+    PLAIN,
+    UmbrellaTarget,
+    check_benchmark_folder,
+    probe_umbrella,
+)
 from crab.web.store.campaign_library import CampaignEntry, CampaignLibraryStore
 from crab.web.store.profiles import Profile, ProfileStore
 from crab.web.store.sbatchman import campaign_slug, save_campaign_yaml
@@ -109,6 +115,39 @@ class StagingPathResponse(BaseModel):
     path: str
 
 
+# How long a path preview may reuse an umbrella probe. The preview runs on every keystroke
+# of the campaign name; a write never reuses it and clears it.
+UMBRELLA_PROBE_TTL = 10.0
+_now = time.monotonic
+
+
+async def _probe(profile: Profile, request: Request, *, strict: bool) -> UmbrellaTarget:
+    """The umbrella probe for a write (``strict``, always fresh, clears the cache) or a path
+    preview (not strict, reused for ``UMBRELLA_PROBE_TTL`` seconds).
+
+    Neither reads the configs file: only the root and the folders matter here. Only a probe
+    that got an answer is kept; one that failed is tried again on the next call.
+    """
+    cache: dict[tuple[str, str], tuple[float, UmbrellaTarget]] = (
+        request.app.state.__dict__.setdefault("umbrella_probes", {})
+    )
+    transport = _manager(request).get(profile.name)
+    if strict:
+        cache.clear()
+        return await probe_umbrella(transport, profile, strict=True, with_content=False)
+    key = (profile.name, profile.remote_crab)
+    hit = cache.get(key)
+    if hit is not None and _now() - hit[0] < UMBRELLA_PROBE_TTL:
+        return hit[1]
+    try:
+        found = await probe_umbrella(transport, profile, strict=True, with_content=False)
+    except CrabWebError:
+        return PLAIN
+    if transport is not None:
+        cache[key] = (_now(), found)
+    return found
+
+
 async def _benchmark_directory(
     benchmark: str | None, profile: Profile, request: Request, *, strict: bool = False
 ) -> tuple[str | None, bool]:
@@ -122,7 +161,7 @@ async def _benchmark_directory(
     if benchmark is None:
         return None, False
     check_benchmark_folder(benchmark)
-    found = await probe_umbrella(_manager(request).get(profile.name), profile, strict=strict)
+    found = await _probe(profile, request, strict=strict)
     if found.kind != "umbrella":
         return None, False
     return f"{found.root}/benchmarks/{benchmark}", benchmark not in found.benchmarks
