@@ -3,6 +3,7 @@
 // with the Import binary form), and the grey, uncounted "lookup failed" line.
 import { computed, ref, watch } from "vue";
 import type { WrapperEntry, WrapperTarget, WrappersError } from "@/api/types";
+import ProgressLine from "@/components/ProgressLine.vue";
 import { canImport, missingReason, needsAttention } from "@/lib/wrappers";
 import ImportBinaryForm from "./ImportBinaryForm.vue";
 
@@ -65,7 +66,10 @@ function firstLine(text: string | null): string {
 <template>
   <section class="attn">
     <p v-if="error && !wrappers" class="error" role="alert">{{ errorText(error) }}</p>
-    <p v-else-if="loading && !wrappers" class="quiet">Loading wrappers from {{ target.label }}…</p>
+    <template v-else-if="loading && !wrappers">
+      <p class="quiet">Loading wrappers from {{ target.label }}…</p>
+      <ProgressLine :cluster="target.id" />
+    </template>
 
     <template v-else-if="wrappers">
       <h2 v-if="total">Needs attention on {{ target.label }}</h2>

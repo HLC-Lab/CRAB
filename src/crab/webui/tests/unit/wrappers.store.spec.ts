@@ -22,6 +22,7 @@ vi.mock("@/api/client", () => ({
 
 import { ApiError, api } from "@/api/client";
 import type { PullResult, WrapperEntry, WrapperSummary, WrappersResult } from "@/api/types";
+import { useProgressStore } from "@/stores/progress";
 import { useWrappersStore } from "@/stores/wrappers";
 
 import { clone, entry } from "./wrapperFixtures";
@@ -195,5 +196,57 @@ describe("wrappers store, per target", () => {
     expect(ok).toBe(false);
     expect(store.importError["leo:a/1.py"]).toContain("does not exist");
     expect(api.wrappers.list).not.toHaveBeenCalled();
+  });
+});
+
+describe("wrappers store progress watching", () => {
+  function spyProgress(): string[] {
+    const calls: string[] = [];
+    const progress = useProgressStore();
+    vi.spyOn(progress, "watch").mockImplementation((c) => void calls.push(`watch ${c}`));
+    vi.spyOn(progress, "stop").mockImplementation((c) => void calls.push(`stop ${c}`));
+    return calls;
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    for (const fn of Object.values(api.wrappers)) vi.mocked(fn).mockReset();
+  });
+
+  it("watches the target while its list loads, and stops on success or failure", async () => {
+    const calls = spyProgress();
+    vi.mocked(api.wrappers.list).mockImplementationOnce(async () => {
+      calls.push("list");
+      return list();
+    });
+    const store = useWrappersStore();
+    await store.loadList("local");
+    expect(calls).toEqual(["watch local", "list", "stop local"]);
+
+    calls.length = 0;
+    vi.mocked(api.wrappers.list).mockRejectedValueOnce(apiError("remote_command_error", "x"));
+    await store.loadList("leo");
+    expect(calls).toEqual(["watch leo", "stop leo"]);
+  });
+
+  it("watches the target while a pull runs, then again for the reload of its list", async () => {
+    const calls = spyProgress();
+    vi.mocked(api.wrappers.pull).mockImplementation(async () => {
+      calls.push("pull");
+      return { schema: 2, dir: "/w", action: "up to date", old: "a", new: "a" } as PullResult;
+    });
+    vi.mocked(api.wrappers.status).mockResolvedValue(clone({}));
+    vi.mocked(api.wrappers.list).mockResolvedValue(list());
+    const store = useWrappersStore();
+    await store.pull("leo");
+    expect(calls.slice(0, 3)).toEqual(["watch leo", "pull", "stop leo"]);
+    expect(calls.slice(3)).toEqual(["watch leo", "stop leo"]);
+  });
+
+  it("stops watching when a pull fails", async () => {
+    const calls = spyProgress();
+    vi.mocked(api.wrappers.pull).mockRejectedValueOnce(apiError("conflict", "Local edits."));
+    await useWrappersStore().pull("leo");
+    expect(calls).toEqual(["watch leo", "stop leo"]);
   });
 });
