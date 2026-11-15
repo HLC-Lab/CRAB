@@ -777,3 +777,22 @@ def test_a_local_remote_has_no_connection_stage(tmp_path: Path, monkeypatch: pyt
         assert client.post("/api/remotes", json=local.model_dump()).status_code == 201
         assert client.post("/api/remotes/laptop/connect").status_code == 200
     assert [e[2] for e in app.state.progress.events if e[1] == "begin"] == ["crab-check"]
+
+
+def test_remote_benchmarks_report_their_stage(tmp_path: Path):
+    async def connector(profile, password):
+        return FakeTransport(stdout=json.dumps({"schema": CONTRACT_SCHEMA, "wrappers": []}))
+
+    app = _progress_app(tmp_path, connector)
+    with auth_client(app) as client:
+        _add_and_connect(client)
+        app.state.progress.events.clear()
+        app.state.progress.begun.clear()
+        assert client.get("/api/remotes/leonardo/benchmarks").status_code == 200
+    board = app.state.progress
+    assert board.events == [
+        ("leonardo", "begin", "benchmarks"),
+        ("leonardo", "end", "benchmarks", True),
+    ]
+    assert board.begun[0].timeout_s == 90
+    assert board.snapshot("leonardo") == []

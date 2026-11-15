@@ -15,6 +15,7 @@ from typing import Literal
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
+from crab.cli.progress import stage
 from crab.web.api.local import _LOCAL_PROFILE
 from crab.web.api.remotes import _live_transport, _store
 from crab.web.connections.transport import LocalTransport, Transport
@@ -25,6 +26,7 @@ from crab.web.errors import (
     NotFoundError,
     RemoteCommandError,
 )
+from crab.web.progress import watching
 from crab.web.remoteops.crab_cli import RemotePath, run_crab_json
 from crab.web.store.profiles import Profile
 
@@ -169,9 +171,18 @@ async def wrappers_list(target: str, request: Request) -> dict:
 
     Listing loads every wrapper module, so allow a generous timeout.
     """
-    return await _run(
-        target, request, ["wrappers", "list", "--json"], timeout=90.0, subcommand="list"
-    )
+    with (
+        watching(request, target),
+        stage(
+            "wrappers-list",
+            "Listing the wrappers",
+            "`crab wrappers list --json` to load every wrapper module",
+            90.0,
+        ),
+    ):
+        return await _run(
+            target, request, ["wrappers", "list", "--json"], timeout=90.0, subcommand="list"
+        )
 
 
 @router.get("/api/wrappers/{target}/show")
@@ -198,9 +209,18 @@ async def wrappers_status(target: str, request: Request) -> dict:
 @router.post("/api/wrappers/{target}/pull")
 async def wrappers_pull(target: str, request: Request) -> dict:
     """`crab wrappers pull --json` on the target; local edits to tracked files refuse (409)."""
-    return await _run(
-        target, request, ["wrappers", "pull", "--json"], timeout=180.0, subcommand="pull"
-    )
+    with (
+        watching(request, target),
+        stage(
+            "wrappers-pull",
+            "Updating the wrappers",
+            "`crab wrappers pull --json` (git fetches the wrappers from GitHub)",
+            180.0,
+        ),
+    ):
+        return await _run(
+            target, request, ["wrappers", "pull", "--json"], timeout=180.0, subcommand="pull"
+        )
 
 
 @router.post("/api/wrappers/{target}/receipts")

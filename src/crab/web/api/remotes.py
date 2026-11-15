@@ -205,7 +205,16 @@ async def remote_benchmarks(name: str, request: Request) -> dict:
     """
     profile = _store(request).get(name)
     transport = _live_transport(name, request)
-    return await run_crab_json(transport, profile, ["list-benchmarks", "--json"], timeout=90.0)
+    with (
+        watching(request, name),
+        stage(
+            "benchmarks",
+            "Listing the benchmarks",
+            "`crab list-benchmarks --json` to load every wrapper module",
+            90.0,
+        ),
+    ):
+        return await run_crab_json(transport, profile, ["list-benchmarks", "--json"], timeout=90.0)
 
 
 @router.get("/{name}/nodes")

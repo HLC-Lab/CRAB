@@ -477,3 +477,58 @@ def test_receipt_import_passes_other_binaries_through_unchanged(
     assert resp.status_code == 200
     words = _crab_words(fake.calls[-1], local=False)
     assert words[words.index("--binary") + 1] == sent
+
+
+# --- progress: list and pull report their stages, keyed by the target ---
+
+
+def _recording(client):
+    from conftest import RecordingBoard
+
+    client.app.state.progress = RecordingBoard()
+    return client.app.state.progress
+
+
+def test_wrappers_list_reports_its_stage_for_the_cluster(client_and_fake) -> None:
+    client, _ = client_and_fake
+    board = _recording(client)
+    assert client.get("/api/wrappers/leonardo/list").status_code == 200
+    assert board.events == [
+        ("leonardo", "begin", "wrappers-list"),
+        ("leonardo", "end", "wrappers-list", True),
+    ]
+    assert board.begun[0].timeout_s == 90
+    assert "crab wrappers list" in board.begun[0].waiting_for
+    assert board.snapshot("leonardo") == []
+
+
+def test_wrappers_pull_reports_its_stage_for_the_laptop_under_local(
+    tmp_path: Path, laptop: Fake
+) -> None:
+    app = create_app(Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data"))
+    with auth_client(app) as client:
+        board = _recording(client)
+        assert client.post("/api/wrappers/local/pull").status_code == 200
+    assert board.events == [
+        ("local", "begin", "wrappers-pull"),
+        ("local", "end", "wrappers-pull", True),
+    ]
+    assert board.begun[0].timeout_s == 180
+
+
+def test_a_refused_pull_ends_its_stage_not_ok_and_leaves_nothing_open(client_and_fake) -> None:
+    client, fake = client_and_fake
+    board = _recording(client)
+    fake.failures["wrappers pull"] = CmdResult(
+        1, "", "crab: wrappers pull stopped: /w has local edits to tracked files: a.py; fix\n"
+    )
+    assert client.post("/api/wrappers/leonardo/pull").status_code == 409
+    assert board.events[-1] == ("leonardo", "end", "wrappers-pull", False)
+    assert board.snapshot("leonardo") == []
+
+
+def test_other_wrappers_routes_report_no_stage(client_and_fake) -> None:
+    client, _ = client_and_fake
+    board = _recording(client)
+    assert client.get("/api/wrappers/leonardo/status").status_code == 200
+    assert board.events == []
