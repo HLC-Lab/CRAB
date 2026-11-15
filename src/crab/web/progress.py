@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import asdict
+from typing import Any
 
-from crab.cli.progress import Reporter, Stage
+from crab.cli.progress import Reporter, Stage, use_reporter
 from crab.web.trackers import ExpiringTracker
 
 PENDING_TTL = 30 * 60.0
@@ -68,3 +70,8 @@ class ProgressBoard:
             if key.startswith(prefix)
         ]
         return sorted(found, key=lambda s: s.started_at)
+
+
+def watching(request: Any, cluster: str) -> AbstractContextManager[Reporter]:
+    """Make the app's board the current reporter for `cluster` around a handler's slow steps."""
+    return use_reporter(request.app.state.progress.reporter(cluster))

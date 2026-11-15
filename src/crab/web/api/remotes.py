@@ -15,10 +15,12 @@ from dataclasses import asdict
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from crab.cli.progress import stage
 from crab.web.connections.manager import ConnectionManager
-from crab.web.connections.transport import Transport
+from crab.web.connections.transport import CONNECT_TIMEOUT_S, Transport
 from crab.web.errors import ConflictError, RemoteConnectionError
-from crab.web.remoteops.bootstrap import detect
+from crab.web.progress import watching
+from crab.web.remoteops.bootstrap import DETECT_TIMEOUT_S, DetectResult, detect
 from crab.web.remoteops.crab_cli import run_crab_json
 from crab.web.store.profiles import Profile, ProfileStore
 
@@ -108,18 +110,13 @@ async def remove_remote(name: str, request: Request) -> None:
 async def connect_remote(name: str, request: Request, body: ConnectRequest | None = None) -> dict:
     profile = _store(request).get(name)
     manager = _manager(request)
-    transport = await manager.connect(profile, password=(body.password if body else None))
-    # `detect` returns gracefully when CRAB is absent (no exception, no warning
-    # log); a real connection drop/timeout still raises. Then the transport is
-    # closed, so the cluster is not left listed as connected while nothing works.
-    try:
-        result = await detect(transport, profile)
-    except Exception:
-        try:
-            await manager.disconnect(name)
-        except Exception:
-            logger.warning("Closing the transport of '%s' failed after a failed check.", name)
-        raise
+    password = body.password if body else None
+    with watching(request, name):
+        transport = await _open_transport(manager, profile, password)
+        # `detect` returns gracefully when CRAB is absent (no exception, no warning
+        # log); a real connection drop/timeout still raises. Then the transport is
+        # closed, so the cluster is not left listed as connected while nothing works.
+        result = await _check_crab(manager, name, transport, profile)
     return {
         "connected": True,
         "info": result.info,
@@ -127,6 +124,41 @@ async def connect_remote(name: str, request: Request, body: ConnectRequest | Non
         "reason": result.reason,
         "skew": result.skew,
     }
+
+
+async def _open_transport(
+    manager: ConnectionManager, profile: Profile, password: str | None
+) -> Transport:
+    """Open (or reuse) the transport; an SSH profile shows the connection as a stage."""
+    if profile.is_local():
+        return await manager.connect(profile, password=password)
+    where = f"{profile.host}:{profile.port}"
+    with stage(
+        "ssh-connect",
+        "Connecting to the cluster",
+        f"the login node ({where}) to accept the connection and your credentials",
+        CONNECT_TIMEOUT_S,
+    ):
+        return await manager.connect(profile, password=password)
+
+
+async def _check_crab(
+    manager: ConnectionManager, name: str, transport: Transport, profile: Profile
+) -> DetectResult:
+    try:
+        with stage(
+            "crab-check",
+            "Checking CRAB on the cluster",
+            "`crab info --json` to report CRAB's version and presets",
+            DETECT_TIMEOUT_S,
+        ):
+            return await detect(transport, profile)
+    except Exception:
+        try:
+            await manager.disconnect(name)
+        except Exception:
+            logger.warning("Closing the transport of '%s' failed after a failed check.", name)
+        raise
 
 
 @router.get("/{name}/progress")

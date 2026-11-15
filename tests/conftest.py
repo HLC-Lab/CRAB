@@ -101,6 +101,41 @@ def auth_client(app: FastAPI, **kwargs) -> TestClient:
     )
 
 
+class RecordingBoard:
+    """A `ProgressBoard` that also records every begin and end: `(cluster, "begin", id)` and
+    `(cluster, "end", id, ok)` in `events`, the begun stages in `begun`. Put it in
+    `app.state.progress` to assert which stages a handler reports and that none stays open."""
+
+    def __init__(self) -> None:
+        from crab.web.progress import ProgressBoard
+
+        self._board = ProgressBoard()
+        self.events: list[tuple] = []
+        self.begun: list[Any] = []
+
+    def reporter(self, cluster: str) -> Any:
+        inner = self._board.reporter(cluster)
+        board = self
+
+        class _Recording:
+            def begin(self, stage: Any) -> None:
+                board.events.append((cluster, "begin", stage.stage))
+                board.begun.append(stage)
+                inner.begin(stage)
+
+            def end(self, stage_id: str, ok: bool) -> None:
+                board.events.append((cluster, "end", stage_id, ok))
+                inner.end(stage_id, ok)
+
+        return _Recording()
+
+    def now(self) -> float:
+        return self._board.now()
+
+    def snapshot(self, cluster: str) -> list[Any]:
+        return self._board.snapshot(cluster)
+
+
 @pytest.fixture(autouse=True)
 def _signal_guard(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(os, "kill", guarded("kill", REAL_KILL))

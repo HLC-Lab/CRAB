@@ -13,9 +13,13 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
+from crab.cli.progress import stage
 from crab.web.connections.transport import Transport
 from crab.web.errors import RemoteConnectionError
+from crab.web.progress import watching
 from crab.web.remoteops.bootstrap import (
+    DETECT_TIMEOUT_S,
+    INSTALL_TIMEOUT,
     BootstrapStep,
     DetectResult,
     StepResult,
@@ -75,11 +79,29 @@ async def bootstrap_install(name: str, body: InstallRequest, request: Request) -
     profile = _store(request).get(name)
     ensure_installable(profile)
     transport = _connected_transport(request, name)
-    return await install(transport, profile, body.pre_commands)
+    with (
+        watching(request, name),
+        stage(
+            "install",
+            "Installing CRAB on the cluster",
+            "the install commands (git clone, then pip install) to finish on the login node",
+            INSTALL_TIMEOUT,
+        ),
+    ):
+        return await install(transport, profile, body.pre_commands)
 
 
 @router.post("/{name}/bootstrap/verify")
 async def bootstrap_verify(name: str, request: Request) -> DetectResult:
     profile = _store(request).get(name)
     transport = _connected_transport(request, name)
-    return await detect(transport, profile)
+    with (
+        watching(request, name),
+        stage(
+            "verify",
+            "Checking the install",
+            "`crab info --json` to report CRAB's version and presets",
+            DETECT_TIMEOUT_S,
+        ),
+    ):
+        return await detect(transport, profile)
