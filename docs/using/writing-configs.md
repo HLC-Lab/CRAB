@@ -1,17 +1,16 @@
 # Writing experiment configs
 
-This page shows the common *patterns* for expressing a study: measuring an application, adding
-interference, chaining runs. For the exhaustive field list (every `global_options` key, defaults,
-allocation/scheduling rules), see the [Configuration schema](../reference/configuration.md).
+These patterns express a study: measuring an application, adding interference, chaining runs. The
+[Configuration schema](../reference/configuration.md) lists every `global_options` key, the defaults
+and the allocation and scheduling rules.
 
-Recall the [victim / aggressor](../glossary.md#victim) model: a victim is measured and runs to
-completion (`end: ""`); an aggressor generates interference and is force-killed once the
-victims finish (`end: "f"`).
+In the [victim / aggressor](../glossary.md#victim) model, a victim is measured and runs to
+completion (`end: ""`). An aggressor generates interference and is force-killed once the victims
+finish (`end: "f"`).
 
 ## Pattern 1: a single measured application (baseline)
 
-The simplest experiment: one victim, collected, run on all nodes. Use this to establish a baseline
-before introducing interference.
+One victim, collected, on all nodes. Run it first to get a baseline before you add interference.
 
 ```json
 {
@@ -60,7 +59,7 @@ the victim finishes.
 ```
 
 `mode: "interleaved"` interleaves the two partitions' nodes so the victim and aggressor share the
-network fabric, which is exactly the contention you usually want to measure.
+network fabric, which is the contention you want to measure.
 
 ## Pattern 3: sequential / dependent runs
 
@@ -79,9 +78,9 @@ Here app 1 starts when app 0 ends, and app 2 when app 1 ends, a message-size swe
 another. (This is the shape used in `examples/blink-congestion-analysis/incast_burst_grid.json`.)
 
 All three run on the same nodes: a chained app reuses the nodes of the app it waits for, so only
-app 0 takes a share of the allocation. To start an app when another one ends but on other
-nodes, give it a different `partition`. Two apps cannot both start after the same app on its
-nodes (they would share them at the same time); CRAB reports that before submitting. Details:
+app 0 takes a share of the allocation. To start an app when another one ends but on other nodes,
+give it a different `partition`. Two apps cannot both start after the same app on its nodes,
+because they would share the nodes at the same time. CRAB reports that before submitting. Details:
 [Scheduling](../reference/configuration.md#scheduling-start-and-end).
 
 ## Pattern 4: timed termination
@@ -180,9 +179,9 @@ each app used. A complete config is `examples/leonardo/congestion/corun_nics.jso
 ## One network interface per rank
 
 To spread the ranks of one app over several cards, list the cards in the app's `nics` instead of
-setting `UCX_NET_DEVICES` in `env`. Rank `i` on a node uses `nics[i % len(nics)]`. For an app with
-4 ranks per node on a node with 4 cards, where cores 0-3 sit next to `mlx5_0`, 4-7 next to
-`mlx5_1`, and so on, bind one core per rank:
+setting `UCX_NET_DEVICES` in `env`. Rank `i` on a node uses `nics[i % len(nics)]`. Take an app with
+4 ranks per node on a node with 4 cards. Cores 0-3 sit next to `mlx5_0`, cores 4-7 next to
+`mlx5_1`, and so on. Bind one core per rank:
 
 ```json
 "0": {
@@ -194,8 +193,9 @@ setting `UCX_NET_DEVICES` in `env`. Rank `i` on a node uses `nics[i % len(nics)]
 ```
 
 Both lists are in rank order, so rank 0 runs on core 0 and uses `mlx5_0:1`, rank 1 on core 4 with
-`mlx5_1:1`, and so on. Pick each core from the cards' `local_cpulist`, as above. Under Slurm,
-`cpus` needs `--exclusive` among the `sbatch_directives`.
+`mlx5_1:1`, and so on. Pick each core from the cards' `local_cpulist`, as in
+[One network interface per app](#one-network-interface-per-app). Under Slurm, `cpus` needs
+`--exclusive` among the `sbatch_directives`.
 
 To check the result, open `bindings_app_<id>.log` in the experiment directory. Next to the
 launcher's binding report, it has one line per rank:
@@ -249,8 +249,8 @@ stops before it is submitted. To put them on the same GPUs on purpose, set `"gpu
 
 | Mode | `allocation.mode` | Use when |
 |------|--------------------|----------|
-| Linear | `"linear"` (default) | Each app should get a contiguous block of nodes. |
-| Interleaved | `"interleaved"` | Apps should be spread round-robin across nodes (more fabric sharing). Add `"stride"` to assign multiple nodes per turn. |
+| Linear | `"linear"` (default) | You want each app on a contiguous block of nodes. |
+| Interleaved | `"interleaved"` | You want apps spread round-robin across nodes (more fabric sharing). Add `"stride"` to assign several nodes per turn. |
 | Random | `"random"` | Shuffle the node list before splitting. Without a `"seed"`, CRAB draws one for each experiment and records it; set `"seed"` to repeat a layout. |
 | Partitioned | any mode + `"partitions"` | You want named victim/aggressor groups, each with their own `share`. |
 
@@ -259,11 +259,11 @@ See [Allocation fields](../reference/configuration.md#allocation-fields).
 
 ## Tuning convergence
 
-CRAB repeats each experiment until its convergence-target metrics stabilize. The relevant knobs:
+CRAB repeats each experiment until its convergence-target metrics stabilize. The knobs:
 
 - `minruns` / `maxruns`: the floor on successful runs and the ceiling on all runs, failed ones included.
 - `alpha` / `beta`: the confidence level and the relative width threshold (CI width `< beta × mean`).
-- `convergeall`: require *every* metric to converge, not just those flagged `conv` in the wrapper.
+- `convergeall`: require every metric to converge, not only those flagged `conv` in the wrapper.
 - `timeout`: a wall-clock cap that ends the experiment regardless of convergence.
 
 Start with the defaults (`minruns: 10`, `maxruns: 20`, `alpha`/`beta`: `0.05`) and tighten `beta`
