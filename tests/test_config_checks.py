@@ -962,3 +962,20 @@ def test_an_absent_datapath_is_accepted() -> None:
     from crab.core.config_checks import check_config
 
     check_config(_datapath_config())
+
+
+def test_an_app_that_waits_for_an_f_app_is_warned_about() -> None:
+    """`start: "s0"` on an app that waits for an `end: "f"` app: the `f` app is stopped only when
+    the other apps are done, so the run waits for the timeout (schedule.py run_events)."""
+    warnings = _warnings_for(
+        apps={"0": {"path": "a.py", "end": "f"}, "1": {"path": "a.py", "start": "s0"}}
+    )
+    assert len(warnings) == 1
+    assert "experiment e1: app 1 starts after app 0" in warnings[0]
+    assert "numeric end" in warnings[0]
+
+
+def test_waiting_for_an_app_with_a_numeric_or_empty_end_is_not_warned_about() -> None:
+    for end in ("", "30"):
+        apps = {"0": {"path": "a.py", "end": end}, "1": {"path": "a.py", "start": "s0"}}
+        assert _warnings_for(apps=apps) == []

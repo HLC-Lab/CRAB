@@ -253,6 +253,11 @@ Where it applies. `mode: "shared"` goes at the top level of `allocation` when th
 app gives it all of its nodes whatever its `mode`). `cores` sits next to it, in the same scope. A
 chained app (`start: "sN"`) already runs on its head's nodes and its cores.
 
+An app with `start: "sN"` cannot start until application N has finished. If application N has
+`end: "f"`, it is stopped only once every other app is done, so the run waits for the experiment
+`timeout` unless application N exits on its own. CRAB warns about this before the run starts: give
+application N a numeric `end` instead.
+
 These are errors, reported before anything is submitted:
 
 - `split`, `stride` or `seed` next to `mode: "shared"` (every app gets all the nodes);
