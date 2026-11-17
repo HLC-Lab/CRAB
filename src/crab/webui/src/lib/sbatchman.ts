@@ -224,6 +224,7 @@ const UNQUOTED_HAZARDS: Array<[string, RegExp]> = [
   ["a backtick", /`/],
   ["a backslash", /\\\\/],
   ["$(", /\$\(/],
+  ["a $ before a digit or one of @ * # ? ! $ -", /\$[0-9@*#?!$-]/],
 ];
 
 /** The bash heredoc lines (at column 0) that write config.json. They become one
@@ -352,6 +353,16 @@ function unquotedHeredocIssues(group: SbatchmanGroup, where: string): string[] {
   );
 }
 
+/** What a variable VALUE adds to an unquoted heredoc: the template check cannot see it, because
+ * the template holds `{var}` where the value goes. Hazards the template already has are reported
+ * once, by unquotedHeredocIssues. */
+function valueHazards(template: string, text: string): string[] {
+  if (!needsShellExpansion(template)) return [];
+  return UNQUOTED_HAZARDS.filter(
+    ([, pattern]) => pattern.test(text) && !pattern.test(template),
+  ).map(([what]) => what);
+}
+
 /** The problems of ONE variable combination: config.json with it substituted, then validateDraft. */
 function comboIssues(
   group: SbatchmanGroup,
@@ -359,9 +370,15 @@ function comboIssues(
   combo: Record<string, string>,
   catalog: WrapperCatalog | undefined,
 ): string[] {
+  const text = substitute(template, combo);
+  const hazards = valueHazards(template, text);
+  if (hazards.length)
+    return [
+      `a variable value puts ${hazards.join(", ")} in a config that bash expands (the group uses a shell variable such as $CRAB_ROOT); change the value.`,
+    ];
   let config: unknown;
   try {
-    config = JSON.parse(substitute(template, combo));
+    config = JSON.parse(text);
   } catch {
     return ["a variable value makes config.json invalid (a text value in a numeric field?)."];
   }
