@@ -119,6 +119,32 @@ def test_served_index_carries_the_token_meta(tmp_path: Path):
         assert f'name="crab-token" content="{app.state.api_token}"' in resp.text
 
 
+def test_the_shell_with_the_token_is_not_served_to_a_foreign_host(tmp_path: Path):
+    """ADR-013 layer 1 covers the shell too: a rebinding page reaches `/` with its own Host."""
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<!doctype html><html><head></head><body>x</body></html>")
+    app, client = _app_and_client(tmp_path, static=static)
+    with client:
+        for path in ("/", "/jobs/1", "//api/health", "/API/health"):
+            resp = client.get(path, headers={"Host": "evil.example"})
+            assert resp.status_code == 403
+            assert app.state.api_token not in resp.text
+        assert client.get("/", headers={"Host": "localhost:8899"}).status_code == 200
+
+
+def test_every_response_forbids_framing_and_sniffing(tmp_path: Path):
+    static = tmp_path / "static"
+    static.mkdir()
+    (static / "index.html").write_text("<!doctype html><html><head></head><body>x</body></html>")
+    _, client = _app_and_client(tmp_path, static=static)
+    with client:
+        for path in ("/", "/api/health"):
+            headers = client.get(path).headers
+            assert headers["content-security-policy"] == "frame-ancestors 'none'"
+            assert headers["x-content-type-options"] == "nosniff"
+
+
 def test_static_assets_do_not_need_the_token(tmp_path: Path):
     # Only /api/* is protected; the SPA shell must load without a token
     # (that's how the browser obtains it in the first place).

@@ -143,7 +143,7 @@ def test_placeholder_when_frontend_unbuilt(tmp_path: Path):
     # static_override points at an empty dir => no index.html => placeholder.
     empty = tmp_path / "empty_static"
     empty.mkdir()
-    client = TestClient(create_app(_settings(tmp_path, static=empty)))
+    client = TestClient(create_app(_settings(tmp_path, static=empty)), base_url="http://127.0.0.1")
     resp = client.get("/")
     assert resp.status_code == 200
     assert "backend is running" in resp.text
@@ -253,7 +253,7 @@ def test_spa_path_traversal_blocked(tmp_path: Path):
     secret = tmp_path / "secret.txt"
     secret.write_text("TOP SECRET")
 
-    client = TestClient(create_app(_settings(tmp_path, static=static)))
+    client = TestClient(create_app(_settings(tmp_path, static=static)), base_url="http://127.0.0.1")
     # Attempt to escape static_dir: must fall back to index, never leak the file.
     resp = client.get("/../secret.txt")
     assert resp.status_code == 200
