@@ -36,9 +36,8 @@ from crab.web.store.profiles import Profile, check_shell_line
 
 CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
 
-# TODO(pre-v1): clone `develop`, the product line, for now. After the v1.0
-# release the bootstrap should install the release (PyPI or `master`), not a
-# development branch: then drop --branch.
+# Clone the product line, then `crab update --to-release` (see _build_command) moves the clone to
+# the newest release tag of that line. The branch is only the starting point.
 CRAB_REPO_BRANCH = "develop"
 
 # Clone + build can be slow (network + pip). Generous ceiling; transport.run
