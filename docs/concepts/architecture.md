@@ -129,7 +129,7 @@ Inside the worker, `ExperimentRunner` manages one experiment at a time:
    "start after app N finishes" dependencies. After `minruns` successful runs, the loop stops early once metrics
    reach statistical convergence (`core/data/utils.py::check_CI`, the confidence-interval
    width is smaller than `beta × mean`).
-3. `save_results()`: write per-application CSV (or HDF) files.
+3. `save_results()`: write per-application CSV files.
 4. `teardown()`: guarantee every process is killed before the next experiment.
 
 A single application launch (`core/process/manager.py::run_job`) writes a per-app bash script

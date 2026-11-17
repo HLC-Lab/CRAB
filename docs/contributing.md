@@ -52,7 +52,7 @@ src/crab/
 │   ├── engine.py         # orchestrator/worker control core
 │   ├── experiment/       # ExperimentRunner: per-experiment lifecycle
 │   ├── allocation/       # node-to-app mapping strategies
-│   ├── data/             # DataContainer, convergence (check_CI), CSV/HDF output
+│   ├── data/             # DataContainer, convergence (check_CI), CSV output
 │   ├── process/          # launching/terminating app processes
 │   └── execution/        # scheduler/ (job submission) and launcher/ (srun, mpirun, direct)
 ├── setup/        # `crab setup`: wizard, recipe registry, recipes/, receipt storage (memory.py)
