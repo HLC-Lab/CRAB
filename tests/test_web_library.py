@@ -210,3 +210,13 @@ def test_save_of_a_clean_config_has_no_warnings(tmp_path: Path):
         resp = client.post("/api/experiments", json={"name": "Clean", "config": _CFG})
         assert resp.status_code == 201
         assert resp.json()["warnings"] == []
+
+
+def test_a_trailing_newline_does_not_pass_name_and_id_checks(tmp_path: Path):
+    """`$` matches before a final newline, so `re.match` let `p\n` and `abc\n` through."""
+    from crab.web.store.profiles import check_profile_name
+
+    with pytest.raises(InputError):
+        check_profile_name("prod\n")
+    with pytest.raises(InputError):
+        LibraryStore(_settings(tmp_path)).get("abc\n")

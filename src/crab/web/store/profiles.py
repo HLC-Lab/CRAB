@@ -56,7 +56,7 @@ def check_profile_name(name: str) -> None:
         raise InputError(
             f'"{_LAPTOP_NAME}" is reserved for this laptop in the dashboard; choose another name.'
         )
-    if not _VALID_NAME.match(name) or name in (".", ".."):
+    if not _VALID_NAME.fullmatch(name) or name in (".", ".."):
         raise InputError(
             f"Invalid profile name {name!r}. Use only letters, digits, '.', '_' and '-'."
         )
