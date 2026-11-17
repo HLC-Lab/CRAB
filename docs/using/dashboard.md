@@ -74,8 +74,6 @@ A name that another cluster already has is refused as you type: a red line under
 change that cluster instead, use its pencil button. If the backend refuses a save for another
 reason, for example the reserved name `local`, the reason shows inside the open form.
 
-<!-- screenshot: remotes-add-cluster -->
-
 The three `Auth` methods:
 
 - `agent` uses your running `ssh-agent`, which covers keys you loaded and certificates from a
@@ -93,8 +91,6 @@ removes it after a confirmation. Removing a profile deletes only the profile on 
 Click **Connect**. The dashboard opens an SSH connection and runs `crab info` on the cluster. A
 cluster is connected when its dot is green and the button says **Disconnect**. The line under the
 name shows the CRAB version there, the install folder and the presets the cluster defines.
-
-<!-- screenshot: remotes-connected -->
 
 ### The progress line
 
@@ -198,8 +194,6 @@ It writes the same JSON that `crab run` reads (see the
 [configuration reference](../reference/configuration.md)), so anything you build here also runs
 from the command line.
 
-<!-- screenshot: author-overview -->
-
 The bar at the top of the page:
 
 | Button | What it does |
@@ -300,8 +294,6 @@ These messages do not block anything. **Save** works with them open, and the clu
 config again when you submit. When the server sees a shape problem on save, it saves anyway and
 shows `Saved "<name>" with a shape warning: ...`.
 
-<!-- screenshot: author-experiment -->
-
 ## Run and watch it
 
 ### Submit
@@ -330,8 +322,6 @@ error. Read it, fix the use case and submit again. **Dismiss** removes the card.
 
 The **Jobs** page lists the submissions you made from this dashboard, newest first. Jobs you start
 with `crab run` in a terminal do not appear here (they appear under Results).
-
-<!-- screenshot: jobs-list -->
 
 Each card shows the cluster and system, the submit time, the use case name, the job id and the
 state. The dot says whether the cluster is connected. For a cluster that is not, the card shows
@@ -412,8 +402,6 @@ history or fetched results for. Search by job name, and filter by `Cluster` and 
 Fetching copies the job's result folder, the CSV files, to this laptop. The dashboard fetches
 only when you ask. Click a card to open the job.
 
-<!-- screenshot: results-picker -->
-
 ### One job's results
 
 The job page has a tree on the left and a viewer on the right. Open an experiment in the tree and
@@ -429,8 +417,6 @@ saves the chart as a PNG file of 1600 by 900 pixels.
 
 **Table.** Click a column header to sort, type in `Search…` to filter rows, and use `Columns` to
 choose which columns show. The table shows up to 5000 rows and says so when it cuts the list.
-
-<!-- screenshot: results-chart -->
 
 **Clear cache** at the top of the page deletes every fetched result on this laptop. The cache size
 shows next to it. The data stays on the clusters, and you can fetch it again.
@@ -448,8 +434,6 @@ Each ticked app is one series, labeled `job / experiment / app`.
 - The chart kinds and `Log scale` work as in a single job.
 
 Compare has no export. To share data, use `crab export` (see [Reading results](results.md)).
-
-<!-- screenshot: results-compare -->
 
 ## Wrappers
 
