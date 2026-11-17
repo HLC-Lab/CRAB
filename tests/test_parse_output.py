@@ -94,6 +94,16 @@ def test_a_legacy_return_fails_the_run_and_records_nothing() -> None:
     log.warning.assert_not_called()
 
 
+@pytest.mark.parametrize("name", ["run_id", "msg_size", "_group", "_sample"])
+def test_a_key_named_like_a_csv_column_is_a_parse_error(name: str) -> None:
+    """The CSV writer inserts these columns itself; a key of the same name used to raise
+    `ValueError: cannot insert` in `save_results`, after every run had been recorded."""
+    app = _App([{name: 1, "m0": 1.0, "m1": 2.0}])
+    app.keys = [name]
+    with pytest.raises(ParseError, match="reserved CSV columns"):
+        parse_output(app)
+
+
 def test_an_app_without_metrics_may_return_no_rows() -> None:
     parsed = parse_output(_App([], n_metrics=0))
     assert parsed.rows == []
