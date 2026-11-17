@@ -171,7 +171,8 @@ interference,a2a_vs_g500,2026-06-09_14-30-05,4,16,alltoall_b graph500,COMPLETED,
 ```
 
 `status` is `COMPLETED`, `FAILED` or `TIMEOUT`. `total_runs` counts the runs that started and
-`failed_runs` those that did not succeed. `apps_list` holds the unique benchmark names, sorted.
+`failed_runs` those that failed. A run cut by the experiment `timeout` is in `total_runs` only.
+`apps_list` holds the unique benchmark names, sorted.
 `seed` is the seed of the experiment's random layout (the top-level one, see
 [`allocations`](#crab_runjson)), and is empty when the layout was not random.
 
