@@ -210,3 +210,22 @@ def test_save_of_a_clean_config_has_no_warnings(tmp_path: Path):
         resp = client.post("/api/experiments", json={"name": "Clean", "config": _CFG})
         assert resp.status_code == 201
         assert resp.json()["warnings"] == []
+
+
+def test_a_very_long_name_makes_a_short_id_and_can_be_saved(tmp_path: Path):
+    """A 300-character name made a file name over 255 bytes: OSError, HTTP 500."""
+    store = LibraryStore(_settings(tmp_path))
+
+    entry = store.create("x" * 300, _CFG)
+
+    assert len(entry.id) <= 60
+    assert store.get(entry.id).name == "x" * 300
+
+
+def test_list_skips_an_unreadable_file_instead_of_failing(tmp_path: Path):
+    store = LibraryStore(_settings(tmp_path))
+    good = store.create("good", _CFG)
+    (tmp_path / "cfg").mkdir(parents=True, exist_ok=True)
+    (store._dir / "broken.json").write_text("{not json")
+
+    assert [e.id for e in store.list()] == [good.id]
