@@ -37,7 +37,7 @@ all.
   points silently dropped or averaged away) without their say, and adds a second thing
   (sampling strategy) to get right. Not pursued without the owner asking for it specifically.
 - **Cap the number of series that can be compared at once** — simplest code change, but
-  contradicts plan 077 decision 10's explicit goal (browse and compare freely across jobs and
+  contradicts the Compare workbench's explicit goal (browse and compare freely across jobs and
   clusters) and papers over the actual bottleneck rather than fixing it.
 - **Do nothing, accept the growing lag** — rejected; the owner's own report ("we should make it
   the fastest possible") and the measured degradation (toggle cost visibly growing with series
