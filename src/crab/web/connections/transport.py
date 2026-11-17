@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from crab import paths
+from crab.web.connections.sftp_tree import UnsafeTree, fetch_tree_checked
 from crab.web.errors import AuthError, RemoteCommandError, RemoteConnectionError
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -150,7 +151,7 @@ class SSHTransport(Transport):
 
         async def _fetch() -> None:
             async with self._conn.start_sftp_client() as sftp:
-                await sftp.get(remote_dir, str(fresh), recurse=True)
+                await fetch_tree_checked(sftp, remote_dir, fresh)
 
         try:
             await asyncio.wait_for(_fetch(), timeout=timeout)
@@ -167,6 +168,13 @@ class SSHTransport(Transport):
             raise RemoteCommandError(
                 f"Could not fetch {remote_dir} from the cluster. Check that it still exists.",
                 detail=f"SFTP error: {exc}",
+            ) from exc
+        except UnsafeTree as exc:
+            await _discard(staging)
+            raise RemoteCommandError(
+                f"Refused to fetch {remote_dir}: the cluster sent a file tree that a real "
+                "folder cannot have. Nothing was saved.",
+                detail=str(exc),
             ) from exc
         except Exception as exc:  # asyncssh ChannelOpenError, ConnectionLost, ...
             await _discard(staging)
