@@ -34,9 +34,14 @@ advisory is published together with the release that fixes it.
 
 ## Supported versions
 
-| Version | Supported |
-|---------|-----------|
-| 1.0.x   | Yes       |
-| Earlier | No        |
+Only the latest release gets security fixes. CRAB has two release lines: the product line
+(tags `vX.Y.Z`) and the SbatchMan line (tags `vX.Y.Z+sbatchman`). The latest release of each line is
+supported.
 
-Until 1.0.0 is released, fixes go to the `develop` branch.
+| Version                     | Supported |
+|-----------------------------|-----------|
+| Latest release of each line | Yes       |
+| Earlier                     | No        |
+
+A fix lands on `develop` and ships in the next release of both lines. `crab update` moves a
+checkout to the newest release.
