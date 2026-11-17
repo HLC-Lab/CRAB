@@ -962,3 +962,14 @@ def test_an_absent_datapath_is_accepted() -> None:
     from crab.core.config_checks import check_config
 
     check_config(_datapath_config())
+
+
+@pytest.mark.parametrize("bad_key", ["noise", "a1", "\u00b2", "-1", ""])
+def test_app_keys_that_are_not_numeric_strings_are_a_clear_error(bad_key: str) -> None:
+    """Before: a numeric and a non-numeric key made the sort raise a bare TypeError."""
+    from crab.core.config_checks import check_config
+
+    config = _alloc_config({"mode": "linear"}, 1)
+    config["experiments"]["e1"]["apps"][bad_key] = {"path": "a.py"}
+    with pytest.raises(ValueError, match=r"experiment e1: app keys must be numeric strings"):
+        check_config(config)
