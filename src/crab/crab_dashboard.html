@@ -237,7 +237,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <code class="tcmd">python3 -m http.server 8089</code></div></div>
     <div class="tstep"><span class="tnum">2</span>
       <div><div class="tlbl">Local terminal</div>
-        <code class="tcmd">ssh -N -L 8089:localhost:8089 user@login05.leonardo.cineca.it</code></div></div>
+        <code class="tcmd">ssh -N -L 8089:localhost:8089 user@login.example.org</code></div></div>
     <div class="tstep"><span class="tnum">3</span>
       <div class="tlbl">Connect ↓</div></div>
     <div class="srow">
@@ -1065,7 +1065,7 @@ const ServerLoader = (() => {
     const rootHtml = await fetchListing(base+'/');
     if (!rootHtml) {
       UI.setStatus('Could not reach '+base,'var(--danger)',true);
-      alert('Could not reach '+base+'\n\nOn Leonardo:\n  python3 -m http.server 8089\n\nLocally:\n  ssh -N -L 8089:localhost:8089 user@login05.leonardo.cineca.it\n\nOpen this file at:\n  http://localhost:8089/blink_dashboard.html');
+      alert('Could not reach '+base+'\n\nOn Leonardo:\n  python3 -m http.server 8089\n\nLocally:\n  ssh -N -L 8089:localhost:8089 user@login.example.org\n\nOpen this file at:\n  http://localhost:8089/blink_dashboard.html');
       return;
     }
 

@@ -1,6 +1,6 @@
 """The examples folder is a guide: every set explains itself and every config checks clean.
 
-Before: `examples/` had no README, `examples/lorenzo/` was named after a person, and nothing
+Before: `examples/` had no README, one example folder was named after a person, and nothing
 checked the configs against the preset a reader would run them with (the shipped
 `test_every_shipped_example_passes_the_checks` runs without one, and
 `test_local_examples_fit_the_local_preset` ignores the warnings it returns).

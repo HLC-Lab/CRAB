@@ -277,7 +277,7 @@ class ExperimentRunner:
                 # step that outlived its app would block the next run's sruns on its nodes.
                 cancel_leftover_steps(run_log)
 
-                #! Lorenzo's ping: it is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
+                #! It is better to collect the data while we are polling, or we need to print some [INFO] logs to understand it is running or not
                 #! read_data is defined from the wrapper, we need to make it clear
                 # Collect Data: a parse failure fails the run like a non-zero exit.
                 if not collect_run(self.apps, self.data_containers, run_log, run_id=runs + 1):
