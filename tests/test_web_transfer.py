@@ -72,7 +72,8 @@ async def test_stage_config_ssh_resolves_tilde_to_absolute_before_writing():
     path = await stage_config(transport, _ssh_profile(), config, "My Run!")
 
     assert transport.run_calls == [
-        'mkdir -p "$HOME"/base/CRAB/.web_staging && cd "$HOME"/base/CRAB/.web_staging && pwd'
+        'mkdir -p "$HOME"/base/CRAB/.web_staging && chmod 700 "$HOME"/base/CRAB/.web_staging '
+        '&& cd "$HOME"/base/CRAB/.web_staging && pwd'
     ]
     assert path == "/home/researcher/base/CRAB/.web_staging/my-run.json"
     assert json.loads(transport.written_files[path]) == config
@@ -87,7 +88,8 @@ async def test_stage_config_crab_command_profile_stages_under_the_base_dir():
     path = await stage_config(transport, profile, {}, "demo")
 
     assert transport.run_calls == [
-        'mkdir -p "$HOME"/base/.crab_web_staging && cd "$HOME"/base/.crab_web_staging && pwd'
+        'mkdir -p "$HOME"/base/.crab_web_staging && chmod 700 "$HOME"/base/.crab_web_staging '
+        '&& cd "$HOME"/base/.crab_web_staging && pwd'
     ]
     assert path == "/home/researcher/base/.crab_web_staging/demo.json"
 
@@ -107,7 +109,9 @@ async def test_stage_config_local_uses_data_dir(tmp_path: Path):
 
     path = await stage_config(transport, _local_profile(), config, "demo", settings=settings)
 
-    assert transport.run_calls == [f"mkdir -p {resolved} && cd {resolved} && pwd"]
+    assert transport.run_calls == [
+        f"mkdir -p {resolved} && chmod 700 {resolved} && cd {resolved} && pwd"
+    ]
     assert path == f"{resolved}/demo.json"
     assert json.loads(transport.written_files[path]) == config
 
@@ -127,3 +131,13 @@ async def test_stage_config_mkdir_failure_raises():
         await stage_config(transport, _ssh_profile(), {}, "demo")
 
     assert transport.written_files == {}
+
+
+def test_ensure_dirs_makes_private_folders(tmp_path: Path):
+    """The data and config folders hold job registries and cached results: 0700."""
+    settings = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
+
+    settings.ensure_dirs()
+
+    for folder in (settings.config_dir, settings.data_dir, settings.experiments_dir):
+        assert folder.stat().st_mode & 0o777 == 0o700
