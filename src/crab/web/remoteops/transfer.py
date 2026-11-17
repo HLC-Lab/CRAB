@@ -62,7 +62,9 @@ async def stage_config(
     remote_dir = staging_dir(profile, settings)
     quoted_dir = remote_path_expr(remote_dir)
     # 700: the staged files hold the user's campaign, so no other account may read them.
-    resolve_cmd = f"mkdir -p {quoted_dir} && chmod 700 {quoted_dir} && cd {quoted_dir} && pwd"
+    # Best effort: in a shared checkout another account may own the folder, and chmod
+    # then fails; staging must still work, so only pwd decides the exit code.
+    resolve_cmd = f"mkdir -p {quoted_dir} && cd {quoted_dir} && (chmod 700 . ; pwd)"
     result = await transport.run(resolve_cmd, timeout=timeout)
     if not result.ok:
         raise RemoteCommandError(
