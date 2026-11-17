@@ -15,7 +15,7 @@ advisory is published together with the release that fixes it.
 - **The `crab web` dashboard.** It listens on localhost only. Every `/api/*` request must carry
   the per-session token and a `Host` and `Origin` of `127.0.0.1`, `localhost` or `::1`
   ([ADR-013](docs/dev/dashboard/decisions/adr-013-localhost-api-auth.md)). A way around either
-  check, or any other way for a web page or another local user to drive the API, is in scope.
+  check, or any other way for a web page to drive the API, is in scope.
 - **SSH handling.** The dashboard reaches clusters through asyncssh: connection and
   authentication, host key checking, and what is kept on disk
   ([ADR-003](docs/dev/dashboard/decisions/adr-003-no-secrets-at-rest.md)).
@@ -29,6 +29,9 @@ advisory is published together with the release that fixes it.
   you submit to. A config or wrapper that does something harmful when you run it is not a
   vulnerability in CRAB. Only run wrappers you trust.
 - Weaknesses of the clusters, of Slurm, or of other software that CRAB drives.
+- Another user on the same machine. Any local user can load the dashboard page and read its
+  token, so `crab web` is meant for a single-user machine such as your laptop. This is a known
+  limitation.
 - A dashboard that was deliberately exposed beyond localhost, for example behind a proxy that
   rewrites the `Host` header.
 
