@@ -15,10 +15,45 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-21
+
+### Added
+
+- **`check_config` warns when an app starts after an app that has `end: "f"`.** That app is stopped only
+  once every other app is done, so the run waits for the experiment `timeout` unless it exits on its own.
+  The warning says to give it a numeric `end`.
+
+### Changed
+
+- **The dashboard page answers only a local Host, and every response forbids framing and sniffing.**
+  Before, only `/api` checked the Host. Now the page and the static files do too, and every response
+  carries `Content-Security-Policy: frame-ancestors 'none'` and `X-Content-Type-Options: nosniff`, so
+  another site cannot show the dashboard in a frame. Breaking: a client that sends a Host that is not
+  a local name, such as a reverse proxy that rewrites Host, now gets a 403 for the page as well.
+- **The dashboard's data and config folders, and the staging folder on the cluster, are private to
+  your account.** Staging still works when the folder belongs to another account and `chmod` fails.
+- **`crab web` warns when `--host` is not a loopback address.** The dashboard is then open to the
+  network, and the docs now say so.
+
 ### Fixed
 
 - **`crab web` on a port that is taken prints a short hint and exits 1.** Before, it printed the
   start banner, then uvicorn's own bind error, and exited with status 3.
+- **Security: a results fetch can no longer write outside its cache.** It walks the remote tree itself
+  and never creates a symlink, so a hostile SFTP server cannot plant a link that points elsewhere.
+- **A failed app that exits on its own keeps its stderr in `error_app_<n>.log`.**
+- **A wrapper key named like a CSV column, such as `run_id` or `msg_size`, is a parse error.** The
+  message names the reserved columns.
+- **`check_config` names the problem when an app key is not a numeric string.** App keys are `"0"`,
+  `"1"` and so on.
+- **A results fetch reports done only after its status snapshot is written.**
+- **A long config name no longer ends in HTTP 500.** One unreadable file no longer empties the
+  library list.
+- **Profile names and config ids no longer accept a trailing newline.**
+- **Documentation:** `crab web` is for a single-user machine because another local user can read the
+  token; `SECURITY.md` supports the latest release of each line; `results.md` says a run cut by the
+  timeout counts in `total_runs` only; the install steps and troubleshooting headings, the `zsh`
+  editable install command and the architecture page were corrected.
 
 ## [1.5.0] - 2026-11-15
 
