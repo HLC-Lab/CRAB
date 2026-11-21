@@ -97,6 +97,7 @@ def create_app(
     register_exception_handlers(app)
     _install_api_guard(app)
     _install_asset_cache_headers(app)
+    _install_security_headers(app)
 
     api = APIRouter(prefix="/api")
 
@@ -160,9 +161,10 @@ def _authority(value: str) -> tuple[str, int] | None:
 
 
 def _install_api_guard(app: FastAPI) -> None:
-    """Reject /api/* requests that lack the session token or come from a
-    non-local host/origin. Static assets and the SPA shell stay open: the
-    shell is how the browser obtains the token in the first place."""
+    """Reject every request whose Host is not this machine, and /api/* requests that lack
+    the session token or come from a non-local origin. Static assets and the SPA shell need
+    no token: the shell is how the browser obtains it, so it is the Host check that keeps a
+    rebinding page from fetching it."""
     from fastapi import Request
     from fastapi.responses import JSONResponse
 
@@ -171,12 +173,12 @@ def _install_api_guard(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def api_guard(request: Request, call_next):  # type: ignore[no-untyped-def]
-        if not request.url.path.startswith("/api"):
-            return await call_next(request)
-
         host = _authority(request.headers.get("host", ""))
         if host is None or host[0] not in _LOCAL_HOSTNAMES:
-            return _deny(403, "forbidden_host", "This API only serves local requests.")
+            return _deny(403, "forbidden_host", "This dashboard only serves local requests.")
+
+        if not request.url.path.startswith("/api"):
+            return await call_next(request)
 
         origin = request.headers.get("origin")
         if origin is not None:
@@ -201,6 +203,19 @@ def _install_api_guard(app: FastAPI) -> None:
                 "the current session.",
             )
         return await call_next(request)
+
+
+def _install_security_headers(app: FastAPI) -> None:
+    """No framing of the dashboard by another site (clickjacking on Remove, Write, Install) and
+    no content-type sniffing, on every response."""
+    from fastapi import Request
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        response.headers["Content-Security-Policy"] = "frame-ancestors 'none'"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
 
 
 def _install_asset_cache_headers(app: FastAPI) -> None:
