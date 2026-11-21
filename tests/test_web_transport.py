@@ -88,9 +88,11 @@ def test_local_transport_fetch_tree_missing_source_raises(tmp_path: Path):
 
 
 class _FakeSFTPClient:
-    def __init__(self, get_error: Exception | None = None) -> None:
-        self.get_error = get_error
-        self.calls: list[tuple[str, str, bool]] = []
+    """An SFTP client that lists an empty remote directory (or raises `list_error`)."""
+
+    def __init__(self, list_error: Exception | None = None) -> None:
+        self.list_error = list_error
+        self.listed: list[str] = []
 
     async def __aenter__(self) -> _FakeSFTPClient:
         return self
@@ -98,11 +100,11 @@ class _FakeSFTPClient:
     async def __aexit__(self, *exc_info: object) -> bool:
         return False
 
-    async def get(self, remote_path: str, local_path: str, *, recurse: bool = False) -> None:
-        if self.get_error is not None:
-            raise self.get_error
-        self.calls.append((remote_path, local_path, recurse))
-        Path(local_path).mkdir()  # like asyncssh: the destination must not pre-exist
+    async def readdir(self, remote_path: str) -> list:
+        if self.list_error is not None:
+            raise self.list_error
+        self.listed.append(remote_path)
+        return []
 
 
 class _FakeSFTPConnection:
@@ -116,21 +118,19 @@ class _FakeSFTPConnection:
         return False
 
 
-def test_ssh_transport_fetch_tree_calls_recursive_get(tmp_path: Path):
+def test_ssh_transport_fetch_tree_walks_the_remote_directory_into_staging(tmp_path: Path):
     sftp = _FakeSFTPClient()
     transport = SSHTransport(_FakeSFTPConnection(sftp))  # type: ignore[arg-type]
     local_dir = str(tmp_path / "local" / "results")
 
     asyncio.run(transport.fetch_tree("/remote/results", local_dir))
 
-    [(remote, staged, recurse)] = sftp.calls
-    assert (remote, recurse) == ("/remote/results", True)
-    assert staged != local_dir  # fetched into staging, then swapped in
-    assert Path(local_dir).is_dir()
+    assert sftp.listed == ["/remote/results"]
+    assert Path(local_dir).is_dir()  # fetched into staging, then swapped in
 
 
 def test_ssh_transport_fetch_tree_sftp_error_does_not_close_connection(tmp_path: Path):
-    sftp = _FakeSFTPClient(get_error=asyncssh.SFTPError(asyncssh.FX_NO_SUCH_FILE, "no such file"))
+    sftp = _FakeSFTPClient(list_error=asyncssh.SFTPError(asyncssh.FX_NO_SUCH_FILE, "no such file"))
     transport = SSHTransport(_FakeSFTPConnection(sftp))  # type: ignore[arg-type]
 
     with pytest.raises(RemoteCommandError):
@@ -140,7 +140,7 @@ def test_ssh_transport_fetch_tree_sftp_error_does_not_close_connection(tmp_path:
 
 
 def test_ssh_transport_fetch_tree_other_error_closes_connection(tmp_path: Path):
-    sftp = _FakeSFTPClient(get_error=ConnectionResetError("dropped"))
+    sftp = _FakeSFTPClient(list_error=ConnectionResetError("dropped"))
     transport = SSHTransport(_FakeSFTPConnection(sftp))  # type: ignore[arg-type]
 
     with pytest.raises(RemoteConnectionError):
