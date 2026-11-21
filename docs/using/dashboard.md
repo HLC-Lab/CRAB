@@ -473,6 +473,8 @@ Everything is on your laptop, in the standard folders of your system. On Linux t
 | `~/.config/crab/clusters.json` | Your cluster profiles. No passwords or keys. |
 | `~/.local/share/crab/experiments/` | The use case library, one JSON file per use case. |
 | `~/.local/share/crab/jobs.json` | The jobs you submitted, with the config each one ran, and the reruns. |
+| `~/.local/share/crab/campaigns/` | The campaign drafts you saved on the SbatchMan page, one file each. |
+| `~/.local/share/crab/sbatchman_campaigns/` | A copy of each jobs file the SbatchMan page wrote to a cluster. |
 | `~/.local/share/crab/cache/` | Copies of logs and history, shown with a notice when a cluster is unreachable. |
 | `~/.local/share/crab/results_cache/` | The results you fetched, one folder per cluster, system and job. |
 | `~/.local/share/crab/logs/web.log` | The dashboard's own log. |
@@ -483,7 +485,7 @@ These variables, set before `crab web`, move them:
 |---|---|
 | `CRAB_WEB_CONFIG_DIR` | The folder with `clusters.json`. An absolute path (`~` is fine). |
 | `CRAB_WEB_DATA_DIR` | The data folder: library, jobs, caches and log. An absolute path (`~` is fine). |
-| `CRAB_WEB_LIBRARY_DIR` | Only the library. Point it at a git repository or a synced folder to version or share your use cases. The first start copies the existing library there. An absolute path (`~` is fine). |
+| `CRAB_WEB_LIBRARY_DIR` | Only the library and the saved campaign drafts (`campaigns/`). Point it at a git repository or a synced folder to version or share your use cases. The first start copies the existing library there. An absolute path (`~` is fine). |
 | `CRAB_WEB_PORT` | The default port. |
 
 To reset part of it, stop `crab web` and delete what you want gone:
