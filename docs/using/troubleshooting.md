@@ -17,7 +17,7 @@ config against the preset (scheduler, launcher, number of hosts). It exits 1 and
 problem to stderr, or prints `ok: <file>` followed by the warnings. See
 [`crab validate`](../reference/cli.md#crab-validate). It checks that each app's wrapper `path`
 names a file on this machine's wrapper search path (see
-[a wrapper not on the search path](#wrapper-not-found-on-the-wrapper-search-path)). It does not
+[a wrapper not on the search path](#wrapper-path-not-found-on-the-wrapper-search-path)). It does not
 check that binaries or receipts exist, and it does not ask Slurm about your account or partition.
 Those problems appear when the job starts.
 
@@ -66,7 +66,7 @@ need git and network access on that machine. A pip install tries the clone itsel
 says `Cloning the CRAB wrappers into <folder> (first use)`. With `CRAB_PATH_WRAPPERS` set, CRAB
 prints no hint, because you chose the folders yourself.
 
-### "wrapper <path> not found on the wrapper search path"
+### "wrapper `<path>` not found on the wrapper search path"
 
 ```text
 wrapper <path> not found on the wrapper search path (<folder>, <folder>)
@@ -333,7 +333,7 @@ The reason shows under the cluster, exactly as the dashboard got it. The common 
 
 See [Connect a cluster](dashboard.md#connect-a-cluster).
 
-### "Update crab on <cluster>"
+### "Update crab on `<cluster>`"
 
 ```text
 Update crab on <cluster> (crab update) to see this.
