@@ -91,6 +91,26 @@ its notes live in the tag and the GitHub release.
 - **The progress line keeps its dot beside the text when the text wraps**, and never reroutes standard
   output.
 
+### SbatchMan line
+
+These changes are only in `v1.5.0+sbatchman`. Everything above applies to both lines.
+
+- **Saved dashboard campaigns lose their config name.** The saved field was renamed and there is no
+  migration. Breaking: open each saved campaign and type the config name again.
+- **The campaign editor writes the `configs:` key** and names the SbatchMan config field `config` in
+  every place. Before, the file had no `configs:` line.
+- **On an umbrella cluster the dashboard writes the campaign into `benchmarks/<folder>/`.** The
+  SbatchMan page asks for the benchmark folder and suggests config names from the cluster. A new
+  folder name creates the folder. Before, the file was staged in `CRAB/.web_staging/` of the
+  install directory.
+- **A write that cannot probe the cluster fails, and a write without overwrite is atomic.** A file
+  that appeared in the meantime is never replaced.
+- **A group that uses `$VAR` in a config gets an unquoted heredoc,** so the variable expands on the
+  cluster.
+- **The editor refuses cpus, bind, empty and duplicate tags before it writes.**
+- **The `web` extra installs PyYAML.**
+- **This line mounts no Jobs or Results routes.** Unknown dashboard paths go to the SbatchMan page.
+
 ## [1.4.0] - 2026-11-02
 
 ### Added
