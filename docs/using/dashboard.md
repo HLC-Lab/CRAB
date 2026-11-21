@@ -42,8 +42,11 @@ Cluster connections close when it stops, and you connect again the next time.
 Every request the page makes to the dashboard's API carries a token. `crab web` makes a new random
 token each time it starts and puts it in the page it serves. The token and a check of the `Host`
 and `Origin` headers together stop other web pages open in your browser from driving your SSH
-connections. The server answers API requests only when they are addressed to `127.0.0.1`, `localhost` or `::1`,
-so `--host` does not make the dashboard reachable from another machine.
+connections. The server answers API requests only when they are addressed to `127.0.0.1`, `localhost` or `::1`.
+That check protects against web pages in your browser; it does not stop another program. With
+`--host` set to an address other than loopback, any machine that can reach the port can read the
+token from the page and use the dashboard, and so use your cluster connections. `crab web` prints
+a warning in that case. Keep the default unless the network is one you trust.
 
 After you restart `crab web`, an old tab has the old token. Its requests fail with `Missing or
 wrong session token. Reload the dashboard tab to pick up the current session.` Reload the tab.

@@ -6,7 +6,9 @@ and tested without binding a socket.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
+import sys
 import threading
 import webbrowser
 
@@ -25,6 +27,31 @@ def _open_browser_when_up(url: str, delay: float = 1.0) -> None:
             logger.info("Could not open a browser automatically; visit %s", url)
 
     threading.Timer(delay, _open).start()
+
+
+def _is_loopback(host: str) -> bool:
+    """Whether `host` binds only this machine: `localhost` or a loopback IP address."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def exposure_warning(host: str) -> str | None:
+    """The warning for binding the dashboard to a non-loopback `host`, else None.
+
+    The Host and Origin checks only stop web pages in a browser; a client on the network can send
+    any Host header, read the session token from `/` and drive the API (ADR-013).
+    """
+    if _is_loopback(host):
+        return None
+    return (
+        f"[WARNING] --host {host} makes the dashboard reachable from other machines, and it has "
+        "no login: anyone who can connect can use your cluster connections. "
+        "Use it only on a network you trust, or keep the default 127.0.0.1."
+    )
 
 
 def _configure_logging(verbose: bool) -> None:
@@ -71,6 +98,10 @@ def run_server(
     # The Vite dev server serves its own index (no token meta tag), so dev
     # setups need the token once: store it as localStorage.CRAB_DEV_TOKEN.
     logger.info("API session token (for Vite dev via localStorage): %s", app.state.api_token)
+
+    warning = exposure_warning(host)
+    if warning:
+        print(warning, file=sys.stderr, flush=True)
 
     print(f"[*] CRAB web dashboard → {url}  (Ctrl-C to stop)", flush=True)
     if open_browser:
