@@ -10,7 +10,7 @@ git clone https://github.com/HLC-Lab/CRAB
 cd CRAB
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[web,dev]    # editable install with the web dashboard + dev tools
+pip install -e ".[web,dev]"    # editable install with the web dashboard + dev tools
 ```
 
 Requires Python 3.10+. The package is installed in editable mode, so changes to `src/crab/` take
@@ -52,7 +52,7 @@ src/crab/
 │   ├── engine.py         # orchestrator/worker control core
 │   ├── experiment/       # ExperimentRunner: per-experiment lifecycle
 │   ├── allocation/       # node-to-app mapping strategies
-│   ├── data/             # DataContainer, convergence (check_CI), CSV/HDF output
+│   ├── data/             # DataContainer, convergence (check_CI), CSV output
 │   ├── process/          # launching/terminating app processes
 │   └── execution/        # scheduler/ (job submission) and launcher/ (srun, mpirun, direct)
 ├── setup/        # `crab setup`: wizard, recipe registry, recipes/, receipt storage (memory.py)
