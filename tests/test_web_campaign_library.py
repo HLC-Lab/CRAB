@@ -116,3 +116,9 @@ def test_list_skips_an_unreadable_file_instead_of_failing(tmp_path: Path):
     (store._dir / "broken.json").write_text("{not json")
 
     assert [e.id for e in store.list()] == [good.id]
+
+
+def test_a_trailing_newline_does_not_pass_the_id_check(tmp_path: Path):
+    """`$` matches before a final newline, so `re.match` let `abc\n` through."""
+    with pytest.raises(InputError):
+        CampaignLibraryStore(_settings(tmp_path)).get("abc\n")

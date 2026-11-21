@@ -63,7 +63,7 @@ class CampaignLibraryStore:
         return self._settings.campaign_library_dir
 
     def _path(self, entry_id: str) -> Path:
-        if not _VALID_ID.match(entry_id):
+        if not _VALID_ID.fullmatch(entry_id):
             raise InputError(f"Invalid campaign id {entry_id!r}.")
         return self._dir / f"{entry_id}.json"
 
