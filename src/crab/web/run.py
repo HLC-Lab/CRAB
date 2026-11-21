@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+import socket
 import sys
 import threading
 import webbrowser
@@ -70,6 +71,18 @@ def _configure_logging(verbose: bool) -> None:
     web_logger.propagate = False
 
 
+def _check_bindable(host: str, port: int) -> None:
+    """Raise OSError when `host:port` cannot be bound (most often: already in use).
+
+    uvicorn answers a failed bind with `sys.exit(3)` and its own log line, so the hint below
+    would never print if we waited for it. It binds the way uvicorn does (SO_REUSEADDR).
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind((host, port))
+
+
 def run_server(
     host: str | None = None,
     port: int | None = None,
@@ -93,6 +106,16 @@ def run_server(
     port = port or settings.port
     url = f"http://{host}:{port}"
 
+    try:
+        _check_bindable(host, port)
+    except OSError as exc:
+        print(
+            f"[ERROR] Could not start the server on {host}:{port}: {exc}\n"
+            f"        Another instance may be running, or the port is taken. "
+            f"Try: crab web --port <other>"
+        )
+        raise SystemExit(1) from None
+
     _configure_logging(verbose)
     app = __import__("crab.web.server", fromlist=["create_app"]).create_app(settings)
     # The Vite dev server serves its own index (no token meta tag), so dev
@@ -115,13 +138,5 @@ def run_server(
             log_level="info" if verbose else "warning",
             access_log=verbose,
         )
-    except OSError as exc:
-        # Most commonly: address already in use.
-        print(
-            f"[ERROR] Could not start the server on {host}:{port}: {exc}\n"
-            f"        Another instance may be running, or the port is taken. "
-            f"Try: crab web --port <other>"
-        )
-        raise SystemExit(1) from None
     except KeyboardInterrupt:
         print("\n[*] CRAB web dashboard stopped.")
