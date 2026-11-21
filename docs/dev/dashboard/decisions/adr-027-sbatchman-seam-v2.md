@@ -5,8 +5,8 @@
 
 ## Context
 
-Plan 089 set out to verify ADR-025's worker seam against a real `sbatchman` install and ship a
-partner onboarding doc. That verification found ADR-025's central assumption false for the real
+The follow-up work set out to verify ADR-025's worker seam against a real `sbatchman` install and
+ship partner setup instructions. That verification found ADR-025's central assumption false for the real
 package: PyPI's `sbatchman` 1.0.8 (published 2026-05-20) never exports `SBATCHMAN_JOB_DIR` and
 never reads the generated jobs YAML's `configs:` key — both grepped and confirmed absent from
 the installed package, and confirmed live by launching a real probe job. Running the actual
@@ -37,7 +37,7 @@ emits) fails to resolve unless the process happens to run from inside the wrappe
 - **Install SbatchMan from GitHub `main`**, not PyPI:
   `pip install git+https://github.com/LorenzoPichetti/SbatchMan.git`. This gets the working
   auto-export and the real `configs:` key now, rather than waiting on an unscheduled release.
-  The exact commit tested is recorded in the plan 089 worklog and the onboarding doc.
+  The exact commit tested is not pinned in this repository; re-verify it before relying on it.
 - **`crab worker` sources its execution environment from the inherited process environment when
   no `environment.json` is present, instead of requiring a CRAB-written env file.**
   `execute_worker` (`cli/orchestrator.py`) keeps its existing behavior — load and use
@@ -51,11 +51,11 @@ emits) fails to resolve unless the process happens to run from inside the wrappe
   data (varies per campaign job) and cannot come from a static preset `env:` entry either way.
   `CRAB_ROOT`, `CRAB_SYSTEM`, `CRAB_PATH_WRAPPERS`, and (as a defensive floor, harmless once
   `main`'s auto-export exists) `SBATCHMAN_JOB_DIR={EXP_DIR}` become required
-  `sbatchman configure --env` entries, documented once in the partner onboarding doc, instead of
+  `sbatchman configure --env` entries, documented once for partners, instead of
   a generated file duplicating what the partner's own preset already exports into the job's
   shell.
 - **Preset setup stays doc-only.** No new generator/UI feature emits a ready-made
-  `sbatchman configure` snippet; the onboarding doc gives the partner one copy-paste block to
+  `sbatchman configure` snippet; the partner setup instructions give one copy-paste block to
   run once by hand.
 - **Permanent constraint for anyone touching the generator later, independent of which
   SbatchMan version ships:** `{token}` substitution only fires inside `configure`-time fields
@@ -73,7 +73,7 @@ emits) fails to resolve unless the process happens to run from inside the wrappe
 - **Wait for a PyPI release that includes `main`'s fixes** — rejected: no release was scheduled
   at decision time, and blocking partner onboarding on an upstream release date was worse than
   installing from a Git ref the partner can re-pin later once a release exists.
-  Tracked as a future doc update, not blocking this plan (plan 089's Risks section).
+  Tracked as a future doc update, not blocking this decision.
 - **Smaller fix: add the missing `CRAB_PATH_WRAPPERS` key to the generated `environment.json`
   and keep the file-based seam as-is** — the actual root cause found while chasing the wrapper
   gap (`core/engine.py::_run_worker` does `os.environ.update(expanded)`, so this one-line
@@ -92,5 +92,5 @@ generator's job template is one heredoc smaller. Harder: CRAB's own orchestrator
 the SbatchMan-launched path now genuinely diverge in how they source `execution_env` (file vs.
 process environment), so a future change to `execute_worker` must keep both branches' tests
 green independently; GitHub `main` is an unpinned moving target, so the exact tested commit must
-be re-verified whenever the onboarding doc's install instructions are revisited, until a PyPI
+be re-verified whenever the partner install instructions are revisited, until a PyPI
 release covers these features.

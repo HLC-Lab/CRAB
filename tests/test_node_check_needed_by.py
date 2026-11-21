@@ -1,4 +1,4 @@
-"""The node check says which app and local rank need a NIC port it finds wrong (plan 122 S8, remark P7).
+"""The node check says which app and local rank need a NIC port it finds wrong.
 
 Before: the message gave only the port and its state (`mlx5_2:1 is not active (DOWN)`), because `used_by`
 flattened each app's per-rank NIC entries into one set of ports. A local rank r holds entry

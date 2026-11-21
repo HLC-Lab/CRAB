@@ -1,4 +1,4 @@
-"""`bind.nic exclusive` across apps (plan 122): an exclusive NIC is kept to one app of a node.
+"""`bind.nic exclusive` across apps: an exclusive NIC is kept to one app of a node.
 
 Apps of the same chain never conflict; apps on different nodes never conflict; apps that name no NIC
 are not checked. Shape `four-gpus-four-nics`: devices `nic0:1`..`nic3:1`, `nic{k}:1` near GPU k.

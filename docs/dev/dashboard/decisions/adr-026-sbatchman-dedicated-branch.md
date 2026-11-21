@@ -5,7 +5,7 @@
 
 ## Context
 
-ADR-025 (plan 084) built the SbatchMan campaign generator as a `--sbatchman`-flag-gated mode
+ADR-025 built the SbatchMan campaign generator as a `--sbatchman`-flag-gated mode
 inside the shared dashboard codebase (`feature/sbatchman-integration`, off
 `feature/web-dashboard`): with the flag off the dashboard was unchanged, with it on a new
 "SbatchMan" nav item exposed campaign authoring plus write and launch actions.
@@ -23,7 +23,7 @@ belong in the product at all, not even behind a flag.
 ## Decision
 
 - **The SbatchMan work moves to its own permanent branch, `sbatchman`** (renamed from
-  `feature/sbatchman-integration`, keeping all of plan 084's history), instead of staying a mode
+  `feature/sbatchman-integration`, keeping all of its history), instead of staying a mode
   toggled inside `feature/web-dashboard`. It is a **one-time fork**: standalone-line fixes
   (engine, wrappers, the dashboard itself) are not resynced into it going forward, and it does
   not merge back. `feature/web-dashboard` remains the standalone-CRAB working line and gains a
@@ -48,7 +48,7 @@ belong in the product at all, not even behind a flag.
 
 ## Alternatives considered
 
-- Keep plan 084's flag mechanism and simply default it on — rejected: still carries the whole
+- Keep the flag mechanism and simply default it on — rejected: still carries the whole
   dual-mode nav/route branching inside one codebase indefinitely, for a variant that will never
   need the other mode again once split out.
 - Delete Author/Jobs/Results outright now instead of deferring — rejected: a much larger diff
