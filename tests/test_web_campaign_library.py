@@ -98,3 +98,21 @@ def test_custom_library_dir_uses_a_campaigns_subfolder(tmp_path: Path):
     assert (lib / "campaigns" / f"{entry.id}.json").is_file()
     # Never lands directly in the library root (that's the experiment library's file shape).
     assert not (lib / f"{entry.id}.json").exists()
+
+
+def test_a_very_long_name_makes_a_short_id_and_can_be_saved(tmp_path: Path):
+    """A 300-character name made a file name over 255 bytes: OSError, HTTP 500."""
+    store = CampaignLibraryStore(_settings(tmp_path))
+
+    entry = store.create("x" * 300, _SPEC)
+
+    assert len(entry.id) <= 60
+    assert store.get(entry.id).name == "x" * 300
+
+
+def test_list_skips_an_unreadable_file_instead_of_failing(tmp_path: Path):
+    store = CampaignLibraryStore(_settings(tmp_path))
+    good = store.create("good", _SPEC)
+    (store._dir / "broken.json").write_text("{not json")
+
+    assert [e.id for e in store.list()] == [good.id]
