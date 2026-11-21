@@ -182,3 +182,18 @@ def test_the_writing_rule_checks_catch_what_they_should() -> None:
         (1, "this session"),
     ]
     assert find_framing("The orchestrator runs an AIR job and a said word.") == []
+
+
+def test_dev_docs_and_tests_do_not_cite_plan_numbers() -> None:
+    """Plans live outside the repository, so a reader cannot open "plan 077"."""
+    cited = re.compile(r"\bplans? \d{3}\b", re.IGNORECASE)
+    files = sorted((DOCS / "dev").rglob("*.md")) + sorted(
+        p for p in (REPO / "tests").glob("*.py") if p.name != Path(__file__).name
+    )
+    hits = [
+        f"{_rel(path)}:{number}"
+        for path in files
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if cited.search(line)
+    ]
+    assert hits == []

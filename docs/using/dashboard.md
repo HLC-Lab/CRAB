@@ -48,11 +48,18 @@ Cluster connections close when it stops, and you connect again the next time.
 Every request the page makes to the dashboard's API carries a token. `crab web` makes a new random
 token each time it starts and puts it in the page it serves. The token and a check of the `Host`
 and `Origin` headers together stop other web pages open in your browser from driving your SSH
-connections. The server answers API requests only when they are addressed to `127.0.0.1`, `localhost` or `::1`,
-so `--host` does not make the dashboard reachable from another machine.
+connections. The server answers API requests only when they are addressed to `127.0.0.1`, `localhost` or `::1`.
+That check protects against web pages in your browser; it does not stop another program. With
+`--host` set to an address other than loopback, any machine that can reach the port can read the
+token from the page and use the dashboard, and so use your cluster connections. `crab web` prints
+a warning in that case. Keep the default unless the network is one you trust.
 
 After you restart `crab web`, an old tab has the old token. Its requests fail with `Missing or
 wrong session token. Reload the dashboard tab to pick up the current session.` Reload the tab.
+
+The token protects you from web pages, not from other people logged in to the same computer: any
+local user can load the page and read it. Run `crab web` on your own laptop or another single-user
+machine, never on a shared login node.
 
 ## Connect a cluster
 
@@ -80,8 +87,6 @@ A name that another cluster already has is refused as you type: a red line under
 change that cluster instead, use its pencil button. If the backend refuses a save for another
 reason, for example the reserved name `local`, the reason shows inside the open form.
 
-<!-- screenshot: remotes-add-cluster -->
-
 The three `Auth` methods:
 
 - `agent` uses your running `ssh-agent`, which covers keys you loaded and certificates from a
@@ -99,8 +104,6 @@ removes it after a confirmation. Removing a profile deletes only the profile on 
 Click **Connect**. The dashboard opens an SSH connection and runs `crab info` on the cluster. A
 cluster is connected when its dot is green and the button says **Disconnect**. The line under the
 name shows the CRAB version there, the install folder and the presets the cluster defines.
-
-<!-- screenshot: remotes-connected -->
 
 ### The progress line
 
@@ -204,8 +207,6 @@ It writes the same JSON that `crab run` reads (see the
 [configuration reference](../reference/configuration.md)), so anything you build here also runs
 from the command line.
 
-<!-- screenshot: author-overview -->
-
 The bar at the top of the page:
 
 | Button | What it does |
@@ -306,8 +307,6 @@ These messages do not block anything. **Save** works with them open, and the clu
 config again when you submit. When the server sees a shape problem on save, it saves anyway and
 shows `Saved "<name>" with a shape warning: ...`.
 
-<!-- screenshot: author-experiment -->
-
 ## Run and watch it
 
 ### Submit
@@ -336,8 +335,6 @@ error. Read it, fix the use case and submit again. **Dismiss** removes the card.
 
 The **Jobs** page lists the submissions you made from this dashboard, newest first. Jobs you start
 with `crab run` in a terminal do not appear here (they appear under Results).
-
-<!-- screenshot: jobs-list -->
 
 Each card shows the cluster and system, the submit time, the use case name, the job id and the
 state. The dot says whether the cluster is connected. For a cluster that is not, the card shows
@@ -418,8 +415,6 @@ history or fetched results for. Search by job name, and filter by `Cluster` and 
 Fetching copies the job's result folder, the CSV files, to this laptop. The dashboard fetches
 only when you ask. Click a card to open the job.
 
-<!-- screenshot: results-picker -->
-
 ### One job's results
 
 The job page has a tree on the left and a viewer on the right. Open an experiment in the tree and
@@ -435,8 +430,6 @@ saves the chart as a PNG file of 1600 by 900 pixels.
 
 **Table.** Click a column header to sort, type in `Search…` to filter rows, and use `Columns` to
 choose which columns show. The table shows up to 5000 rows and says so when it cuts the list.
-
-<!-- screenshot: results-chart -->
 
 **Clear cache** at the top of the page deletes every fetched result on this laptop. The cache size
 shows next to it. The data stays on the clusters, and you can fetch it again.
@@ -454,8 +447,6 @@ Each ticked app is one series, labeled `job / experiment / app`.
 - The chart kinds and `Log scale` work as in a single job.
 
 Compare has no export. To share data, use `crab export` (see [Reading results](results.md)).
-
-<!-- screenshot: results-compare -->
 
 ## Wrappers
 

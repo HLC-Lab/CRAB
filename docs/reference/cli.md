@@ -66,7 +66,7 @@ crab validate [-p PRESET] [--json] <config.json>
 Every app's wrapper `path` must name a file on this machine's wrapper search path. Otherwise the
 check is an error, and for a Blink wrapper renamed in 1.0 it names the new path. A
 `CRAB_PATH_WRAPPERS` set in the preset's `env` is honored, but only when you pass `-p`. See
-[the troubleshooting entry](../using/troubleshooting.md#wrapper-not-found-on-the-wrapper-search-path).
+[the troubleshooting entry](../using/troubleshooting.md#wrapper-path-not-found-on-the-wrapper-search-path).
 
 The output is `ok: <file>` followed by one line per warning, with exit status 0. When a check fails,
 the message goes to stderr and the exit status is 1. A missing file, a file that is not JSON and an

@@ -6,7 +6,10 @@ and tested without binding a socket.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
+import socket
+import sys
 import threading
 import webbrowser
 
@@ -27,6 +30,31 @@ def _open_browser_when_up(url: str, delay: float = 1.0) -> None:
     threading.Timer(delay, _open).start()
 
 
+def _is_loopback(host: str) -> bool:
+    """Whether `host` binds only this machine: `localhost` or a loopback IP address."""
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host.strip("[]")).is_loopback
+    except ValueError:
+        return False
+
+
+def exposure_warning(host: str) -> str | None:
+    """The warning for binding the dashboard to a non-loopback `host`, else None.
+
+    The Host and Origin checks only stop web pages in a browser; a client on the network can send
+    any Host header, read the session token from `/` and drive the API (ADR-013).
+    """
+    if _is_loopback(host):
+        return None
+    return (
+        f"[WARNING] --host {host} makes the dashboard reachable from other machines, and it has "
+        "no login: anyone who can connect can use your cluster connections. "
+        "Use it only on a network you trust, or keep the default 127.0.0.1."
+    )
+
+
 def _configure_logging(verbose: bool) -> None:
     """Quiet by default, chatty with -v.
 
@@ -41,6 +69,18 @@ def _configure_logging(verbose: bool) -> None:
         handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
         web_logger.addHandler(handler)
     web_logger.propagate = False
+
+
+def _check_bindable(host: str, port: int) -> None:
+    """Raise OSError when `host:port` cannot be bound (most often: already in use).
+
+    uvicorn answers a failed bind with `sys.exit(3)` and its own log line, so the hint below
+    would never print if we waited for it. It binds the way uvicorn does (SO_REUSEADDR).
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as probe:
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        probe.bind((host, port))
 
 
 def run_server(
@@ -66,11 +106,25 @@ def run_server(
     port = port or settings.port
     url = f"http://{host}:{port}"
 
+    try:
+        _check_bindable(host, port)
+    except OSError as exc:
+        print(
+            f"[ERROR] Could not start the server on {host}:{port}: {exc}\n"
+            f"        Another instance may be running, or the port is taken. "
+            f"Try: crab web --port <other>"
+        )
+        raise SystemExit(1) from None
+
     _configure_logging(verbose)
     app = __import__("crab.web.server", fromlist=["create_app"]).create_app(settings)
     # The Vite dev server serves its own index (no token meta tag), so dev
     # setups need the token once: store it as localStorage.CRAB_DEV_TOKEN.
     logger.info("API session token (for Vite dev via localStorage): %s", app.state.api_token)
+
+    warning = exposure_warning(host)
+    if warning:
+        print(warning, file=sys.stderr, flush=True)
 
     print(f"[*] CRAB web dashboard → {url}  (Ctrl-C to stop)", flush=True)
     if open_browser:
@@ -84,13 +138,5 @@ def run_server(
             log_level="info" if verbose else "warning",
             access_log=verbose,
         )
-    except OSError as exc:
-        # Most commonly: address already in use.
-        print(
-            f"[ERROR] Could not start the server on {host}:{port}: {exc}\n"
-            f"        Another instance may be running, or the port is taken. "
-            f"Try: crab web --port <other>"
-        )
-        raise SystemExit(1) from None
     except KeyboardInterrupt:
         print("\n[*] CRAB web dashboard stopped.")

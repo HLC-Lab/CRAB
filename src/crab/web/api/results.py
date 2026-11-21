@@ -392,7 +392,6 @@ async def _run_fetch(
             "the cluster to send the result files over SFTP",
         ):
             await transport.fetch_tree(remote_dir, local_dir)
-        tracker[fetch_id] = {"status": "done"}
     except CrabWebError as e:
         tracker[fetch_id] = {"status": "error", "message": e.message, "detail": e.detail}
         return
@@ -405,6 +404,9 @@ async def _run_fetch(
         await _snapshot_fetch_status(transport, profile, settings, system, job_basename)
     except Exception:
         logger.exception("Best-effort results-fetch status snapshot failed for %s", fetch_id)
+    # Only now: a client that sees "done" reloads the index at once and compares the cached
+    # job's status with this snapshot.
+    tracker[fetch_id] = {"status": "done"}
 
 
 @router.post("/{cluster}/{system}/{job_basename}/fetch", status_code=202)

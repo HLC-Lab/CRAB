@@ -58,12 +58,20 @@ async def _resolve_staging_dir(
     a write goes over SFTP, which has no shell and does no expansion of its
     own: so mkdir and the write could target different trees if each handled
     ``~`` separately. Instead, one shell round-trip resolves the directory to
-    an absolute path (``cd ... && pwd``) that mkdir and every write share.
+    an absolute path (``cd ... && pwd``) that mkdir and every write share. The staging
+    dir (not a ``directory`` the caller names) is also made private, see below.
     """
     remote_dir = directory if directory is not None else staging_dir(profile, settings)
     quoted_dir = remote_path_expr(remote_dir)
     what = "the staging directory" if directory is None else "the folder"
-    resolve_cmd = f"mkdir -p {quoted_dir} && cd {quoted_dir} && pwd"
+    if directory is None:
+        # 700: the staged files hold the user's campaign, so no other account may read them.
+        # Best effort: in a shared checkout another account may own the folder, and chmod
+        # then fails; staging must still work, so only pwd decides the exit code. A folder
+        # the caller names (an umbrella `benchmarks/<name>/`) is not ours to restrict.
+        resolve_cmd = f"mkdir -p {quoted_dir} && cd {quoted_dir} && (chmod 700 . ; pwd)"
+    else:
+        resolve_cmd = f"mkdir -p {quoted_dir} && cd {quoted_dir} && pwd"
     result = await transport.run(resolve_cmd, timeout=timeout)
     if not result.ok:
         raise RemoteCommandError(

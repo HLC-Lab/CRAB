@@ -7,7 +7,7 @@ into the [project roadmap](../roadmap.md) (or a work plan) with a date and reaso
 
 ADR-021 deferred overlaying the same use case across clusters and said it would be tracked here
 as a deferred feature — it never actually landed as a row below. Noted here only to close that
-loop, not because anything is still outstanding: plan 077 built the cross-cluster/cross-job
+loop, not because anything is still outstanding: the Compare work built the cross-cluster/cross-job
 Compare workbench (ADR-022), so this item is done, not deferred.
 
 ## Closed: per-run (not just per-experiment) failure status
@@ -68,7 +68,7 @@ succeeded. See ADR-023. Noted here only to close the loop the entry below origin
   for job logs/history (ADR-018) has the same unbounded-growth trade-off, for the same reason.
 - A real bug in `Transport.fetch_tree()` (asyncssh not creating the local destination's missing
   parent directories) shipped past unit tests because `SSHTransport`'s asyncssh boundary only
-  ever had fake-sftp-client coverage, only surfacing on a real cluster fetch (plan 065). Fixed,
+  ever had fake-sftp-client coverage, only surfacing on a real cluster fetch. Fixed,
   and a reusable real local loopback SSH+SFTP server (`tests/ssh_server.py`) now backs
   `SSHTransport.run()`/`write_file()`/`fetch_tree()`/`connect_ssh()` with genuine-connection
   tests instead of only fakes. Not yet retrofitted onto the higher `remoteops/` layer

@@ -36,9 +36,9 @@ from crab.web.store.profiles import Profile, check_shell_line
 
 CRAB_REPO_URL = "https://github.com/HLC-Lab/CRAB.git"
 
-# TODO(pre-v1): after the v1.0 release the bootstrap should install the release
-# (PyPI or a tag), not a development branch. On the sbatchman branch this clones
-# `sbatchman` itself, the branch the SbatchMan guide
+# Clone this line's branch, then `crab update --to-release` (see _build_command) moves the clone to
+# the newest release tag of that line. The branch is only the starting point. On the sbatchman
+# branch it is `sbatchman` itself, the branch the SbatchMan guide
 # (docs/using/sbatchman-integration.md) tells partners to run on the cluster.
 CRAB_REPO_BRANCH = "sbatchman"
 

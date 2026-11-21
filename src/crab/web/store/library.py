@@ -11,6 +11,7 @@ either way, so entries stay hand-shareable.
 
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 from copy import deepcopy
@@ -21,6 +22,8 @@ from pydantic import BaseModel
 
 from crab.web.errors import InputError, NotFoundError
 from crab.web.settings import Settings, get_settings
+
+logger = logging.getLogger("crab.web")
 
 
 def migrate_default_library(settings: Settings) -> int:
@@ -42,12 +45,14 @@ def migrate_default_library(settings: Settings) -> int:
 
 
 _NON_SLUG = re.compile(r"[^a-z0-9]+")
+# The id is a file name; most file systems stop at 255 bytes, and `-N` and `.json.tmp` are added.
+_MAX_SLUG = 60
 # Ids are our own slugs; this guards path-traversal when an id comes from a URL.
 _VALID_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
 def _slug(name: str) -> str:
-    s = _NON_SLUG.sub("-", name.strip().lower()).strip("-")
+    s = _NON_SLUG.sub("-", name.strip().lower())[:_MAX_SLUG].strip("-")
     return s or "config"
 
 
@@ -73,7 +78,7 @@ class LibraryStore:
         return self._settings.experiments_dir
 
     def _path(self, entry_id: str) -> Path:
-        if not _VALID_ID.match(entry_id):
+        if not _VALID_ID.fullmatch(entry_id):
             raise InputError(f"Invalid config id {entry_id!r}.")
         return self._dir / f"{entry_id}.json"
 
@@ -103,7 +108,13 @@ class LibraryStore:
     def list(self) -> list[LibraryEntry]:
         if not self._dir.is_dir():
             return []
-        entries = [self._read(p) for p in self._dir.glob("*.json")]
+        entries = []
+        for path in self._dir.glob("*.json"):
+            try:
+                entries.append(self._read(path))
+            except InputError:
+                # One hand-edited or half-synced file must not hide the rest of the library.
+                logger.warning("Skipping unreadable config file %s", path.name)
         return sorted(entries, key=lambda e: e.updated_at, reverse=True)
 
     def get(self, entry_id: str) -> LibraryEntry:

@@ -100,7 +100,8 @@ class Settings:
         return Path(__file__).resolve().parent / "static"
 
     def ensure_dirs(self) -> None:
-        """Create every directory we own. Idempotent; safe to call on every boot."""
+        """Create every directory we own, readable by this user only (job registries, campaign
+        copies and cached results live there). Idempotent; safe to call on every boot."""
         for path in (
             self.config_dir,
             self.data_dir,
@@ -109,7 +110,7 @@ class Settings:
             self.cache_dir,
             self.log_file.parent,
         ):
-            path.mkdir(parents=True, exist_ok=True)
+            path.mkdir(mode=0o700, parents=True, exist_ok=True)
 
 
 def _resolve_dir(env_var: str, fallback: str) -> Path:

@@ -1,4 +1,4 @@
-"""`resolve(..., taken_gpus=...)`: per-rank GPUs skip the GPUs other apps hold on the node (plan 122).
+"""`resolve(..., taken_gpus=...)`: per-rank GPUs skip the GPUs other apps hold on the node.
 
 Shape `four-gpus-four-nics`: GPUs 0,1 in NUMA domain 0 (cores 0-7), GPUs 2,3 in domain 1 (cores 8-15).
 """

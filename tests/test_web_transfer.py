@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shlex
 from pathlib import Path
 
@@ -13,7 +14,7 @@ import pytest
 
 pytest.importorskip("fastapi", reason="web extra not installed")
 
-from crab.web.connections.transport import CmdResult, Transport  # noqa: E402
+from crab.web.connections.transport import CmdResult, LocalTransport, Transport  # noqa: E402
 from crab.web.errors import (  # noqa: E402
     ConflictError,
     RemoteCommandError,
@@ -45,7 +46,7 @@ class FakeTransport(Transport):
         self.run_calls.append(command)
         if self._mkdir_rc != 0:
             return CmdResult(self._mkdir_rc, "", "boom")
-        assert command.endswith("&& pwd")
+        assert command.endswith("pwd)")
         return CmdResult(0, self._resolved_dir + "\n", "")
 
     async def write_file(self, path: str, content: str, timeout: float | None = 30.0) -> None:
@@ -79,7 +80,8 @@ async def test_stage_config_ssh_resolves_tilde_to_absolute_before_writing():
     path = await stage_config(transport, _ssh_profile(), config, "My Run!")
 
     assert transport.run_calls == [
-        'mkdir -p "$HOME"/base/CRAB/.web_staging && cd "$HOME"/base/CRAB/.web_staging && pwd'
+        'mkdir -p "$HOME"/base/CRAB/.web_staging && cd "$HOME"/base/CRAB/.web_staging '
+        "&& (chmod 700 . ; pwd)"
     ]
     assert path == "/home/researcher/base/CRAB/.web_staging/my-run.json"
     assert json.loads(transport.written_files[path]) == config
@@ -94,7 +96,8 @@ async def test_stage_config_crab_command_profile_stages_under_the_base_dir():
     path = await stage_config(transport, profile, {}, "demo")
 
     assert transport.run_calls == [
-        'mkdir -p "$HOME"/base/.crab_web_staging && cd "$HOME"/base/.crab_web_staging && pwd'
+        'mkdir -p "$HOME"/base/.crab_web_staging && cd "$HOME"/base/.crab_web_staging '
+        "&& (chmod 700 . ; pwd)"
     ]
     assert path == "/home/researcher/base/.crab_web_staging/demo.json"
 
@@ -114,7 +117,7 @@ async def test_stage_config_local_uses_data_dir(tmp_path: Path):
 
     path = await stage_config(transport, _local_profile(), config, "demo", settings=settings)
 
-    assert transport.run_calls == [f"mkdir -p {resolved} && cd {resolved} && pwd"]
+    assert transport.run_calls == [f"mkdir -p {resolved} && cd {resolved} && (chmod 700 . ; pwd)"]
     assert path == f"{resolved}/demo.json"
     assert json.loads(transport.written_files[path]) == config
 
@@ -159,7 +162,7 @@ class RecordingTransport(Transport):
         self.ops.append(("run", command))
         if self._fail_on and command.startswith(self._fail_on):
             return CmdResult(1, "", "no space left")
-        if command.endswith("&& pwd"):
+        if command.endswith(("&& pwd", "pwd)")):
             return CmdResult(0, self._resolver_output, "")
         return CmdResult(0, "", "")
 
@@ -398,8 +401,21 @@ async def test_stage_text_can_target_any_directory():
 
     assert path == f"{folder}/c.yaml"
     quoted = remote_path_expr(folder)
+    # A folder the caller names is not ours to restrict: no chmod there.
     assert transport.ops[0] == ("run", f"mkdir -p {quoted} && cd {quoted} && pwd")
     assert transport.ops[1][1].startswith(f"{folder}/c.yaml.tmp-")
+
+
+async def test_stage_text_makes_the_default_staging_dir_private_best_effort():
+    transport = RecordingTransport()
+
+    await stage_text(transport, _ssh_profile(), "x", "c.yaml")
+
+    quoted = remote_path_expr(staging_dir(_ssh_profile()))
+    assert transport.ops[0] == (
+        "run",
+        f"mkdir -p {quoted} && cd {quoted} && (chmod 700 . ; pwd)",
+    )
 
 
 async def test_stage_text_names_the_given_directory_when_it_cannot_be_made():
@@ -441,3 +457,30 @@ async def test_a_failed_staging_directory_creation_still_says_staging_directory(
         await stage_text(transport, _ssh_profile(), "x", "c.yaml")
 
     assert "the staging directory" in str(caught.value)
+
+
+async def test_stage_config_still_stages_when_chmod_fails(tmp_path: Path, monkeypatch):
+    # A shared checkout made by another account: chmod on its staging folder fails,
+    # but the run must still be staged. A fake chmod that always fails stands in.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "chmod").write_text("#!/bin/sh\necho 'chmod: not permitted' >&2\nexit 1\n")
+    (fake_bin / "chmod").chmod(0o755)
+    monkeypatch.setenv("PATH", f"{fake_bin}:{os.environ['PATH']}")
+    settings = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
+
+    path = await stage_config(
+        LocalTransport(), _local_profile(), {"experiments": []}, "demo", settings=settings
+    )
+
+    assert json.loads(Path(path).read_text()) == {"experiments": []}
+
+
+def test_ensure_dirs_makes_private_folders(tmp_path: Path):
+    """The data and config folders hold job registries and cached results: 0700."""
+    settings = Settings(config_dir=tmp_path / "cfg", data_dir=tmp_path / "data")
+
+    settings.ensure_dirs()
+
+    for folder in (settings.config_dir, settings.data_dir, settings.experiments_dir):
+        assert folder.stat().st_mode & 0o777 == 0o700

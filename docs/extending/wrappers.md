@@ -88,6 +88,8 @@ real measurements.
 With `keys`, convergence is computed separately for every key value: in the example, the latency
 of each message size has to converge on its own. In the CSV, the key columns come right after
 `run_id` and `msg_size`, followed by one `<app>_<metric>_<unit>` column per metric.
+A key cannot be named `run_id`, `msg_size`, `_group` or `_sample`: those columns are written by
+CRAB, and a wrapper that declares one fails every run with a message naming the reserved names.
 
 ### Correctness checks
 

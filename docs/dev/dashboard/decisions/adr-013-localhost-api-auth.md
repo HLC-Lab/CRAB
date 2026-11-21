@@ -24,9 +24,12 @@ Defense in two layers, enforced by middleware on every `/api/*` request:
 2. **Session token** — `create_app` generates a random token per process; the served
    `index.html` carries it in a `<meta name="crab-token">` tag; the SPA echoes it as
    `X-Crab-Token` on every call; anything without it gets 401. There are **zero open API
-   routes** (`/api/health` included). Static files and the SPA shell stay open — the shell is
-   how the browser obtains the token, and layer 1 prevents a rebinding attacker from fetching
-   it.
+   routes** (`/api/health` included). Static files stay open. The SPA shell is how the browser
+   obtains the token, so it answers only a request whose `Host` passes layer 1 (otherwise 403);
+   a rebinding attacker therefore cannot fetch it. Every response carries
+   `Content-Security-Policy: frame-ancestors 'none'` and `X-Content-Type-Options: nosniff`.
+   A client that sets `Host: localhost` itself is not stopped by layer 1: that needs the
+   machine to be single-user and the bind to stay on loopback.
 
 Vite dev mode serves its own index (no meta tag), so the client falls back to
 `localStorage.CRAB_DEV_TOKEN`; `crab web -v` logs the token once for that purpose. Future

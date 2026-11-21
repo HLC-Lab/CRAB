@@ -799,3 +799,34 @@ def test_a_failed_results_fetch_ends_its_stage_not_ok(tmp_path: Path):
     assert status["status"] == "error"
     assert board.events[-1] == (CLUSTER, "end", "fetch-results", False)
     assert board.snapshot(CLUSTER) == []
+
+
+async def test_a_fetch_is_done_only_after_its_status_snapshot_is_written(tmp_path: Path):
+    """The client reloads the results index as soon as it sees "done" and compares the cached
+    job's status with the snapshot; "done" first showed a just-fetched job as possibly stale."""
+    from crab.web.api.results import _run_fetch
+    from crab.web.store.profiles import Profile
+
+    tracker: dict = {}
+    seen_while_snapshotting: list = []
+
+    class _Transport(FakeFetchTransport):
+        async def run(self, command: str, timeout: float | None = 30.0) -> CmdResult:
+            if "crab history" in command:
+                seen_while_snapshotting.append(tracker.get("f1"))
+            return await super().run(command, timeout)
+
+    await _run_fetch(
+        tracker,
+        "f1",
+        _Transport(),
+        Profile(**_leonardo_profile()),
+        "/remote/x",
+        str(tmp_path / "local"),
+        _settings(tmp_path),
+        SYSTEM,
+        JOB_BASENAME,
+    )
+
+    assert seen_while_snapshotting == [None]
+    assert tracker["f1"] == {"status": "done"}

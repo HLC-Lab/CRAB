@@ -36,7 +36,7 @@ The Results view needed a new endpoint, `GET
 /api/results/{cluster}/{system}/{job_basename}/experiments`, rather than reusing the existing
 `job_experiments` route. `job_experiments` is registry-dependent (looks up a `record_id`
 first); Results must work identically for CLI-only jobs that were never submitted via the
-dashboard (plan 077 decision 7's interoperability requirement), so the new route resolves
+dashboard (the Compare workbench's interoperability requirement), so the new route resolves
 purely from a live/cached `crab history` query filtered by job basename, matching the pattern
 `get_results_index` already uses.
 
@@ -51,7 +51,7 @@ purely from a live/cached `crab history` query filtered by job basename, matchin
   crash-mid-migration test plan), then explicitly declined by the owner as unnecessary
   complexity for a single-user setup with no compatibility obligations to other researchers.
 - Reusing `job_experiments` for the Results sidebar's data — rejected because it would silently
-  drop CLI-only jobs, breaking the interoperability guarantee plan 077 established.
+  drop CLI-only jobs, breaking the interoperability guarantee the Compare workbench established.
 
 ## Consequences
 

@@ -26,6 +26,8 @@ _TYPE_CHECKS = {
 }
 _TYPE_WORDS = {"float": "a number", "int": "an integer", "str": "text", "bool": "true or false"}
 _NUMERIC = ("float", "int")
+# Columns the CSV writer adds itself (core/data/utils.py): a key of the same name cannot be inserted.
+RESERVED_KEYS = ("run_id", "msg_size", "_group", "_sample")
 
 
 class ParseError(Exception):
@@ -107,6 +109,11 @@ def parse_output(app: Any) -> Parsed:
     Raises:
         ParseError: if `read_data()` raises or its result does not match the declarations.
     """
+    reserved = [k for k in getattr(app, "keys", []) or [] if k in RESERVED_KEYS]
+    if reserved:
+        raise ParseError(
+            f"keys {reserved} are reserved CSV columns ({', '.join(RESERVED_KEYS)}): rename them"
+        )
     try:
         raw = app.read_data()
     except Exception as exc:  # any parser bug must fail the run, not the experiment

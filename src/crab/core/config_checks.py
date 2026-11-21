@@ -177,6 +177,37 @@ def _check_ignored_keys(exp: dict[str, Any], exp_name: str, warnings: list[str])
             )
 
 
+def _check_waits_for_f_app(apps: dict[str, Any], exp: str, warnings: list[str]) -> None:
+    """Warn about `start: "sN"` on an app N that has `end: "f"`.
+
+    An `f` app is stopped only once every other app is done, and a waiting app starts only when
+    its target has finished, so the run sits until the experiment timeout unless the `f` app
+    exits on its own (schedule.py run_events).
+    """
+    keys = sorted(apps.keys(), key=lambda x: int(x) if x.isdigit() else x)  # runner.py order
+    for key in keys:
+        start = str(apps[key].get("start", "0"))
+        target = start[1:]
+        if not start.startswith("s") or not target.isdigit() or int(target) >= len(keys):
+            continue  # not a chain, or a bad target that resolve_chains reports
+        if str(apps[keys[int(target)]].get("end", "")) == "f":
+            warnings.append(
+                f"experiment {exp}: app {key} starts after app {target}, which has end 'f' and "
+                "is stopped only when every other app is done; unless it exits on its own the "
+                f"run waits for the timeout. Give app {target} a numeric end"
+            )
+
+
+def _check_app_keys(apps: dict[str, Any], exp: str) -> None:
+    """App keys are '0', '1', ...: the engine orders apps by them and `start: "sN"` names one."""
+    bad = [key for key in apps if not (isinstance(key, str) and key.isascii() and key.isdigit())]
+    if bad:
+        raise ValueError(
+            f"experiment {exp}: app keys must be numeric strings ('0', '1', ...), "
+            f"got {', '.join(repr(key) for key in bad)}"
+        )
+
+
 def _check_collected_end(app: dict[str, Any], where: str, warnings: list[str]) -> None:
     """Warn when a collected app is stopped by `end`: CRAB kills it, and a killed app's
     output is skipped without a message (collect_run ignores a non-zero return code)."""
@@ -310,6 +341,7 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
         _check_options(opts, exp_name)
         check_launcher_options(opts, exp_name)
         apps = exp.get("apps") or {}
+        _check_app_keys(apps, exp_name)
         check_ppn(exp.get("local_options") or {}, f"experiment {exp_name}: local_options")
         for app_key, app in apps.items():
             check_ppn(app, f"experiment {exp_name}: app {app_key}")
@@ -319,6 +351,7 @@ def check_config(config: dict[str, Any], settings: ExecutionSettings | None = No
         _check_allocation(
             opts.get("allocation") or {}, apps, global_opts.get("numnodes"), exp_name, warnings
         )
+        _check_waits_for_f_app(apps, exp_name, warnings)
         placement_keys = ("start", "partition", "cpus", "env", "ppn", "nics", "gpus", "bind")
         if settings is not None and not has_token(
             [opts.get("allocation"), global_opts.get("numnodes"), opts.get("ppn")]

@@ -1,6 +1,6 @@
 """Tripwire: no code under `src/crab` hands the current folder to a call.
 
-A `crab` command must answer the same from any folder (plan 112). The bug that started it passed
+A `crab` command must answer the same from any folder. The bug that started it passed
 `"."` positionally to a subprocess helper (`self.run_command_streamed([...], ".", ...)`), so a
 `cwd="."` pattern would have missed it. This check parses every module with `ast` and looks at
 positional and keyword arguments alike.

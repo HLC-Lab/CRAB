@@ -160,7 +160,7 @@ def test_placeholder_when_frontend_unbuilt(tmp_path: Path):
     # static_override points at an empty dir => no index.html => placeholder.
     empty = tmp_path / "empty_static"
     empty.mkdir()
-    client = TestClient(create_app(_settings(tmp_path, static=empty)))
+    client = TestClient(create_app(_settings(tmp_path, static=empty)), base_url="http://127.0.0.1")
     resp = client.get("/")
     assert resp.status_code == 200
     assert "backend is running" in resp.text
@@ -270,7 +270,7 @@ def test_spa_path_traversal_blocked(tmp_path: Path):
     secret = tmp_path / "secret.txt"
     secret.write_text("TOP SECRET")
 
-    client = TestClient(create_app(_settings(tmp_path, static=static)))
+    client = TestClient(create_app(_settings(tmp_path, static=static)), base_url="http://127.0.0.1")
     # Attempt to escape static_dir: must fall back to index, never leak the file.
     resp = client.get("/../secret.txt")
     assert resp.status_code == 200
@@ -325,3 +325,22 @@ def test_unhandled_exception_gets_a_plain_message_without_a_traceback():
     assert "\u2014" not in message and "\u2013" not in message
     # The exception type goes to `detail` for debugging; its text and the traceback stay in the log.
     assert body["detail"] == "RuntimeError"
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "127.0.0.2", "localhost", "::1", "[::1]"])
+def test_a_loopback_bind_gets_no_exposure_warning(host: str) -> None:
+    from crab.web.run import exposure_warning
+
+    assert exposure_warning(host) is None
+
+
+@pytest.mark.parametrize("host", ["0.0.0.0", "::", "192.168.1.20", "login.example.org"])
+def test_a_non_loopback_bind_gets_an_exposure_warning(host: str) -> None:
+    """The Host check only stops browsers: a network client can forge `Host: localhost` and read
+    the session token from `/`, so `--host` beyond loopback means an unauthenticated dashboard."""
+    from crab.web.run import exposure_warning
+
+    warning = exposure_warning(host)
+    assert warning is not None
+    assert host in warning
+    assert "no login" in warning

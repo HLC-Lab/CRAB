@@ -7,6 +7,7 @@ from typing import Any
 from crab.core.execution.settings import LauncherSpec
 
 from ..process import end_job, run_job, stop_processes
+from ..process.manager import _collect_stderr, _warn_if_stderr_open
 from .failures import write_error_log
 
 
@@ -117,8 +118,10 @@ def run_events(
                     if hasattr(apps[aid], "_stream_thread") and apps[aid]._stream_thread:
                         apps[aid]._stream_thread.join(timeout=2.0)
 
-                    # stdout is already consumed by the thread, so communicate() only gets stderr
-                    _, err = proc.communicate()
+                    # Both pipes are drained by reader threads; stderr is in their buffer,
+                    # not in the pipe (communicate() would return b"").
+                    err = _collect_stderr(apps[aid])
+                    _warn_if_stderr_open(apps[aid], app_log)
 
                     # Reconstruct stdout from the buffer
                     out = b"".join(getattr(apps[aid], "raw_stdout_buffer", []))

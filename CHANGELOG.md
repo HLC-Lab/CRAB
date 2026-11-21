@@ -15,6 +15,11 @@ its notes live in the tag and the GitHub release.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`crab web` on a port that is taken prints a short hint and exits 1.** Before, it printed the
+  start banner, then uvicorn's own bind error, and exited with status 3.
+
 ## [1.5.0] - 2026-11-15
 
 ### Added

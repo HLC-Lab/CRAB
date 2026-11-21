@@ -60,4 +60,4 @@ problem); the results cache's on-disk layout changes (system-scoped, ADR-021's 2
 is orphaned but harmlessly re-fetchable, no migration); and `gather_history`'s scan root is still
 hardcoded to `<crab_root>/data`, so a job run with a genuinely custom `datapath` still won't
 appear in `crab history --json` at all -- that gap is independent of this ADR's fix and remains
-open, flagged in plan 077's Risks rather than silently assumed away.
+open, flagged as a known risk rather than silently assumed away.

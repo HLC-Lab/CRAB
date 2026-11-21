@@ -1,4 +1,4 @@
-"""A `crab` command answers the same from any folder (plan 112).
+"""A `crab` command answers the same from any folder.
 
 Each read-only `--json` command runs through the installed console script, as a user would, from
 the repository root, from an unrelated empty folder and from a folder that no longer exists.
