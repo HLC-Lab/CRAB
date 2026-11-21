@@ -48,6 +48,10 @@ so `--host` does not make the dashboard reachable from another machine.
 After you restart `crab web`, an old tab has the old token. Its requests fail with `Missing or
 wrong session token. Reload the dashboard tab to pick up the current session.` Reload the tab.
 
+The token protects you from web pages, not from other people logged in to the same computer: any
+local user can load the page and read it. Run `crab web` on your own laptop or another single-user
+machine, never on a shared login node.
+
 ## Connect a cluster
 
 The **Remotes** page lists your cluster profiles. A profile is how to reach one cluster. It holds
