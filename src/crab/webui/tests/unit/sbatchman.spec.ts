@@ -771,6 +771,29 @@ describe("validateCampaign: unquoted heredoc limits", () => {
     },
   );
 
+  it.each(["$(touch PWN)", "`touch PWN`", "cost$5", "pid$$"])(
+    "refuses a variable value %j in an unquoted group (it would run or be rewritten on the cluster)",
+    (value) => {
+      const c = withArgs("--in $CRAB_ROOT/data -tag {tag}");
+      c.variables = [...c.variables, { name: "tag", values: [value] }];
+      const found = validateCampaign(c);
+      expect(found).toHaveLength(1);
+      expect(found[0]).toContain("a variable value puts");
+    },
+  );
+
+  it("accepts a plain variable value in an unquoted group", () => {
+    const c = withArgs("--in $CRAB_ROOT/data -tag {tag}");
+    c.variables = [...c.variables, { name: "tag", values: ["plain"] }];
+    expect(validateCampaign(c)).toEqual([]);
+  });
+
+  it.each(["$5", "$$", "$?"])("refuses %s written in an unquoted group", (token) => {
+    const found = validateCampaign(withArgs(`--in $CRAB_ROOT/data -tag cost${token}`));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toContain("a $ before a digit");
+  });
+
   it("does not mistake a quote in an unquoted group for a backslash", () => {
     expect(validateCampaign(withArgs('--name "x" $CRAB_ROOT'))).toEqual([]);
   });
