@@ -229,3 +229,13 @@ def test_list_skips_an_unreadable_file_instead_of_failing(tmp_path: Path):
     (store._dir / "broken.json").write_text("{not json")
 
     assert [e.id for e in store.list()] == [good.id]
+
+
+def test_a_trailing_newline_does_not_pass_name_and_id_checks(tmp_path: Path):
+    """`$` matches before a final newline, so `re.match` let `p\n` and `abc\n` through."""
+    from crab.web.store.profiles import check_profile_name
+
+    with pytest.raises(InputError):
+        check_profile_name("prod\n")
+    with pytest.raises(InputError):
+        LibraryStore(_settings(tmp_path)).get("abc\n")
