@@ -189,7 +189,7 @@ test("a QE-like campaign is written with the configs key and an unquoted heredoc
 
     const writeBar = page.getByRole("region", { name: "Write to cluster" });
     await writeBar.getByRole("button", { name: "Write files" }).click();
-    const written = await writeBar.locator("p.out b").innerText();
+    const written = await writeBar.locator(".written-path").first().innerText();
     const doc = yaml.load(readFileSync(written, "utf8")) as {
       configs: string;
       jobs: Array<{ config: string; preprocess: string }>;
