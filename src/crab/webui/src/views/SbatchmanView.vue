@@ -90,6 +90,7 @@ function confirmRemoveGroup(): void {
         :benchmarks="store.target?.benchmarks ?? []"
         :benchmark-problem="store.benchmarkProblem"
         :last-write="store.lastWrite"
+        :next-step="store.nextStepNotice ?? ''"
         :needs-overwrite="store.needsOverwrite"
         @update:destination="store.destination = $event"
         @update:benchmark="store.benchmark = $event"
@@ -102,9 +103,6 @@ function confirmRemoveGroup(): void {
     <!-- Page-level so they show even with the YAML preview hidden. -->
     <p v-if="store.error" class="banner err" role="alert">{{ store.error }}</p>
     <p v-if="store.notice" class="banner info" role="status">{{ store.notice }}</p>
-    <p v-if="store.newFolderNotice" class="banner info" role="status">
-      {{ store.newFolderNotice }}
-    </p>
 
     <div class="layout">
       <GroupRail

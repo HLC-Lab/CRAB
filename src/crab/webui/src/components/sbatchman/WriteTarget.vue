@@ -34,6 +34,8 @@ const props = defineProps<{
   /** Why the folder blocks Write files, if it does. */
   benchmarkProblem: string | null;
   lastWrite: SbatchmanWriteResult | null;
+  /** What to do after the write (nothing is launched); commands sit between backticks. */
+  nextStep: string;
   /** The cluster already has a file with this name: ask before replacing it. */
   needsOverwrite: boolean;
 }>();
@@ -50,6 +52,16 @@ const stagingDir = computed(() =>
   props.stagingPath.slice(0, props.stagingPath.lastIndexOf("/") + 1),
 );
 const stagingFile = computed(() => props.stagingPath.slice(props.stagingPath.lastIndexOf("/") + 1));
+
+// The file name of the last write, for the "Written ..." line (the full path follows it).
+const writtenFile = computed(() => {
+  const path = props.lastWrite?.remote_path ?? "";
+  return path.slice(path.lastIndexOf("/") + 1);
+});
+// The next-step text marks commands with backticks: odd parts are code.
+const nextStepParts = computed(() =>
+  props.nextStep.split("`").map((text, i) => ({ text, code: i % 2 === 1 })),
+);
 </script>
 
 <template>
@@ -125,12 +137,22 @@ const stagingFile = computed(() => props.stagingPath.slice(props.stagingPath.las
       </button>
     </div>
 
-    <p v-if="lastWrite" class="out" role="status">
-      Written to <b :title="lastWrite.remote_path">{{ lastWrite.remote_path }}</b>
-      <span class="muted" :title="lastWrite.local_path"
-        >(local copy: {{ lastWrite.local_path }})</span
-      >
-    </p>
+    <div v-if="lastWrite" class="out written" role="status">
+      <p class="line">
+        <b class="ok">Written {{ writtenFile }}</b> to the cluster:
+        <span class="written-path" :title="lastWrite.remote_path">{{ lastWrite.remote_path }}</span>
+      </p>
+      <p v-if="nextStep" class="line">
+        <template v-for="(part, i) in nextStepParts" :key="i"
+          ><code v-if="part.code">{{ part.text }}</code
+          ><template v-else>{{ part.text }}</template></template
+        >
+      </p>
+      <p class="line copy" :title="lastWrite.local_path">
+        A copy is kept on this laptop:
+        <span class="written-path">{{ lastWrite.local_path }}</span>
+      </p>
+    </div>
   </section>
 </template>
 
@@ -297,12 +319,36 @@ select:focus {
   padding: 0.3rem 0.8rem;
   font-size: var(--t-sm);
 }
-.out b {
+.written {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.written .line {
+  margin: 0;
+}
+.written .ok {
+  color: var(--ok, var(--text));
+  font-weight: 700;
+}
+.written-path {
   color: var(--text);
   font-family: var(--mono);
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
-.out .muted {
-  color: var(--text3);
+.written code {
   font-family: var(--mono);
+  color: var(--text);
+  background: var(--bg2);
+  border-radius: var(--r);
+  padding: 0.05rem 0.3rem;
+  overflow-wrap: anywhere;
+}
+.written .copy {
+  color: var(--text3);
+}
+.written .copy .written-path {
+  color: var(--text3);
 }
 </style>

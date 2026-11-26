@@ -212,13 +212,13 @@ describe("benchmark folder", () => {
     const store = await umbrellaStore();
     makeWritable(store);
     store.benchmark = "fresh";
-    expect(store.newFolderNotice).toBeNull();
+    expect(store.nextStepNotice).toBeNull();
 
     await store.write();
 
     expect(writeMock).toHaveBeenCalledWith("leonardo", store.yaml, store.name, false, "fresh");
-    expect(store.newFolderNotice).toBe(
-      "New folder: run ./install.sh in /home/u/umbrella to create its SbatchMan project and check the file.",
+    expect(store.nextStepNotice).toContain(
+      "New folder: run `cd /home/u/umbrella && ./install.sh` to create its SbatchMan project and check the file.",
     );
   });
 
@@ -242,8 +242,78 @@ describe("benchmark folder", () => {
     const store = await umbrellaStore();
     makeWritable(store);
     await store.write();
-    expect(store.newFolderNotice).toBeNull();
+    expect(store.nextStepNotice).not.toContain("install.sh");
     expect(writeMock).toHaveBeenCalledWith("leonardo", store.yaml, store.name, false, "blink");
+  });
+});
+
+describe("next step after a write", () => {
+  const WRITTEN = (newFolder: boolean) => ({
+    local_path: "/data/20260101T000000Z-pilot.yaml",
+    remote_path: "/home/u/umbrella/benchmarks/blink/pilot.yaml",
+    new_folder: newFolder,
+  });
+
+  it("says nothing before a write", async () => {
+    const store = await umbrellaStore();
+    expect(store.nextStepNotice).toBeNull();
+  });
+
+  it("umbrella, existing folder: not launched, and the dry-run command for that folder and file", async () => {
+    writeMock.mockResolvedValue(WRITTEN(false));
+    const store = await umbrellaStore();
+    makeWritable(store);
+    await store.write();
+
+    expect(store.nextStepNotice).toMatch(/not launched/i);
+    expect(store.nextStepNotice).toContain(
+      "`cd /home/u/umbrella/benchmarks/blink && sbatchman launch -f pilot.yaml --dry-run`",
+    );
+    expect(store.nextStepNotice).not.toContain("install.sh");
+  });
+
+  it("keeps naming the written folder after the folder field changes", async () => {
+    writeMock.mockResolvedValue(WRITTEN(false));
+    const store = await umbrellaStore();
+    makeWritable(store);
+    await store.write();
+    store.benchmark = "qe";
+    expect(store.nextStepNotice).toContain("cd /home/u/umbrella/benchmarks/blink &&");
+  });
+
+  it("umbrella, new folder: install.sh comes first, then the dry run", async () => {
+    writeMock.mockResolvedValue({
+      ...WRITTEN(true),
+      remote_path: "/home/u/umbrella/benchmarks/fresh/pilot.yaml",
+    });
+    const store = await umbrellaStore();
+    makeWritable(store);
+    store.benchmark = "fresh";
+    await store.write();
+
+    const text = store.nextStepNotice ?? "";
+    expect(text).toMatch(/not launched/i);
+    expect(text).toContain("`cd /home/u/umbrella && ./install.sh`");
+    expect(text).toContain(
+      "`cd /home/u/umbrella/benchmarks/fresh && sbatchman launch -f pilot.yaml --dry-run`",
+    );
+    expect(text.indexOf("./install.sh")).toBeLessThan(text.indexOf("sbatchman launch"));
+  });
+
+  it("plain target: written, not launched, no umbrella command", async () => {
+    writeMock.mockResolvedValue({
+      local_path: "/l/pilot.yaml",
+      remote_path: "/c/pilot.yaml",
+      new_folder: false,
+    });
+    const store = await umbrellaStore(PLAIN);
+    makeWritable(store);
+    await store.write();
+
+    expect(store.nextStepNotice).toMatch(/not launched/i);
+    expect(store.nextStepNotice).not.toContain("install.sh");
+    expect(store.nextStepNotice).not.toContain("benchmarks/");
+    expect(store.nextStepNotice).not.toContain("--dry-run");
   });
 });
 

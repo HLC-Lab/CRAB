@@ -146,6 +146,9 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
   const busy = ref(false);
   const error = ref<string | null>(null);
   const lastWrite = ref<SbatchmanWriteResult | null>(null);
+  // The benchmark folder that write went into (empty on a plain install): the folder field can
+  // change afterwards, the next-step command must still name where the file is.
+  const lastWriteBenchmark = ref("");
   // The write a 409 answered ("the cluster already has this file"). The view asks whether
   // to replace it; write({ overwrite: true }) re-sends only while the cluster, name and
   // YAML are still the ones that write had.
@@ -532,6 +535,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
       );
       if (!isCurrentWrite(sent)) return false;
       lastWrite.value = written;
+      lastWriteBenchmark.value = sent.benchmark ?? "";
       // A folder this write made is now one of the cluster's folders.
       if (written.new_folder) void refreshTarget();
       return true;
@@ -548,13 +552,24 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     }
   }
 
-  // After a write that made its folder: the folder has no SbatchMan project yet (the dashboard
-  // never runs `sbatchman init`, ADR-026), so say what to do next.
-  const newFolderNotice = computed<string | null>(() =>
-    lastWrite.value?.new_folder
-      ? `New folder: run ./install.sh in ${target.value?.root ?? "the install directory"} to create its SbatchMan project and check the file.`
-      : null,
-  );
+  // What to do after a write, shown under the "Written" line. The dashboard never launches jobs
+  // and never runs `sbatchman init` (ADR-026), so it says so and names the next commands. Commands
+  // sit between backticks (the view renders them as code) and carry the install directory, so
+  // they paste as they are. In an umbrella the order is: install.sh (a folder this write made has
+  // no SbatchMan project yet), then the dry run SbatchMan offers, then the real launch.
+  const nextStepNotice = computed<string | null>(() => {
+    const written = lastWrite.value;
+    if (!written) return null;
+    const lead = "Not launched yet.";
+    if (!isUmbrella.value) return `${lead} Launch it with SbatchMan on the cluster.`;
+    const file = written.remote_path.slice(written.remote_path.lastIndexOf("/") + 1);
+    const root = target.value?.root ?? "";
+    const dryRun = `\`cd ${root}/benchmarks/${lastWriteBenchmark.value} && sbatchman launch -f ${file} --dry-run\``;
+    if (written.new_folder) {
+      return `${lead} New folder: run \`cd ${root} && ./install.sh\` to create its SbatchMan project and check the file. Then check what SbatchMan would submit with ${dryRun}. Drop \`--dry-run\` to launch.`;
+    }
+    return `${lead} To check what SbatchMan would submit, run ${dryRun}. Drop \`--dry-run\` to launch.`;
+  });
 
   return {
     name,
@@ -565,7 +580,7 @@ export const useSbatchmanStore = defineStore("sbatchman", () => {
     effectiveBenchmark,
     benchmarkProblem,
     target,
-    newFolderNotice,
+    nextStepNotice,
     variables,
     groups,
     selected,

@@ -130,7 +130,11 @@ test("add a cluster, browse wrappers, write a campaign file", async ({ page }) =
   // 7. Write files; the page shows the path it wrote.
   await expect(writeBar.getByRole("button", { name: /\d+ problems?/ })).toHaveCount(0);
   await writeBar.getByRole("button", { name: "Write files" }).click();
-  const written = await writeBar.locator("p.out b").innerText();
+  const notice = writeBar.getByRole("status");
+  await expect(notice).toContainText("Written partner-scaling.yaml");
+  await expect(notice).toContainText("Not launched yet.");
+  await expect(notice).toContainText("sbatchman launch -f partner-scaling.yaml --dry-run");
+  const written = await notice.locator(".written-path").first().innerText();
   expect(written).toMatch(/partner-scaling\.yaml$/);
 
   // --- The file on disk -----------------------------------------------------------------
