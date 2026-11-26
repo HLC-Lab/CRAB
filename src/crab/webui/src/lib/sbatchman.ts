@@ -461,7 +461,7 @@ export function validateCampaign(campaign: SbatchmanCampaign, catalog?: WrapperC
 }
 
 /** The "SbatchMan config" field's placeholder and hint: what name goes there and where it
- * comes from (docs/using/sbatchman-integration.md). */
+ * comes from. The names in the cluster's configs file are offered as suggestions. */
 export const CONFIG_PLACEHOLDER = "crab_run";
 export const CONFIG_HINT =
-  "The SbatchMan config this group runs with: its name in your SbatchMan configs file, for example crab_run_{nodes}. See docs/using/sbatchman-integration.md.";
+  "A SbatchMan config is a named set of Slurm settings (partition, account, time) in the umbrella's configs file on the cluster, .local/configs.<cluster>.yaml, written by ./install.sh. Type one of its names, for example crab_run_{nodes}. The names found there are suggested.";

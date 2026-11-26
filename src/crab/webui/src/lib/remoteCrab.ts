@@ -16,6 +16,24 @@ export interface CrabCommandView {
   payload: string | null;
 }
 
+/** Hint under "Install dir". In SbatchMan mode the folder is the umbrella install (it holds
+ * `benchmarks/`, the configs file and the CRAB checkout). Elsewhere it is where the CRAB checkout
+ * lives; Save only stores the profile, the "Install CRAB" panel on the cluster's card installs.
+ * `usesCheckout` is false when a Crab command is set: then CRAB is not run from this folder. */
+export function installDirHint(
+  installDir: string | null | undefined,
+  sbatchman: boolean,
+  usesCheckout: boolean,
+): string {
+  if (sbatchman) {
+    const base =
+      "The umbrella folder (crab-sbatchman) on the cluster, already installed there with ./install.sh.";
+    return usesCheckout ? `${base} CRAB is in ${crabDir(installDir)}.` : base;
+  }
+  if (!usesCheckout) return "";
+  return `CRAB is in ${crabDir(installDir)}. Save only stores this profile: the folder must already hold CRAB, or use Install CRAB on the cluster's card after saving.`;
+}
+
 export function crabCommandNote(command: string): string {
   return `This cluster runs \`${command}\` directly. You manage that install (pipx install crab-hpc).`;
 }
@@ -27,7 +45,7 @@ export function crabCommandView(
   const value = (input ?? "").trim();
   if (!value) {
     return {
-      hint: `Empty: the CRAB checkout in ${crabDir(installDir)}`,
+      hint: `Empty: uses the CRAB checkout in ${crabDir(installDir)}. Fill this only for a CRAB you installed yourself, for example ~/.local/bin/crab.`,
       showInstall: true,
       error: null,
       payload: null,

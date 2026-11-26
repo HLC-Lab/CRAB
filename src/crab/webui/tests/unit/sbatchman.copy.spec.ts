@@ -63,8 +63,9 @@ describe("SbatchMan editor copy", () => {
     }
   });
 
-  it("the hint names the integration guide path", () => {
-    expect(CONFIG_HINT).toContain("docs/using/sbatchman-integration.md");
+  it("the hint says where the config names come from", () => {
+    expect(CONFIG_HINT).not.toContain("docs/using");
+    expect(CONFIG_HINT).toContain(".local/configs.");
     expect(CONFIG_HINT).toContain("SbatchMan config");
   });
 

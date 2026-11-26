@@ -11,6 +11,10 @@ import { computed } from "vue";
 import { RouterLink } from "vue-router";
 import type { SbatchmanWriteResult } from "@/api/types";
 
+// What the folder is, for the field's tooltip (the visible line under it is the short form).
+const BENCHMARK_HINT =
+  "A folder under benchmarks/ in the umbrella on the cluster. The jobs file is written there. Pick one or type a new name. Empty: the first folder.";
+
 const props = defineProps<{
   connectedClusters: string[];
   destination: string;
@@ -83,12 +87,17 @@ const stagingFile = computed(() => props.stagingPath.slice(props.stagingPath.las
           spellcheck="false"
           :value="benchmark"
           :placeholder="defaultBenchmark || 'a folder name'"
+          :title="BENCHMARK_HINT"
+          aria-describedby="benchmark-folder-hint"
           :aria-invalid="benchmarkProblem ? 'true' : undefined"
           @input="emit('update:benchmark', ($event.target as HTMLInputElement).value)"
         />
         <datalist id="benchmark-folders">
           <option v-for="b in benchmarks" :key="b" :value="b" />
         </datalist>
+        <small id="benchmark-folder-hint" class="hint" :title="BENCHMARK_HINT"
+          >Where the jobs file goes, under benchmarks/. Empty: the first folder.</small
+        >
       </div>
 
       <div class="go">
@@ -192,6 +201,11 @@ select:focus {
 .folder input:focus {
   outline: none;
   border-color: var(--accent);
+}
+.folder .hint {
+  max-width: 15rem;
+  font-size: var(--t-xs);
+  color: var(--text3);
 }
 .folder input[aria-invalid="true"] {
   border-color: var(--warn);

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRemotesStore } from "@/stores/remotes";
-import { crabCommandNote, crabCommandView, crabDir } from "@/lib/remoteCrab";
+import { crabCommandNote, crabCommandView, crabDir, installDirHint } from "@/lib/remoteCrab";
 import { needsLabel, presetsHint } from "@/lib/presetSetup";
 import { isSbatchmanMode } from "@/lib/mode";
 import { nameTaken, takenMessage } from "@/lib/remoteName";
@@ -51,6 +51,9 @@ const blank = (): Partial<Profile> => ({
 const form = reactive<Partial<Profile>>(blank());
 // Hint, install-panel switch and save payload for the "Crab command" field.
 const crabView = computed(() => crabCommandView(form.crab_command, form.remote_crab));
+const installHint = computed(() =>
+  installDirHint(form.remote_crab, sbatchmanMode, crabView.value.showInstall),
+);
 // The name belongs to another remote: refused here, before the backend answers 409.
 const taken = computed(() => nameTaken(store.items, form.name ?? "", editingName.value));
 
@@ -167,13 +170,11 @@ function confirmRemove(name: string) {
           <label
             >Install dir
             <input v-model="form.remote_crab" placeholder="~" />
-            <small v-if="crabView.showInstall" class="field-hint"
-              >CRAB goes in {{ crabDir(form.remote_crab) }}</small
-            >
+            <small v-if="installHint" class="field-hint">{{ installHint }}</small>
           </label>
           <label
             >Crab command (optional)
-            <input v-model="form.crab_command" placeholder="~/.local/bin/crab" />
+            <input v-model="form.crab_command" placeholder="empty: use the CRAB checkout" />
             <small v-if="crabView.error" class="field-hint field-error">{{ crabView.error }}</small>
             <small v-else class="field-hint">{{ crabView.hint }}</small>
           </label>

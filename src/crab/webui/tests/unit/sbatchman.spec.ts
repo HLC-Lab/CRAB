@@ -676,6 +676,10 @@ describe("config field copy", () => {
     expect(CONFIG_PLACEHOLDER).toBe("crab_run");
     expect(CONFIG_HINT).toContain("crab_run_{nodes}");
     expect(CONFIG_HINT).toContain("configs file");
+    expect(CONFIG_HINT).toContain(".local/configs.");
+    expect(CONFIG_HINT).toContain("./install.sh");
+    expect(CONFIG_HINT).toContain("suggested");
+    expect(CONFIG_HINT).not.toContain("docs/using");
     expect(CONFIG_HINT).not.toContain("sbatchman-preset");
     expect(CONFIG_HINT).not.toContain("step 5");
     expect(CONFIG_HINT).not.toContain("—");
