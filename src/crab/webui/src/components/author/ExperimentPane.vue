@@ -95,7 +95,7 @@ function colorForGroup(name: string): string {
 const miniSlices = computed(() => {
   const ps = namedSlices.value;
   const n = ps.length;
-  if (!n) return [{ color: "var(--accent)", width: 100 }];
+  if (!n) return [{ color: "var(--text3)", width: 100 }];
   const anySet = ps.some((p) => p.share.trim() !== "");
   const widths = anySet
     ? ps.map((p) => {
@@ -105,6 +105,13 @@ const miniSlices = computed(() => {
     : equalShares(n);
   return ps.map((p, i) => ({ color: p.color, width: widths[i] }));
 });
+
+// Says what the bar is, for a screen reader and the hover title.
+const miniLabel = computed(() =>
+  groupNames.value.length
+    ? "How the job's nodes are split between the node groups, one colour per group"
+    : "No node groups: the job's nodes are not split",
+);
 
 // "active" for the run-settings card only — placement override has its own
 // inherited/override badge on the placement summary card above.
@@ -229,7 +236,7 @@ function chooseWrapper(relpath: string) {
   <div v-if="sel" class="place-section">
     <div class="seclabel">Placement</div>
     <div class="place">
-      <span class="mini">
+      <span class="mini" role="img" :aria-label="miniLabel" :title="miniLabel">
         <i
           v-for="(m, mi) in miniSlices"
           :key="mi"
@@ -241,7 +248,9 @@ function chooseWrapper(relpath: string) {
         <b>{{ groupNames.join(" / ") }}</b
         >, laid out <b>{{ effectiveAlloc.mode }}</b>
       </span>
-      <span v-else class="txt">The machine runs one workload, no division.</span>
+      <span v-else class="txt"
+        >No node groups: the job's nodes are not split into named groups for the apps.</span
+      >
       <span class="inh" :class="{ over: sel.overrideAlloc }">{{
         sel.overrideAlloc ? "override" : "inherited"
       }}</span>
@@ -272,8 +281,8 @@ function chooseWrapper(relpath: string) {
       </p>
       <label class="ov-ppn"
         >Processes per node
-        <input v-model="sel.ppn" placeholder="inherit" inputmode="numeric" />
-        <small>Empty: the global value</small>
+        <input v-model="sel.ppn" placeholder="inherit (global)" inputmode="numeric" />
+        <small>Empty: the global value. An app's own value wins over this one.</small>
       </label>
       <OptionsFields :options="sel.options" unset-label="inherit" />
     </div>

@@ -118,7 +118,14 @@ function errorText(e: WrappersError): string {
           <dd>
             <span v-if="line" :class="line.tone">{{ line.text }}</span>
             <div v-if="importable && !showImport" class="act">
-              <button type="button" class="btn" @click="showImport = true">Import binary</button>
+              <button
+                type="button"
+                class="btn"
+                :title="`Tell CRAB where this app's program is on ${where}`"
+                @click="showImport = true"
+              >
+                Import binary
+              </button>
             </div>
           </dd>
         </dl>

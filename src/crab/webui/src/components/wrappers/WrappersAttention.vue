@@ -103,6 +103,7 @@ function firstLine(text: string | null): string {
             <button
               v-if="canImport(w) && openRelpath !== w.relpath"
               class="btn"
+              :title="`Tell CRAB where this app's program is on ${target.label}`"
               @click="openRelpath = w.relpath"
             >
               Import binary

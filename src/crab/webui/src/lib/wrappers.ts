@@ -148,14 +148,15 @@ export function attentionCount(wrappers: WrapperEntry[]): number {
   return broken.length + missing.length;
 }
 
-/** Why a wrapper's binary is missing, naming what the lookup searched for. A wrapper with no
- * receipt id cannot take an imported binary, so the reason says where to set it instead. */
+/** Why a wrapper's binary is missing, in plain words: the app's program was not found, and
+ * where the lookup searched. A wrapper with no benchmark id cannot take an imported binary, so
+ * the reason says where to set it instead. */
 export function missingReason(w: BinaryInfo): string {
-  const base = "no receipt, config entry or PATH match";
+  const looked = "not built with crab setup, not imported, not set in the config, not on PATH";
   const name = w.executable ?? w.benchmark_id;
-  const reason = name ? `${base} for ${name}` : base;
+  const reason = name ? `program ${name} not found (${looked})` : `program not found (${looked})`;
   if (canImport(w)) return reason;
-  return `${reason}; no receipt id in this wrapper: set the app's binary in the experiment config`;
+  return `${reason}; this wrapper has no benchmark id, so set the app's binary in the experiment config`;
 }
 
 /** The first seven characters of a commit id ("" when there is none). */

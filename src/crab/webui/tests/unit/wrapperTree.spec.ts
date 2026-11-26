@@ -167,7 +167,7 @@ describe("summary text helpers", () => {
     });
     expect(binaryLine(missing, "leonardo")).toEqual({
       tone: "warn",
-      text: "missing on leonardo: no receipt, config entry or PATH match for amg",
+      text: "missing on leonardo: program amg not found (not built with crab setup, not imported, not set in the config, not on PATH)",
     });
   });
 

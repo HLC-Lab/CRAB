@@ -233,7 +233,11 @@ function confirmRemove(name: string) {
             </button>
             <button
               class="icon-btn"
-              title="Edit"
+              :title="
+                r.connected
+                  ? 'Disconnect this cluster first to edit its profile'
+                  : 'Edit this cluster\'s profile'
+              "
               :aria-label="`Edit ${r.name}`"
               :disabled="r.connected || store.busy[r.name]"
               @click="startEdit(r)"
@@ -245,7 +249,7 @@ function confirmRemove(name: string) {
             </button>
             <button
               class="icon-btn danger"
-              title="Remove"
+              title="Remove this profile (nothing on the cluster is deleted)"
               :aria-label="`Remove ${r.name}`"
               @click="confirmRemove(r.name)"
             >

@@ -60,6 +60,13 @@ const reuseLabel = computed(() =>
       <span v-if="wrapperWarning(app.path)" class="wrap-warn" :title="wrapperWarning(app.path)"
         >&#9888;</span
       >
+      <RouterLink
+        v-if="wrapperLink(app.path)"
+        :to="wrapperLink(app.path) ?? ''"
+        class="wrap-about"
+        title="Open this wrapper's page: what it measures and how it runs"
+        >About this wrapper</RouterLink
+      >
       <span v-if="groupNames.length" class="slicepick" title="Node group">
         <span
           class="sw"
@@ -95,10 +102,10 @@ const reuseLabel = computed(() =>
         </button>
       </ConfirmButton>
     </div>
-    <RouterLink v-if="wrapperLink(app.path)" :to="wrapperLink(app.path) ?? ''" class="wrap-about"
-      >About this wrapper</RouterLink
-    >
-    <input v-model="app.args" class="full" placeholder="args" />
+    <label class="args"
+      >Args, passed to the app's program
+      <input v-model="app.args" class="full" placeholder="optional" spellcheck="false" />
+    </label>
     <div class="timing">
       <label
         >Starts
@@ -129,9 +136,14 @@ const reuseLabel = computed(() =>
         >CPUs
         <input v-model="app.cpus" class="cpus" placeholder="all cores" spellcheck="false" />
       </label>
-      <label title="Empty: the experiment's value"
+      <label title="Empty: this experiment's value, else the global value"
         >Processes per node
-        <input v-model="app.ppn" class="ppn" placeholder="inherit" inputmode="numeric" />
+        <input
+          v-model="app.ppn"
+          class="ppn"
+          placeholder="inherit (experiment)"
+          inputmode="numeric"
+        />
       </label>
     </div>
     <div class="env">
@@ -266,8 +278,15 @@ select:focus {
   font-size: 0.9rem;
   cursor: help;
 }
+.args {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--text2);
+  font-size: var(--t-sm);
+}
 .wrap-about {
-  align-self: flex-start;
+  white-space: nowrap;
   color: var(--text3);
   font-family: var(--sans);
   font-size: var(--t-sm);
@@ -302,7 +321,7 @@ select:focus {
   width: 9rem;
 }
 .ppn {
-  width: 7rem;
+  width: 12rem;
 }
 .env {
   display: flex;
