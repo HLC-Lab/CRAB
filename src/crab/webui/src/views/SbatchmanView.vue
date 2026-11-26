@@ -5,7 +5,7 @@
 // ExperimentPane/AllocationEditor), a live YAML preview, and writing it to a
 // connected cluster. Launching
 // is SbatchMan's job (ADR-026): this view never triggers `sbatchman launch`.
-import { computed, onMounted, ref, watchEffect } from "vue";
+import { computed, nextTick, onMounted, ref, watch, watchEffect } from "vue";
 import { campaignFileName } from "@/lib/sbatchman";
 import { useSbatchmanStore } from "@/stores/sbatchman";
 import { useRemotesStore } from "@/stores/remotes";
@@ -44,11 +44,18 @@ const connectedClusters = computed(() =>
 watchEffect(() => store.syncDestination(connectedClusters.value));
 
 const showPreview = ref(true);
-const preview = ref<InstanceType<typeof CampaignPreview> | null>(null);
-// Works with the pane hidden: the pane opens itself before scrolling.
-function showProblems(): void {
-  preview.value?.revealProblems();
-}
+
+// While the bar shows the result of a write (or asks to replace a file) it is several lines
+// tall: it scrolls with the page instead of sticking, and is brought into view so the result
+// is seen even when the page was scrolled down. The first edit clears the notice (the store
+// resets it) and the bar sticks again.
+const actionbar = ref<HTMLElement | null>(null);
+const hasNotice = computed(() => store.lastWrite !== null || store.needsOverwrite);
+watch(hasNotice, async (on) => {
+  if (!on) return;
+  await nextTick();
+  actionbar.value?.scrollIntoView({ block: "start", behavior: "smooth" });
+});
 
 onMounted(() => {
   store.loadLibrary();
@@ -75,7 +82,7 @@ function confirmRemoveGroup(): void {
 
 <template>
   <section class="sbatchman">
-    <div class="actionbar">
+    <div ref="actionbar" class="actionbar" :class="{ loose: hasNotice }">
       <CampaignLibraryBar @new="afterNew" @opened="afterOpened" />
       <WriteTarget
         :connected-clusters="connectedClusters"
@@ -83,6 +90,7 @@ function confirmRemoveGroup(): void {
         :staging-path="store.stagingPath"
         :busy="store.busy"
         :problem-count="store.issues.length"
+        :issues="store.issues"
         :can-write="store.canWrite"
         :is-umbrella="store.target?.kind === 'umbrella'"
         :benchmark="store.benchmark"
@@ -96,7 +104,6 @@ function confirmRemoveGroup(): void {
         @update:benchmark="store.benchmark = $event"
         @write="store.write"
         @replace="store.write({ overwrite: true })"
-        @show-problems="showProblems"
       />
     </div>
 
@@ -178,7 +185,6 @@ function confirmRemoveGroup(): void {
       </section>
 
       <CampaignPreview
-        ref="preview"
         v-model:open="showPreview"
         :yaml="store.yaml"
         :file-name="campaignFileName(store.name)"
@@ -208,7 +214,7 @@ function confirmRemoveGroup(): void {
   height: calc(100vh - 48px - 2.4rem);
   overflow: auto;
 }
-/* The write controls never scroll away. */
+/* The write controls never scroll away, except while they show a write result (see hasNotice). */
 .actionbar {
   position: sticky;
   top: 0;
@@ -220,6 +226,13 @@ function confirmRemoveGroup(): void {
   /* extend over the page's side padding so scrolled content cannot peek out there */
   margin: 0 -1.5rem 0.25rem;
   padding: 1rem 1.5rem 0.75rem;
+}
+.actionbar.loose {
+  position: static;
+}
+/* The library buttons keep their width; the write block (with its long path) takes what is left. */
+.actionbar > :first-child {
+  flex: none;
 }
 /* A narrow window: the bar stops being sticky and wraps, so the write block gets its own row
    instead of a sliver beside the library buttons. */

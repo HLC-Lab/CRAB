@@ -4,7 +4,7 @@
 // the page's top bar (WriteTarget). Hide/Show is in the pane header; the pane
 // stays as a one-line strip when hidden, so it can be shown again. Presentational
 // only: the campaign store owns the data.
-import { nextTick, ref } from "vue";
+import { ref } from "vue";
 
 const props = defineProps<{
   yaml: string;
@@ -29,16 +29,6 @@ async function copyYaml() {
     /* clipboard blocked; the YAML view is still available to copy by hand */
   }
 }
-
-const problemList = ref<HTMLElement | null>(null);
-/** Open the pane if hidden and bring the problem list into view. */
-async function revealProblems(): Promise<void> {
-  emit("update:open", true);
-  await nextTick();
-  problemList.value?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  problemList.value?.focus({ preventScroll: true });
-}
-defineExpose({ revealProblems });
 </script>
 
 <template>
@@ -56,7 +46,7 @@ defineExpose({ revealProblems });
     </header>
 
     <template v-if="open">
-      <div v-if="issues.length" ref="problemList" class="issues" tabindex="-1">
+      <div v-if="issues.length" class="issues">
         <p class="issues-title">
           {{ issues.length }} problem{{ issues.length === 1 ? "" : "s" }} to fix before writing
         </p>
@@ -131,10 +121,6 @@ defineExpose({ revealProblems });
   border-bottom: 1px solid var(--border);
   font-size: var(--t-sm);
   color: var(--warn);
-  scroll-margin-top: 2.5rem;
-}
-.issues:focus {
-  outline: none;
 }
 .issues-title {
   margin: 0 0 0.25rem;

@@ -6,8 +6,10 @@
 // pointer to Remotes when no cluster is connected. On an umbrella install it also asks
 // for the benchmark folder the file goes into (existing folders are suggested, a new name
 // is allowed). When the cluster already has a file with this name it asks whether to
-// replace it. Presentational only: the store owns the state and does the API call.
-import { computed } from "vue";
+// replace it. The problem count opens the list of problems right under the button (a
+// popover that hangs below the bar, so the sticky bar stays one compact row). Presentational
+// only: the store owns the state and does the API call.
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import type { SbatchmanWriteResult } from "@/api/types";
 
@@ -23,6 +25,8 @@ const props = defineProps<{
   busy: boolean;
   /** Number of validation problems; Write files is disabled while it is above zero. */
   problemCount: number;
+  /** The problems themselves (validateCampaign output), listed when the count is pressed. */
+  issues: string[];
   canWrite: boolean;
   /** The cluster is an umbrella install: the file goes into a benchmark folder. */
   isUmbrella: boolean;
@@ -44,8 +48,34 @@ const emit = defineEmits<{
   "update:benchmark": [string];
   write: [];
   replace: [];
-  "show-problems": [];
 }>();
+
+// The problem list: toggled by the count, closed by Escape, a click elsewhere, or when the
+// last problem is fixed (the count is gone then).
+const root = ref<HTMLElement | null>(null);
+const problemsOpen = ref(false);
+function onDocClick(e: MouseEvent): void {
+  if (problemsOpen.value && root.value && !root.value.contains(e.target as Node)) {
+    problemsOpen.value = false;
+  }
+}
+function onKey(e: KeyboardEvent): void {
+  if (e.key === "Escape") problemsOpen.value = false;
+}
+onMounted(() => {
+  document.addEventListener("click", onDocClick);
+  document.addEventListener("keydown", onKey);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("click", onDocClick);
+  document.removeEventListener("keydown", onKey);
+});
+watch(
+  () => props.problemCount,
+  (n) => {
+    if (n === 0) problemsOpen.value = false;
+  },
+);
 
 // The directory part is dimmed context, the file name is what changes with the campaign name.
 const stagingDir = computed(() =>
@@ -65,7 +95,7 @@ const nextStepParts = computed(() =>
 </script>
 
 <template>
-  <section class="write-target" aria-label="Write to cluster">
+  <section ref="root" class="write-target" aria-label="Write to cluster">
     <div class="main">
       <div class="lbl">
         <span class="seclabel">Write to cluster</span>
@@ -78,10 +108,6 @@ const nextStepParts = computed(() =>
             >
               <option v-for="c in connectedClusters" :key="c" :value="c">{{ c }}</option>
             </select>
-            <span v-if="stagingPath" class="staging" :title="stagingPath"
-              >&rarr; <span class="dir">{{ stagingDir }}</span
-              ><b>{{ stagingFile }}</b></span
-            >
           </template>
           <span v-else class="none"
             >No cluster connected.
@@ -118,7 +144,9 @@ const nextStepParts = computed(() =>
           type="button"
           class="problems"
           title="Show what to fix"
-          @click="emit('show-problems')"
+          aria-controls="write-problems"
+          :aria-expanded="problemsOpen"
+          @click="problemsOpen = !problemsOpen"
         >
           {{ problemCount }} problem{{ problemCount === 1 ? "" : "s" }}
         </button>
@@ -126,6 +154,26 @@ const nextStepParts = computed(() =>
           {{ busy ? "Writing…" : "Write files" }}
         </button>
       </div>
+    </div>
+
+    <!-- The whole path, wrapped rather than cut: it is where the file goes. After a write the
+         notice below names the path it wrote, so this line makes way for it. -->
+    <p
+      v-if="connectedClusters.length && stagingPath && !lastWrite"
+      class="staging"
+      :title="stagingPath"
+    >
+      &rarr; <span class="dir">{{ stagingDir }}</span
+      ><b>{{ stagingFile }}</b>
+    </p>
+
+    <div v-if="problemsOpen && issues.length" id="write-problems" class="problem-pop">
+      <p class="pop-title">
+        {{ issues.length }} problem{{ issues.length === 1 ? "" : "s" }} to fix before writing
+      </p>
+      <ul>
+        <li v-for="msg in issues" :key="msg">{{ msg }}</li>
+      </ul>
     </div>
 
     <p v-if="benchmarkProblem" class="out problem" role="alert">{{ benchmarkProblem }}</p>
@@ -158,6 +206,7 @@ const nextStepParts = computed(() =>
 
 <style scoped>
 .write-target {
+  position: relative;
   margin-left: auto;
   min-width: 0;
   max-width: 100%;
@@ -235,26 +284,44 @@ select:focus {
 .out.problem {
   color: var(--warn);
 }
+/* Its own line under the controls, wrapped when long: nothing of the path is cut off. */
 .staging {
-  display: flex;
-  gap: 0.3rem;
-  min-width: 0;
-  max-width: 22rem;
+  margin: 0;
+  max-width: 60rem;
   font-family: var(--mono);
   font-size: var(--t-sm);
   color: var(--text2);
-  white-space: nowrap;
-}
-/* A long directory gives way, the file name (what the campaign name changes) stays whole. */
-.staging .dir {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .staging b {
-  flex-shrink: 0;
   color: var(--text);
   font-weight: 600;
+}
+/* Hangs under the bar instead of growing it: the sticky bar stays one compact row. */
+.problem-pop {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 60;
+  width: min(34rem, 90vw);
+  max-height: 50vh;
+  overflow: auto;
+  padding: 0.6rem 0.9rem;
+  background: var(--bg1);
+  border: 1px solid var(--warn);
+  border-radius: var(--r2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: var(--t-sm);
+  color: var(--warn);
+}
+.pop-title {
+  margin: 0 0 0.25rem;
+  font-weight: 600;
+}
+.problem-pop ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--text2);
 }
 .none {
   color: var(--text2);
@@ -304,7 +371,7 @@ select:focus {
 }
 .out {
   margin: 0;
-  max-width: 34rem;
+  max-width: 60rem;
   font-size: var(--t-sm);
   color: var(--text2);
   overflow-wrap: anywhere;
