@@ -34,6 +34,13 @@ export function installDirHint(
   return `CRAB is in ${crabDir(installDir)}. Save only stores this profile: the folder must already hold CRAB, or use Install CRAB on the cluster's card after saving.`;
 }
 
+/** The hint under the Name field of the Add cluster form. Only SbatchMan mode shows one: readers
+ * there ask whether the name must match the cluster name in `.local/configs.<cluster>.yaml`. */
+export function clusterNameHint(sbatchman: boolean): string {
+  if (!sbatchman) return "";
+  return "A label for this profile on your laptop. Nothing on the cluster or in SbatchMan reads it.";
+}
+
 export function crabCommandNote(command: string): string {
   return `This cluster runs \`${command}\` directly. You manage that install (pipx install crab-hpc).`;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { crabCommandView, installDirHint } from "@/lib/remoteCrab";
+import { clusterNameHint, crabCommandView, installDirHint } from "@/lib/remoteCrab";
 
 describe("crabCommandView", () => {
   it.each([null, undefined, "", "   "])(
@@ -70,5 +70,19 @@ describe("installDirHint", () => {
     for (const hint of [installDirHint("~", true, true), installDirHint("~", false, true)]) {
       expect(hint).not.toContain("\u2014");
     }
+  });
+});
+
+describe("clusterNameHint", () => {
+  it("in SbatchMan mode says the name is only a laptop label nothing else reads", () => {
+    const hint = clusterNameHint(true);
+    expect(hint).toContain("label");
+    expect(hint).toContain("on your laptop");
+    expect(hint).toContain("Nothing on the cluster or in SbatchMan reads it");
+    expect(hint).not.toContain("\u2014");
+  });
+
+  it("is empty outside SbatchMan mode", () => {
+    expect(clusterNameHint(false)).toBe("");
   });
 });

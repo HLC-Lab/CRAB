@@ -15,7 +15,7 @@ import type { SbatchmanWriteResult } from "@/api/types";
 
 // What the folder is, for the field's tooltip (the visible line under it is the short form).
 const BENCHMARK_HINT =
-  "A folder under benchmarks/ in the umbrella on the cluster. The jobs file is written there. Pick one or type a new name. Empty: the first folder.";
+  "A folder under benchmarks/ in the umbrella on the cluster. The jobs file is written there. Pick one or type a new name. Leave it empty to use the first folder in the list (alphabetical order); the grey text in the empty field is that default, not a value you typed.";
 
 const props = defineProps<{
   connectedClusters: string[];
@@ -134,7 +134,8 @@ const nextStepParts = computed(() =>
           <option v-for="b in benchmarks" :key="b" :value="b" />
         </datalist>
         <small id="benchmark-folder-hint" class="hint" :title="BENCHMARK_HINT"
-          >Where the jobs file goes, under benchmarks/. Empty: the first folder.</small
+          >Where the jobs file goes, under benchmarks/. Left empty, it uses the first folder in the
+          list (alphabetical): the grey text in the field is that default, not a value.</small
         >
       </div>
 
@@ -274,7 +275,7 @@ select:focus {
   border-color: var(--accent);
 }
 .folder .hint {
-  max-width: 15rem;
+  max-width: 18rem;
   font-size: var(--t-xs);
   color: var(--text3);
 }

@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRemotesStore } from "@/stores/remotes";
-import { crabCommandNote, crabCommandView, crabDir, installDirHint } from "@/lib/remoteCrab";
+import {
+  clusterNameHint,
+  crabCommandNote,
+  crabCommandView,
+  crabDir,
+  installDirHint,
+} from "@/lib/remoteCrab";
 import { needsLabel, presetsHint } from "@/lib/presetSetup";
 import { isSbatchmanMode } from "@/lib/mode";
 import { nameTaken, takenMessage } from "@/lib/remoteName";
@@ -54,6 +60,7 @@ const crabView = computed(() => crabCommandView(form.crab_command, form.remote_c
 const installHint = computed(() =>
   installDirHint(form.remote_crab, sbatchmanMode, crabView.value.showInstall),
 );
+const nameHint = computed(() => clusterNameHint(sbatchmanMode));
 // The name belongs to another remote: refused here, before the backend answers 409.
 const taken = computed(() => nameTaken(store.items, form.name ?? "", editingName.value));
 
@@ -131,10 +138,20 @@ function confirmRemove(name: string) {
       </div>
       <div class="grid">
         <label
-          >Name
-          <input v-model="form.name" required placeholder="my-cluster" :aria-invalid="taken" />
-          <!-- Inside the label, so it is part of the field's accessible name when it shows. -->
-          <small v-if="taken" class="field-hint field-error">{{
+          ><span id="cluster-name-text">Name</span>
+          <input
+            v-model="form.name"
+            required
+            placeholder="my-cluster"
+            :aria-invalid="taken"
+            aria-labelledby="cluster-name-text cluster-name-taken"
+            :aria-describedby="nameHint ? 'cluster-name-hint' : undefined"
+          />
+          <!-- The always-on hint is a description, not part of the field's name: aria-labelledby
+               on the input names it from the "Name" span (plus the taken message when it shows). -->
+          <small v-if="nameHint" id="cluster-name-hint" class="field-hint">{{ nameHint }}</small>
+          <!-- Part of the field's accessible name when it shows (see aria-labelledby above). -->
+          <small v-if="taken" id="cluster-name-taken" class="field-hint field-error">{{
             takenMessage(form.name ?? "")
           }}</small>
         </label>
