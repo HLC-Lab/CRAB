@@ -125,7 +125,7 @@ test("add a cluster, browse wrappers, write a campaign file", async ({ page }) =
   await page.getByRole("button", { name: "+ Add app" }).click();
   await page.getByRole("button", { name: "Choose wrapper…" }).click();
   await page.locator(".wrap-row", { hasText: "path_app.py" }).click();
-  await page.getByPlaceholder("args", { exact: true }).fill("--size 8");
+  await page.getByLabel(/^Args/).fill("--size 8");
 
   // 7. Write files; the page shows the path it wrote.
   await expect(writeBar.getByRole("button", { name: /\d+ problems?/ })).toHaveCount(0);
