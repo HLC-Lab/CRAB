@@ -11,6 +11,18 @@ import type { Wrapper } from "@/api/types";
 type WrapperOrigin = "host" | "remote" | "both";
 type TaggedWrapper = Wrapper & { origin: WrapperOrigin };
 
+// Where a wrapper file exists: "host" is this laptop, "remote" the connected cluster.
+const ORIGIN_LABEL: Record<WrapperOrigin, string> = {
+  host: "laptop only",
+  remote: "cluster only",
+  both: "laptop + cluster",
+};
+const ORIGIN_HINT: Record<WrapperOrigin, string> = {
+  host: "This wrapper file is on this laptop and not on the connected cluster",
+  remote: "This wrapper file is on the connected cluster and not on this laptop",
+  both: "This wrapper file is on this laptop and on the connected cluster",
+};
+
 const props = defineProps<{
   wrappers: TaggedWrapper[];
   sourceCluster: string;
@@ -118,8 +130,8 @@ const canAddFree = computed(
             <span class="wrap-path">{{ subPath(w.relpath, group) }}</span>
           </span>
           <span class="wrap-tags">
-            <span class="tag origin" :class="w.origin">{{
-              w.origin === "both" ? "host + remote" : w.origin
+            <span class="tag origin" :class="w.origin" :title="ORIGIN_HINT[w.origin]">{{
+              ORIGIN_LABEL[w.origin]
             }}</span>
             <span v-if="w.metadata.length" class="tag"
               >{{ w.metadata.length }} metric{{ w.metadata.length === 1 ? "" : "s" }}</span

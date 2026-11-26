@@ -286,25 +286,31 @@ describe("needsAttention", () => {
 });
 
 describe("missingReason", () => {
+  const looked = "not built with crab setup, not imported, not set in the config, not on PATH";
+
   it("names the executable the lookup was for", () => {
     expect(missingReason(entry("a/1.py", "missing", { executable: "amg" }))).toBe(
-      "no receipt, config entry or PATH match for amg",
+      `program amg not found (${looked})`,
     );
   });
 
   it("falls back to the benchmark id when there is no executable", () => {
     const noExe = entry("a/1.py", "missing", { executable: null, benchmark_id: "amg2" });
-    expect(missingReason(noExe)).toBe("no receipt, config entry or PATH match for amg2");
+    expect(missingReason(noExe)).toBe(`program amg2 not found (${looked})`);
   });
 
-  it("says how to fix a wrapper that has no receipt id (Import binary is not possible)", () => {
-    const fix = "no receipt id in this wrapper: set the app's binary in the experiment config";
+  it("says how to fix a wrapper that has no benchmark id (Import binary is not possible)", () => {
+    const fix =
+      "this wrapper has no benchmark id, so set the app's binary in the experiment config";
     const withExe = entry("a/1.py", "missing", { executable: "ib_send_lat", benchmark_id: null });
-    expect(missingReason(withExe)).toBe(
-      `no receipt, config entry or PATH match for ib_send_lat; ${fix}`,
-    );
+    expect(missingReason(withExe)).toBe(`program ib_send_lat not found (${looked}); ${fix}`);
     const neither = entry("a/1.py", "missing", { executable: null, benchmark_id: null });
-    expect(missingReason(neither)).toBe(`no receipt, config entry or PATH match; ${fix}`);
+    expect(missingReason(neither)).toBe(`program not found (${looked}); ${fix}`);
+  });
+
+  it("does not use the word receipt, which a newcomer has not met", () => {
+    const w = entry("a/1.py", "missing", { executable: null, benchmark_id: null });
+    expect(missingReason(w)).not.toMatch(/receipt/i);
   });
 });
 

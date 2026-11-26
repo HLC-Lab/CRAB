@@ -35,8 +35,8 @@ async function submit() {
 <template>
   <form class="import" @submit.prevent="submit">
     <p class="lead">
-      Saves a receipt named <code>{{ wrapper.benchmark_id }}</code> on {{ targetLabel }}, so every
-      run of {{ fileName }} there uses this binary.
+      Saves the location of the program for <code>{{ wrapper.benchmark_id }}</code> on
+      {{ targetLabel }} (a receipt), so every run of {{ fileName }} there uses this binary.
     </p>
     <div class="grid">
       <label
@@ -68,7 +68,7 @@ async function submit() {
         class="btn primary"
         :disabled="store.importing[key] || !form.binary.trim()"
       >
-        {{ store.importing[key] ? "Saving…" : "Save receipt" }}
+        {{ store.importing[key] ? "Saving…" : "Save binary path" }}
       </button>
     </div>
   </form>
