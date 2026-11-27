@@ -18,6 +18,11 @@ The wrapper is created in the shared wrappers folder (the first folder of `CRAB_
 git-ignored and meant for private or in-progress wrappers, or `--dir <folder>` for any other
 folder.
 
+To have a language model draft the wrapper, give it the file
+[WRAPPER-SKILL.md](https://raw.githubusercontent.com/HLC-Lab/crab-wrappers/main/WRAPPER-SKILL.md)
+of crab-wrappers and a real output of the application. The file walks the model through these
+same steps, from the output to a wrapper that passes `crab wrappers test --strict`.
+
 The web dashboard lists the wrappers of this laptop and of each connected cluster, and its New
 wrapper button shows this command: see [Wrappers in the web
 dashboard](../using/dashboard-wrappers.md).
